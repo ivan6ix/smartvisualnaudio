@@ -48,17 +48,32 @@ const demoUsers = {
 
 const allowDemoAuth = !hasSupabaseConfig && import.meta.env.DEV;
 
+function withTimeout(promise, ms = 6000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error("Request timed out.")), ms);
+    }),
+  ]);
+}
+
 async function mapAuthUser(authUser) {
   if (!authUser) return null;
 
   let profile = null;
   if (hasSupabaseConfig) {
-    const { data } = await supabase
-      .from("profiles")
-      .select("role, full_name, status")
-      .eq("id", authUser.id)
-      .maybeSingle();
-    profile = data;
+    try {
+      const { data } = await withTimeout(
+        supabase
+          .from("profiles")
+          .select("role, full_name, status")
+          .eq("id", authUser.id)
+          .maybeSingle(),
+      );
+      profile = data;
+    } catch (error) {
+      window.console.error("[Auth] Profile load failed", error);
+    }
   }
 
   return {
@@ -75,20 +90,39 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(Boolean(hasSupabaseConfig));
 
   useEffect(() => {
-    if (!hasSupabaseConfig) return;
-
-    supabase.auth.getSession().then(async ({ data }) => {
-      const authUser = data.session?.user;
-      setUser(await mapAuthUser(authUser));
+    if (!hasSupabaseConfig) {
       setLoading(false);
-    });
+      return undefined;
+    }
+
+    let active = true;
+
+    async function loadSession() {
+      try {
+        const { data } = await withTimeout(supabase.auth.getSession());
+        const authUser = data.session?.user;
+        const nextUser = await mapAuthUser(authUser);
+        if (active) setUser(nextUser);
+      } catch (error) {
+        window.console.error("[Auth] Session load failed", error);
+        if (active) setUser(null);
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+
+    loadSession();
 
     const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const authUser = session?.user;
       setUser(await mapAuthUser(authUser));
+      setLoading(false);
     });
 
-    return () => listener.subscription.unsubscribe();
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
   async function login(email, password) {
