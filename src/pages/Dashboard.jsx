@@ -15,6 +15,12 @@ const defaultStats = {
   deans: 4,
 };
 
+const defaultHealth = {
+  database: "Checking",
+  realtime: "Checking",
+  storage: "Checking",
+};
+
 const violationLabels = {
   MULTIPLE_FACE: "Multiple Face",
   NO_FACE: "No Face",
@@ -39,6 +45,7 @@ export default function Dashboard() {
   const [liveViolationChart, setLiveViolationChart] = useState(violationChart);
   const [liveExams, setLiveExams] = useState(exams);
   const [liveLogs, setLiveLogs] = useState(logs);
+  const [systemHealth, setSystemHealth] = useState(defaultHealth);
 
   useEffect(() => {
     if (!hasSupabaseConfig) return;
@@ -66,6 +73,50 @@ export default function Dashboard() {
     }
 
     loadStats();
+  }, []);
+
+  useEffect(() => {
+    if (!hasSupabaseConfig) {
+      setSystemHealth({ database: "Demo", realtime: "Demo", storage: "Demo" });
+      return undefined;
+    }
+
+    let active = true;
+
+    async function loadSystemHealth() {
+      const [{ error: databaseError }, { data: buckets, error: storageError }] = await Promise.all([
+        supabase.from("profiles").select("id", { count: "exact", head: true }).limit(1),
+        supabase.storage.listBuckets(),
+      ]);
+
+      if (!active) return;
+      setSystemHealth((current) => ({
+        ...current,
+        database: databaseError ? "Offline" : "Online",
+        storage: storageError ? "Unavailable" : `${(buckets || []).length} buckets`,
+      }));
+    }
+
+    loadSystemHealth();
+
+    const channel = supabase
+      .channel("admin-dashboard-health")
+      .on("postgres_changes", { event: "*", schema: "public", table: "notifications" }, () => {})
+      .subscribe((status) => {
+        if (!active) return;
+        setSystemHealth((current) => ({
+          ...current,
+          realtime: status === "SUBSCRIBED" ? "Connected" : status === "CHANNEL_ERROR" || status === "TIMED_OUT" ? "Disconnected" : "Connecting",
+        }));
+      });
+
+    const refreshTimer = window.setInterval(loadSystemHealth, 30000);
+
+    return () => {
+      active = false;
+      window.clearInterval(refreshTimer);
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -144,9 +195,21 @@ export default function Dashboard() {
         <Card>
           <h2>System Health Status</h2>
           <div className="health-list">
-            <span><FiDatabase /> Database Status <Badge tone="success">Online</Badge></span>
-            <span><FiActivity /> Realtime Status <Badge tone="success">Connected</Badge></span>
-            <span><FiDatabase /> Storage Usage <strong>4.2GB / 10GB</strong></span>
+            <span>
+              <FiDatabase />
+              Database Status
+              <Badge tone={systemHealth.database === "Online" ? "success" : systemHealth.database === "Checking" ? "warn" : "danger"}>{systemHealth.database}</Badge>
+            </span>
+            <span>
+              <FiActivity />
+              Realtime Status
+              <Badge tone={systemHealth.realtime === "Connected" ? "success" : systemHealth.realtime === "Checking" || systemHealth.realtime === "Connecting" ? "warn" : "danger"}>{systemHealth.realtime}</Badge>
+            </span>
+            <span>
+              <FiDatabase />
+              Storage Buckets
+              <Badge tone={systemHealth.storage === "Unavailable" ? "danger" : systemHealth.storage === "Checking" ? "warn" : "success"}>{systemHealth.storage}</Badge>
+            </span>
           </div>
         </Card>
       </div>
