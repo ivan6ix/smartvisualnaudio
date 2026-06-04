@@ -4,6 +4,7 @@ import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AccountSettingsModal from "../../components/AccountSettingsModal";
 import MessageModal from "../../components/MessageModal";
+import { PageSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useMessagePreview from "../../hooks/useMessagePreview";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -61,7 +62,7 @@ export default function DeanLayout() {
     };
   }, [user?.id]);
 
-  if (loading) return <main className="center-screen">Loading...</main>;
+  if (loading) return <PageSkeleton />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "Dean") return <Navigate to="/" replace />;
 

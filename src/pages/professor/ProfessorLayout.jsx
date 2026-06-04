@@ -4,6 +4,7 @@ import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import AccountSettingsModal from "../../components/AccountSettingsModal";
 import MessageModal from "../../components/MessageModal";
+import { PageSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { professorNotifications } from "../../data/professorData";
 import useMessagePreview from "../../hooks/useMessagePreview";
@@ -62,7 +63,7 @@ export default function ProfessorLayout() {
     };
   }, [user?.id]);
 
-  if (loading) return <main className="center-screen">Loading...</main>;
+  if (loading) return <PageSkeleton />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "Professor") return <Navigate to="/" replace />;
 

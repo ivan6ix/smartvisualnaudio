@@ -3,6 +3,7 @@ import { FiBell, FiChevronDown, FiLogOut, FiMessageCircle, FiShield, FiUser } fr
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import AccountSettingsModal from "../../components/AccountSettingsModal";
 import MessageModal from "../../components/MessageModal";
+import { PageSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
 import useMessagePreview from "../../hooks/useMessagePreview";
@@ -17,7 +18,7 @@ export default function ClusterLayout() {
   const unreadNotifications = notifications.filter((item) => !item.isRead).length;
   const { conversations, unreadCount } = useMessagePreview(user);
 
-  if (loading) return <main className="center-screen">Loading...</main>;
+  if (loading) return <PageSkeleton />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "Cluster Professor") return <Navigate to="/" replace />;
 

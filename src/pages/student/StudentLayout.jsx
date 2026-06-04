@@ -3,6 +3,7 @@ import { FiBell, FiChevronDown, FiLogOut, FiMessageCircle, FiShield, FiUser } fr
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import AccountSettingsModal from "../../components/AccountSettingsModal";
 import MessageModal from "../../components/MessageModal";
+import { PageSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useMessagePreview from "../../hooks/useMessagePreview";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -58,7 +59,7 @@ export default function StudentLayout() {
     };
   }, [user?.id]);
 
-  if (loading) return <main className="center-screen">Loading...</main>;
+  if (loading) return <PageSkeleton />;
   if (!user) return <Navigate to="/login" replace />;
   if (user.role !== "Student") return <Navigate to="/" replace />;
 

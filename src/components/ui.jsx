@@ -79,6 +79,28 @@ export function EmptyState({ title = "No records found", description = "Try adju
   return <div className="empty-state"><FiArchive /><strong>{title}</strong><span>{description}</span></div>;
 }
 
+export function SkeletonBlock({ className = "" }) {
+  return <div className={`skeleton-block ${className}`} />;
+}
+
+export function PageSkeleton({ cards = 4, rows = 5 }) {
+  return (
+    <main className="app-shell page-skeleton" aria-busy="true">
+      <div className="skeleton-header">
+        <SkeletonBlock className="skeleton-title" />
+        <SkeletonBlock className="skeleton-subtitle" />
+      </div>
+      <div className="stats-grid">
+        {Array.from({ length: cards }).map((_, index) => <SkeletonBlock key={index} className="skeleton-stat-card" />)}
+      </div>
+      <Card className="skeleton-table-card">
+        <SkeletonBlock className="skeleton-toolbar" />
+        {Array.from({ length: rows }).map((_, index) => <SkeletonBlock key={index} className="skeleton-row" />)}
+      </Card>
+    </main>
+  );
+}
+
 export function Table({ columns, rows, renderActions }) {
   return (
     <div className="table-wrap">

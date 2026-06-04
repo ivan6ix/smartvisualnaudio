@@ -509,6 +509,31 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .tabs button.active { background: #111; color: #fff; border-color: #111; font-weight: 400; }
 .empty-state { padding: 30px; text-align: center; display: grid; place-items: center; gap: 8px; color: #666; }
+.page-skeleton { min-height: calc(100vh - 72px); }
+.skeleton-header { display: grid; gap: 12px; margin-bottom: 22px; max-width: 520px; }
+.skeleton-block {
+  position: relative;
+  overflow: hidden;
+  border-radius: 14px;
+  background: #eeeeea;
+}
+.skeleton-block::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.72), transparent);
+  animation: skeleton-shimmer 1.35s infinite;
+}
+.skeleton-title { width: min(360px, 70vw); height: 42px; }
+.skeleton-subtitle { width: min(520px, 82vw); height: 16px; }
+.skeleton-stat-card { min-height: 116px; border-radius: 22px; }
+.skeleton-table-card { display: grid; gap: 14px; }
+.skeleton-toolbar { height: 42px; width: 100%; }
+.skeleton-row { height: 54px; width: 100%; }
+@keyframes skeleton-shimmer {
+  to { transform: translateX(100%); }
+}
 
 .cluster-topbar {
   position: sticky;
