@@ -46,34 +46,46 @@ const demoUsers = {
   },
 };
 
+const allowDemoAuth = !hasSupabaseConfig && import.meta.env.DEV;
+
+async function mapAuthUser(authUser) {
+  if (!authUser) return null;
+
+  let profile = null;
+  if (hasSupabaseConfig) {
+    const { data } = await supabase
+      .from("profiles")
+      .select("role, full_name, status")
+      .eq("id", authUser.id)
+      .maybeSingle();
+    profile = data;
+  }
+
+  return {
+    id: authUser.id,
+    email: authUser.email,
+    role: profile?.role || authUser.user_metadata?.role || "Student",
+    fullName: profile?.full_name || authUser.user_metadata?.full_name || authUser.email,
+    status: profile?.status || authUser.user_metadata?.status,
+  };
+}
+
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(hasSupabaseConfig ? null : demoUser);
+  const [user, setUser] = useState(allowDemoAuth ? demoUser : null);
   const [loading, setLoading] = useState(Boolean(hasSupabaseConfig));
 
   useEffect(() => {
     if (!hasSupabaseConfig) return;
 
-    supabase.auth.getSession().then(({ data }) => {
+    supabase.auth.getSession().then(async ({ data }) => {
       const authUser = data.session?.user;
-      if (authUser) {
-        setUser({
-          id: authUser.id,
-          email: authUser.email,
-          role: authUser.user_metadata?.role || "Admin",
-          fullName: authUser.user_metadata?.full_name || authUser.email,
-        });
-      }
+      setUser(await mapAuthUser(authUser));
       setLoading(false);
     });
 
-    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
       const authUser = session?.user;
-      setUser(authUser ? {
-        id: authUser.id,
-        email: authUser.email,
-        role: authUser.user_metadata?.role || "Student",
-        fullName: authUser.user_metadata?.full_name || authUser.email,
-      } : null);
+      setUser(await mapAuthUser(authUser));
     });
 
     return () => listener.subscription.unsubscribe();
@@ -83,17 +95,12 @@ export function AuthProvider({ children }) {
     if (hasSupabaseConfig) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
-      const authUser = data.user;
-      const nextUser = authUser ? {
-        id: authUser.id,
-        email: authUser.email,
-        role: authUser.user_metadata?.role || "Student",
-        fullName: authUser.user_metadata?.full_name || authUser.email,
-      } : null;
+      const nextUser = await mapAuthUser(data.user);
       setUser(nextUser);
       toast.success("Login successful");
       return nextUser;
     }
+    if (!allowDemoAuth) throw new Error("Supabase environment variables are missing.");
     const nextUser = demoUsers[email] || { ...demoUser, email: email || demoUser.email };
     setUser(nextUser);
     toast.success("Demo login successful");
