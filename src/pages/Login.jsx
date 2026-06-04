@@ -9,9 +9,7 @@ export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({
-    defaultValues: import.meta.env.DEV ? { email: "admin@university.edu", password: "123456" } : { email: "", password: "" },
-  });
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm({ defaultValues: { email: "", password: "" } });
 
   useEffect(() => {
     if (searchParams.get("confirmed") === "1") {
