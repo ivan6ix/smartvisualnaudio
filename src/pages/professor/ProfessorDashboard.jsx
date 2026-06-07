@@ -227,11 +227,11 @@ export default function ProfessorDashboard() {
           <div className="chart-box professor-violation-chart">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={violationChartData}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" interval={0} tick={{ fontSize: 11 }} />
-                <YAxis allowDecimals={false} />
-                <Tooltip />
-                <Bar dataKey="count" fill="#111111" radius={[8, 8, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.18)" />
+                <XAxis dataKey="name" interval={0} tick={{ fontSize: 11, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(34, 211, 238, 0.25)", borderRadius: 14, color: "#fff" }} />
+                <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

@@ -1,4 +1,5 @@
 import { useForm } from "react-hook-form";
+import { FiShield, FiUserCheck } from "react-icons/fi";
 import { toast } from "sonner";
 import { Button, Card, Field, PageHeader, Table } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
@@ -14,10 +15,18 @@ export default function SecurityPrivacy() {
   }
 
   return (
-    <>
+    <section className="admin-dashboard-page admin-section-page security-privacy-page">
+      <div className="admin-section-hero">
+        <div>
+          <span><FiShield /> Account Security Console</span>
+          <h1>Security & Privacy</h1>
+          <p>Manage profile identity, password protection, and recent account activity with a readable secure settings layout.</p>
+        </div>
+        <strong><FiUserCheck /></strong>
+      </div>
       <PageHeader title="Security & Privacy" subtitle="Manage account information, password changes, and activity logs." />
       <div className="dashboard-grid">
-        <Card>
+        <Card className="admin-panel settings-surface-card">
           <h2>Account Information</h2>
           <div className="info-list">
             <span>Full Name <strong>{user?.fullName}</strong></span>
@@ -25,7 +34,7 @@ export default function SecurityPrivacy() {
             <span>Role <strong>{user?.role}</strong></span>
           </div>
         </Card>
-        <Card>
+        <Card className="admin-panel settings-surface-card">
           <h2>Change Password</h2>
           <form className="stack-form" onSubmit={handleSubmit(changePassword)}>
             <Field label="Current Password" type="password" {...register("currentPassword", { required: true })} />
@@ -35,10 +44,10 @@ export default function SecurityPrivacy() {
           </form>
         </Card>
       </div>
-      <Card>
+      <Card className="admin-panel admin-activity-panel settings-surface-card">
         <h2>Activity Logs</h2>
         <Table columns={[{ key: "action", label: "Action" }, { key: "description", label: "Description" }, { key: "createdAt", label: "Date" }]} rows={logs.filter((log) => ["Login", "Logout", "Password Change"].includes(log.action))} />
       </Card>
-    </>
+    </section>
   );
 }

@@ -2698,6 +2698,300 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   text-align: center;
   font-weight: 800;
 }
+
+.professor-topbar {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.92)),
+    radial-gradient(circle at 18% 0%, rgba(6, 182, 212, 0.2), transparent 28%);
+  border-bottom: 1px solid rgba(125, 211, 252, 0.18);
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.24);
+}
+.professor-topbar .cluster-brand {
+  position: relative;
+  padding-left: 46px;
+}
+.professor-topbar .cluster-brand::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(34, 211, 238, 0.5);
+  border-radius: 12px;
+  transform: translateY(-50%);
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.28), rgba(37, 99, 235, 0.12));
+  box-shadow: 0 0 22px rgba(6, 182, 212, 0.24);
+}
+.professor-topbar .cluster-brand strong { color: #fff; }
+.professor-topbar .cluster-brand span,
+.professor-topbar nav a { color: #cbd5e1; }
+.professor-topbar nav a {
+  border: 1px solid rgba(125, 211, 252, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+.professor-topbar nav a.active,
+.professor-topbar nav a:hover {
+  color: #fff;
+  border-color: rgba(34, 211, 238, 0.38);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.34), rgba(6, 182, 212, 0.16));
+  box-shadow: 0 0 22px rgba(6, 182, 212, 0.14);
+}
+.professor-topbar .cluster-tools button {
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e0f2fe;
+}
+.professor-topbar .cluster-tools button:hover {
+  background: rgba(6, 182, 212, 0.14);
+  border-color: rgba(125, 211, 252, 0.34);
+}
+.professor-topbar .cluster-tools button span { background: #06b6d4; }
+.professor-topbar .message-menu-panel,
+.professor-topbar .notification-menu-panel,
+.professor-topbar .cluster-profile-menu > div {
+  border-color: rgba(125, 211, 252, 0.18);
+  background: rgba(15, 23, 42, 0.96);
+  color: #e2e8f0;
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.38);
+  backdrop-filter: blur(18px);
+}
+.professor-topbar .message-menu-panel article,
+.professor-topbar .notification-menu-panel article {
+  background: rgba(255, 255, 255, 0.06);
+}
+.professor-topbar .message-menu-panel article:hover,
+.professor-topbar .notification-menu-panel article:hover,
+.professor-topbar .cluster-profile-menu > div button:hover {
+  background: rgba(6, 182, 212, 0.12);
+}
+.professor-topbar .message-menu-panel article p,
+.professor-topbar .message-menu-panel article small,
+.professor-topbar .notification-menu-panel article p,
+.professor-topbar .notification-menu-panel article small,
+.professor-topbar .message-menu-empty {
+  color: #94a3b8;
+}
+.professor-shell {
+  position: relative;
+  color: #e5f3ff;
+  background:
+    radial-gradient(circle at 16% 6%, rgba(6, 182, 212, 0.18), transparent 30%),
+    radial-gradient(circle at 88% 18%, rgba(37, 99, 235, 0.16), transparent 28%),
+    linear-gradient(135deg, #0f172a 0%, #111827 48%, #020617 100%);
+}
+.professor-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.5;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+.professor-shell .page-header,
+.professor-exams-header {
+  min-height: 190px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 22px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 86% 18%, rgba(6, 182, 212, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.78));
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: clamp(24px, 4vw, 40px);
+  backdrop-filter: blur(18px);
+}
+.professor-shell .page-header h1,
+.professor-exams-header h1 {
+  color: #fff;
+  font-size: clamp(2rem, 4vw, 3.8rem);
+  line-height: 0.98;
+}
+.professor-shell .page-header p,
+.professor-exams-header p {
+  color: #cbd5e1;
+  max-width: 720px;
+  line-height: 1.65;
+}
+.professor-shell .card,
+.professor-exams-section,
+.professor-exams-table-card,
+.professor-score-table-wrap,
+.professor-monitoring-modal,
+.professor-share-modal,
+.professor-manual-modal,
+.professor-score-modal {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e5f3ff;
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+}
+.professor-shell .card h2,
+.professor-courses-header h2,
+.professor-exams-section-header h2,
+.professor-share-header h2,
+.professor-score-table strong,
+.professor-exams-table strong,
+.professor-monitoring-grid strong,
+.professor-alert-list strong { color: #fff; }
+.professor-shell .card p,
+.professor-courses-header p,
+.professor-exams-section-header p,
+.professor-course-card-grid span,
+.professor-course-card-grid small,
+.professor-course-exam-list small,
+.professor-monitoring-grid span,
+.professor-monitoring-grid small,
+.professor-alert-list small,
+.professor-alert-list time { color: #94a3b8; }
+.professor-shell .stat-card {
+  border-color: rgba(125, 211, 252, 0.18);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.68));
+  color: #e5f3ff;
+}
+.professor-shell .stat-card svg { color: #67e8f9; }
+.professor-shell .stat-card strong { color: #fff; }
+.professor-shell .stat-card span { color: #cbd5e1; }
+.professor-shell .btn:not(.btn-light),
+.professor-create-exam,
+.professor-exam-actions button:not(.danger):not(.locked):not(.muted),
+.professor-share-targets article > button,
+.professor-manual-grade button {
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.24);
+}
+.professor-shell .btn-light,
+.professor-exam-actions button,
+.professor-share-back,
+.professor-manual-grade button.secondary {
+  border-color: rgba(125, 211, 252, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e0f2fe;
+}
+.professor-shell .btn-light:hover,
+.professor-exam-actions button:hover,
+.professor-share-back:hover {
+  border-color: rgba(125, 211, 252, 0.44);
+  background: rgba(6, 182, 212, 0.14);
+}
+.professor-analytics-filters select,
+.professor-exam-section-filters input,
+.professor-exam-section-filters select,
+.professor-score-filters .field input,
+.professor-score-filters .field select,
+.professor-score-filters .search-box,
+.professor-shell .search-box,
+.professor-shell .field input,
+.professor-shell .field select {
+  border-color: rgba(125, 211, 252, 0.18);
+  background: rgba(2, 6, 23, 0.46);
+  color: #f8fafc;
+  outline: 0;
+}
+.professor-shell .field span { color: #bfdbfe; }
+.professor-shell option { background: #0f172a; color: #fff; }
+.professor-shell .search-box input { color: #f8fafc; }
+.professor-shell .search-box input::placeholder,
+.professor-exam-section-filters input::placeholder { color: #94a3b8; }
+.professor-course-card-grid > button,
+.professor-course-exam-list article,
+.professor-alert-list article,
+.professor-monitoring-grid > article,
+.professor-monitoring-alert-list article,
+.professor-manual-list article,
+.professor-manual-detail article,
+.professor-share-targets article {
+  border-color: rgba(125, 211, 252, 0.14);
+  background: rgba(2, 6, 23, 0.38);
+  color: #e5f3ff;
+}
+.professor-course-card-grid > button.active,
+.professor-course-card-grid > button:hover,
+.professor-monitoring-grid > article:hover,
+.professor-manual-list article:hover {
+  border-color: rgba(34, 211, 238, 0.42);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.32), rgba(6, 182, 212, 0.14));
+}
+.professor-course-card-grid svg,
+.professor-monitoring-avatar,
+.professor-courses-header > span,
+.professor-exams-section-header > span,
+.professor-score-header-actions > span {
+  color: #67e8f9;
+  background: rgba(6, 182, 212, 0.12);
+  border-color: rgba(125, 211, 252, 0.22);
+}
+.professor-course-card-grid i {
+  background: rgba(37, 99, 235, 0.18);
+  color: #bfdbfe;
+}
+.professor-shell .badge { background: rgba(148, 163, 184, 0.14); color: #e2e8f0; }
+.professor-shell .badge-success { background: rgba(16, 185, 129, 0.16); color: #86efac; }
+.professor-shell .badge-danger { background: rgba(239, 68, 68, 0.16); color: #fca5a5; }
+.professor-shell .badge-warn { background: rgba(245, 158, 11, 0.17); color: #fde68a; }
+.professor-shell .badge-blue { background: rgba(37, 99, 235, 0.2); color: #bfdbfe; }
+.professor-score-table,
+.professor-exams-table { color: #e2e8f0; }
+.professor-score-table th,
+.professor-score-table td,
+.professor-exams-table th,
+.professor-exams-table td { border-bottom-color: rgba(125, 211, 252, 0.1); }
+.professor-score-table th,
+.professor-exams-table th { color: #93c5fd; }
+.professor-violation-chart {
+  border-color: rgba(125, 211, 252, 0.12);
+  background: rgba(2, 6, 23, 0.32);
+}
+.professor-monitoring-backdrop,
+.professor-share-backdrop {
+  background: rgba(2, 6, 23, 0.66);
+  backdrop-filter: blur(10px);
+}
+.professor-share-header p,
+.professor-share-targets article span,
+.professor-monitoring-alert-list span,
+.professor-monitoring-alert-list small,
+.professor-manual-list span,
+.professor-manual-list small,
+.professor-manual-detail span,
+.professor-manual-detail p { color: #94a3b8; }
+.professor-share-header > button {
+  border-color: rgba(125, 211, 252, 0.22);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e0f2fe;
+}
+.professor-messages-page .page-header,
+.professor-messages-page .messages-layout > .card,
+.professor-messages-page .chat-card,
+.professor-messages-page .new-message-panel {
+  border-color: rgba(191, 219, 254, 0.9);
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(239, 246, 255, 0.9)),
+    linear-gradient(90deg, rgba(37, 99, 235, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(37, 99, 235, 0.035) 1px, transparent 1px);
+  background-size: auto, 28px 28px, 28px 28px;
+  color: #0f172a;
+}
+.professor-messages-page .page-header h1,
+.professor-messages-page .chat-card .page-header h1,
+.professor-messages-page .conversation-list button strong { color: #0f172a; }
+.professor-messages-page .page-header p,
+.professor-messages-page .chat-card .page-header p { color: #475569; }
+.professor-messages-page .field span { color: #334155; }
+.professor-messages-page .field input,
+.professor-messages-page .search-box,
+.professor-messages-page .search-box input {
+  background: #fff;
+  color: #0f172a;
+}
 .professor-create-exam-page {
   width: min(100%, 1140px);
   margin: 0 auto;
