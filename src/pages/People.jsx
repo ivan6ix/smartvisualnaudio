@@ -173,9 +173,17 @@ export default function People({ type }) {
   ];
 
   return (
-    <>
+    <section className="admin-dashboard-page admin-section-page">
+      <div className="admin-section-hero">
+        <div>
+          <span><FiUserPlus /> Account Provisioning</span>
+          <h1>{title}</h1>
+          <p>Create, reset, deactivate, and reactivate {accountType.toLowerCase()} accounts with the same monitored identity workflow used across the platform.</p>
+        </div>
+        <strong>{filtered.length}</strong>
+      </div>
       <PageHeader title={title} subtitle={`Create, reset, deactivate, and reactivate ${accountType.toLowerCase()} accounts.`} />
-      <Card>
+      <Card className="admin-panel admin-form-panel">
         <form className="inline-form" onSubmit={createPerson}>
           {!type ? (
             <SelectField label="Account Type" value={selectedType} onChange={(event) => setSelectedType(event.target.value)}>
@@ -190,7 +198,7 @@ export default function People({ type }) {
         </form>
       </Card>
       <SearchBox value={search} onChange={setSearch} placeholder="Search by name or employee number" />
-      <Card>
+      <Card className="admin-panel admin-activity-panel">
         <h2>Active {getPlural(accountType)}</h2>
         <Table columns={columns} rows={active} renderActions={(row) => (
           <>
@@ -199,10 +207,10 @@ export default function People({ type }) {
           </>
         )} />
       </Card>
-      <Card>
+      <Card className="admin-panel admin-activity-panel">
         <h2>Deactivated {getPlural(accountType)}</h2>
         <Table columns={columns} rows={deactivated} renderActions={(row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>} />
       </Card>
-    </>
+    </section>
   );
 }

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiPrinter } from "react-icons/fi";
-import { Button, Card, PageHeader, SearchBox, SelectField, StatCard, Table } from "../components/ui";
+import { FiActivity, FiBookOpen, FiFileText, FiPrinter, FiShield, FiUsers } from "react-icons/fi";
+import { Button, Card, PageHeader, SearchBox, SelectField, Table } from "../components/ui";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const tabs = ["Overview", "All Users", "Students", "Violations", "Courses", "Exams", "Professors", "Deans", "Exam Attempts", "Grades", "System Logs"];
@@ -299,17 +299,36 @@ export default function Reports() {
 
   const currentRows = rowsByTab[tab] || [];
   const filteredRows = currentRows.filter((row) => Object.values(row).join(" ").toLowerCase().includes(search.toLowerCase()));
+  const reportStats = [
+    ["Students", stats.students, FiUsers],
+    ["Professors", stats.professors, FiUsers],
+    ["Deans", stats.deans, FiShield],
+    ["Courses", stats.courses, FiBookOpen],
+    ["Exams", stats.exams, FiFileText],
+    ["Violations", stats.violations, FiActivity],
+  ];
 
   return (
-    <>
+    <section className="admin-dashboard-page admin-section-page">
+      <div className="admin-section-hero">
+        <div>
+          <span><FiPrinter /> Reports Intelligence</span>
+          <h1>Reports Center</h1>
+          <p>Search, filter, review, and print operational reports from users, courses, exams, violations, attempts, grades, and logs.</p>
+        </div>
+        <strong>{filteredRows.length}</strong>
+      </div>
       <PageHeader title="Reports Center" subtitle="Search, filter, review, and print operational reports." actions={<Button variant="light" onClick={() => window.print()}><FiPrinter /> Print / Save as PDF</Button>} />
-      <div className="stats-grid">
-        <StatCard label="Students" value={stats.students.toLocaleString()} />
-        <StatCard label="Professors" value={stats.professors.toLocaleString()} />
-        <StatCard label="Deans" value={stats.deans.toLocaleString()} />
-        <StatCard label="Courses" value={stats.courses.toLocaleString()} />
-        <StatCard label="Exams" value={stats.exams.toLocaleString()} />
-        <StatCard label="Violations" value={stats.violations.toLocaleString()} />
+      <div className="admin-stats-grid">
+        {reportStats.map(([label, value, Icon]) => (
+          <article className="admin-stat-card" key={label}>
+            <Icon />
+            <div>
+              <strong>{value.toLocaleString()}</strong>
+              <span>{label}</span>
+            </div>
+          </article>
+        ))}
       </div>
       <div className="toolbar">
         <SearchBox value={search} onChange={setSearch} placeholder="Search reports" />
@@ -319,10 +338,10 @@ export default function Reports() {
         </SelectField>
       </div>
       <div className="tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
-      <Card>
+      <Card className="admin-panel admin-activity-panel">
         <h2>{tab === "Overview" ? "Violations Report" : tab}</h2>
         <Table columns={columnsByTab[tab] || columnsByTab.Overview} rows={filteredRows} />
       </Card>
-    </>
+    </section>
   );
 }

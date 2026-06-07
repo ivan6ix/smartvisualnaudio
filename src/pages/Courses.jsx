@@ -162,14 +162,22 @@ export default function Courses() {
   ];
 
   return (
-    <>
+    <section className="admin-dashboard-page admin-section-page">
+      <div className="admin-section-hero">
+        <div>
+          <span><FiPlus /> Course Operations</span>
+          <h1>Courses</h1>
+          <p>{isReadOnly ? "View courses and assigned professors across the institution." : "Create courses, assign professors, generate joining codes, and manage archives."}</p>
+        </div>
+        <strong>{visible.length}</strong>
+      </div>
       <PageHeader
         title="Courses"
         subtitle={isReadOnly ? "View courses and assigned professors across the institution." : "Create courses, assign professors, generate joining codes, and manage archives."}
         actions={!isReadOnly ? <Button variant="light" onClick={() => setShowArchived(true)}><FiArchive /> Archived Courses</Button> : null}
       />
       {!isReadOnly ? (
-        <Card>
+        <Card className="admin-panel admin-form-panel">
           <form className="inline-form" onSubmit={createCourse}>
             <Field label="Course Name" value={form.courseName} onChange={(event) => setForm({ ...form, courseName: event.target.value })} required />
             <Field label="Course Code" value={form.courseCode} onChange={(event) => setForm({ ...form, courseCode: event.target.value })} required />
@@ -190,7 +198,7 @@ export default function Courses() {
       ) : (
         <SearchBox value={search} onChange={setSearch} placeholder="Search course, professor, section, or joining code" />
       )}
-      <Card>
+      <Card className="admin-panel admin-activity-panel">
         <h2>Course Table</h2>
         <Table columns={columns} rows={visible} renderActions={!isReadOnly ? (row) => <Button variant="light" onClick={() => setArchived(row.id, true)}><FiArchive /> Archive</Button> : null} />
       </Card>
@@ -202,6 +210,6 @@ export default function Courses() {
           </Card>
         </div>
       ) : null}
-    </>
+    </section>
   );
 }

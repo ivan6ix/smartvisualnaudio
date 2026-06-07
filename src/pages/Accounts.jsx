@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { FiUsers } from "react-icons/fi";
 import { Button, Card, PageHeader, SearchBox, SelectField, Table, Badge } from "../components/ui";
 import { accounts as seedAccounts, roles } from "../data/mockData";
 import { useAuth } from "../context/AuthContext";
@@ -101,7 +102,15 @@ export default function Accounts() {
   ];
 
   return (
-    <>
+    <section className="admin-dashboard-page admin-section-page">
+      <div className="admin-section-hero">
+        <div>
+          <span><FiUsers /> Identity Directory</span>
+          <h1>Manage Accounts</h1>
+          <p>Filter, deactivate, and reactivate users across Admin, Professor, Dean, Cluster Professor, and Student roles.</p>
+        </div>
+        <strong>{filtered.length}</strong>
+      </div>
       <PageHeader title="Manage Accounts" subtitle="Filter, deactivate, and reactivate users across all roles." />
       <div className="toolbar">
         <SearchBox value={search} onChange={setSearch} placeholder="Search accounts" />
@@ -110,15 +119,15 @@ export default function Accounts() {
           {roles.map((item) => <option key={item}>{item}</option>)}
         </SelectField>
       </div>
-      <Card>
+      <Card className="admin-panel admin-activity-panel">
         <h2>Active Accounts</h2>
         {loading ? <p className="muted">Loading live accounts...</p> : null}
         <Table columns={columns} rows={filtered.filter((account) => account.status !== "Deactivated")} renderActions={(row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>} />
       </Card>
-      <Card>
+      <Card className="admin-panel admin-activity-panel">
         <h2>Deactivated Accounts</h2>
         <Table columns={columns} rows={filtered.filter((account) => account.status === "Deactivated")} renderActions={(row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>} />
       </Card>
-    </>
+    </section>
   );
 }
