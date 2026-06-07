@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { FiActivity, FiBookOpen, FiDatabase, FiFileText, FiPlus, FiUsers } from "react-icons/fi";
+import { FiActivity, FiBookOpen, FiCheckCircle, FiCpu, FiDatabase, FiFileText, FiPlus, FiRadio, FiShield, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
-import { Card, PageHeader, QuickAction, StatCard, Table, Badge } from "../components/ui";
+import { Card, QuickAction, Table, Badge } from "../components/ui";
 import { exams, logs, violationChart } from "../data/mockData";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
@@ -179,68 +179,130 @@ export default function Dashboard() {
   ];
 
   return (
-    <>
-      <PageHeader title="Admin Dashboard" subtitle="Realtime overview for account, exam, and monitoring operations." />
-      <div className="stats-grid">{stats.map(([label, value, icon]) => <StatCard key={label} label={label} value={value} icon={icon} />)}</div>
-      <div className="dashboard-grid">
-        <Card>
-          <h2>Quick Actions</h2>
-          <div className="quick-grid">
+    <section className="admin-dashboard-page">
+      <div className="admin-hero">
+        <div className="admin-hero-copy">
+          <span><FiShield /> Smart Proctoring Admin Command Center</span>
+          <h1>Realtime control for accounts, exams, courses, and monitoring integrity.</h1>
+          <p>Track who is inside the system, what exams are active, where violations are rising, and whether the Supabase services behind the platform are healthy.</p>
+        </div>
+        <div className="admin-hero-hud" aria-label="Admin system map">
+          <div className="admin-hud-orbit">
+            <span><FiUsers /> Accounts</span>
+            <span><FiBookOpen /> Courses</span>
+            <span><FiFileText /> Exams</span>
+            <span><FiActivity /> Alerts</span>
+          </div>
+          <div className="admin-hud-core">
+            <FiCpu />
+            <strong>{liveStats.activeExams}</strong>
+            <small>active exams</small>
+          </div>
+          <i />
+          <i />
+          <i />
+        </div>
+      </div>
+
+      <div className="admin-stats-grid">
+        {stats.map(([label, value, Icon]) => (
+          <article className="admin-stat-card" key={label}>
+            <Icon />
+            <div>
+              <strong>{Number(value).toLocaleString()}</strong>
+              <span>{label}</span>
+            </div>
+          </article>
+        ))}
+      </div>
+
+      <div className="admin-command-grid">
+        <Card className="admin-panel admin-actions-panel">
+          <div className="admin-panel-title">
+            <span><FiRadio /> Operations</span>
+            <small>Connected to admin modules</small>
+          </div>
+          <div className="quick-grid admin-quick-grid">
             <QuickAction icon={FiPlus} onClick={() => navigate("/create-account")}>Create Account</QuickAction>
             <QuickAction icon={FiPlus} onClick={() => navigate("/courses")}>Create Course</QuickAction>
             <QuickAction icon={FiUsers} onClick={() => navigate("/accounts")}>Manage Accounts</QuickAction>
             <QuickAction icon={FiFileText} onClick={() => navigate("/reports")}>View Reports</QuickAction>
           </div>
         </Card>
-        <Card>
-          <h2>System Health Status</h2>
-          <div className="health-list">
+
+        <Card className="admin-panel admin-health-panel">
+          <div className="admin-panel-title">
+            <span><FiDatabase /> System Health</span>
+            <small>Supabase services</small>
+          </div>
+          <div className="health-list admin-health-list">
             <span>
               <FiDatabase />
-              Database Status
+              <strong>Database Status</strong>
               <Badge tone={systemHealth.database === "Online" ? "success" : systemHealth.database === "Checking" ? "warn" : "danger"}>{systemHealth.database}</Badge>
             </span>
             <span>
               <FiActivity />
-              Realtime Status
+              <strong>Realtime Status</strong>
               <Badge tone={systemHealth.realtime === "Connected" ? "success" : systemHealth.realtime === "Checking" || systemHealth.realtime === "Connecting" ? "warn" : "danger"}>{systemHealth.realtime}</Badge>
             </span>
             <span>
               <FiDatabase />
-              Storage Buckets
+              <strong>Storage Buckets</strong>
               <Badge tone={systemHealth.storage === "Unavailable" ? "danger" : systemHealth.storage === "Checking" ? "warn" : "success"}>{systemHealth.storage}</Badge>
             </span>
           </div>
         </Card>
       </div>
-      <div className="dashboard-grid">
-        <Card>
-          <h2>Violation Analytics</h2>
+
+      <div className="admin-command-grid">
+        <Card className="admin-panel admin-chart-panel">
+          <div className="admin-panel-title">
+            <span><FiActivity /> Violation Analytics</span>
+            <small>Face, audio, fullscreen, and device alerts</small>
+          </div>
           <div className="chart-box">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={liveViolationChart}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="count" fill="#111111" radius={[8, 8, 0, 0]} />
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.18)" />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(34, 211, 238, 0.25)", borderRadius: 14, color: "#fff" }} />
+                <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card className="active-exams-card">
-          <h2>Active Exams</h2>
-          <div className="scroll-list">
-            {liveExams.slice(0, 5).map((exam) => <span key={exam.id}><strong>{exam.title}</strong><small>{exam.course} - {exam.duration} minutes</small><Badge>{exam.status}</Badge></span>)}
+
+        <Card className="admin-panel active-exams-card admin-active-exams-card">
+          <div className="admin-panel-title">
+            <span><FiFileText /> Active Exams</span>
+            <small>Currently published or scheduled</small>
+          </div>
+          <div className="scroll-list admin-exam-list">
+            {liveExams.slice(0, 5).map((exam) => (
+              <span key={exam.id}>
+                <FiCheckCircle />
+                <div>
+                  <strong>{exam.title}</strong>
+                  <small>{exam.course} - {exam.duration} minutes</small>
+                </div>
+                <Badge>{exam.status}</Badge>
+              </span>
+            ))}
             {!liveExams.length ? <div className="empty-state">No active exams found.</div> : null}
           </div>
-          <button className="text-button">View More</button>
+          <button className="text-button" onClick={() => navigate("/reports")} type="button">View More</button>
         </Card>
       </div>
-      <Card>
-        <h2>Recent Account Activity</h2>
+
+      <Card className="admin-panel admin-activity-panel">
+        <div className="admin-panel-title">
+          <span><FiUsers /> Recent Account Activity</span>
+          <small>Admin, course, account, and password events</small>
+        </div>
         <Table columns={[{ key: "action", label: "Action" }, { key: "description", label: "Description" }, { key: "createdAt", label: "Date" }]} rows={liveLogs} />
       </Card>
-    </>
+    </section>
   );
 }
