@@ -2043,7 +2043,15 @@ export default function StudentExamTake() {
             </div>
             {examSettings.liveCameraMonitoring ? (
               <>
-                <video autoPlay muted playsInline ref={proctorVideoRef} />
+                <div className="student-proctor-video-frame">
+                  <video autoPlay muted playsInline ref={proctorVideoRef} />
+                  <div className="student-face-bounding-box" aria-hidden="true">
+                    <span />
+                    <span />
+                    <span />
+                    <span />
+                  </div>
+                </div>
                 <div className="student-face-status">
                   <FiShield />
                   <span>{faceStatus}</span>
