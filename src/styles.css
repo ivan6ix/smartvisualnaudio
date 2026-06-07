@@ -14,6 +14,107 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
 
+.ai-login-particle {
+  animation: aiParticleFloat 6s ease-in-out infinite;
+}
+.ai-floating-icon {
+  animation: aiIconFloat 5.5s ease-in-out infinite;
+}
+.ai-face-frame {
+  animation: aiFaceBoxPulse 2.2s ease-in-out infinite;
+}
+.ai-wave-bar {
+  animation: aiWave 1.15s ease-in-out infinite alternate;
+}
+.ai-login-frame {
+  animation: aiFramePulse 3s ease-in-out infinite;
+}
+.ai-frame-corner {
+  position: absolute;
+  width: 92px;
+  height: 92px;
+  border-color: rgba(34, 211, 238, 0.95);
+  filter: drop-shadow(0 0 14px rgba(34, 211, 238, 0.72));
+  pointer-events: none;
+}
+.ai-scan-line {
+  position: absolute;
+  left: 22px;
+  right: 22px;
+  top: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(125, 211, 252, 0.95), rgba(34, 211, 238, 0.95), transparent);
+  box-shadow: 0 0 22px rgba(34, 211, 238, 0.9), 0 0 42px rgba(37, 99, 235, 0.44);
+  animation: aiScanLine 3.2s linear infinite;
+  pointer-events: none;
+}
+.ai-login-submit:hover {
+  transform: translateY(-1px);
+}
+
+@keyframes aiParticleFloat {
+  0%, 100% {
+    opacity: 0.28;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  50% {
+    opacity: 0.95;
+    transform: translate3d(16px, -22px, 0) scale(1.2);
+  }
+}
+
+@keyframes aiIconFloat {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes aiFramePulse {
+  0%, 100% {
+    box-shadow: 0 35px 100px rgba(2, 6, 23, 0.45), 0 0 40px rgba(6, 182, 212, 0.13);
+  }
+  50% {
+    box-shadow: 0 35px 100px rgba(2, 6, 23, 0.45), 0 0 64px rgba(6, 182, 212, 0.25);
+  }
+}
+
+@keyframes aiFaceBoxPulse {
+  0%, 100% {
+    box-shadow: 0 0 24px rgba(34, 211, 238, 0.42), inset 0 0 18px rgba(34, 211, 238, 0.12);
+  }
+  50% {
+    box-shadow: 0 0 38px rgba(34, 211, 238, 0.7), inset 0 0 24px rgba(34, 211, 238, 0.2);
+  }
+}
+
+@keyframes aiWave {
+  0% {
+    transform: scaleY(0.62);
+    opacity: 0.62;
+  }
+  100% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes aiScanLine {
+  0% {
+    transform: translateY(26px);
+    opacity: 0;
+  }
+  8%, 92% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(calc(100vh - 96px));
+    opacity: 0;
+  }
+}
+
 .center-screen, .auth-page {
   min-height: 100vh;
   display: grid;
