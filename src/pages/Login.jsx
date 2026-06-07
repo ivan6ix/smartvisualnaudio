@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
+import { FiVolume2 } from "react-icons/fi";
 import { toast } from "sonner";
 import { Button, Field } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
@@ -43,16 +44,40 @@ export default function Login() {
   }
 
   return (
-    <main className="auth-page">
-      <form className="auth-card" onSubmit={handleSubmit(onSubmit)}>
-        <div className="auth-title">
-          <h1>Smart Proctoring</h1>
-          <p>Online Examination Monitoring System</p>
+    <main className="auth-page login-page">
+      <form className="auth-card login-tracker-card" onSubmit={handleSubmit(onSubmit)}>
+        <span className="login-corner login-corner-top-left" />
+        <span className="login-corner login-corner-top-right" />
+        <span className="login-corner login-corner-bottom-left" />
+        <span className="login-corner login-corner-bottom-right" />
+
+        <div className="login-rec-badge" aria-label="Recording indicator">
+          <span />
+          <strong>REC</strong>
         </div>
-        <Field label="Email Address" type="email" error={errors.email?.message} {...register("email", { required: "Email is required" })} />
-        <Field label="Password" type="password" error={errors.password?.message} {...register("password", { required: "Password is required" })} />
-        <Button disabled={isSubmitting}>{isSubmitting ? "Signing in..." : "Login"}</Button>
-        <div className="auth-links">
+
+        <div className="login-volume-meter" aria-label="Volume meter">
+          <FiVolume2 />
+          <div>
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+        </div>
+
+        <div className="auth-title login-title">
+          <h1>Smart<br />Proctoring</h1>
+        </div>
+
+        <div className="login-fields">
+          <Field className="login-field" label="Email" type="email" error={errors.email?.message} {...register("email", { required: "Email is required" })} />
+          <Field className="login-field" label="Password" type="password" error={errors.password?.message} {...register("password", { required: "Password is required" })} />
+        </div>
+
+        <Button className="login-button" disabled={isSubmitting}>{isSubmitting ? "Signing in..." : "Login"}</Button>
+
+        <div className="auth-links login-links">
           <Link to="/forgot-password">Forgot Password</Link>
           <Link to="/register">Create Account</Link>
         </div>

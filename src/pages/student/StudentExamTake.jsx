@@ -3,7 +3,7 @@ import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { connectors, webrtc } from "@roboflow/inference-sdk";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import "@tensorflow/tfjs";
-import { FiArrowDown, FiArrowUp, FiCamera, FiCheckCircle, FiMic, FiRefreshCw, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
+import { FiArrowDown, FiArrowUp, FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import AudioMonitoringTimeline from "../../components/exam/AudioMonitoringTimeline";
@@ -104,6 +104,22 @@ function formatDurationLabel(duration) {
   return Number(duration) > 0 ? `${duration} minutes` : "No timer";
 }
 
+function getDurationMinutes(exam) {
+  const value = Number.parseFloat(String(exam?.time_limit || exam?.duration || 0));
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function formatRemainingTime(milliseconds) {
+  if (milliseconds === null || milliseconds === undefined) return "--:--";
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000));
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const minuteText = String(minutes).padStart(hours ? 2 : 1, "0");
+  const secondText = String(seconds).padStart(2, "0");
+  return hours ? `${hours}:${minuteText}:${secondText}` : `${minuteText}:${secondText}`;
+}
+
 function dataUrlToPayload(dataUrl) {
   return dataUrl.split(",")[1] || dataUrl;
 }
@@ -200,7 +216,9 @@ export default function StudentExamTake() {
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
   const [files, setFiles] = useState({});
-  const [startedAt] = useState(() => new Date().toISOString());
+  const [startedAt, setStartedAt] = useState(null);
+  const [timerEndsAt, setTimerEndsAt] = useState(null);
+  const [remainingMs, setRemainingMs] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const videoRef = useRef(null);
   const proctorVideoRef = useRef(null);
@@ -240,6 +258,7 @@ export default function StudentExamTake() {
   const [savedProgress, setSavedProgress] = useState(null);
   const examSubmittingRef = useRef(false);
   const examSubmittedRef = useRef(false);
+  const timerExpiredRef = useRef(false);
   const [faceStatus, setFaceStatus] = useState("Checking face position");
   const [roboflowStatus, setRoboflowStatus] = useState("Roboflow detector off");
   const totalPoints = useMemo(() => questions.reduce((total, question) => total + Number(question.points || 0), 0), [questions]);
@@ -252,6 +271,8 @@ export default function StudentExamTake() {
   }, [exam]);
   const scanPassed = !examSettings.requireEnvironmentScan || scanStatus === "passed";
   const attemptLimit = getAttemptLimit(exam?.exam_settings);
+  const durationMinutes = getDurationMinutes(exam);
+  const hasTimer = durationMinutes > 0;
   const examAlreadyTaken = existingAttemptCount > 0;
   const attemptsExhausted = examAlreadyTaken || (Number.isFinite(attemptLimit) && existingAttemptCount >= attemptLimit);
   const proctoringEnabled = examSettings.liveCameraMonitoring || examSettings.liveAudioMonitoring;
@@ -327,6 +348,8 @@ export default function StudentExamTake() {
       setAnswers({ ...defaultAnswers, ...(saved?.answers || {}) });
       setViolations(saved?.violations || []);
       setSavedProgress(saved);
+      setStartedAt(saved?.startedAt || null);
+      setTimerEndsAt(saved?.timerEndsAt || null);
       if (saved?.scanStatus === "passed") {
         setScanStatus("passed");
         setScanOpen(false);
@@ -362,10 +385,12 @@ export default function StudentExamTake() {
       answers,
       violations,
       scanStatus,
+      startedAt,
+      timerEndsAt,
       savedAt: new Date().toISOString(),
     });
-    setSavedProgress({ answers, violations, scanStatus, savedAt: new Date().toISOString() });
-  }, [answers, examId, examModeReady, scanStatus, user?.id, violations]);
+    setSavedProgress({ answers, violations, scanStatus, startedAt, timerEndsAt, savedAt: new Date().toISOString() });
+  }, [answers, examId, examModeReady, scanStatus, startedAt, timerEndsAt, user?.id, violations]);
 
   useEffect(() => {
     if (!examModeReady || examSubmittedRef.current) return undefined;
@@ -519,6 +544,26 @@ export default function StudentExamTake() {
   // The guard listeners should only be rebound when secure exam mode changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examModeReady, scanOpen, scanPassed, secureModeRequired]);
+
+  useEffect(() => {
+    if (!examModeReady || !hasTimer || !timerEndsAt || examSubmittedRef.current) return undefined;
+
+    function tick() {
+      const nextRemaining = new Date(timerEndsAt).getTime() - Date.now();
+      setRemainingMs(Math.max(0, nextRemaining));
+      if (nextRemaining <= 0 && !timerExpiredRef.current && !examSubmittingRef.current && !examSubmittedRef.current) {
+        timerExpiredRef.current = true;
+        toast.error("Time is up. Submitting your exam now.");
+        void handleSubmit();
+      }
+    }
+
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  // Timer should follow only the active deadline and exam mode.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examModeReady, hasTimer, timerEndsAt]);
 
   function setAnswer(questionId, value) {
     setAnswers((current) => ({ ...current, [questionId]: value }));
@@ -1582,7 +1627,17 @@ export default function StudentExamTake() {
   }
 
   async function enterExamMode() {
+    function startTimerIfNeeded() {
+      const start = startedAt || new Date().toISOString();
+      setStartedAt(start);
+      if (hasTimer && !timerEndsAt) {
+        setTimerEndsAt(new Date(new Date(start).getTime() + durationMinutes * 60 * 1000).toISOString());
+      }
+      if (!hasTimer) setRemainingMs(null);
+    }
+
     if (!secureModeRequired) {
+      startTimerIfNeeded();
       setExamLocked(false);
       setExamModeReady(true);
       setScanOpen(false);
@@ -1592,6 +1647,7 @@ export default function StudentExamTake() {
     try {
       await requestExamLock();
       await startProctorCamera();
+      startTimerIfNeeded();
       setExamLocked(false);
       setExamModeReady(true);
       setScanOpen(false);
@@ -1667,7 +1723,7 @@ export default function StudentExamTake() {
         student_id: user.id,
         score: grading.hasManual ? null : Number(grading.percentage.toFixed(2)),
         violations,
-        started_at: startedAt,
+        started_at: startedAt || new Date().toISOString(),
         submitted_at: new Date().toISOString(),
       };
 
@@ -1998,6 +2054,13 @@ export default function StudentExamTake() {
                 </div>
               </>
             ) : null}
+            <div className={`student-exam-timer ${hasTimer && remainingMs !== null && remainingMs <= 60000 ? "urgent" : ""}`}>
+              <FiClock />
+              <div>
+                <span>Time Remaining</span>
+                <strong>{hasTimer ? formatRemainingTime(remainingMs ?? (timerEndsAt ? new Date(timerEndsAt).getTime() - Date.now() : durationMinutes * 60 * 1000)) : "No timer"}</strong>
+              </div>
+            </div>
             {examSettings.liveAudioMonitoring ? (
               <AudioMonitoringTimeline
                 level={audioMonitoring.audioLevel}
