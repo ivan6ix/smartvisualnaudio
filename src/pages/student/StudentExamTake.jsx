@@ -178,6 +178,12 @@ function wait(ms) {
   });
 }
 
+function getUsableScanEndpoint(endpoint) {
+  if (!endpoint) return "";
+  if (import.meta.env.PROD && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\b/i.test(endpoint)) return "";
+  return endpoint;
+}
+
 function getFrameSignature(context, width, height) {
   const signature = [];
   const columns = 12;
@@ -895,12 +901,16 @@ export default function StudentExamTake() {
       return { passed: false, findings: localFindings };
     }
 
-    const roboflowResult = await analyzeEnvironmentWithRoboflow(frames, progressScores);
-    if (roboflowResult) {
-      return roboflowResult;
+    try {
+      const roboflowResult = await analyzeEnvironmentWithRoboflow(frames, progressScores);
+      if (roboflowResult) {
+        return roboflowResult;
+      }
+    } catch (error) {
+      window.console.warn("[EnvironmentScan] Roboflow scan unavailable, using fallback analysis.", error);
     }
 
-    const endpoint = import.meta.env.VITE_ENV_SCAN_ENDPOINT;
+    const endpoint = getUsableScanEndpoint(import.meta.env.VITE_ENV_SCAN_ENDPOINT);
     if (!endpoint) {
       return { passed: true, findings: [] };
     }
@@ -936,7 +946,7 @@ export default function StudentExamTake() {
 
   async function analyzeEnvironmentWithRoboflow(frames, progressScores = {}) {
     const proxyUrl = import.meta.env.VITE_ROBOFLOW_PROXY_URL;
-    const endpoint = import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT || (proxyUrl ? `${proxyUrl.replace(/\/$/, "")}/api/environment-scan` : "");
+    const endpoint = getUsableScanEndpoint(import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT || (proxyUrl ? `${proxyUrl.replace(/\/$/, "")}/api/environment-scan` : ""));
     if (!endpoint) return null;
 
     const response = await fetchWithTimeout(endpoint, {

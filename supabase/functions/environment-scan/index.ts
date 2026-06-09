@@ -6,7 +6,7 @@ const corsHeaders = {
 };
 
 const requiredAngles = new Set(["left", "center", "right"]);
-const minimumFramesPerAngle = 4;
+const minimumFramesPerAngle = 3;
 const minimumPanProgress = 100;
 const suspiciousLabels = [
   "phone",

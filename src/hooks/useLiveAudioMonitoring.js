@@ -6,10 +6,9 @@ const MODERATE_THRESHOLD = 18;
 const LOUD_THRESHOLD = 50;
 const LOUD_DURATION_MS = 3000;
 const LOUD_GRACE_MS = 1000;
-const PRE_EVENT_AUDIO_SECONDS = 10;
 const LOUD_NOISE_COOLDOWN_MS = 0;
 const AUDIO_LEVEL_GAIN = 16;
-const FALLBACK_AUDIO_EVIDENCE_MS = 10000;
+const AUDIO_EVIDENCE_MS = 10000;
 const MIN_AUDIO_EVIDENCE_BYTES = 2048;
 
 function getRecorderOptions() {
@@ -33,9 +32,7 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
   const [timeline, setTimeline] = useState([]);
   const audioContextRef = useRef(null);
   const audioMonitorRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
   const audioStreamRef = useRef(null);
-  const audioChunksRef = useRef([]);
   const lastTimelineAtRef = useRef(0);
   const lastStatusRef = useRef("Quiet");
   const loudStartedAtRef = useRef(null);
@@ -60,14 +57,9 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
       window.cancelAnimationFrame(audioMonitorRef.current);
       audioMonitorRef.current = null;
     }
-    if (mediaRecorderRef.current?.state !== "inactive") {
-      mediaRecorderRef.current?.stop();
-    }
-    mediaRecorderRef.current = null;
     audioStreamRef.current = null;
     audioContextRef.current?.close?.();
     audioContextRef.current = null;
-    audioChunksRef.current = [];
     loudStartedAtRef.current = null;
     loudLastAtRef.current = null;
     loudPeakRef.current = 0;
@@ -76,48 +68,7 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
     setAudioStatus("Quiet");
   }, []);
 
-  const getPreEventAudioBlob = useCallback(async () => {
-    const recorder = mediaRecorderRef.current;
-    if (recorder?.state === "recording" && typeof recorder.requestData === "function") {
-      await new Promise((resolve) => {
-        const timeout = window.setTimeout(resolve, 900);
-        const handleData = (event) => {
-          if (event.data?.size) {
-            const now = Date.now();
-            audioChunksRef.current = [
-              ...audioChunksRef.current.filter((chunk) => now - chunk.timestamp <= PRE_EVENT_AUDIO_SECONDS * 1000),
-              { blob: event.data, timestamp: now },
-            ];
-          }
-          window.clearTimeout(timeout);
-          resolve();
-        };
-        recorder.addEventListener("dataavailable", handleData, { once: true });
-        try {
-          recorder.requestData();
-        } catch {
-          window.clearTimeout(timeout);
-          resolve();
-        }
-      });
-    }
-
-    const cutoff = Date.now() - (PRE_EVENT_AUDIO_SECONDS * 1000);
-    const chunks = audioChunksRef.current
-      .filter((chunk) => chunk.timestamp >= cutoff)
-      .map((chunk) => chunk.blob);
-
-    return chunks.length ? new window.Blob(chunks, { type: recorder?.mimeType || "audio/webm" }) : null;
-  }, []);
-
-  const captureRollingAudioBlob = useCallback(async () => {
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, PRE_EVENT_AUDIO_SECONDS * 1000);
-    });
-    return getPreEventAudioBlob();
-  }, [getPreEventAudioBlob]);
-
-  const captureFallbackAudioBlob = useCallback(() => new Promise((resolve) => {
+  const captureAudioEvidenceBlob = useCallback(() => new Promise((resolve) => {
     if (!window.MediaRecorder || !audioStreamRef.current?.getAudioTracks?.().length) {
       resolve(null);
       return;
@@ -125,6 +76,7 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
 
     const chunks = [];
     let recorder = null;
+    let timeout = null;
     const finish = () => {
       if (recorder?.state === "recording") recorder.stop();
     };
@@ -135,11 +87,15 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
         if (event.data?.size) chunks.push(event.data);
       };
       recorder.onstop = () => {
+        window.clearTimeout(timeout);
         resolve(chunks.length ? new window.Blob(chunks, { type: recorder.mimeType || "audio/webm" }) : null);
       };
-      recorder.onerror = () => resolve(null);
-      recorder.start(250);
-      window.setTimeout(finish, FALLBACK_AUDIO_EVIDENCE_MS);
+      recorder.onerror = () => {
+        window.clearTimeout(timeout);
+        resolve(null);
+      };
+      recorder.start();
+      timeout = window.setTimeout(finish, AUDIO_EVIDENCE_MS);
     } catch (error) {
       window.console.error("[AudioMonitoring]", error);
       resolve(null);
@@ -159,9 +115,9 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
     });
 
     try {
-      let audioBlob = await captureRollingAudioBlob();
+      let audioBlob = await captureAudioEvidenceBlob();
       if (!audioBlob?.size || audioBlob.size < MIN_AUDIO_EVIDENCE_BYTES) {
-        audioBlob = await captureFallbackAudioBlob();
+        audioBlob = await captureAudioEvidenceBlob();
       }
       await uploadAudioViolation({
         audioBlob,
@@ -181,7 +137,7 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
       loudPeakRef.current = 0;
       handlingViolationRef.current = false;
     }
-  }, [addTimelineItem, captureFallbackAudioBlob, captureRollingAudioBlob, exam, onViolation, student]);
+  }, [addTimelineItem, captureAudioEvidenceBlob, exam, onViolation, student]);
 
   const start = useCallback((stream) => {
     if (!enabled || !stream?.getAudioTracks?.().length) return;
@@ -200,25 +156,7 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
     void context.resume?.();
     setMicStatus("Active");
 
-    if (window.MediaRecorder) {
-      try {
-        const audioStream = new window.MediaStream(stream.getAudioTracks());
-        audioStreamRef.current = audioStream;
-        const recorder = new window.MediaRecorder(audioStream, getRecorderOptions());
-        recorder.ondataavailable = (event) => {
-          if (!event.data?.size) return;
-          const now = Date.now();
-          audioChunksRef.current = [
-            ...audioChunksRef.current.filter((chunk) => now - chunk.timestamp <= PRE_EVENT_AUDIO_SECONDS * 1000),
-            { blob: event.data, timestamp: now },
-          ];
-        };
-        recorder.start(250);
-        mediaRecorderRef.current = recorder;
-      } catch (error) {
-        window.console.error("[AudioMonitoring]", error);
-      }
-    }
+    audioStreamRef.current = new window.MediaStream(stream.getAudioTracks());
 
     function monitorAudio() {
       analyser.getByteTimeDomainData(samples);
