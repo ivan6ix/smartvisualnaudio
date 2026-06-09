@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FiSearch, FiSend } from "react-icons/fi";
 import { toast } from "sonner";
 import { Button, Card, Field, PageHeader, SearchBox } from "./ui";
@@ -52,6 +52,7 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
   const [draft, setDraft] = useState("");
   const [recipientLookup, setRecipientLookup] = useState("");
   const [revealedMessageId, setRevealedMessageId] = useState("");
+  const messageHistoryRef = useRef(null);
   const selectedUser = users.find((item) => item.id === selectedId);
 
   useEffect(() => {
@@ -131,6 +132,12 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
     ));
   }, [messages, selectedUser, user?.id]);
 
+  useEffect(() => {
+    const history = messageHistoryRef.current;
+    if (!history) return;
+    history.scrollTo({ top: history.scrollHeight, behavior: "smooth" });
+  }, [conversation.length, selectedId]);
+
   function getLastMessage(profile) {
     const last = [...messages].reverse().find((message) => (
       message.sender_id === profile.id || message.receiver_id === profile.id
@@ -140,6 +147,25 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
 
   function getUnreadCount(profile) {
     return messages.filter((message) => message.sender_id === profile.id && message.receiver_id === user?.id && !message.is_read).length;
+  }
+
+  function openConversation(profileId) {
+    setSelectedId(profileId);
+    if (!user?.id) return;
+
+    setMessages((current) => current.map((message) => (
+      message.sender_id === profileId && message.receiver_id === user.id
+        ? { ...message, is_read: true }
+        : message
+    )));
+
+    if (!hasSupabaseConfig) return;
+    void supabase
+      .from("messages")
+      .update({ is_read: true })
+      .eq("sender_id", profileId)
+      .eq("receiver_id", user.id)
+      .eq("is_read", false);
   }
 
   async function submit(event) {
@@ -215,7 +241,7 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
             {filteredUsers.map((item) => {
               const unread = getUnreadCount(item);
               return (
-                <button key={item.id} className={item.id === selectedUser?.id ? "active" : ""} onClick={() => setSelectedId(item.id)} type="button">
+                <button key={item.id} className={item.id === selectedUser?.id ? "active" : ""} onClick={() => openConversation(item.id)} type="button">
                   <strong>{item.name}</strong>
                   <small>{item.role}</small>
                   <span>{getLastMessage(item)}</span>
@@ -228,7 +254,7 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
         </Card>
         <Card className="chat-card">
           <PageHeader title={selectedUser?.name || "Select a user"} subtitle={selectedUser?.role || "Choose a conversation"} />
-          <div className="message-history">
+          <div className="message-history" ref={messageHistoryRef}>
             {conversation.map((message, index) => {
               const isMine = message.sender_id === user?.id;
               const nextMessage = conversation[index + 1];

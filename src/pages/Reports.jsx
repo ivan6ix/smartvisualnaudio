@@ -338,7 +338,7 @@ export default function Reports() {
         </SelectField>
       </div>
       <div className="tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
-      <Card className="admin-panel admin-activity-panel">
+      <Card className={`admin-panel admin-activity-panel ${tab === "Overview" || tab === "Violations" ? "admin-violations-report-panel" : ""}`}>
         <h2>{tab === "Overview" ? "Violations Report" : tab}</h2>
         <Table columns={columnsByTab[tab] || columnsByTab.Overview} rows={filteredRows} />
       </Card>

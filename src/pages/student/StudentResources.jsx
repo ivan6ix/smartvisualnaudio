@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { FiArchive, FiCopy, FiFolder, FiMoreVertical, FiRefreshCw, FiTrash2, FiUpload, FiX } from "react-icons/fi";
+import { FiArchive, FiCopy, FiFolder, FiFolderPlus, FiMoreVertical, FiRefreshCw, FiTrash2, FiUpload, FiX } from "react-icons/fi";
 import { toast } from "sonner";
 import { studentFiles, studentFolders } from "../../data/studentData";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
@@ -203,7 +203,7 @@ export default function StudentResources() {
                   {visibleFolders.map((folder) => (
                   <article className={folder.id === selectedFolder?.id ? "active" : ""} key={folder.id}>
                     <button className="student-folder-open" onClick={() => setSelectedFolderId(folder.id)} type="button">
-                      <FiFolder />
+                      <FiFolderPlus />
                       <strong>{folder.name}</strong>
                       <span>{folder.course}</span>
                     </button>

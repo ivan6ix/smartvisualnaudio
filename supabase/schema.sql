@@ -35,7 +35,7 @@ create table if not exists public.profiles (
   email text not null unique,
   employee_number text unique,
   student_number text unique,
-  status public.account_status not null default 'Pending',
+  status public.account_status not null default 'Active',
   created_at timestamptz not null default now()
 );
 
@@ -1020,7 +1020,7 @@ begin
     new.email,
     new.raw_user_meta_data->>'employee_number',
     new.raw_user_meta_data->>'student_number',
-    coalesce((new.raw_user_meta_data->>'status')::public.account_status, 'Pending')
+    coalesce((new.raw_user_meta_data->>'status')::public.account_status, 'Active')
   );
   return new;
 end;

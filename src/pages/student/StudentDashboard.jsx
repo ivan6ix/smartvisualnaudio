@@ -184,7 +184,7 @@ export default function StudentDashboard() {
   }
 
   return (
-    <>
+    <section className="student-dashboard-page">
       <PageHeader
         title="Student Dashboard"
         subtitle="View joined courses, available exams, resources, and grades."
@@ -192,7 +192,7 @@ export default function StudentDashboard() {
       />
 
       <div className="professor-dashboard-grid student-dashboard-overview">
-        <Card>
+        <Card className="student-dashboard-card">
           <div className="student-card-title">
             <h2>My Courses</h2>
             <span>{courses.length} joined</span>
@@ -211,7 +211,7 @@ export default function StudentDashboard() {
           </div>
         </Card>
 
-        <Card className="student-exams-card">
+        <Card className="student-dashboard-card student-exams-card">
           <div className="student-card-title">
             <h2>Available Exams</h2>
             <span>{availableExams.length}</span>
@@ -255,6 +255,6 @@ export default function StudentDashboard() {
           </form>
         </div>
       ) : null}
-    </>
+    </section>
   );
 }

@@ -152,7 +152,7 @@ export function AuthProvider({ children }) {
             full_name: values.fullName,
             student_number: values.studentNumber,
             role: "Student",
-            status: "Pending",
+            status: "Active",
           },
         },
       });
