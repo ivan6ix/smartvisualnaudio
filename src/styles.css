@@ -1866,8 +1866,10 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   cursor: pointer;
 }
 .professor-material-assessment-row:hover {
-  border-color: #2563eb;
-  background: #f8fbff;
+  border-color: rgba(125, 211, 252, 0.24);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.14), transparent 42%),
+    linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.76));
 }
 .professor-material-assessment-row:focus-visible {
   outline: 3px solid rgba(37, 99, 235, 0.22);
@@ -1878,8 +1880,12 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   max-height: min(900px, calc(100vh - 28px));
   overflow: auto;
   border-radius: 18px;
-  background: #fff;
-  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.24);
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.14), transparent 40%),
+    linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.9));
+  color: #fff;
+  box-shadow: 0 24px 80px rgba(2, 6, 23, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   padding: 26px;
 }
 .assessment-stats-modal header {
@@ -1891,18 +1897,20 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .assessment-stats-modal h2 {
   margin: 0;
+  color: #fff;
   font-size: 1.35rem;
 }
 .assessment-stats-modal p {
   margin: 7px 0 0;
-  color: #667085;
+  color: #cbd5e1;
 }
 .assessment-stats-modal header button {
   width: 38px;
   height: 38px;
-  border: 1px solid #d0d5dd;
+  border: 1px solid rgba(125, 211, 252, 0.22);
   border-radius: 50%;
-  background: #fff;
+  background: rgba(15, 23, 42, 0.72);
+  color: #e0f2fe;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1914,19 +1922,20 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   margin-bottom: 16px;
 }
 .assessment-stats-summary article {
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(125, 211, 252, 0.2);
   border-radius: 14px;
-  background: #f8fafc;
+  background: rgba(15, 23, 42, 0.62);
   padding: 14px;
 }
 .assessment-stats-summary strong {
   display: block;
+  color: #fff;
   font-size: 1.45rem;
 }
 .assessment-stats-summary span {
   display: block;
   margin-top: 4px;
-  color: #667085;
+  color: #cbd5e1;
 }
 .assessment-question-stats {
   display: grid;
@@ -1937,9 +1946,9 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   grid-template-columns: minmax(0, 1fr) minmax(150px, auto);
   gap: 16px;
   align-items: start;
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(125, 211, 252, 0.2);
   border-radius: 14px;
-  background: #fff;
+  background: rgba(15, 23, 42, 0.62);
   padding: 14px;
 }
 .assessment-question-content {
@@ -1950,14 +1959,16 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   display: block;
 }
 .assessment-question-stats strong {
+  color: #fff;
   margin-top: 6px;
   font-size: 1rem;
 }
 .assessment-question-stats span {
   margin-top: 5px;
-  color: #667085;
+  color: #cbd5e1;
 }
 .assessment-question-meta {
+  color: #bae6fd !important;
   margin: 0;
   font-size: 0.82rem;
 }
@@ -1976,22 +1987,23 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .assessment-question-options span,
 .assessment-question-pairs span,
 .assessment-question-sequence li {
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(125, 211, 252, 0.2);
   border-radius: 12px;
-  background: #f8fafc;
+  background: rgba(2, 6, 23, 0.44);
   padding: 9px 11px;
-  color: #344054;
+  color: #fff;
 }
 .assessment-question-options .correct-option {
-  border-color: #86efac;
-  background: #dcfce7;
-  color: #166534;
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(34, 197, 94, 0.16);
+  color: #dcfce7;
 }
 .assessment-question-answer {
   margin: 12px 0 0;
+  border: 1px solid rgba(125, 211, 252, 0.2);
   border-radius: 12px;
-  background: #f8fafc;
-  color: #344054;
+  background: rgba(2, 6, 23, 0.44);
+  color: #fff;
   padding: 10px 12px;
 }
 .assessment-question-sequence {
@@ -2022,16 +2034,16 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   box-shadow: 0 8px 18px rgba(15, 23, 42, 0.12);
 }
 .assessment-question-counts .correct {
-  background: #dcfce7;
-  color: #166534;
+  background: rgba(34, 197, 94, 0.18);
+  color: #dcfce7;
 }
 .assessment-question-counts .incorrect {
-  background: #fee2e2;
-  color: #991b1b;
+  background: rgba(239, 68, 68, 0.18);
+  color: #fecaca;
 }
 .assessment-question-counts .pending {
-  background: #fef3c7;
-  color: #92400e;
+  background: rgba(245, 158, 11, 0.18);
+  color: #fde68a;
 }
 .question-roster-backdrop {
   position: fixed;
@@ -2916,6 +2928,9 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   box-shadow: 0 24px 70px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   backdrop-filter: blur(18px);
 }
+.professor-exams-section {
+  padding: 18px;
+}
 .professor-shell .card h2,
 .professor-courses-header h2,
 .professor-exams-section-header h2,
@@ -3038,6 +3053,56 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .professor-score-table td {
   color: #fff;
+}
+.professor-shell .professor-exams-table-card {
+  border-color: rgba(125, 211, 252, 0.16);
+  background: rgba(2, 6, 23, 0.38);
+}
+.professor-shell .professor-exams-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.professor-shell .professor-exams-table th,
+.professor-shell .professor-exams-table td {
+  padding: 18px 22px;
+  border-top: 0;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.1);
+}
+.professor-shell .professor-exams-table th:first-child,
+.professor-shell .professor-exams-table td:first-child {
+  padding-left: 26px;
+}
+.professor-shell .professor-exams-table th:last-child,
+.professor-shell .professor-exams-table td:last-child {
+  padding-right: 26px;
+}
+.professor-shell .professor-exams-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.professor-shell .professor-exams-table th:nth-child(6),
+.professor-shell .professor-exams-table th:nth-child(7),
+.professor-shell .professor-exams-table td:nth-child(6),
+.professor-shell .professor-exams-table td:nth-child(7) {
+  text-align: center;
+}
+.professor-shell .professor-status-stack {
+  width: auto;
+  justify-items: center;
+}
+.professor-shell .professor-status-pill {
+  width: max-content;
+  max-width: 150px;
+  min-height: 28px;
+  justify-content: center;
+  padding: 5px 14px;
+  white-space: nowrap;
+}
+.professor-shell .professor-exam-actions {
+  min-width: 0;
+  justify-content: center;
+}
+.professor-shell .professor-exam-actions button {
+  white-space: nowrap;
 }
 .professor-violation-chart {
   border-color: rgba(125, 211, 252, 0.12);
@@ -3247,6 +3312,55 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .professor-shell .professor-exams-table td:first-child,
 .professor-shell .professor-exams-table td strong {
   color: #ffffff;
+}
+.professor-shell .professor-exams-table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+.professor-shell .professor-exams-table th,
+.professor-shell .professor-exams-table td {
+  padding: 18px 22px;
+  border-top: 0;
+  border-bottom: 1px solid rgba(125, 211, 252, 0.1);
+}
+.professor-shell .professor-exams-table th {
+  border-bottom-color: rgba(125, 211, 252, 0.16);
+}
+.professor-shell .professor-exams-table th:first-child,
+.professor-shell .professor-exams-table td:first-child {
+  padding-left: 26px;
+}
+.professor-shell .professor-exams-table th:last-child,
+.professor-shell .professor-exams-table td:last-child {
+  padding-right: 26px;
+}
+.professor-shell .professor-exams-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.professor-shell .professor-exams-table th:nth-child(6),
+.professor-shell .professor-exams-table th:nth-child(7),
+.professor-shell .professor-exams-table td:nth-child(6),
+.professor-shell .professor-exams-table td:nth-child(7) {
+  text-align: center;
+}
+.professor-shell .professor-status-stack {
+  width: auto;
+  justify-items: center;
+}
+.professor-shell .professor-status-pill {
+  width: max-content;
+  max-width: 150px;
+  min-height: 28px;
+  justify-content: center;
+  padding: 5px 14px;
+  white-space: nowrap;
+}
+.professor-shell .professor-exam-actions {
+  min-width: 0;
+  justify-content: center;
+}
+.professor-shell .professor-exam-actions button {
+  white-space: nowrap;
 }
 
 .professor-shell .professor-create-exam-page {
@@ -5524,6 +5638,24 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .student-period-material-list {
   margin-top: 0;
 }
+.student-period-material-list .student-material-folder .student-material-dropdown section {
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  background:
+    radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.14), transparent 42%),
+    linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.76));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.student-period-material-list .student-material-folder .student-material-dropdown section strong,
+.student-period-material-list .student-material-folder .student-material-dropdown section span {
+  color: #fff;
+}
+.student-period-material-list .student-material-folder .student-material-dropdown section span {
+  color: #cbd5e1;
+}
+.student-period-material-list .student-material-folder .student-material-dropdown section svg {
+  color: #67e8f9;
+}
 .module-preview-backdrop {
   position: fixed;
   inset: 0;
@@ -6013,13 +6145,17 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   align-items: center;
   min-height: 86px;
   padding: 14px 16px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid rgba(125, 211, 252, 0.24);
   border-radius: 12px;
-  background: #fff;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(6, 182, 212, 0.14), transparent 42%),
+    linear-gradient(145deg, rgba(15, 23, 42, 0.9), rgba(2, 6, 23, 0.76));
+  color: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 .professor-material-items section svg {
   font-size: 1rem;
-  color: #475569;
+  color: #67e8f9;
   justify-self: center;
 }
 .professor-material-items section strong,
@@ -6029,11 +6165,12 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   overflow-wrap: anywhere;
 }
 .professor-material-items section strong {
+  color: #fff;
   line-height: 1.35;
 }
 .professor-material-items section span {
   margin-top: 5px;
-  color: #64748b;
+  color: #cbd5e1;
   font-size: 0.86rem;
 }
 .professor-material-items section > div:not(.professor-material-file-actions) {
@@ -6345,13 +6482,45 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   grid-template-rows: auto minmax(0, 1fr) auto;
 }
 .new-message-panel {
-  margin-bottom: 14px;
+  position: absolute;
+  top: 18px;
+  right: 214px;
+  z-index: 3;
+  width: min(520px, calc(100% - 430px));
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 .new-message-panel form {
   display: grid;
   grid-template-columns: 1fr auto;
-  gap: 12px;
-  align-items: end;
+  gap: 8px;
+  align-items: center;
+}
+.new-message-panel .field {
+  gap: 0;
+}
+.new-message-panel .field span {
+  display: none;
+}
+.new-message-panel .field input {
+  min-height: 40px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.5);
+  color: #e2e8f0;
+  padding: 0 16px;
+}
+.new-message-panel .field input::placeholder {
+  color: #94a3b8;
+}
+.new-message-panel .btn {
+  min-height: 40px;
+  border-radius: 999px;
+  white-space: nowrap;
 }
 .message-modal .field span {
   color: #bae6fd;
@@ -6806,6 +6975,12 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   }
   .message-modal .page-header {
     padding-right: 0;
+  }
+  .new-message-panel {
+    position: static;
+    width: 100%;
+    margin-bottom: 12px;
+    padding: 0;
   }
   .new-message-panel form {
     grid-template-columns: 1fr;

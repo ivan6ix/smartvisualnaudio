@@ -7,9 +7,9 @@ const LOUD_THRESHOLD = 50;
 const LOUD_DURATION_MS = 3000;
 const LOUD_GRACE_MS = 1000;
 const PRE_EVENT_AUDIO_SECONDS = 10;
-const LOUD_NOISE_COOLDOWN_MS = 10000;
+const LOUD_NOISE_COOLDOWN_MS = 0;
 const AUDIO_LEVEL_GAIN = 16;
-const FALLBACK_AUDIO_EVIDENCE_MS = 3500;
+const FALLBACK_AUDIO_EVIDENCE_MS = 10000;
 
 function getRecorderOptions() {
   if (!window.MediaRecorder) return {};
