@@ -13,10 +13,16 @@ export default function ClusterLayout() {
   const { notifications } = useCluster();
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [messageTargetId, setMessageTargetId] = useState("");
   const [settingsModal, setSettingsModal] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const unreadNotifications = notifications.filter((item) => !item.isRead).length;
   const { conversations, unreadCount } = useMessagePreview(user);
+
+  function openMessages(conversationId = "") {
+    setMessageTargetId(conversationId);
+    setMessagesOpen(true);
+  }
 
   if (loading) return <PageSkeleton />;
   if (!user) return <Navigate to="/login" replace />;
@@ -41,11 +47,11 @@ export default function ClusterLayout() {
         <nav>{links.map(([label, to]) => <NavLink key={to} end={to === "/cluster"} to={to}>{label}</NavLink>)}</nav>
         <div className="cluster-tools">
           <div className="message-menu cluster-message-menu">
-            <button onClick={() => setMessagesOpen(true)} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
+            <button onClick={() => openMessages()} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
             <div className="message-menu-panel">
               <strong>Messages</strong>
               {conversations.length ? conversations.map((conversation) => (
-                <article key={conversation.id} onClick={() => setMessagesOpen(true)}>
+                <article key={conversation.id} onClick={() => openMessages(conversation.id)}>
                   <div>
                     <b>{conversation.name}</b>
                     <small>{conversation.role}</small>
@@ -85,7 +91,7 @@ export default function ClusterLayout() {
       <main className="cluster-shell">
         <Outlet />
       </main>
-      {messagesOpen ? <MessageModal onClose={() => setMessagesOpen(false)} /> : null}
+      {messagesOpen ? <MessageModal initialConversationId={messageTargetId} onClose={() => setMessagesOpen(false)} /> : null}
       {settingsModal ? <AccountSettingsModal mode={settingsModal} onClose={() => setSettingsModal(null)} /> : null}
     </>
   );

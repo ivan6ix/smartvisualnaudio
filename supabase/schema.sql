@@ -300,6 +300,7 @@ drop policy if exists "cluster_professors_self" on public.cluster_professors;
 drop policy if exists "courses_read_authenticated" on public.courses;
 drop policy if exists "messages_participants" on public.messages;
 drop policy if exists "messages_send" on public.messages;
+drop policy if exists "messages_receiver_read" on public.messages;
 drop policy if exists "notifications_owner" on public.notifications;
 drop policy if exists "logs_read_authenticated" on public.logs;
 drop policy if exists "exams_read_authenticated" on public.exams;
@@ -317,6 +318,10 @@ create policy "cluster_professors_self" on public.cluster_professors for select 
 create policy "courses_read_authenticated" on public.courses for select to authenticated using (true);
 create policy "messages_participants" on public.messages for select to authenticated using (auth.uid() = sender_id or auth.uid() = receiver_id);
 create policy "messages_send" on public.messages for insert to authenticated with check (auth.uid() = sender_id);
+create policy "messages_receiver_read" on public.messages
+for update to authenticated
+using (auth.uid() = receiver_id)
+with check (auth.uid() = receiver_id);
 create policy "notifications_owner" on public.notifications for select to authenticated using (auth.uid() = user_id);
 drop policy if exists "notifications_owner_update" on public.notifications;
 create policy "notifications_owner_update" on public.notifications

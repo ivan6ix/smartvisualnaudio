@@ -11,6 +11,7 @@ export default function TopNav() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [messageTargetId, setMessageTargetId] = useState("");
   const [settingsModal, setSettingsModal] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const { conversations, unreadCount } = useMessagePreview(user);
@@ -22,6 +23,11 @@ export default function TopNav() {
     ["Accounts", "/accounts"],
     ["Reports", "/reports"],
   ];
+
+  function openMessages(conversationId = "") {
+    setMessageTargetId(conversationId);
+    setMessagesOpen(true);
+  }
 
   return (
     <>
@@ -35,11 +41,11 @@ export default function TopNav() {
         </nav>
         <div className="nav-tools">
           <div className="message-menu">
-            <button onClick={() => setMessagesOpen(true)} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
+            <button onClick={() => openMessages()} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
             <div className="message-menu-panel">
               <strong>Messages</strong>
               {conversations.length ? conversations.map((conversation) => (
-                <article key={conversation.id} onClick={() => setMessagesOpen(true)}>
+                <article key={conversation.id} onClick={() => openMessages(conversation.id)}>
                   <div>
                     <b>{conversation.name}</b>
                     <small>{conversation.role}</small>
@@ -77,7 +83,7 @@ export default function TopNav() {
           </div>
         </div>
       </header>
-      {messagesOpen ? <MessageModal onClose={() => setMessagesOpen(false)} /> : null}
+      {messagesOpen ? <MessageModal initialConversationId={messageTargetId} onClose={() => setMessagesOpen(false)} /> : null}
       {settingsModal ? <AccountSettingsModal mode={settingsModal} onClose={() => setSettingsModal(null)} /> : null}
     </>
   );

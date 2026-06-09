@@ -24,12 +24,18 @@ export default function StudentLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const [messagesOpen, setMessagesOpen] = useState(false);
+  const [messageTargetId, setMessageTargetId] = useState("");
   const [settingsModal, setSettingsModal] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const { conversations, unreadCount } = useMessagePreview(user);
   const unreadNotifications = notifications.filter((notification) => !notification.isRead).length;
   const isTakingExam = location.pathname.startsWith("/student/exams/");
+
+  function openMessages(conversationId = "") {
+    setMessageTargetId(conversationId);
+    setMessagesOpen(true);
+  }
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return undefined;
@@ -78,14 +84,14 @@ export default function StudentLayout() {
           </nav>
           <div className="cluster-tools">
             <div className="message-menu cluster-message-menu">
-              <button onClick={() => setMessagesOpen(true)} title="Messages" type="button">
+              <button onClick={() => openMessages()} title="Messages" type="button">
                 <FiMessageCircle />
                 {unreadCount ? <span>{unreadCount}</span> : null}
               </button>
               <div className="message-menu-panel">
                 <strong>Messages</strong>
                 {conversations.length ? conversations.map((message) => (
-                  <article key={message.id} onClick={() => setMessagesOpen(true)}>
+                  <article key={message.id} onClick={() => openMessages(message.id)}>
                     <div>
                       <b>{message.name}</b>
                       <small>{message.role}</small>
@@ -130,7 +136,7 @@ export default function StudentLayout() {
       <main className="student-shell">
         <Outlet />
       </main>
-      {messagesOpen ? <MessageModal onClose={() => setMessagesOpen(false)} /> : null}
+      {messagesOpen ? <MessageModal initialConversationId={messageTargetId} onClose={() => setMessagesOpen(false)} /> : null}
       {settingsModal ? <AccountSettingsModal mode={settingsModal} onClose={() => setSettingsModal(null)} /> : null}
     </>
   );

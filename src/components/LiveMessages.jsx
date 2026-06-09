@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiSearch, FiSend } from "react-icons/fi";
 import { toast } from "sonner";
 import { Button, Card, Field, PageHeader, SearchBox } from "./ui";
@@ -43,7 +43,7 @@ const fallbackUsers = [
   { id: "demo-student", name: "Ivan Caburnay", role: "Student", email: "student@university.edu" },
 ];
 
-export default function LiveMessages({ composeOpen = false, onComposeClose, subtitle = "Send and receive messages across system users." }) {
+export default function LiveMessages({ composeOpen = false, initialConversationId = "", onComposeClose, subtitle = "Send and receive messages across system users." }) {
   const { user } = useAuth();
   const [users, setUsers] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -91,11 +91,15 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
       const participantIds = new Set((messageRows || []).flatMap((message) => [message.sender_id, message.receiver_id]).filter((id) => id !== user.id));
       setUsers(mappedUsers);
       setMessages(messageRows || []);
-      setSelectedId((current) => current || [...participantIds][0] || "");
+      setSelectedId((current) => initialConversationId || current || [...participantIds][0] || "");
     }
 
     loadMessages();
-  }, [user?.email, user?.id]);
+  }, [initialConversationId, user?.email, user?.id]);
+
+  useEffect(() => {
+    if (initialConversationId) setSelectedId(initialConversationId);
+  }, [initialConversationId]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return undefined;
@@ -149,8 +153,7 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
     return messages.filter((message) => message.sender_id === profile.id && message.receiver_id === user?.id && !message.is_read).length;
   }
 
-  function openConversation(profileId) {
-    setSelectedId(profileId);
+  const markConversationRead = useCallback((profileId) => {
     if (!user?.id) return;
 
     setMessages((current) => current.map((message) => (
@@ -158,14 +161,41 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
         ? { ...message, is_read: true }
         : message
     )));
+    window.dispatchEvent(new CustomEvent("smartvisualnaudio:messages-read", {
+      detail: { senderId: profileId, receiverId: user.id },
+    }));
 
     if (!hasSupabaseConfig) return;
-    void supabase
-      .from("messages")
-      .update({ is_read: true })
-      .eq("sender_id", profileId)
-      .eq("receiver_id", user.id)
-      .eq("is_read", false);
+    void (async () => {
+      const { error } = await supabase
+        .from("messages")
+        .update({ is_read: true })
+        .eq("sender_id", profileId)
+        .eq("receiver_id", user.id)
+        .eq("is_read", false);
+
+      if (error) {
+        toast.error(`Unread status was not saved: ${error.message}`);
+        setMessages((current) => current.map((message) => (
+          message.sender_id === profileId && message.receiver_id === user.id
+            ? { ...message, is_read: false }
+            : message
+        )));
+      }
+    })();
+  }, [user?.id]);
+
+  useEffect(() => {
+    if (!selectedId || !user?.id) return;
+    const hasUnread = messages.some((message) => (
+      message.sender_id === selectedId && message.receiver_id === user.id && !message.is_read
+    ));
+    if (hasUnread) markConversationRead(selectedId);
+  }, [markConversationRead, messages, selectedId, user?.id]);
+
+  function openConversation(profileId) {
+    setSelectedId(profileId);
+    markConversationRead(profileId);
   }
 
   async function submit(event) {
@@ -212,7 +242,7 @@ export default function LiveMessages({ composeOpen = false, onComposeClose, subt
       return;
     }
 
-    setSelectedId(match.id);
+    openConversation(match.id);
     setSearch("");
     setRecipientLookup("");
     onComposeClose?.();

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { FiEdit3, FiX } from "react-icons/fi";
 import LiveMessages from "./LiveMessages";
 
-export default function MessageModal({ onClose }) {
+export default function MessageModal({ initialConversationId = "", onClose }) {
   const [composeOpen, setComposeOpen] = useState(false);
 
   return (
@@ -16,7 +16,7 @@ export default function MessageModal({ onClose }) {
             <FiX />
           </button>
         </div>
-        <LiveMessages composeOpen={composeOpen} onComposeClose={() => setComposeOpen(false)} subtitle="Send and receive messages without leaving this page." />
+        <LiveMessages composeOpen={composeOpen} initialConversationId={initialConversationId} onComposeClose={() => setComposeOpen(false)} subtitle="Send and receive messages without leaving this page." />
       </section>
     </div>
   );

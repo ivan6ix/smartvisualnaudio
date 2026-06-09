@@ -45,6 +45,18 @@ export default function useMessagePreview(user) {
 
     loadPreview();
 
+    function handleMessagesRead(event) {
+      const { senderId, receiverId } = event.detail || {};
+      if (receiverId !== user.id) return;
+      setMessages((current) => current.map((message) => (
+        message.sender_id === senderId && message.receiver_id === receiverId
+          ? { ...message, is_read: true }
+          : message
+      )));
+    }
+
+    window.addEventListener("smartvisualnaudio:messages-read", handleMessagesRead);
+
     const channel = supabase
       .channel(`message-preview-${user.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
@@ -52,10 +64,16 @@ export default function useMessagePreview(user) {
         if (row.sender_id !== user.id && row.receiver_id !== user.id) return;
         setMessages((current) => current.some((item) => item.id === row.id) ? current : [row, ...current]);
       })
+      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (payload) => {
+        const row = payload.new;
+        if (row.sender_id !== user.id && row.receiver_id !== user.id) return;
+        setMessages((current) => current.map((item) => item.id === row.id ? row : item));
+      })
       .subscribe();
 
     return () => {
       ignore = true;
+      window.removeEventListener("smartvisualnaudio:messages-read", handleMessagesRead);
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
