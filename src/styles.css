@@ -4,7 +4,7 @@
 
 :root {
   color: #111;
-  background: #f5f5f2;
+  background: #020617;
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
 }
 
@@ -29,7 +29,11 @@
 *::-webkit-scrollbar-thumb:hover {
   background: linear-gradient(180deg, #a5f3fc, #06b6d4);
 }
-body { margin: 0; min-width: 320px; }
+body {
+  margin: 0;
+  min-width: 320px;
+  background: #020617;
+}
 button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 a { color: inherit; text-decoration: none; }
@@ -4025,6 +4029,13 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .student-exam-take-page {
   color: #e5f3ff;
+  min-height: 100vh;
+  margin: -10px calc(clamp(16px, 4vw, 46px) * -1) -48px;
+  padding: 10px clamp(16px, 4vw, 46px) 48px;
+  background:
+    radial-gradient(circle at 16% 6%, rgba(6, 182, 212, 0.16), transparent 30%),
+    radial-gradient(circle at 88% 18%, rgba(37, 99, 235, 0.15), transparent 28%),
+    linear-gradient(135deg, #0f172a 0%, #111827 48%, #020617 100%);
 }
 .student-exam-start-page {
   min-height: calc(100vh - 96px);
