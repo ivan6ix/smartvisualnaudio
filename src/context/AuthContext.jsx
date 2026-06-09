@@ -90,7 +90,7 @@ async function mapAuthUser(authUser) {
       const { data } = await withTimeout(
         supabase
           .from("profiles")
-          .select("role, full_name, status")
+          .select("role, full_name, status, avatar_url")
           .eq("id", authUser.id)
           .maybeSingle(),
       );
@@ -106,6 +106,7 @@ async function mapAuthUser(authUser) {
     role: profile?.role || authUser.user_metadata?.role || "Student",
     fullName: profile?.full_name || authUser.user_metadata?.full_name || authUser.email,
     status: profile?.status || authUser.user_metadata?.status,
+    avatarUrl: profile?.avatar_url || authUser.user_metadata?.avatar_url || "",
   };
 }
 
@@ -213,7 +214,16 @@ export function AuthProvider({ children }) {
     toast.success("Logged out");
   }
 
-  const value = useMemo(() => ({ user, loading, login, logout, register, resetPassword }), [user, loading]);
+  function updateCachedUser(updates) {
+    setUser((current) => {
+      if (!current) return current;
+      const nextUser = { ...current, ...updates };
+      cacheUser(nextUser);
+      return nextUser;
+    });
+  }
+
+  const value = useMemo(() => ({ user, loading, login, logout, register, resetPassword, updateCachedUser }), [user, loading]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

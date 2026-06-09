@@ -3,6 +3,7 @@ import { FiBell, FiChevronDown, FiLogOut, FiMessageCircle, FiShield, FiUser } fr
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import AccountSettingsModal from "../../components/AccountSettingsModal";
 import MessageModal from "../../components/MessageModal";
+import ProfileAvatar from "../../components/ProfileAvatar";
 import { PageSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useMessagePreview from "../../hooks/useMessagePreview";
@@ -123,7 +124,10 @@ export default function StudentLayout() {
               </div>
             </div>
             <div className={`cluster-profile-menu ${profileOpen ? "open" : ""}`}>
-              <button onClick={() => setProfileOpen((open) => !open)} title="Profile" type="button"><FiUser /><FiChevronDown /></button>
+              <button onClick={() => setProfileOpen((open) => !open)} title="Profile" type="button">
+                <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
+                <FiChevronDown />
+              </button>
               <div>
                 <button onClick={() => { setSettingsModal("profile"); setProfileOpen(false); }} type="button"><FiUser /> Profile Settings</button>
                 <button onClick={() => { setSettingsModal("security"); setProfileOpen(false); }} type="button"><FiShield /> Security & Privacy</button>

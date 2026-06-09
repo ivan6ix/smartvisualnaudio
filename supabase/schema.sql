@@ -35,9 +35,12 @@ create table if not exists public.profiles (
   email text not null unique,
   employee_number text unique,
   student_number text unique,
+  avatar_url text,
   status public.account_status not null default 'Active',
   created_at timestamptz not null default now()
 );
+
+alter table public.profiles add column if not exists avatar_url text;
 
 create table if not exists public.cluster_professors (
   id uuid primary key references public.profiles(id) on delete cascade,
@@ -328,6 +331,36 @@ create policy "notifications_owner_update" on public.notifications
 for update to authenticated
 using (auth.uid() = user_id)
 with check (auth.uid() = user_id);
+
+insert into storage.buckets (id, name, public)
+values ('profile-pictures', 'profile-pictures', true)
+on conflict (id) do update set public = true;
+
+drop policy if exists "profile_pictures_read" on storage.objects;
+drop policy if exists "profile_pictures_owner_insert" on storage.objects;
+drop policy if exists "profile_pictures_owner_update" on storage.objects;
+
+create policy "profile_pictures_read" on storage.objects
+for select to authenticated
+using (bucket_id = 'profile-pictures');
+
+create policy "profile_pictures_owner_insert" on storage.objects
+for insert to authenticated
+with check (
+  bucket_id = 'profile-pictures'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
+
+create policy "profile_pictures_owner_update" on storage.objects
+for update to authenticated
+using (
+  bucket_id = 'profile-pictures'
+  and auth.uid()::text = (storage.foldername(name))[1]
+)
+with check (
+  bucket_id = 'profile-pictures'
+  and auth.uid()::text = (storage.foldername(name))[1]
+);
 create policy "logs_read_authenticated" on public.logs for select to authenticated using (true);
 create policy "exams_read_authenticated" on public.exams for select to authenticated using (true);
 create policy "exam_questions_read_authenticated" on public.exam_questions for select to authenticated using (true);

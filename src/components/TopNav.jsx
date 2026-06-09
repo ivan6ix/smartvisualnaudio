@@ -2,6 +2,7 @@ import { useState } from "react";
 import { FiBell, FiChevronDown, FiLogOut, FiMessageCircle, FiShield, FiUserCheck } from "react-icons/fi";
 import { NavLink, useNavigate } from "react-router-dom";
 import AccountSettingsModal from "./AccountSettingsModal";
+import ProfileAvatar from "./ProfileAvatar";
 import { useAuth } from "../context/AuthContext";
 import useAdminNotifications from "../hooks/useAdminNotifications";
 import useMessagePreview from "../hooks/useMessagePreview";
@@ -74,7 +75,11 @@ export default function TopNav() {
             </div>
           </div>
           <div className={`profile-menu ${profileOpen ? "open" : ""}`}>
-            <button onClick={() => setProfileOpen((open) => !open)} type="button"><FiUserCheck /> <span>{user?.fullName || "Profile"}</span> <FiChevronDown /></button>
+            <button onClick={() => setProfileOpen((open) => !open)} type="button">
+              <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
+              <span>{user?.fullName || "Profile"}</span>
+              <FiChevronDown />
+            </button>
             <div>
               <button onClick={() => { setSettingsModal("profile"); setProfileOpen(false); }} type="button"><FiUserCheck /> Profile Settings</button>
               <button onClick={() => { setSettingsModal("security"); setProfileOpen(false); }} type="button"><FiShield /> Security & Privacy</button>
