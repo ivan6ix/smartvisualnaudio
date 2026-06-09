@@ -3983,6 +3983,18 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   font-size: 1rem;
   color: #bae6fd;
 }
+.student-exam-list .badge,
+.student-exam-list .badge-success,
+.student-exam-list .badge-blue,
+.student-exam-list .badge-neutral {
+  width: fit-content;
+  min-width: 0;
+  justify-self: end;
+  border: 1px solid rgba(34, 211, 238, 0.36);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.28), rgba(6, 182, 212, 0.18));
+  color: #fff;
+  box-shadow: 0 10px 24px rgba(6, 182, 212, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
 .student-start-exam {
   min-height: 36px;
   min-width: 72px;
