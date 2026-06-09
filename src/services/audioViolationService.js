@@ -33,7 +33,7 @@ export async function uploadAudioViolation({
     if (audioBlob?.size) {
       const path = `${studentId}/${exam.id}/${safeTimestamp(timestamp)}.webm`;
       const { error } = await supabase.storage.from("audio-violations").upload(path, audioBlob, {
-        contentType: "audio/webm",
+        contentType: audioBlob.type || "audio/webm",
         upsert: false,
       });
       if (error) throw error;

@@ -10,6 +10,7 @@ const PRE_EVENT_AUDIO_SECONDS = 10;
 const LOUD_NOISE_COOLDOWN_MS = 0;
 const AUDIO_LEVEL_GAIN = 16;
 const FALLBACK_AUDIO_EVIDENCE_MS = 10000;
+const MIN_AUDIO_EVIDENCE_BYTES = 2048;
 
 function getRecorderOptions() {
   if (!window.MediaRecorder) return {};
@@ -109,6 +110,13 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
     return chunks.length ? new window.Blob(chunks, { type: recorder?.mimeType || "audio/webm" }) : null;
   }, []);
 
+  const captureRollingAudioBlob = useCallback(async () => {
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, PRE_EVENT_AUDIO_SECONDS * 1000);
+    });
+    return getPreEventAudioBlob();
+  }, [getPreEventAudioBlob]);
+
   const captureFallbackAudioBlob = useCallback(() => new Promise((resolve) => {
     if (!window.MediaRecorder || !audioStreamRef.current?.getAudioTracks?.().length) {
       resolve(null);
@@ -151,14 +159,8 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
     });
 
     try {
-      let audioBlob = await getPreEventAudioBlob();
-      if (!audioBlob?.size) {
-        await new Promise((resolve) => {
-          window.setTimeout(resolve, 750);
-        });
-        audioBlob = await getPreEventAudioBlob();
-      }
-      if (!audioBlob?.size) {
+      let audioBlob = await captureRollingAudioBlob();
+      if (!audioBlob?.size || audioBlob.size < MIN_AUDIO_EVIDENCE_BYTES) {
         audioBlob = await captureFallbackAudioBlob();
       }
       await uploadAudioViolation({
@@ -179,7 +181,7 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
       loudPeakRef.current = 0;
       handlingViolationRef.current = false;
     }
-  }, [addTimelineItem, captureFallbackAudioBlob, exam, getPreEventAudioBlob, onViolation, student]);
+  }, [addTimelineItem, captureFallbackAudioBlob, captureRollingAudioBlob, exam, onViolation, student]);
 
   const start = useCallback((stream) => {
     if (!enabled || !stream?.getAudioTracks?.().length) return;
