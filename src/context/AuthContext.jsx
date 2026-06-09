@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const AuthContext = createContext(null);
+const AUTH_USER_STORAGE_KEY = "smartvisualnaudio.auth.user";
 
 const demoUser = {
   id: "demo-admin",
@@ -48,6 +49,29 @@ const demoUsers = {
 
 const allowDemoAuth = !hasSupabaseConfig && import.meta.env.DEV;
 
+function getCachedUser() {
+  try {
+    const cached = window.localStorage.getItem(AUTH_USER_STORAGE_KEY);
+    if (!cached) return null;
+    const parsed = JSON.parse(cached);
+    return parsed?.id && parsed?.email ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
+function cacheUser(nextUser) {
+  try {
+    if (nextUser) {
+      window.localStorage.setItem(AUTH_USER_STORAGE_KEY, JSON.stringify(nextUser));
+    } else {
+      window.localStorage.removeItem(AUTH_USER_STORAGE_KEY);
+    }
+  } catch {
+    // Ignore storage failures; Supabase still owns the real session.
+  }
+}
+
 function withTimeout(promise, ms = 6000) {
   return Promise.race([
     promise,
@@ -86,7 +110,7 @@ async function mapAuthUser(authUser) {
 }
 
 export function AuthProvider({ children }) {
-  const [user, setUser] = useState(allowDemoAuth ? demoUser : null);
+  const [user, setUser] = useState(() => (allowDemoAuth ? demoUser : hasSupabaseConfig ? getCachedUser() : null));
   const [loading, setLoading] = useState(Boolean(hasSupabaseConfig));
 
   useEffect(() => {
@@ -102,10 +126,13 @@ export function AuthProvider({ children }) {
         const { data } = await withTimeout(supabase.auth.getSession());
         const authUser = data.session?.user;
         const nextUser = await mapAuthUser(authUser);
-        if (active) setUser(nextUser);
+        if (active) {
+          setUser(nextUser);
+          cacheUser(nextUser);
+        }
       } catch (error) {
         window.console.error("[Auth] Session load failed", error);
-        if (active) setUser(null);
+        if (active) setUser((currentUser) => currentUser || getCachedUser());
       } finally {
         if (active) setLoading(false);
       }
@@ -113,9 +140,12 @@ export function AuthProvider({ children }) {
 
     loadSession();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
       const authUser = session?.user;
-      setUser(await mapAuthUser(authUser));
+      if (!authUser && event !== "SIGNED_OUT") return;
+      const nextUser = await mapAuthUser(authUser);
+      setUser(nextUser);
+      cacheUser(nextUser);
       setLoading(false);
     });
 
@@ -131,12 +161,14 @@ export function AuthProvider({ children }) {
       if (error) throw error;
       const nextUser = await mapAuthUser(data.user);
       setUser(nextUser);
+      cacheUser(nextUser);
       toast.success("Login successful");
       return nextUser;
     }
     if (!allowDemoAuth) throw new Error("Supabase environment variables are missing.");
     const nextUser = demoUsers[email] || { ...demoUser, email: email || demoUser.email };
     setUser(nextUser);
+    cacheUser(nextUser);
     toast.success("Demo login successful");
     return nextUser;
   }
@@ -177,6 +209,7 @@ export function AuthProvider({ children }) {
   async function logout() {
     if (hasSupabaseConfig) await supabase.auth.signOut();
     setUser(null);
+    cacheUser(null);
     toast.success("Logged out");
   }
 
