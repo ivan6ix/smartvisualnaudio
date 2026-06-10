@@ -3737,6 +3737,7 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .professor-manual-list small,
 .professor-manual-detail span,
 .professor-manual-detail p { color: #94a3b8; }
+.professor-share-targets article strong { color: #fff; }
 .professor-share-header > button {
   border-color: rgba(125, 211, 252, 0.22);
   background: rgba(255, 255, 255, 0.06);
