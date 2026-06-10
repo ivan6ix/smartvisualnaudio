@@ -104,14 +104,15 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
 
   const handleLoudViolation = useCallback(async (level) => {
     if (handlingViolationRef.current || Date.now() < cooldownUntilRef.current) return;
+    const triggeredAt = new Date().toISOString();
     handlingViolationRef.current = true;
     cooldownUntilRef.current = Date.now() + LOUD_NOISE_COOLDOWN_MS;
-    addTimelineItem("Loud Noise Detected", level, "Audio reached 50% for 3 seconds. Audio evidence is being recorded.", true);
+    addTimelineItem("Loud Noise Detected", level, "Audio reached 50% for 3 seconds. Recording the next 10 seconds for the professor.", true);
     onViolation?.({
       type: "AUDIO_DETECTED",
-      message: "Audio reached 50% for 3 seconds. Recording was sent to the professor.",
+      message: "Audio reached 50% for 3 seconds. Recording a 10-second audio clip for the professor.",
       severity: "Medium",
-      timestamp: new Date().toISOString(),
+      timestamp: triggeredAt,
     });
 
     try {
@@ -126,6 +127,7 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation }) 
         exam,
         professorId: exam?.professor_id || exam?.created_by,
         studentId: student?.id,
+        triggeredAt,
       });
       addTimelineItem("Loud Noise Detected", level, "Audio violation recorded. The professor can review the 10-second clip.", true);
     } catch (error) {

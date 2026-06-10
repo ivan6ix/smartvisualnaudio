@@ -23,11 +23,12 @@ export async function uploadAudioViolation({
   exam,
   professorId,
   studentId,
+  triggeredAt,
 }) {
-  const timestamp = new Date().toISOString();
+  const timestamp = triggeredAt || new Date().toISOString();
   let evidenceUrl = null;
   let evidenceType = "audio";
-  let description = "Audio level reached 50% or higher for 3 seconds. The previous 10 seconds of audio was recorded.";
+  let description = "Audio level reached 50% or higher for 3 seconds. The next 10 seconds of audio was recorded for review.";
 
   try {
     if (audioBlob?.size) {
@@ -45,13 +46,13 @@ export async function uploadAudioViolation({
       try {
         evidenceUrl = await blobToDataUrl(audioBlob);
         evidenceType = "audio_inline";
-        description = "Audio level reached 50% or higher for 3 seconds. Audio was saved inline because storage upload failed.";
+        description = "Audio level reached 50% or higher for 3 seconds. The 10-second audio clip was saved inline because storage upload failed.";
       } catch (inlineError) {
         window.console.error("[AudioMonitoring]", inlineError);
-        description = "Audio level reached 50% or higher for 3 seconds, but audio evidence upload failed.";
+        description = "Audio level reached 50% or higher for 3 seconds, but the 10-second audio evidence upload failed.";
       }
     } else {
-      description = "Audio level reached 50% or higher for 3 seconds, but audio evidence was not available.";
+      description = "Audio level reached 50% or higher for 3 seconds, but the 10-second audio evidence was not available.";
     }
   }
 
