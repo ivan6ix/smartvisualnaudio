@@ -63,6 +63,7 @@ const BASIC_FACE_SAMPLE_WIDTH = 160;
 const BASIC_FACE_SAMPLE_HEIGHT = 100;
 const OBJECT_SCAN_INTERVAL_MS = 1000;
 const ENV_SCAN_OBJECT_CONFIDENCE = 0.62;
+const ENV_SCAN_PHONE_CONFIDENCE = 0.45;
 const ROBOFLOW_OBJECT_CONFIDENCE = Number(import.meta.env.VITE_ROBOFLOW_OBJECT_CONFIDENCE || 0.35);
 const ROBOFLOW_MODEL_ID = import.meta.env.VITE_ROBOFLOW_MODEL || "spare-gadget-detection";
 const ROBOFLOW_MODEL_VERSION = import.meta.env.VITE_ROBOFLOW_MODEL_VERSION || "16";
@@ -288,6 +289,7 @@ export default function StudentExamTake() {
   const gazeHistoryRef = useRef([]);
   const objectMonitorRef = useRef(null);
   const objectAlertCooldownRef = useRef(0);
+  const phoneAlertCooldownRef = useRef(0);
   const objectDetectorRef = useRef(null);
   const orderingDragRef = useRef(null);
   const roboflowConnectionRef = useRef(null);
@@ -914,6 +916,16 @@ export default function StudentExamTake() {
           });
           lastAcceptedAt = Date.now();
 
+          const phoneFinding = await detectPhoneInScanFrame(frame.image, checkpoint.id);
+          if (phoneFinding) {
+            setScanFindings([phoneFinding]);
+            setScanStatus("failed");
+            setScanSensorStatus("Phone detected. Remove it and scan again.");
+            stopEnvironmentCamera();
+            toast.error("Phone detected during environment scan. Please remove it and scan again.");
+            return;
+          }
+
           if (collectedFrames[checkpoint.id].length >= CHECKPOINT_FRAMES_REQUIRED) {
             captured[checkpoint.id] = true;
             checkpointIndex += 1;
@@ -1079,7 +1091,7 @@ export default function StudentExamTake() {
     if (!apiKey || !ROBOFLOW_MODEL_ID || !ROBOFLOW_MODEL_VERSION) return null;
 
     const endpoint = `${ROBOFLOW_API_BASE.replace(/\/$/, "")}/${ROBOFLOW_MODEL_ID}/${ROBOFLOW_MODEL_VERSION}`;
-    const url = new URL(endpoint);
+    const url = new window.URL(endpoint);
     url.searchParams.set("api_key", apiKey);
     url.searchParams.set("confidence", String(Math.round(ROBOFLOW_OBJECT_CONFIDENCE * 100)));
 
@@ -1149,6 +1161,32 @@ export default function StudentExamTake() {
       confidence: Number(prediction.score ?? prediction.confidence ?? 0),
       instruction: "Remove extra gadgets from the exam area and scan again.",
     };
+  }
+
+  async function detectPhoneInScanFrame(dataUrl, angle) {
+    try {
+      if (!objectDetectorRef.current) {
+        objectDetectorRef.current = await cocoSsd.load();
+      }
+
+      const image = await loadScanImage(dataUrl);
+      const predictions = await objectDetectorRef.current.detect(image);
+      const phone = predictions.find((item) => (
+        PHONE_LABELS.has(String(item.class || item.label || item.name || "").toLowerCase())
+        && Number(item.score ?? item.confidence ?? 0) >= ENV_SCAN_PHONE_CONFIDENCE
+      ));
+
+      if (!phone) return null;
+
+      return {
+        ...buildGadgetFinding(phone),
+        angle,
+        instruction: "Phone detected. Remove it from the exam area and scan again.",
+      };
+    } catch (error) {
+      window.console.warn("[EnvironmentScan] Phone frame check unavailable.", error);
+      return null;
+    }
   }
 
   async function detectEnvironmentGadgets(frames) {
@@ -1282,6 +1320,8 @@ export default function StudentExamTake() {
       window.clearInterval(objectMonitorRef.current);
       objectMonitorRef.current = null;
     }
+    objectAlertCooldownRef.current = 0;
+    phoneAlertCooldownRef.current = 0;
     objectDetectorRef.current = null;
     setRoboflowStatus("Roboflow detector off");
     setFaceStatus("Checking face position");
@@ -1704,10 +1744,12 @@ export default function StudentExamTake() {
     const predictions = collectRoboflowPredictions(data);
     const detected = predictions.find((item) => ROBOFLOW_GADGET_LABELS.has(item.label) && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE);
     if (!detected) return;
-    if (Date.now() - roboflowAlertCooldownRef.current < 8000) return;
 
-    roboflowAlertCooldownRef.current = Date.now();
     const isPhone = PHONE_LABELS.has(detected.label) || detected.label === "tablet" || detected.label === "ipad";
+    const cooldownRef = isPhone ? phoneAlertCooldownRef : roboflowAlertCooldownRef;
+    if (Date.now() - cooldownRef.current < 8000) return;
+
+    cooldownRef.current = Date.now();
     const message = isPhone
       ? `Phone or tablet detected by Roboflow live camera (${Math.round(detected.confidence * 100)}%).`
       : `Spare gadget detected by Roboflow live camera (${Math.round(detected.confidence * 100)}%).`;
@@ -1746,7 +1788,6 @@ export default function StudentExamTake() {
   }
 
   async function detectProctorObjects() {
-    if (Date.now() - objectAlertCooldownRef.current < 8000) return;
     const video = proctorVideoRef.current;
     if (!video?.videoWidth) return;
 
@@ -1758,8 +1799,12 @@ export default function StudentExamTake() {
         const isTablet = label === "tablet" || label === "ipad";
         const isLaptop = label === "laptop";
         const readableLabel = isPhone ? "Phone" : isTablet ? "Tablet" : isLaptop ? "Laptop" : "Gadget";
-        objectAlertCooldownRef.current = Date.now();
-        recordManualViolation(isPhone || isTablet ? "PHONE_DETECTED" : "GADGET_DETECTED", `${readableLabel} detected in camera view.`, "High");
+        const violationType = isPhone || isTablet ? "PHONE_DETECTED" : "GADGET_DETECTED";
+        const cooldownRef = violationType === "PHONE_DETECTED" ? phoneAlertCooldownRef : objectAlertCooldownRef;
+        if (Date.now() - cooldownRef.current < 8000) return;
+
+        cooldownRef.current = Date.now();
+        recordManualViolation(violationType, `${readableLabel} detected in camera view.`, "High");
       }
     } catch {
       // Keep exam proctoring active even if the optional object detector is unreachable.
