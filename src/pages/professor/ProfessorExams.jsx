@@ -501,13 +501,15 @@ export default function ProfessorExams() {
                       {exam.status === "unpublished" && exam.clusterStatus === "approved" ? <button disabled={loadingActionId === exam.id} onClick={() => handlePublish(exam)}>Publish</button> : null}
                       {exam.status === "unpublished" && exam.clusterStatus !== "approved" ? <button className="locked" disabled>{getPublishGateLabel(exam)}</button> : null}
                       {exam.status === "pending" ? <button className="muted">View</button> : null}
-                      <button
-                        className={exam.status === "pending" || exam.clusterStatus === "approved" ? "approval submitted" : "approval"}
-                        disabled={exam.status === "pending" || exam.clusterStatus === "approved" || loadingActionId === exam.id}
-                        onClick={() => handleSubmitForApproval(exam)}
-                      >
-                        {loadingActionId === exam.id ? "Saving..." : getApprovalActionLabel(exam)}
-                      </button>
+                      {exam.status !== "published" ? (
+                        <button
+                          className={exam.status === "pending" || exam.clusterStatus === "approved" ? "approval submitted" : "approval"}
+                          disabled={exam.status === "pending" || exam.clusterStatus === "approved" || loadingActionId === exam.id}
+                          onClick={() => handleSubmitForApproval(exam)}
+                        >
+                          {loadingActionId === exam.id ? "Saving..." : getApprovalActionLabel(exam)}
+                        </button>
+                      ) : null}
                       <button
                         className={exam.status === "pending" ? "share-disabled" : ""}
                         disabled={exam.status === "pending"}
