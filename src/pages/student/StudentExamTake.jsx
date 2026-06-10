@@ -83,6 +83,14 @@ const DEFAULT_EXAM_SETTINGS = {
   captureSnapshots: false,
 };
 
+function normalizeDetectionLabel(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalizeExamSettings(settings) {
   const parsed = typeof settings === "string" ? JSON.parse(settings || "{}") : settings || {};
   const bool = (...keys) => keys.some((key) => parsed[key] === true || parsed[key] === "true" || parsed[key] === 1);
@@ -1153,7 +1161,7 @@ export default function StudentExamTake() {
   }
 
   function buildGadgetFinding(prediction) {
-    const label = String(prediction.class || prediction.label || prediction.name || "gadget").toLowerCase();
+    const label = normalizeDetectionLabel(prediction.class || prediction.label || prediction.name || "gadget");
     const readableLabel = PHONE_LABELS.has(label) ? "Phone detected. Please remove it and scan again." : `${label} detected. Please remove it and scan again.`;
     return {
       label: readableLabel,
@@ -1172,7 +1180,7 @@ export default function StudentExamTake() {
       const image = await loadScanImage(dataUrl);
       const predictions = await objectDetectorRef.current.detect(image);
       const phone = predictions.find((item) => (
-        PHONE_LABELS.has(String(item.class || item.label || item.name || "").toLowerCase())
+        PHONE_LABELS.has(normalizeDetectionLabel(item.class || item.label || item.name))
         && Number(item.score ?? item.confidence ?? 0) >= ENV_SCAN_PHONE_CONFIDENCE
       ));
 
@@ -1202,7 +1210,7 @@ export default function StudentExamTake() {
           const image = await loadScanImage(frame.image || frame);
           const predictions = await objectDetectorRef.current.detect(image);
           const detected = predictions.find((item) => (
-            GADGET_LABELS.has(String(item.class || "").toLowerCase())
+            GADGET_LABELS.has(normalizeDetectionLabel(item.class))
             && Number(item.score || 0) >= ENV_SCAN_OBJECT_CONFIDENCE
           ));
           if (detected) {
@@ -1639,7 +1647,7 @@ export default function StudentExamTake() {
     if (!response.ok) return null;
     const result = await response.json();
     const predictions = result.predictions || result.objects || [];
-    return predictions.find((item) => GADGET_LABELS.has(String(item.class || item.label || item.name || "").toLowerCase()) && Number(item.confidence ?? item.score ?? 1) >= 0.45);
+    return predictions.find((item) => GADGET_LABELS.has(normalizeDetectionLabel(item.class || item.label || item.name)) && Number(item.confidence ?? item.score ?? 1) >= 0.45);
   }
 
   function getRoboflowImageScanEndpoint() {
@@ -1686,7 +1694,7 @@ export default function StudentExamTake() {
       objectDetectorRef.current = await cocoSsd.load();
     }
     const predictions = await objectDetectorRef.current.detect(video);
-    return predictions.find((item) => GADGET_LABELS.has(String(item.class || "").toLowerCase()) && Number(item.score || 0) >= 0.5);
+    return predictions.find((item) => GADGET_LABELS.has(normalizeDetectionLabel(item.class)) && Number(item.score || 0) >= 0.5);
   }
 
   function getRoboflowConfig() {
@@ -1719,10 +1727,10 @@ export default function StudentExamTake() {
     }
     if (typeof value !== "object") return items;
 
-    const label = value.class || value.label || value.name || value.class_name;
+    const label = normalizeDetectionLabel(value.class || value.label || value.name || value.class_name);
     const confidence = Number(value.confidence ?? value.score ?? value.probability ?? 0);
     if (label && confidence) {
-      items.push({ label: String(label).toLowerCase(), confidence });
+      items.push({ label, confidence });
     }
 
     Object.entries(value).forEach(([key, nested]) => {
@@ -1733,7 +1741,7 @@ export default function StudentExamTake() {
   }
 
   function getDetectedGadgetLabel(item) {
-    const rawLabel = String(item.class || item.label || item.name || item.class_name || "gadget").toLowerCase();
+    const rawLabel = normalizeDetectionLabel(item.class || item.label || item.name || item.class_name || "gadget");
     if (PHONE_LABELS.has(rawLabel) || rawLabel.includes("phone")) return "phone";
     if (rawLabel.includes("tablet") || rawLabel.includes("ipad")) return "tablet";
     if (rawLabel.includes("laptop")) return "laptop";
@@ -1792,7 +1800,16 @@ export default function StudentExamTake() {
     if (!video?.videoWidth) return;
 
     try {
-      const detected = await detectWithRoboflowImage(video) || await detectWithEndpoint(video) || await detectWithCocoSsd(video);
+      let detected = null;
+      for (const detector of [detectWithRoboflowImage, detectWithEndpoint, detectWithCocoSsd]) {
+        try {
+          detected = await detector(video);
+        } catch (error) {
+          window.console.warn("[ObjectDetection] Detector unavailable.", error);
+        }
+        if (detected) break;
+      }
+
       if (detected) {
         const label = getDetectedGadgetLabel(detected);
         const isPhone = label === "phone";
