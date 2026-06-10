@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { FiClock, FiDownload, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { Button, Card, Field, PageHeader, SearchBox, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
@@ -11,7 +12,7 @@ const titles = {
 };
 
 export default function ClusterExamList({ status }) {
-  const { exams, approveExam, rejectExam } = useCluster();
+  const { exams, filterOptions, reviews, approveExam, rejectExam } = useCluster();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [course, setCourse] = useState("All Courses");
@@ -19,8 +20,9 @@ export default function ClusterExamList({ status }) {
   const [date, setDate] = useState("");
   const [statusFilter, setStatusFilter] = useState(status);
   const [loadingActionId, setLoadingActionId] = useState("");
-  const courses = ["All Courses", ...new Set(exams.map((exam) => exam.course))];
-  const professors = ["All Professors", ...new Set(exams.map((exam) => exam.professorName))];
+  const [historyExam, setHistoryExam] = useState(null);
+  const courses = useMemo(() => ["All Courses", ...new Set([...(filterOptions?.courses || []), ...exams.map((exam) => exam.course)].filter(Boolean))], [exams, filterOptions]);
+  const professors = useMemo(() => ["All Professors", ...new Set([...(filterOptions?.professors || []), ...exams.map((exam) => exam.professorName)].filter(Boolean))], [exams, filterOptions]);
 
   useEffect(() => {
     setStatusFilter(status);
@@ -37,6 +39,54 @@ export default function ClusterExamList({ status }) {
     await rejectExam(examId, "Incorrect answer key");
     setLoadingActionId("");
   }
+
+  function downloadFeedback(exam) {
+    const feedback = [
+      `Exam: ${exam.examTitle}`,
+      `Professor: ${exam.professorName}`,
+      `Course: ${exam.course}`,
+      `Rejected Date: ${exam.rejectedAt || "N/A"}`,
+      "",
+      "Feedback:",
+      exam.rejectionReason || exam.reviewNotes || "No feedback recorded.",
+    ].join("\n");
+    const blob = new globalThis.Blob([feedback], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = globalThis.URL.createObjectURL(blob);
+    link.download = `${exam.examTitle || "exam"}-feedback.txt`.replace(/[^\w.-]+/g, "-");
+    link.click();
+    globalThis.URL.revokeObjectURL(link.href);
+  }
+
+  const historyEntries = useMemo(() => {
+    if (!historyExam) return [];
+
+    const relatedReviews = reviews
+      .filter((review) => review.examId === historyExam.id)
+      .sort((a, b) => String(a.reviewDate || "").localeCompare(String(b.reviewDate || "")));
+
+    if (relatedReviews.length) {
+      return relatedReviews.map((review, index) => ({
+        id: review.id,
+        attempt: index + 1,
+        date: review.reviewDate || "No date",
+        decision: review.decision || "Revision Needed",
+        remarks: review.remarks || "No remarks recorded.",
+      }));
+    }
+
+    if (historyExam.rejectedAt || historyExam.rejectionReason || historyExam.reviewNotes) {
+      return [{
+        id: `${historyExam.id}-rejected`,
+        attempt: 1,
+        date: historyExam.rejectedAt || historyExam.submittedAt || "No date",
+        decision: "Rejected",
+        remarks: historyExam.rejectionReason || historyExam.reviewNotes || "No remarks recorded.",
+      }];
+    }
+
+    return [];
+  }, [historyExam, reviews]);
 
   const filtered = useMemo(() => exams.filter((exam) => {
     const matchesStatus = statusFilter === "All Statuses" || exam.status === statusFilter;
@@ -101,8 +151,8 @@ export default function ClusterExamList({ status }) {
         ) : status === "Rejected" ? (
           <>
             <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View</Button>
-            <Button variant="light">Download Feedback</Button>
-            <Button variant="light">Resubmission History</Button>
+            <Button variant="light" onClick={() => downloadFeedback(row)}><FiDownload /> Download Feedback</Button>
+            <Button variant="light" onClick={() => setHistoryExam(row)}><FiClock /> Resubmission History</Button>
           </>
         ) : (
           <>
@@ -114,6 +164,40 @@ export default function ClusterExamList({ status }) {
           </>
         )} />
       </Card>
+      {historyExam ? (
+        <div className="cluster-history-backdrop" onClick={() => setHistoryExam(null)} role="presentation">
+          <section aria-labelledby="cluster-resubmission-title" aria-modal="true" className="cluster-resubmission-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+            <header className="cluster-resubmission-header">
+              <div>
+                <span>Resubmission History</span>
+                <h2 id="cluster-resubmission-title">{historyExam.examTitle}</h2>
+              </div>
+              <button aria-label="Close resubmission history" onClick={() => setHistoryExam(null)} type="button"><FiX /></button>
+            </header>
+            <div className="cluster-resubmission-summary">
+              <span><b>Professor</b>{historyExam.professorName}</span>
+              <span><b>Course</b>{historyExam.course}</span>
+              <span><b>Latest status</b><StatusBadge status={historyExam.status} /></span>
+            </div>
+            <div className="cluster-resubmission-timeline">
+              {historyEntries.map((entry) => (
+                <article key={entry.id}>
+                  <i>{entry.attempt}</i>
+                  <div>
+                    <div>
+                      <strong>Attempt {entry.attempt}</strong>
+                      <StatusBadge status={entry.decision} />
+                    </div>
+                    <time>{entry.date}</time>
+                    <p>{entry.remarks}</p>
+                  </div>
+                </article>
+              ))}
+              {!historyEntries.length ? <p className="cluster-resubmission-empty">No resubmission or review history recorded yet.</p> : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
     </>
   );
 }

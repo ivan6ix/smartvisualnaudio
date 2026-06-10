@@ -7515,6 +7515,150 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   width: min(100%, 520px);
   animation: modal-rise 160ms ease-out;
 }
+.cluster-history-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 22px;
+  background:
+    radial-gradient(circle at 18% 12%, rgba(6, 182, 212, 0.18), transparent 30%),
+    rgba(2, 6, 23, 0.72);
+  backdrop-filter: blur(10px);
+}
+.cluster-resubmission-modal {
+  width: min(94vw, 760px);
+  max-height: min(86vh, 720px);
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  gap: 16px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at 86% 12%, rgba(6, 182, 212, 0.18), transparent 34%),
+    linear-gradient(145deg, rgba(30, 41, 59, 0.98), rgba(15, 23, 42, 0.96));
+  box-shadow: 0 30px 86px rgba(2, 6, 23, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: #fff;
+  padding: 22px;
+  animation: modal-rise 160ms ease-out;
+}
+.cluster-resubmission-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+.cluster-resubmission-header span {
+  display: block;
+  color: #67e8f9;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.cluster-resubmission-header h2 {
+  margin: 4px 0 0;
+  color: #fff;
+  font-size: clamp(1.3rem, 3vw, 2rem);
+  line-height: 1.1;
+}
+.cluster-resubmission-header button {
+  width: 42px;
+  height: 42px;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.46);
+  color: #e0f2fe;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.cluster-resubmission-header button:hover {
+  border-color: rgba(34, 211, 238, 0.48);
+  background: rgba(6, 182, 212, 0.14);
+}
+.cluster-resubmission-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.cluster-resubmission-summary span {
+  min-height: 72px;
+  display: grid;
+  align-content: center;
+  gap: 6px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.34);
+  color: #fff;
+  padding: 12px;
+}
+.cluster-resubmission-summary b {
+  color: #bfdbfe;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+}
+.cluster-resubmission-timeline {
+  min-height: 0;
+  overflow-y: auto;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  padding-right: 4px;
+}
+.cluster-resubmission-timeline article {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr);
+  gap: 12px;
+}
+.cluster-resubmission-timeline article > i {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(34, 211, 238, 0.38);
+  border-radius: 999px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.5), rgba(6, 182, 212, 0.22));
+  color: #fff;
+  font-style: normal;
+  font-weight: 900;
+}
+.cluster-resubmission-timeline article > div {
+  display: grid;
+  gap: 7px;
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.38);
+  padding: 14px;
+}
+.cluster-resubmission-timeline article > div > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.cluster-resubmission-timeline strong {
+  color: #fff;
+}
+.cluster-resubmission-timeline time {
+  color: #bfdbfe;
+  font-size: 0.86rem;
+  font-weight: 800;
+}
+.cluster-resubmission-timeline p,
+.cluster-resubmission-empty {
+  margin: 0;
+  color: #e2e8f0;
+}
+.cluster-resubmission-empty {
+  border: 1px dashed rgba(125, 211, 252, 0.26);
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.3);
+  padding: 18px;
+  text-align: center;
+}
 .reject-modal-actions {
   margin-top: 18px;
   gap: 12px;
@@ -7603,6 +7747,9 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   .message-modal .messages-layout {
     grid-template-columns: 1fr;
     height: calc(100% - 86px);
+  }
+  .cluster-resubmission-summary {
+    grid-template-columns: 1fr;
   }
   .admin-hero,
   .admin-command-grid {

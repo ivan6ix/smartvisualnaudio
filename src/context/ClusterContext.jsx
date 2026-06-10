@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useEffect } from "react";
+import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "./AuthContext";
 import { clusterExams, clusterMessages, clusterNotifications } from "../data/clusterData";
@@ -9,6 +9,30 @@ const ClusterContext = createContext(null);
 
 function today() {
   return new Date().toISOString().slice(0, 10);
+}
+
+function uniqueText(items) {
+  return [...new Set(items.map((item) => String(item || "").trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+}
+
+function formatCourseName(course) {
+  if (!course) return "";
+  const name = course.course_name || course.course || "";
+  const codeSection = [course.course_code, course.section].filter(Boolean).join(" - ");
+  return name || codeSection;
+}
+
+function buildFilterOptions(exams = [], courseRows = [], professorRows = []) {
+  return {
+    courses: uniqueText([
+      ...exams.map((exam) => exam.course),
+      ...courseRows.map(formatCourseName),
+    ]),
+    professors: uniqueText([
+      ...exams.map((exam) => exam.professorName),
+      ...professorRows.map((profile) => profile.full_name || profile.email),
+    ]),
+  };
 }
 
 const initialProfessorExams = [
@@ -150,6 +174,7 @@ export function ClusterProvider({ children }) {
   const [messages, setMessages] = useLocalStorageState("smartproctor.cluster.messages", clusterMessages);
   const [notifications, setNotifications] = useLocalStorageState("smartproctor.cluster.notifications", clusterNotifications);
   const [reportsGenerated, setReportsGenerated] = useLocalStorageState("smartproctor.cluster.reportsGenerated", 8);
+  const [filterOptions, setFilterOptions] = useState(() => buildFilterOptions(clusterExams));
 
   const loadLiveClusterData = useCallback(async function loadLiveClusterData() {
     if (!hasSupabaseConfig || !user?.id) return;
@@ -171,7 +196,7 @@ export function ClusterProvider({ children }) {
     const examIds = liveExamRows.map((exam) => exam.id);
     const professorIds = [...new Set(liveExamRows.flatMap((exam) => [exam.professor_id, exam.created_by]).filter(Boolean))];
 
-    const [{ data: profileRows, error: profileError }, { data: questionRows, error: questionError }, { data: reviewRows, error: reviewError }, { data: messageRows, error: messageError }, { data: notificationRows, error: notificationError }] = await Promise.all([
+    const [{ data: profileRows, error: profileError }, { data: questionRows, error: questionError }, { data: reviewRows, error: reviewError }, { data: messageRows, error: messageError }, { data: notificationRows, error: notificationError }, { data: courseOptionRows, error: courseOptionError }, { data: professorOptionRows, error: professorOptionError }] = await Promise.all([
       professorIds.length
         ? supabase.from("profiles").select("id, full_name, email").in("id", professorIds)
         : Promise.resolve({ data: [], error: null }),
@@ -183,6 +208,8 @@ export function ClusterProvider({ children }) {
         : Promise.resolve({ data: [], error: null }),
       supabase.from("messages").select("id, sender_id, receiver_id, message, is_read, created_at").eq("receiver_id", user.id).eq("is_read", false),
       supabase.from("notifications").select("id, title, message, type, is_read, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
+      supabase.from("courses").select("id, course_name, course_code, section").eq("archived", false).order("created_at", { ascending: false }),
+      supabase.from("profiles").select("id, full_name, email").eq("role", "Professor").eq("status", "Active").order("full_name", { ascending: true }),
     ]);
 
     if (profileError) {
@@ -216,7 +243,14 @@ export function ClusterProvider({ children }) {
       return items;
     }, new Map());
 
-    setExams(liveExamRows.map((exam) => mapLiveExam(exam, profileMap, questionMap, reviewMap)));
+    const mappedExams = liveExamRows.map((exam) => mapLiveExam(exam, profileMap, questionMap, reviewMap));
+
+    setExams(mappedExams);
+    setFilterOptions(buildFilterOptions(
+      mappedExams,
+      courseOptionError ? [] : courseOptionRows,
+      professorOptionError ? [] : professorOptionRows,
+    ));
     setReviews((reviewRows || []).map((review) => {
       const exam = liveExamRows.find((item) => item.id === review.exam_id);
       const mappedExam = exam ? mapLiveExam(exam, profileMap, questionMap, reviewMap) : null;
@@ -240,6 +274,11 @@ export function ClusterProvider({ children }) {
   useEffect(() => {
     loadLiveClusterData();
   }, [loadLiveClusterData]);
+
+  useEffect(() => {
+    if (hasSupabaseConfig) return;
+    setFilterOptions(buildFilterOptions(exams));
+  }, [exams]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return undefined;
@@ -462,6 +501,7 @@ export function ClusterProvider({ children }) {
     messages,
     notifications,
     reportsGenerated,
+    filterOptions,
     setReportsGenerated,
     refreshClusterData: loadLiveClusterData,
     saveReview,
