@@ -63,14 +63,14 @@ const BASIC_FACE_SAMPLE_WIDTH = 160;
 const BASIC_FACE_SAMPLE_HEIGHT = 100;
 const OBJECT_SCAN_INTERVAL_MS = 1000;
 const ENV_SCAN_OBJECT_CONFIDENCE = 0.62;
-const ENV_SCAN_PHONE_CONFIDENCE = 0.45;
+const ENV_SCAN_PHONE_CONFIDENCE = 0.25;
 const ROBOFLOW_OBJECT_CONFIDENCE = Number(import.meta.env.VITE_ROBOFLOW_OBJECT_CONFIDENCE || 0.35);
 const ROBOFLOW_MODEL_ID = import.meta.env.VITE_ROBOFLOW_MODEL || "spare-gadget-detection";
 const ROBOFLOW_MODEL_VERSION = import.meta.env.VITE_ROBOFLOW_MODEL_VERSION || "16";
 const ROBOFLOW_API_BASE = import.meta.env.VITE_ROBOFLOW_API_BASE || "https://detect.roboflow.com";
-const PHONE_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone"]);
-const GADGET_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "laptop", "tablet"]);
-const ROBOFLOW_GADGET_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "laptop", "tablet", "ipad"]);
+const PHONE_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "cellular phone", "iphone", "android phone", "handphone", "mobile"]);
+const GADGET_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "cellular phone", "iphone", "android phone", "handphone", "mobile", "laptop", "tablet"]);
+const ROBOFLOW_GADGET_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "cellular phone", "iphone", "android phone", "handphone", "mobile", "laptop", "tablet", "ipad"]);
 const SNAPSHOT_VIOLATION_TYPES = new Set(["MULTIPLE_FACE", "NO_FACE", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED"]);
 const FACE_LANDMARKER_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
 const VISION_WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
@@ -89,6 +89,11 @@ function normalizeDetectionLabel(value) {
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function isPhoneDetectionLabel(value) {
+  const label = normalizeDetectionLabel(value);
+  return PHONE_LABELS.has(label) || label.includes("phone") || label.includes("iphone") || label.includes("mobile");
 }
 
 function normalizeExamSettings(settings) {
@@ -890,6 +895,16 @@ export default function StudentExamTake() {
 
       const frame = await captureCurrentFrameWithRetry();
       if (frame) {
+        const phoneFinding = await detectPhoneInScanFrame(frame.image, checkpoint.id);
+        if (phoneFinding) {
+          setScanFindings([phoneFinding]);
+          setScanStatus("failed");
+          setScanSensorStatus("Phone detected. Remove it and scan again.");
+          stopEnvironmentCamera();
+          toast.error("Phone detected during environment scan. Please remove it and scan again.");
+          return;
+        }
+
         const frameChange = previousSignature ? getSignatureDifference(previousSignature, frame.signature) : MIN_FRAME_CHANGE_DISTANCE;
         previousSignature = frame.signature;
         repeatedSamples = frameChange < MIN_FRAME_CHANGE_DISTANCE ? repeatedSamples + 1 : 0;
@@ -923,16 +938,6 @@ export default function StudentExamTake() {
             angle: checkpoint.id,
           });
           lastAcceptedAt = Date.now();
-
-          const phoneFinding = await detectPhoneInScanFrame(frame.image, checkpoint.id);
-          if (phoneFinding) {
-            setScanFindings([phoneFinding]);
-            setScanStatus("failed");
-            setScanSensorStatus("Phone detected. Remove it and scan again.");
-            stopEnvironmentCamera();
-            toast.error("Phone detected during environment scan. Please remove it and scan again.");
-            return;
-          }
 
           if (collectedFrames[checkpoint.id].length >= CHECKPOINT_FRAMES_REQUIRED) {
             captured[checkpoint.id] = true;
@@ -1094,14 +1099,14 @@ export default function StudentExamTake() {
     return response.json();
   }
 
-  async function runDirectRoboflowImageDetection(image) {
+  async function runDirectRoboflowImageDetection(image, confidence = ROBOFLOW_OBJECT_CONFIDENCE) {
     const apiKey = import.meta.env.VITE_ROBOFLOW_API_KEY;
     if (!apiKey || !ROBOFLOW_MODEL_ID || !ROBOFLOW_MODEL_VERSION) return null;
 
     const endpoint = `${ROBOFLOW_API_BASE.replace(/\/$/, "")}/${ROBOFLOW_MODEL_ID}/${ROBOFLOW_MODEL_VERSION}`;
     const url = new window.URL(endpoint);
     url.searchParams.set("api_key", apiKey);
-    url.searchParams.set("confidence", String(Math.round(ROBOFLOW_OBJECT_CONFIDENCE * 100)));
+    url.searchParams.set("confidence", String(Math.round(confidence * 100)));
 
     const response = await fetchWithTimeout(url.toString(), {
       method: "POST",
@@ -1124,7 +1129,7 @@ export default function StudentExamTake() {
       for (const image of frame.images || []) {
         const result = await runDirectRoboflowImageDetection(image);
         const prediction = collectRoboflowPredictions(result).find((item) => (
-          ROBOFLOW_GADGET_LABELS.has(item.label)
+          (ROBOFLOW_GADGET_LABELS.has(item.label) || isPhoneDetectionLabel(item.label))
           && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE
           && !detectedLabels.has(item.label)
         ));
@@ -1162,7 +1167,7 @@ export default function StudentExamTake() {
 
   function buildGadgetFinding(prediction) {
     const label = normalizeDetectionLabel(prediction.class || prediction.label || prediction.name || "gadget");
-    const readableLabel = PHONE_LABELS.has(label) ? "Phone detected. Please remove it and scan again." : `${label} detected. Please remove it and scan again.`;
+    const readableLabel = isPhoneDetectionLabel(label) ? "Phone detected. Please remove it and scan again." : `${label} detected. Please remove it and scan again.`;
     return {
       label: readableLabel,
       detected: true,
@@ -1173,6 +1178,24 @@ export default function StudentExamTake() {
 
   async function detectPhoneInScanFrame(dataUrl, angle) {
     try {
+      const roboflowResult = await runDirectRoboflowImageDetection(dataUrlToPayload(dataUrl), ENV_SCAN_PHONE_CONFIDENCE);
+      const roboflowPhone = collectRoboflowPredictions(roboflowResult).find((item) => (
+        isPhoneDetectionLabel(item.label)
+        && item.confidence >= ENV_SCAN_PHONE_CONFIDENCE
+      ));
+
+      if (roboflowPhone) {
+        return {
+          angle,
+          class: roboflowPhone.label,
+          name: roboflowPhone.label,
+          label: "Phone detected by Roboflow. Please remove it and scan again.",
+          detected: true,
+          confidence: roboflowPhone.confidence,
+          instruction: "Phone detected. Remove it from the exam area and scan again.",
+        };
+      }
+
       if (!objectDetectorRef.current) {
         objectDetectorRef.current = await cocoSsd.load();
       }
@@ -1180,7 +1203,7 @@ export default function StudentExamTake() {
       const image = await loadScanImage(dataUrl);
       const predictions = await objectDetectorRef.current.detect(image);
       const phone = predictions.find((item) => (
-        PHONE_LABELS.has(normalizeDetectionLabel(item.class || item.label || item.name))
+        isPhoneDetectionLabel(item.class || item.label || item.name)
         && Number(item.score ?? item.confidence ?? 0) >= ENV_SCAN_PHONE_CONFIDENCE
       ));
 
@@ -1669,7 +1692,7 @@ export default function StudentExamTake() {
     if (!endpoint) {
       const result = await runDirectRoboflowImageDetection(image);
       return collectRoboflowPredictions(result).find((item) => (
-        ROBOFLOW_GADGET_LABELS.has(item.label)
+        (ROBOFLOW_GADGET_LABELS.has(item.label) || isPhoneDetectionLabel(item.label))
         && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE
       )) || null;
     }
@@ -1742,7 +1765,7 @@ export default function StudentExamTake() {
 
   function getDetectedGadgetLabel(item) {
     const rawLabel = normalizeDetectionLabel(item.class || item.label || item.name || item.class_name || "gadget");
-    if (PHONE_LABELS.has(rawLabel) || rawLabel.includes("phone")) return "phone";
+    if (isPhoneDetectionLabel(rawLabel)) return "phone";
     if (rawLabel.includes("tablet") || rawLabel.includes("ipad")) return "tablet";
     if (rawLabel.includes("laptop")) return "laptop";
     return rawLabel;
@@ -1750,10 +1773,10 @@ export default function StudentExamTake() {
 
   function handleRoboflowData(data) {
     const predictions = collectRoboflowPredictions(data);
-    const detected = predictions.find((item) => ROBOFLOW_GADGET_LABELS.has(item.label) && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE);
+    const detected = predictions.find((item) => (ROBOFLOW_GADGET_LABELS.has(item.label) || isPhoneDetectionLabel(item.label)) && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE);
     if (!detected) return;
 
-    const isPhone = PHONE_LABELS.has(detected.label) || detected.label === "tablet" || detected.label === "ipad";
+    const isPhone = isPhoneDetectionLabel(detected.label) || detected.label === "tablet" || detected.label === "ipad";
     const cooldownRef = isPhone ? phoneAlertCooldownRef : roboflowAlertCooldownRef;
     if (Date.now() - cooldownRef.current < 8000) return;
 
