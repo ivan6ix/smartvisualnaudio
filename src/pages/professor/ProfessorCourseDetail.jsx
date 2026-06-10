@@ -132,20 +132,25 @@ function renderQuestionContent(question) {
   const config = getQuestionConfig(question);
   const correctAnswers = Array.isArray(question.correct_answers) ? question.correct_answers : [];
 
-  if (["Multiple Choice", "Multiple Select"].includes(question.question_type)) {
+  if (["Multiple Choice", "Multiple Select", "Picture Choice"].includes(question.question_type)) {
     return (
-      <div className="assessment-question-options">
-        {choices.map((choice) => {
-          const isCorrect = question.question_type === "Multiple Select"
-            ? correctAnswers.includes(choice.key)
-            : question.correct_answer === choice.key;
-          return (
-            <span className={isCorrect ? "correct-option" : ""} key={choice.key}>
-              {choice.key}. {choice.value}
-            </span>
-          );
-        })}
-      </div>
+      <>
+        {question.question_type === "Picture Choice" && config.questionImage ? (
+          <img className="assessment-question-image" alt="Question reference" src={config.questionImage} />
+        ) : null}
+        <div className="assessment-question-options">
+          {choices.map((choice) => {
+            const isCorrect = question.question_type === "Multiple Select"
+              ? correctAnswers.includes(choice.key)
+              : question.correct_answer === choice.key;
+            return (
+              <span className={isCorrect ? "correct-option" : ""} key={choice.key}>
+                {choice.key}. {choice.value}
+              </span>
+            );
+          })}
+        </div>
+      </>
     );
   }
 

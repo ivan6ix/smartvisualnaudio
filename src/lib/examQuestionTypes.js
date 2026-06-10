@@ -1,5 +1,6 @@
 export const QUESTION_TYPES = [
   "Multiple Choice",
+  "Picture Choice",
   "Multiple Select",
   "Identification",
   "Fill in the Blank",
@@ -13,6 +14,7 @@ export const QUESTION_TYPES = [
 
 export const AUTO_GRADED_TYPES = new Set([
   "Multiple Choice",
+  "Picture Choice",
   "Multiple Select",
   "Identification",
   "Fill in the Blank",
@@ -71,7 +73,7 @@ export function gradeAnswer(question, answer) {
     return { earnedPoints: null, maxPoints: points, manual: true, isCorrect: false };
   }
 
-  if (type === "Multiple Choice" || type === "True or False") {
+  if (type === "Multiple Choice" || type === "Picture Choice" || type === "True or False") {
     const isCorrect = normalizeAnswer(answer) === normalizeAnswer(correct[0]);
     return { earnedPoints: isCorrect ? points : 0, maxPoints: points, manual: false, isCorrect };
   }

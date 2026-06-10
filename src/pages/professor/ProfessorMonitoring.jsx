@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { toast } from "sonner";
-import { Badge, Button, Card, PageHeader, StatCard } from "../../components/ui";
+import { Badge, Button, Card, PageHeader, SearchBox, StatCard } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { professorAlerts } from "../../data/professorData";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -49,6 +49,23 @@ function fallbackStudents() {
   }));
 }
 
+function firstRow(value) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function parseCourseLabel(value) {
+  const text = String(value || "").trim();
+  if (!text) return {};
+  const parts = text.split(/\s+(?:-|–|\|)\s+/).map((part) => part.trim()).filter(Boolean);
+  if (parts.length >= 2) {
+    return {
+      courseCode: parts[0],
+      section: parts.slice(1).join(" - "),
+    };
+  }
+  return { courseCode: text };
+}
+
 function getAudioEvidenceName(violation) {
   if (violation.evidence_url?.startsWith("data:audio/")) return violation.evidence_url;
   if (violation.evidence_url?.endsWith(".webm")) return violation.evidence_url;
@@ -82,6 +99,8 @@ async function findNearestAudioEvidence(violation) {
 export default function ProfessorMonitoring() {
   const { user } = useAuth();
   const [students, setStudents] = useState(() => hasSupabaseConfig ? [] : fallbackStudents());
+  const [monitoringCourses, setMonitoringCourses] = useState([]);
+  const [monitoringExams, setMonitoringExams] = useState([]);
   const [violations, setViolations] = useState(() => hasSupabaseConfig ? [] : professorAlerts.map((alert, index) => ({
     id: alert.id,
     studentId: fallbackStudents()[index % fallbackStudents().length]?.id,
@@ -97,9 +116,11 @@ export default function ProfessorMonitoring() {
     examName: alert.exam,
   })));
   const [selectedStudent, setSelectedStudent] = useState(null);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [studentCourseFilter, setStudentCourseFilter] = useState("All Courses");
+  const [studentSectionFilter, setStudentSectionFilter] = useState("All Sections");
   const [activityFilters, setActivityFilters] = useState({
     course: "All Courses",
-    section: "All Sections",
     period: "All Periods",
     exam: "All Exams",
   });
@@ -111,8 +132,7 @@ export default function ProfessorMonitoring() {
       const { data: courseRows, error: coursesError } = await supabase
         .from("courses")
         .select("id, course_code, section")
-        .eq("professor_id", user.id)
-        .eq("archived", false);
+        .eq("professor_id", user.id);
 
       if (coursesError) {
         toast.error(coursesError.message);
@@ -120,8 +140,10 @@ export default function ProfessorMonitoring() {
       }
 
       const courseIds = (courseRows || []).map((course) => course.id);
+      setMonitoringCourses(courseRows || []);
       if (!courseIds.length) {
         setStudents([]);
+        setMonitoringExams([]);
         setViolations([]);
         return;
       }
@@ -133,7 +155,7 @@ export default function ProfessorMonitoring() {
           .in("course_id", courseIds),
         supabase
           .from("exams")
-          .select("id, title, exam_title, description, course_id")
+          .select("id, title, exam_title, description, course, course_id, courses(course_code, section)")
           .in("course_id", courseIds)
           .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`),
       ]);
@@ -149,11 +171,30 @@ export default function ProfessorMonitoring() {
 
       const examById = new Map((examRows || []).map((exam) => [exam.id, exam]));
       const courseById = new Map((courseRows || []).map((course) => [course.id, course]));
+      setMonitoringExams(examRows || []);
       const studentById = new Map();
       (enrollmentRows || []).forEach((enrollment) => {
         const profile = enrollment.profiles;
         const course = courseById.get(enrollment.course_id);
-        if (!profile || studentById.has(enrollment.student_id)) return;
+        if (!profile) return;
+
+        const courseInfo = course ? {
+          id: course.id,
+          courseCode: course.course_code || "No course",
+          section: course.section || "No section",
+        } : {
+          id: enrollment.course_id,
+          courseCode: "No course",
+          section: "No section",
+        };
+
+        if (studentById.has(enrollment.student_id)) {
+          const existing = studentById.get(enrollment.student_id);
+          if (!existing.courses.some((item) => item.id === courseInfo.id)) {
+            existing.courses.push(courseInfo);
+          }
+          return;
+        }
 
         studentById.set(enrollment.student_id, {
           id: enrollment.student_id,
@@ -161,6 +202,7 @@ export default function ProfessorMonitoring() {
           studentNumber: profile.student_number || "No student ID",
           section: course ? `${course.course_code} - ${course.section}` : "No section",
           courseCode: course?.course_code || "No course",
+          courses: [courseInfo],
         });
       });
 
@@ -171,8 +213,8 @@ export default function ProfessorMonitoring() {
 
       let violationRows = [];
       let violationsError = null;
-      const violationSelect = "id, student_id, exam_id, violation_type, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at, profiles:student_id(full_name, student_number, email), exams(id, title, exam_title)";
-      const fallbackViolationSelect = "id, student_id, exam_id, violation_type, severity, screenshot_url, created_at, profiles:student_id(full_name, student_number, email), exams(id, title, exam_title)";
+      const violationSelect = "id, student_id, exam_id, course_id, violation_type, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at, profiles:student_id(full_name, student_number, email), exams(id, title, exam_title, description, course, course_id, courses(course_code, section))";
+      const fallbackViolationSelect = "id, student_id, exam_id, course_id, violation_type, severity, screenshot_url, created_at, profiles:student_id(full_name, student_number, email), exams(id, title, exam_title, description, course, course_id)";
       const violationFilter = examIds.length
         ? `professor_id.eq.${user.id},exam_id.in.(${examIds.join(",")})`
         : `professor_id.eq.${user.id}`;
@@ -186,6 +228,7 @@ export default function ProfessorMonitoring() {
         violationsResult.error?.message?.includes("evidence_url")
         || violationsResult.error?.message?.includes("evidence_type")
         || violationsResult.error?.message?.includes("audio_level")
+        || violationsResult.error?.message?.includes("courses")
         || violationsResult.error?.message?.includes("professor_id")
       ) {
         const fallbackViolationsResult = await supabase
@@ -214,6 +257,7 @@ export default function ProfessorMonitoring() {
           studentNumber: profile.student_number || "No student ID",
           section: "Recorded violation",
           courseCode: "Recorded violation",
+          courses: [],
         });
       });
       setStudents(Array.from(studentById.values()));
@@ -236,8 +280,13 @@ export default function ProfessorMonitoring() {
         const hasAudioEvidence = Boolean(audioEvidenceName)
           || violation.evidence_type?.startsWith("audio")
           || isAudioViolation;
-        const exam = violation.exams || examById.get(violation.exam_id) || {};
-        const course = courseById.get(exam.course_id);
+        const exam = { ...(examById.get(violation.exam_id) || {}), ...(violation.exams || {}) };
+        const courseId = exam.course_id || violation.course_id || "";
+        const course = firstRow(exam.courses) || courseById.get(courseId);
+        const enrolledCourse = studentById.get(violation.student_id)?.courses?.find((item) => item.id === courseId)
+          || (studentById.get(violation.student_id)?.courses?.length === 1 ? studentById.get(violation.student_id).courses[0] : null);
+        const parsedCourse = parseCourseLabel(exam.course);
+        const resolvedCourseId = courseId || enrolledCourse?.id || "";
         const examName = exam.exam_title || exam.title || "Unknown exam";
         return {
           id: violation.id,
@@ -245,9 +294,9 @@ export default function ProfessorMonitoring() {
           exam: examName,
           examId: violation.exam_id,
           examName,
-          courseId: exam.course_id || course?.id || "",
-          courseCode: course?.course_code || "Unknown course",
-          section: course?.section || "Unknown section",
+          courseId: resolvedCourseId,
+          courseCode: course?.course_code || enrolledCourse?.courseCode || parsedCourse.courseCode || "Unknown course",
+          section: course?.section || enrolledCourse?.section || parsedCourse.section || "Unknown section",
           period: exam.description || "No period",
           activity: violationLabels[violation.violation_type] || violation.violation_type || "Monitoring alert",
           severity: violation.severity || "Low",
@@ -279,28 +328,59 @@ export default function ProfessorMonitoring() {
     ...student,
     alertCount: violations.filter((violation) => violation.studentId === student.id).length,
   })), [students, violations]);
+  const studentCourseOptions = useMemo(() => [...monitoringCourses]
+    .sort((first, second) => String(first.course_code || "").localeCompare(String(second.course_code || ""))), [monitoringCourses]);
+  const studentSectionOptions = useMemo(() => [...new Set(monitoringCourses
+    .filter((course) => studentCourseFilter === "All Courses" || course.id === studentCourseFilter)
+    .map((course) => course.section)
+    .filter(Boolean))]
+    .sort((first, second) => first.localeCompare(second)), [monitoringCourses, studentCourseFilter]);
+  const filteredStudentsWithCounts = useMemo(() => {
+    const normalizedSearch = studentSearch.trim().toLowerCase();
+    return studentsWithCounts.filter((student) => {
+      const courses = student.courses || [];
+      const matchesSearch = !normalizedSearch
+        || `${student.name} ${student.studentNumber} ${courses.map((course) => `${course.courseCode} ${course.section}`).join(" ")}`.toLowerCase().includes(normalizedSearch);
+      const matchesCourse = studentCourseFilter === "All Courses" || courses.some((course) => course.id === studentCourseFilter);
+      const matchesSection = studentSectionFilter === "All Sections" || courses.some((course) => (
+        course.section === studentSectionFilter
+        && (studentCourseFilter === "All Courses" || course.id === studentCourseFilter)
+      ));
+      return matchesSearch && matchesCourse && matchesSection;
+    });
+  }, [studentCourseFilter, studentSearch, studentSectionFilter, studentsWithCounts]);
   const selectedViolations = selectedStudent ? violations.filter((violation) => violation.studentId === selectedStudent.id) : [];
   const filterOptions = useMemo(() => {
-    const unique = (values) => [...new Set(values.filter(Boolean))].sort((first, second) => first.localeCompare(second));
+    const selectedCourseIds = new Set((selectedStudent?.courses || []).map((course) => course.id).filter(Boolean));
+    const activeCourseIds = activityFilters.course === "All Courses"
+      ? selectedCourseIds
+      : new Set([activityFilters.course]);
+    const relevantExams = monitoringExams.filter((exam) => activeCourseIds.has(exam.course_id));
+    const periodNames = [...new Set(relevantExams.map((exam) => exam.description || "No period"))]
+      .sort((first, second) => first.localeCompare(second));
+    const examOptions = relevantExams
+      .filter((exam) => activityFilters.period === "All Periods" || (exam.description || "No period") === activityFilters.period)
+      .map((exam) => ({
+        id: exam.id,
+        title: exam.exam_title || exam.title || "Unknown exam",
+      }))
+      .sort((first, second) => first.title.localeCompare(second.title));
     return {
-      courses: unique(selectedViolations.map((violation) => violation.courseCode)),
-      sections: unique(selectedViolations.map((violation) => violation.section)),
-      periods: unique(selectedViolations.map((violation) => violation.period)),
-      exams: unique(selectedViolations.map((violation) => violation.examName)),
+      courses: [...(selectedStudent?.courses || [])].sort((first, second) => first.courseCode.localeCompare(second.courseCode)),
+      periods: periodNames,
+      exams: examOptions,
     };
-  }, [selectedViolations]);
+  }, [activityFilters.course, activityFilters.period, monitoringExams, selectedStudent]);
   const filteredSelectedViolations = useMemo(() => selectedViolations.filter((violation) => (
-    (activityFilters.course === "All Courses" || violation.courseCode === activityFilters.course)
-    && (activityFilters.section === "All Sections" || violation.section === activityFilters.section)
+    (activityFilters.course === "All Courses" || violation.courseId === activityFilters.course)
     && (activityFilters.period === "All Periods" || violation.period === activityFilters.period)
-    && (activityFilters.exam === "All Exams" || violation.examName === activityFilters.exam)
+    && (activityFilters.exam === "All Exams" || violation.examId === activityFilters.exam)
   )), [activityFilters, selectedViolations]);
 
   function openActivities(student) {
     setSelectedStudent(student);
     setActivityFilters({
       course: "All Courses",
-      section: "All Sections",
       period: "All Periods",
       exam: "All Exams",
     });
@@ -313,7 +393,7 @@ export default function ProfessorMonitoring() {
       <div className="professor-stats-grid">
         <StatCard label="Monitored Students" value={students.length} icon={FiUsers} />
         <StatCard label="Total Alerts" value={violations.length} icon={FiActivity} />
-        <StatCard label="Courses Covered" value={[...new Set(students.map((student) => student.section))].length} icon={FiBookOpen} />
+        <StatCard label="Courses Covered" value={monitoringCourses.length} icon={FiBookOpen} />
         <StatCard label="Flagged Students" value={studentsWithCounts.filter((student) => student.alertCount > 0).length} icon={FiUser} />
       </div>
 
@@ -323,11 +403,34 @@ export default function ProfessorMonitoring() {
             <h2>Students</h2>
             <p>Select View Activities to inspect alerts and violations.</p>
           </div>
-          <span>{students.length} students</span>
+          <span>{filteredStudentsWithCounts.length} students</span>
+        </div>
+
+        <div className="professor-monitoring-student-filters">
+          <SearchBox value={studentSearch} onChange={setStudentSearch} placeholder="Search students or ID" />
+          <select
+            aria-label="Filter students by course"
+            onChange={(event) => {
+              setStudentCourseFilter(event.target.value);
+              setStudentSectionFilter("All Sections");
+            }}
+            value={studentCourseFilter}
+          >
+            <option>All Courses</option>
+            {studentCourseOptions.map((course) => <option key={course.id} value={course.id}>{course.course_code}</option>)}
+          </select>
+          <select
+            aria-label="Filter students by section"
+            onChange={(event) => setStudentSectionFilter(event.target.value)}
+            value={studentSectionFilter}
+          >
+            <option>All Sections</option>
+            {studentSectionOptions.map((section) => <option key={section}>{section}</option>)}
+          </select>
         </div>
 
         <div className="professor-monitoring-grid">
-          {studentsWithCounts.map((student) => (
+          {filteredStudentsWithCounts.map((student) => (
             <article key={student.id}>
               <div className="professor-monitoring-avatar">{student.name.slice(0, 1).toUpperCase()}</div>
               <div>
@@ -338,7 +441,7 @@ export default function ProfessorMonitoring() {
               <Button variant="light" onClick={() => openActivities(student)}>View Activities</Button>
             </article>
           ))}
-          {!students.length ? <div className="professor-exams-empty">No enrolled students found for your courses.</div> : null}
+          {!filteredStudentsWithCounts.length ? <div className="professor-exams-empty">{students.length ? "No students match your filters." : "No enrolled students found for your courses."}</div> : null}
         </div>
       </Card>
 
@@ -353,23 +456,26 @@ export default function ProfessorMonitoring() {
               <div className="professor-monitoring-filters">
                 <select
                   aria-label="Filter by course"
-                  onChange={(event) => setActivityFilters((current) => ({ ...current, course: event.target.value }))}
+                  onChange={(event) => setActivityFilters((current) => ({
+                    ...current,
+                    course: event.target.value,
+                    period: "All Periods",
+                    exam: "All Exams",
+                  }))}
                   value={activityFilters.course}
                 >
                   <option>All Courses</option>
-                  {filterOptions.courses.map((course) => <option key={course}>{course}</option>)}
-                </select>
-                <select
-                  aria-label="Filter by section"
-                  onChange={(event) => setActivityFilters((current) => ({ ...current, section: event.target.value }))}
-                  value={activityFilters.section}
-                >
-                  <option>All Sections</option>
-                  {filterOptions.sections.map((section) => <option key={section}>{section}</option>)}
+                  {filterOptions.courses.map((course) => (
+                    <option key={course.id} value={course.id}>{course.courseCode}</option>
+                  ))}
                 </select>
                 <select
                   aria-label="Filter by period"
-                  onChange={(event) => setActivityFilters((current) => ({ ...current, period: event.target.value }))}
+                  onChange={(event) => setActivityFilters((current) => ({
+                    ...current,
+                    period: event.target.value,
+                    exam: "All Exams",
+                  }))}
                   value={activityFilters.period}
                 >
                   <option>All Periods</option>
@@ -381,7 +487,7 @@ export default function ProfessorMonitoring() {
                   value={activityFilters.exam}
                 >
                   <option>All Exams</option>
-                  {filterOptions.exams.map((exam) => <option key={exam}>{exam}</option>)}
+                  {filterOptions.exams.map((exam) => <option key={exam.id} value={exam.id}>{exam.title}</option>)}
                 </select>
               </div>
               <button aria-label="Close activities" onClick={() => setSelectedStudent(null)} type="button"><FiX /></button>

@@ -36,6 +36,9 @@ const defaultPairs = [
 ];
 
 const defaultListItems = ["", "", ""];
+const PICTURE_CHOICE_TYPE = "Picture Choice";
+const CHOICE_TYPES = ["Multiple Choice", PICTURE_CHOICE_TYPE, "Multiple Select"];
+const MAX_QUESTION_IMAGE_BYTES = 2 * 1024 * 1024;
 
 function SelectInput({ children, ...props }) {
   return (
@@ -68,12 +71,23 @@ function emptyQuestionDraft() {
     correctAnswers: [],
     pairs: defaultPairs,
     listItems: defaultListItems,
+    questionImageDataUrl: "",
+    questionImageName: "",
     points: "1",
   };
 }
 
 function hasFilledValues(values) {
   return values.every((value) => String(value || "").trim());
+}
+
+function readImageDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
 }
 
 export default function ProfessorCreateExam() {
@@ -249,6 +263,32 @@ export default function ProfessorCreateExam() {
     }));
   }
 
+  async function handleQuestionImageUpload(event) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type?.startsWith("image/")) {
+      toast.error("Upload an image file.");
+      return;
+    }
+    if (file.size > MAX_QUESTION_IMAGE_BYTES) {
+      toast.error("Question image must be 2MB or smaller.");
+      return;
+    }
+
+    try {
+      const dataUrl = await readImageDataUrl(file);
+      setQuestionDraft((current) => ({
+        ...current,
+        questionImageDataUrl: dataUrl,
+        questionImageName: file.name,
+      }));
+    } catch {
+      toast.error("Unable to read image file.");
+    } finally {
+      event.target.value = "";
+    }
+  }
+
   function toggleCorrectChoice(key) {
     setQuestionDraft((current) => ({
       ...current,
@@ -302,10 +342,11 @@ export default function ProfessorCreateExam() {
     const title = questionDraft.title.trim();
     if (!title || !questionDraft.type || Number(questionDraft.points) <= 0) return "Question title, type, and points are required.";
 
-    if (questionDraft.type === "Multiple Choice" || questionDraft.type === "Multiple Select") {
+    if (CHOICE_TYPES.includes(questionDraft.type)) {
       if (!hasFilledValues(questionDraft.choices.map((choice) => choice.value))) return "Complete choices A, B, C, and D.";
-      if (questionDraft.type === "Multiple Choice" && !questionDraft.correctAnswer) return "Select the correct answer.";
+      if ((questionDraft.type === "Multiple Choice" || questionDraft.type === PICTURE_CHOICE_TYPE) && !questionDraft.correctAnswer) return "Select the correct answer.";
       if (questionDraft.type === "Multiple Select" && !questionDraft.correctAnswers.length) return "Select at least one correct answer.";
+      if (questionDraft.type === PICTURE_CHOICE_TYPE && !questionDraft.questionImageDataUrl) return "Upload a picture for this question.";
     }
 
     if (["Identification", "Fill in the Blank", "True or False"].includes(questionDraft.type) && !questionDraft.correctAnswer.trim()) {
@@ -329,8 +370,8 @@ export default function ProfessorCreateExam() {
 
   function buildQuestionPayload() {
     const type = questionDraft.type;
-    const choices = ["Multiple Choice", "Multiple Select"].includes(type) ? questionDraft.choices : [];
-    const correctAnswers = type === "Multiple Choice" || type === "True or False" || type === "Identification" || type === "Fill in the Blank"
+    const choices = CHOICE_TYPES.includes(type) ? questionDraft.choices : [];
+    const correctAnswers = type === "Multiple Choice" || type === PICTURE_CHOICE_TYPE || type === "True or False" || type === "Identification" || type === "Fill in the Blank"
       ? [questionDraft.correctAnswer.trim()]
       : type === "Matching Type"
         ? questionDraft.pairs
@@ -339,6 +380,8 @@ export default function ProfessorCreateExam() {
       choices,
       pairs: type === "Matching Type" ? questionDraft.pairs : [],
       orderItems: type === "Ordering / Sequencing" ? questionDraft.listItems : [],
+      questionImage: type === PICTURE_CHOICE_TYPE ? questionDraft.questionImageDataUrl : "",
+      questionImageName: type === PICTURE_CHOICE_TYPE ? questionDraft.questionImageName : "",
       manualGrading: !AUTO_GRADED_TYPES.has(type),
     };
 
@@ -380,6 +423,8 @@ export default function ProfessorCreateExam() {
       correctAnswers: Array.isArray(question.correctAnswers) ? question.correctAnswers : [],
       pairs: question.config?.pairs?.length ? question.config.pairs : defaultPairs,
       listItems: question.config?.orderItems?.length ? question.config.orderItems : defaultListItems,
+      questionImageDataUrl: question.config?.questionImage || "",
+      questionImageName: question.config?.questionImageName || "",
       points: question.points,
     });
   }
@@ -559,28 +604,37 @@ export default function ProfessorCreateExam() {
   function renderQuestionTypeFields() {
     if (!questionDraft.type) return null;
 
-    if (questionDraft.type === "Multiple Choice" || questionDraft.type === "Multiple Select") {
+    if (CHOICE_TYPES.includes(questionDraft.type)) {
       return (
-        <div className="professor-choice-grid">
-          {questionDraft.choices.map((choice) => (
-            <label className="professor-choice-field" key={choice.key}>
-              <span>{choice.key}</span>
-              <input className="professor-create-input" onChange={(event) => updateChoice(choice.key, event.target.value)} placeholder={`Choice ${choice.key}`} type="text" value={choice.value} />
-              {questionDraft.type === "Multiple Select" ? (
-                <label className="professor-correct-checkbox">
-                  <input checked={questionDraft.correctAnswers.includes(choice.key)} onChange={() => toggleCorrectChoice(choice.key)} type="checkbox" />
-                  Correct
-                </label>
-              ) : null}
+        <>
+          {questionDraft.type === PICTURE_CHOICE_TYPE ? (
+            <label className="professor-question-image-upload">
+              <span>{questionDraft.questionImageName || "Upload question picture"}</span>
+              <input accept="image/*" onChange={handleQuestionImageUpload} type="file" />
+              {questionDraft.questionImageDataUrl ? <img alt="Question preview" src={questionDraft.questionImageDataUrl} /> : null}
             </label>
-          ))}
-          {questionDraft.type === "Multiple Choice" ? (
-            <SelectInput className="professor-create-input professor-correct-answer-select" onChange={(event) => setQuestionValue("correctAnswer", event.target.value)} value={questionDraft.correctAnswer}>
-              <option value="" disabled>Correct Answer</option>
-              {questionDraft.choices.map((choice) => <option key={choice.key} value={choice.key}>{choice.key}</option>)}
-            </SelectInput>
           ) : null}
-        </div>
+          <div className="professor-choice-grid">
+            {questionDraft.choices.map((choice) => (
+              <label className="professor-choice-field" key={choice.key}>
+                <span>{choice.key}</span>
+                <input className="professor-create-input" onChange={(event) => updateChoice(choice.key, event.target.value)} placeholder={`Choice ${choice.key}`} type="text" value={choice.value} />
+                {questionDraft.type === "Multiple Select" ? (
+                  <label className="professor-correct-checkbox">
+                    <input checked={questionDraft.correctAnswers.includes(choice.key)} onChange={() => toggleCorrectChoice(choice.key)} type="checkbox" />
+                    Correct
+                  </label>
+                ) : null}
+              </label>
+            ))}
+            {questionDraft.type === "Multiple Choice" || questionDraft.type === PICTURE_CHOICE_TYPE ? (
+              <SelectInput className="professor-create-input professor-correct-answer-select" onChange={(event) => setQuestionValue("correctAnswer", event.target.value)} value={questionDraft.correctAnswer}>
+                <option value="" disabled>Correct Answer</option>
+                {questionDraft.choices.map((choice) => <option key={choice.key} value={choice.key}>{choice.key}</option>)}
+              </SelectInput>
+            ) : null}
+          </div>
+        </>
       );
     }
 

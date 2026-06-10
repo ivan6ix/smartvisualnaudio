@@ -3,7 +3,7 @@ import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
 import { connectors, webrtc } from "@roboflow/inference-sdk";
 import * as cocoSsd from "@tensorflow-models/coco-ssd";
 import "@tensorflow/tfjs";
-import { FiArrowDown, FiArrowUp, FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
+import { FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import AudioMonitoringTimeline from "../../components/exam/AudioMonitoringTimeline";
@@ -17,11 +17,11 @@ function toJsonAnswer(value) {
   return value === undefined ? null : value;
 }
 
-function moveItem(items, index, direction) {
+function moveItemToIndex(items, fromIndex, toIndex) {
   const next = [...items];
-  const targetIndex = index + direction;
-  if (targetIndex < 0 || targetIndex >= next.length) return next;
-  [next[index], next[targetIndex]] = [next[targetIndex], next[index]];
+  if (fromIndex < 0 || fromIndex >= next.length || toIndex < 0 || toIndex >= next.length || fromIndex === toIndex) return next;
+  const [item] = next.splice(fromIndex, 1);
+  next.splice(toIndex, 0, item);
   return next;
 }
 
@@ -178,6 +178,47 @@ function wait(ms) {
   });
 }
 
+function getFullscreenElement() {
+  return window.document.fullscreenElement
+    || window.document.webkitFullscreenElement
+    || window.document.mozFullScreenElement
+    || window.document.msFullscreenElement
+    || null;
+}
+
+async function requestFullscreen(element = window.document.documentElement) {
+  const request = element.requestFullscreen
+    || element.webkitRequestFullscreen
+    || element.webkitEnterFullscreen
+    || element.mozRequestFullScreen
+    || element.msRequestFullscreen;
+
+  if (!request) {
+    throw new Error("Fullscreen is not supported by this browser.");
+  }
+
+  await request.call(element);
+}
+
+async function waitForFullscreen() {
+  if (getFullscreenElement()) return;
+  await wait(250);
+  if (!getFullscreenElement()) {
+    throw new Error("Fullscreen did not start.");
+  }
+}
+
+async function exitFullscreen() {
+  const exit = window.document.exitFullscreen
+    || window.document.webkitExitFullscreen
+    || window.document.mozCancelFullScreen
+    || window.document.msExitFullscreen;
+
+  if (getFullscreenElement() && exit) {
+    await exit.call(window.document);
+  }
+}
+
 function getUsableScanEndpoint(endpoint) {
   if (!endpoint) return "";
   if (import.meta.env.PROD && /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\b/i.test(endpoint)) return "";
@@ -221,6 +262,7 @@ export default function StudentExamTake() {
   const [exam, setExam] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
+  const [selectedMatchingLeft, setSelectedMatchingLeft] = useState({});
   const [files, setFiles] = useState({});
   const [startedAt, setStartedAt] = useState(null);
   const [timerEndsAt, setTimerEndsAt] = useState(null);
@@ -244,6 +286,7 @@ export default function StudentExamTake() {
   const objectMonitorRef = useRef(null);
   const objectAlertCooldownRef = useRef(0);
   const objectDetectorRef = useRef(null);
+  const orderingDragRef = useRef(null);
   const roboflowConnectionRef = useRef(null);
   const roboflowAlertCooldownRef = useRef(0);
   const orientationRef = useRef({ available: false, alpha: null, centerAlpha: null, samples: 0 });
@@ -370,7 +413,7 @@ export default function StudentExamTake() {
       scanCancelledRef.current = true;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       stopProctoring();
-      if (window.document.fullscreenElement) window.document.exitFullscreen?.();
+      void exitFullscreen();
     };
   // Cleanup must run once on page exit.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -468,7 +511,7 @@ export default function StudentExamTake() {
   }, [examModeReady]);
 
   useEffect(() => {
-    if (!secureModeRequired || !scanPassed || scanOpen || !examModeReady) return undefined;
+    if (!scanPassed || scanOpen || !examModeReady) return undefined;
 
     function recordGuardViolation(type, message, severity = "Medium") {
       if (examSubmittingRef.current || examSubmittedRef.current) return;
@@ -477,6 +520,7 @@ export default function StudentExamTake() {
     }
 
     function blockEvent(event, message = "Copy, paste, and external actions are blocked during the exam.") {
+      if ((event.type === "dragstart" || event.type === "drop") && event.target?.closest?.(".student-order-row")) return;
       event.preventDefault();
       event.stopPropagation();
       recordGuardViolation("COPY_ATTEMPT", message, "Medium");
@@ -504,7 +548,7 @@ export default function StudentExamTake() {
 
     function handleFullscreenChange() {
       if (examSubmittingRef.current || examSubmittedRef.current) return;
-      if (!window.document.fullscreenElement) {
+      if (!getFullscreenElement()) {
         setExamLocked(true);
         recordGuardViolation("FULLSCREEN_EXIT", "Fullscreen mode was exited. Return to fullscreen to continue.", "High");
       }
@@ -534,7 +578,8 @@ export default function StudentExamTake() {
     const blockedEvents = ["copy", "cut", "paste", "contextmenu", "dragstart", "drop"];
     blockedEvents.forEach((eventName) => window.document.addEventListener(eventName, blockEvent, true));
     window.document.addEventListener("keydown", handleKeyDown, true);
-    window.document.addEventListener("fullscreenchange", handleFullscreenChange);
+    const fullscreenEvents = ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"];
+    fullscreenEvents.forEach((eventName) => window.document.addEventListener(eventName, handleFullscreenChange));
     window.document.addEventListener("visibilitychange", handleVisibilityChange);
     window.document.addEventListener("mouseleave", handleMouseLeave);
     window.addEventListener("blur", handleWindowBlur);
@@ -542,14 +587,14 @@ export default function StudentExamTake() {
     return () => {
       blockedEvents.forEach((eventName) => window.document.removeEventListener(eventName, blockEvent, true));
       window.document.removeEventListener("keydown", handleKeyDown, true);
-      window.document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      fullscreenEvents.forEach((eventName) => window.document.removeEventListener(eventName, handleFullscreenChange));
       window.document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.document.removeEventListener("mouseleave", handleMouseLeave);
       window.removeEventListener("blur", handleWindowBlur);
     };
   // The guard listeners should only be rebound when secure exam mode changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examModeReady, scanOpen, scanPassed, secureModeRequired]);
+  }, [examModeReady, scanOpen, scanPassed]);
 
   useEffect(() => {
     if (!examModeReady || !hasTimer || !timerEndsAt || examSubmittedRef.current) return undefined;
@@ -593,17 +638,58 @@ export default function StudentExamTake() {
   }
 
   function setMatchingAnswer(questionId, left, right) {
-    setAnswers((current) => ({
+    setAnswers((current) => {
+      const nextMatches = Object.entries(current[questionId] || {}).reduce((items, [key, value]) => {
+        if (value !== right || key === left) items[key] = value;
+        return items;
+      }, {});
+      nextMatches[left] = right;
+      return { ...current, [questionId]: nextMatches };
+    });
+  }
+
+  function selectMatchingLeft(questionId, left) {
+    setSelectedMatchingLeft((current) => ({
       ...current,
-      [questionId]: { ...(current[questionId] || {}), [left]: right },
+      [questionId]: current[questionId] === left ? "" : left,
     }));
   }
 
-  function setOrderingAnswer(questionId, index, direction) {
+  function connectMatchingAnswer(questionId, right) {
+    const left = selectedMatchingLeft[questionId];
+    if (!left) return;
+    setMatchingAnswer(questionId, left, right);
+    setSelectedMatchingLeft((current) => ({ ...current, [questionId]: "" }));
+  }
+
+  function moveOrderingAnswer(questionId, fromIndex, toIndex) {
     setAnswers((current) => ({
       ...current,
-      [questionId]: moveItem(current[questionId] || [], index, direction),
+      [questionId]: moveItemToIndex(current[questionId] || [], fromIndex, toIndex),
     }));
+  }
+
+  function startOrderingDrag(event, questionId, itemIndex) {
+    orderingDragRef.current = { questionId, itemIndex };
+    event.currentTarget.setPointerCapture?.(event.pointerId);
+    event.currentTarget.classList.add("dragging");
+  }
+
+  function moveOrderingDrag(event) {
+    const drag = orderingDragRef.current;
+    if (!drag) return;
+    const targetRow = window.document.elementFromPoint(event.clientX, event.clientY)?.closest?.(".student-order-row");
+    if (!targetRow || targetRow.dataset.questionId !== String(drag.questionId)) return;
+    const targetIndex = Number(targetRow.dataset.index);
+    if (!Number.isFinite(targetIndex) || targetIndex === drag.itemIndex) return;
+    moveOrderingAnswer(drag.questionId, drag.itemIndex, targetIndex);
+    orderingDragRef.current = { ...drag, itemIndex: targetIndex };
+  }
+
+  function endOrderingDrag(event) {
+    orderingDragRef.current = null;
+    event.currentTarget.releasePointerCapture?.(event.pointerId);
+    window.document.querySelectorAll(".student-order-row.dragging").forEach((row) => row.classList.remove("dragging"));
   }
 
   async function uploadFile(questionId, file) {
@@ -1038,7 +1124,7 @@ export default function StudentExamTake() {
       { type, message, severity, timestamp },
     ]);
     if (hasSupabaseConfig && user?.id && exam?.id) {
-      void persistViolation({ type, severity, timestamp });
+      void persistViolation({ type, message, severity, timestamp });
     }
   }
 
@@ -1073,17 +1159,36 @@ export default function StudentExamTake() {
     return path;
   }
 
-  async function persistViolation({ type, severity, timestamp }) {
+  async function persistViolation({ type, message, severity, timestamp }) {
     try {
       const screenshotPath = await uploadProctorSnapshot(type, timestamp);
-      const { error } = await supabase.from("violations").insert({
+      const payload = {
         student_id: user.id,
         exam_id: exam.id,
+        professor_id: exam.professor_id || exam.created_by || null,
+        course_id: exam.course_id || null,
         violation_type: type,
+        description: message || type,
         severity,
         screenshot_url: screenshotPath,
         created_at: timestamp,
-      });
+      };
+      let { error } = await supabase.from("violations").insert(payload);
+      if (
+        error?.message?.includes("professor_id")
+        || error?.message?.includes("course_id")
+        || error?.message?.includes("description")
+      ) {
+        const fallback = await supabase.from("violations").insert({
+          student_id: user.id,
+          exam_id: exam.id,
+          violation_type: type,
+          severity,
+          screenshot_url: screenshotPath,
+          created_at: timestamp,
+        });
+        error = fallback.error;
+      }
       if (error) throw error;
     } catch (error) {
       toast.error(`Monitoring alert was not saved: ${error.message}`);
@@ -1631,8 +1736,9 @@ export default function StudentExamTake() {
   }
 
   async function requestExamLock() {
-    if (!window.document.fullscreenElement) {
-      await window.document.documentElement.requestFullscreen();
+    if (!getFullscreenElement()) {
+      await requestFullscreen();
+      await waitForFullscreen();
     }
   }
 
@@ -1646,30 +1752,26 @@ export default function StudentExamTake() {
       if (!hasTimer) setRemainingMs(null);
     }
 
-    if (!secureModeRequired) {
-      startTimerIfNeeded();
-      setExamLocked(false);
-      setExamModeReady(true);
-      setScanOpen(false);
-      return;
-    }
-
     try {
       await requestExamLock();
-      await startProctorCamera();
+      if (secureModeRequired) {
+        await startProctorCamera();
+      } else {
+        stopProctoring();
+      }
       startTimerIfNeeded();
       setExamLocked(false);
       setExamModeReady(true);
       setScanOpen(false);
-      toast.success("Secure exam mode started");
+      toast.success(secureModeRequired ? "Secure exam mode started" : "Exam started in fullscreen");
     } catch (error) {
       setExamModeReady(false);
-      setExamLocked(true);
+      setExamLocked(false);
       recordManualViolation("FULLSCREEN_EXIT", error instanceof Error ? error.message : "Secure exam mode failed to start.", "High");
       const errorMessage = error instanceof Error ? error.message : "";
       const message = examSettings.liveAudioMonitoring && /audio|microphone|mic|notallowed|permission|device|mediarecorder/i.test(errorMessage)
         ? "Microphone access is required to continue the exam."
-        : "Fullscreen and enabled monitoring permissions are required before taking the exam.";
+        : "Fullscreen is required before taking the exam. Please use a browser/device that supports fullscreen mode.";
       toast.error(message);
     }
   }
@@ -1793,7 +1895,7 @@ export default function StudentExamTake() {
       examSubmittedRef.current = true;
       clearSavedExamProgress(user.id, examId);
       stopProctoring();
-      if (window.document.fullscreenElement) await window.document.exitFullscreen?.();
+      await exitFullscreen();
       navigate("/student/grades");
     } catch (error) {
       toast.error(error.message);
@@ -1809,6 +1911,20 @@ export default function StudentExamTake() {
     const pairs = config.pairs || [];
     const orderItems = answers[question.id] || config.orderItems || [];
     const rightOptions = pairs.map((pair) => pair.right).sort();
+    const matchingAnswers = answers[question.id] || {};
+    const selectedLeft = selectedMatchingLeft[question.id] || "";
+    const matchingRowCount = Math.max(pairs.length, rightOptions.length, 1);
+    const matchingLines = pairs.map((pair, leftIndex) => {
+      const rightIndex = rightOptions.indexOf(matchingAnswers[pair.left]);
+      if (rightIndex < 0) return null;
+      return {
+        key: `${pair.left}-${matchingAnswers[pair.left]}`,
+        x1: 28,
+        y1: ((leftIndex + 0.5) / matchingRowCount) * 100,
+        x2: 72,
+        y2: ((rightIndex + 0.5) / matchingRowCount) * 100,
+      };
+    }).filter(Boolean);
 
     return (
       <Card className="student-exam-question" key={question.id}>
@@ -1819,7 +1935,13 @@ export default function StudentExamTake() {
           </div>
         </div>
 
-        {question.question_type === "Multiple Choice" ? choices.map((choice) => (
+        {question.question_type === "Picture Choice" && config.questionImage ? (
+          <div className="student-question-image">
+            <img alt="Question reference" src={config.questionImage} />
+          </div>
+        ) : null}
+
+        {question.question_type === "Multiple Choice" || question.question_type === "Picture Choice" ? choices.map((choice) => (
           <label className="student-answer-option" key={choice.key}>
             <input checked={answers[question.id] === choice.key} onChange={() => setAnswer(question.id, choice.key)} type="radio" />
             <span>{choice.key}. {choice.value}</span>
@@ -1848,21 +1970,58 @@ export default function StudentExamTake() {
           <input className="professor-create-input" key={answerIndex} onChange={(event) => setEnumerationAnswer(question.id, answerIndex, event.target.value)} placeholder={`Answer ${answerIndex + 1}`} value={answer} />
         )) : null}
 
-        {question.question_type === "Matching Type" ? pairs.map((pair) => (
-          <label className="student-matching-row" key={pair.left}>
-            <span>{pair.left}</span>
-            <select className="professor-create-input" onChange={(event) => setMatchingAnswer(question.id, pair.left, event.target.value)} value={(answers[question.id] || {})[pair.left] || ""}>
-              <option value="">Select match</option>
-              {rightOptions.map((option) => <option key={option}>{option}</option>)}
-            </select>
-          </label>
-        )) : null}
+        {question.question_type === "Matching Type" ? (
+          <div className="student-matching-board" style={{ "--match-row-count": matchingRowCount }}>
+            <svg aria-hidden="true" className="student-matching-lines" preserveAspectRatio="none" viewBox="0 0 100 100">
+              {matchingLines.map((line) => (
+                <line key={line.key} x1={line.x1} x2={line.x2} y1={line.y1} y2={line.y2} />
+              ))}
+            </svg>
+            <div className="student-matching-column">
+              {pairs.map((pair) => (
+                <button
+                  className={`student-matching-choice ${selectedLeft === pair.left ? "selected" : ""} ${matchingAnswers[pair.left] ? "matched" : ""}`}
+                  key={pair.left}
+                  onClick={() => selectMatchingLeft(question.id, pair.left)}
+                  type="button"
+                >
+                  {pair.left}
+                </button>
+              ))}
+            </div>
+            <div className="student-matching-column right">
+              {rightOptions.map((option) => {
+                const matchedLeft = Object.entries(matchingAnswers).find(([, value]) => value === option)?.[0];
+                return (
+                  <button
+                    className={`student-matching-choice ${matchedLeft ? "matched" : ""}`}
+                    disabled={!selectedLeft && !matchedLeft}
+                    key={option}
+                    onClick={() => connectMatchingAnswer(question.id, option)}
+                    type="button"
+                  >
+                    {option}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
 
         {question.question_type === "Ordering / Sequencing" ? orderItems.map((item, itemIndex) => (
-          <div className="student-order-row" key={`${item}-${itemIndex}`}>
+          <div
+            className="student-order-row"
+            data-index={itemIndex}
+            data-question-id={question.id}
+            key={`${question.id}-${String(item)}`}
+            onPointerCancel={endOrderingDrag}
+            onPointerDown={(event) => startOrderingDrag(event, question.id, itemIndex)}
+            onPointerMove={moveOrderingDrag}
+            onPointerUp={endOrderingDrag}
+            role="button"
+            tabIndex={0}
+          >
             <span>{itemIndex + 1}. {item}</span>
-            <button onClick={() => setOrderingAnswer(question.id, itemIndex, -1)} type="button"><FiArrowUp /></button>
-            <button onClick={() => setOrderingAnswer(question.id, itemIndex, 1)} type="button"><FiArrowDown /></button>
           </div>
         )) : null}
 
@@ -2017,7 +2176,7 @@ export default function StudentExamTake() {
             <span>{formatDurationLabel(exam.time_limit || exam.duration)}</span>
             <span>{totalPoints} points</span>
           </div>
-          <p>{secureModeRequired ? "Fullscreen and monitoring permissions are required." : "Press Start Exam to begin."}</p>
+          <p>{secureModeRequired ? "Fullscreen and monitoring permissions are required." : "Fullscreen is required before taking the exam."}</p>
           {savedProgress?.savedAt ? (
             <div className="student-exam-resume-note">
               <strong>Saved progress found</strong>
@@ -2025,8 +2184,8 @@ export default function StudentExamTake() {
             </div>
           ) : null}
           <div className="student-exam-start-actions">
-            {savedProgress ? <Button disabled={!scanPassed || examLocked || attemptsExhausted} onClick={resumeExamMode}>Resume Exam</Button> : null}
-            <Button disabled={!scanPassed || examLocked || attemptsExhausted} onClick={enterExamMode}>Start Exam</Button>
+            {savedProgress ? <Button disabled={!scanPassed || attemptsExhausted} onClick={resumeExamMode}>Resume Exam</Button> : null}
+            <Button disabled={!scanPassed || attemptsExhausted} onClick={enterExamMode}>Start Exam</Button>
           </div>
         </div>
       </section>

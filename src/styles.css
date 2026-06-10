@@ -2519,6 +2519,16 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   gap: 8px;
   margin-top: 12px;
 }
+.assessment-question-image {
+  width: min(100%, 560px);
+  max-height: 320px;
+  object-fit: contain;
+  display: block;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.44);
+  margin-top: 12px;
+}
 .assessment-question-options span,
 .assessment-question-pairs span,
 .assessment-question-sequence li {
@@ -2652,6 +2662,23 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 14px;
+}
+.professor-monitoring-student-filters {
+  display: grid;
+  grid-template-columns: minmax(260px, 1fr) minmax(160px, 220px) minmax(160px, 220px);
+  gap: 10px;
+  margin: 16px 0;
+}
+.professor-monitoring-student-filters select {
+  width: 100%;
+  min-height: 42px;
+  border: 1px solid #d9dee8;
+  border-radius: 14px;
+  background: #fff;
+  color: #111827;
+  padding: 0 12px;
+  font-weight: 800;
+  outline: 0;
 }
 .professor-monitoring-grid > article {
   min-height: 170px;
@@ -2885,13 +2912,27 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .professor-manual-grade input {
   width: 86px;
   min-height: 34px;
-  border: 1px solid #d9dee8;
+  border: 1px solid rgba(125, 211, 252, 0.24);
   border-radius: 10px;
+  background: rgba(2, 6, 23, 0.5);
+  color: #fff;
   padding: 0 10px;
+  font-weight: 800;
+  outline: 0;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.professor-manual-grade input:focus {
+  border-color: rgba(34, 211, 238, 0.56);
+  box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.professor-manual-grade input::placeholder {
+  color: #bae6fd;
 }
 .professor-manual-grade input:disabled {
-  background: #f3f4f6;
-  color: #667085;
+  border-color: rgba(125, 211, 252, 0.16);
+  background: rgba(15, 23, 42, 0.62);
+  color: #e0f2fe;
+  opacity: 1;
 }
 .professor-manual-grade button {
   min-height: 34px;
@@ -3116,6 +3157,11 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .professor-exams-table td:first-child {
   color: #111827;
 }
+.professor-exams-table th:last-child,
+.professor-exams-table td:last-child {
+  width: 220px;
+  min-width: 220px;
+}
 .professor-status-stack {
   display: grid;
   gap: 8px;
@@ -3161,21 +3207,25 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   overflow-wrap: anywhere;
 }
 .professor-exam-actions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(82px, 1fr));
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  min-width: 260px;
+  width: 188px;
+  min-width: 188px;
+  margin: 0 auto;
 }
 .professor-exam-actions button {
   border: 0;
   border-radius: 999px;
   min-height: 30px;
-  padding: 0 13px;
+  width: 100%;
+  padding: 0 10px;
   background: #2563eb;
   color: #fff;
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 900;
+  white-space: nowrap;
 }
 .professor-exam-actions button.danger {
   background: #ef2424;
@@ -3200,6 +3250,11 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .professor-exam-actions button.muted {
   background: #64748b;
+}
+.professor-exam-actions button:last-child:nth-child(odd) {
+  grid-column: 1 / -1;
+  justify-self: center;
+  width: 92px;
 }
 .professor-exams-empty {
   padding: 22px;
@@ -3541,6 +3596,7 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .professor-exam-section-filters input,
 .professor-exam-section-filters select,
 .professor-monitoring-filters select,
+.professor-monitoring-student-filters select,
 .professor-score-filters .field input,
 .professor-score-filters .field select,
 .professor-score-filters .search-box,
@@ -3656,10 +3712,12 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   white-space: nowrap;
 }
 .professor-shell .professor-exam-actions {
-  min-width: 0;
-  justify-content: center;
+  width: 188px;
+  min-width: 188px;
+  justify-content: stretch;
 }
 .professor-shell .professor-exam-actions button {
+  min-width: 0;
   white-space: nowrap;
 }
 .professor-violation-chart {
@@ -3914,10 +3972,12 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   white-space: nowrap;
 }
 .professor-shell .professor-exam-actions {
-  min-width: 0;
-  justify-content: center;
+  width: 188px;
+  min-width: 188px;
+  justify-content: stretch;
 }
 .professor-shell .professor-exam-actions button {
+  min-width: 0;
   white-space: nowrap;
 }
 
@@ -3996,6 +4056,7 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .professor-shell .professor-setting-option,
 .professor-shell .professor-choice-field,
+.professor-shell .professor-question-image-upload,
 .professor-shell .professor-pair-row,
 .professor-shell .professor-order-row,
 .professor-shell .professor-added-list article,
@@ -4027,6 +4088,32 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 14px;
   margin-top: 14px;
+}
+.professor-question-image-upload {
+  min-height: 180px;
+  border: 1px dashed rgba(125, 211, 252, 0.24);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.28);
+  color: #e5f3ff;
+  display: grid;
+  place-items: center;
+  gap: 12px;
+  padding: 16px;
+  margin-top: 14px;
+  text-align: center;
+  font-weight: 900;
+  cursor: pointer;
+}
+.professor-question-image-upload input {
+  display: none;
+}
+.professor-question-image-upload img {
+  width: min(100%, 520px);
+  max-height: 320px;
+  object-fit: contain;
+  border-radius: 12px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(15, 23, 42, 0.66);
 }
 .professor-choice-field {
   display: grid;
@@ -4593,7 +4680,13 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   min-height: calc(100vh - 96px);
   display: grid;
   place-items: center;
-  padding: 24px;
+  margin: -10px calc(clamp(16px, 4vw, 46px) * -1) -48px;
+  padding: 24px clamp(16px, 4vw, 46px) 48px;
+  background:
+    radial-gradient(circle at 16% 6%, rgba(6, 182, 212, 0.16), transparent 30%),
+    radial-gradient(circle at 88% 18%, rgba(37, 99, 235, 0.15), transparent 28%),
+    linear-gradient(135deg, #0f172a 0%, #111827 48%, #020617 100%);
+  color: #fff;
 }
 .student-exam-start-panel {
   width: min(520px, 100%);
@@ -4601,9 +4694,18 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   justify-items: center;
   gap: 18px;
   text-align: center;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at 88% 12%, rgba(6, 182, 212, 0.12), transparent 36%),
+    linear-gradient(145deg, rgba(15, 23, 42, 0.84), rgba(2, 6, 23, 0.72));
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: clamp(24px, 5vw, 42px);
+  backdrop-filter: blur(16px);
 }
 .student-exam-start-panel h1 {
   margin: 0;
+  color: #fff;
   font-size: clamp(2rem, 5vw, 3rem);
   line-height: 1;
 }
@@ -4612,15 +4714,16 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   align-items: center;
   justify-content: center;
   gap: 22px;
-  color: #334155;
+  color: #cbd5e1;
   font-size: 0.88rem;
   font-weight: 700;
   flex-wrap: wrap;
 }
 .student-exam-start-panel p {
   margin: 0;
-  color: #475569;
+  color: #e0f2fe;
   font-size: 0.94rem;
+  font-weight: 700;
 }
 .student-exam-start-actions {
   display: flex;
@@ -5216,6 +5319,20 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .student-answer-option input {
   accent-color: #06b6d4;
 }
+.student-question-image {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 16px;
+  background: rgba(2, 6, 23, 0.34);
+  padding: 12px;
+}
+.student-question-image img {
+  width: 100%;
+  max-height: min(420px, 52vh);
+  object-fit: contain;
+  display: block;
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.72);
+}
 .student-exam-question .professor-create-input,
 .student-exam-question .professor-create-textarea {
   border-color: rgba(125, 211, 252, 0.22);
@@ -5235,30 +5352,94 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   background: #0f172a;
   color: #fff;
 }
-.student-matching-row,
 .student-order-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(220px, 0.55fr);
   gap: 12px;
   align-items: center;
 }
+.student-matching-board {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: clamp(72px, 12vw, 150px);
+  min-height: calc(var(--match-row-count, 3) * 54px);
+  padding: 4px 0;
+}
+.student-matching-lines {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+.student-matching-lines line {
+  stroke: #22d3ee;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 7px rgba(34, 211, 238, 0.72));
+}
+.student-matching-column {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: repeat(var(--match-row-count, 3), minmax(42px, 1fr));
+  gap: 12px;
+  align-items: center;
+}
+.student-matching-choice {
+  min-height: 42px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 12px;
+  background: rgba(2, 6, 23, 0.44);
+  color: #fff;
+  padding: 10px 14px;
+  font-weight: 900;
+  text-align: left;
+  cursor: pointer;
+}
+.student-matching-column.right .student-matching-choice {
+  text-align: right;
+}
+.student-matching-choice:hover,
+.student-matching-choice.selected {
+  border-color: rgba(34, 211, 238, 0.56);
+  background: rgba(6, 182, 212, 0.16);
+  box-shadow: 0 12px 28px rgba(6, 182, 212, 0.12);
+}
+.student-matching-choice.matched {
+  border-color: rgba(34, 211, 238, 0.42);
+  color: #e0f2fe;
+}
+.student-matching-choice:disabled {
+  cursor: default;
+  opacity: 0.78;
+}
 .student-order-row {
-  grid-template-columns: minmax(0, 1fr) auto auto;
+  grid-template-columns: minmax(0, 1fr);
   border: 1px solid rgba(125, 211, 252, 0.18);
   border-radius: 12px;
   background: rgba(2, 6, 23, 0.34);
   color: #fff;
-  padding: 10px 12px;
+  padding: 14px 16px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
-.student-order-row button {
-  width: 34px;
-  height: 34px;
-  border: 0;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #2563eb, #06b6d4);
-  color: #fff;
-  display: grid;
-  place-items: center;
+.student-order-row:hover,
+.student-order-row.dragging {
+  border-color: rgba(34, 211, 238, 0.48);
+  background: rgba(6, 182, 212, 0.14);
+  box-shadow: 0 12px 28px rgba(6, 182, 212, 0.12);
+}
+.student-order-row.dragging {
+  cursor: grabbing;
+  transform: scale(1.01);
+}
+.student-order-row span {
+  pointer-events: none;
 }
 .student-file-answer {
   min-height: 76px;
@@ -7375,6 +7556,8 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   .cluster-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .professor-stats-grid, .professor-quick-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .professor-course-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .professor-monitoring-student-filters { grid-template-columns: 1fr 1fr; }
+  .professor-monitoring-student-filters .search-box { grid-column: 1 / -1; }
   .professor-monitoring-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .professor-score-filters { grid-template-columns: 1fr 1fr; }
   .professor-exam-section-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -7549,6 +7732,8 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   .cluster-filters { grid-template-columns: 1fr; }
   .professor-stats-grid, .professor-quick-grid { grid-template-columns: 1fr; }
   .professor-course-card-grid { grid-template-columns: 1fr; }
+  .professor-monitoring-student-filters { grid-template-columns: 1fr; }
+  .professor-monitoring-student-filters .search-box { grid-column: auto; }
   .professor-monitoring-grid { grid-template-columns: 1fr; }
   .professor-score-filters { grid-template-columns: 1fr; }
   .professor-exam-section-filters { grid-template-columns: 1fr; }

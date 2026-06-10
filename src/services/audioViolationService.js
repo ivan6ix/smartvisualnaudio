@@ -86,6 +86,8 @@ export async function uploadAudioViolation({
     const minimalFallback = await supabase.from("violations").insert({
       student_id: studentId,
       exam_id: exam.id,
+      professor_id: basePayload.professor_id,
+      course_id: basePayload.course_id,
       violation_type: FALLBACK_AUDIO_VIOLATION_TYPE,
       description,
       severity: "Medium",
@@ -99,6 +101,8 @@ export async function uploadAudioViolation({
     const bareFallback = await supabase.from("violations").insert({
       student_id: studentId,
       exam_id: exam.id,
+      professor_id: basePayload.professor_id,
+      course_id: basePayload.course_id,
       violation_type: FALLBACK_AUDIO_VIOLATION_TYPE,
       severity: "Medium",
       created_at: timestamp,
