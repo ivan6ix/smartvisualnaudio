@@ -91,7 +91,7 @@ export default function DeanDashboard() {
               <XAxis dataKey="name" tick={{ fontSize: 11 }} />
               <YAxis />
               <Tooltip />
-              <Bar dataKey="count" fill="#111111" radius={[8, 8, 0, 0]} />
+              <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

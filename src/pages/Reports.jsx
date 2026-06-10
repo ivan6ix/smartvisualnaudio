@@ -3,7 +3,7 @@ import { FiActivity, FiBookOpen, FiFileText, FiPrinter, FiShield, FiUsers } from
 import { Button, Card, PageHeader, SearchBox, SelectField, Table } from "../components/ui";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
-const tabs = ["Overview", "All Users", "Students", "Violations", "Courses", "Exams", "Professors", "Deans", "Exam Attempts", "Grades", "System Logs"];
+const tabs = ["Overview", "All Users", "Students", "Violations", "Courses", "Exams", "Professors", "Deans"];
 const violationTypes = ["MULTIPLE_FACE", "NO_FACE", "BACKGROUND_VOICE", "LOUD_NOISE_DETECTED", "AUDIO_DETECTED", "LOUD_AUDIO", "TAB_SWITCH", "COPY_ATTEMPT", "FULLSCREEN_EXIT", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED"];
 
 const emptyStats = {

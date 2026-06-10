@@ -2122,6 +2122,38 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   gap: 16px;
   align-content: start;
 }
+.dean-shell .chart-box {
+  height: 320px;
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  border-radius: 18px;
+  background:
+    linear-gradient(rgba(2, 6, 23, 0.38), rgba(2, 6, 23, 0.38)),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.045) 1px, transparent 1px),
+    linear-gradient(rgba(125, 211, 252, 0.045) 1px, transparent 1px);
+  background-size: auto, 22px 22px, 22px 22px;
+  padding: 14px;
+}
+.dean-shell .recharts-cartesian-grid line {
+  stroke: rgba(125, 211, 252, 0.14);
+}
+.dean-shell .recharts-text,
+.dean-shell .recharts-legend-item-text {
+  fill: #cbd5e1;
+}
+.dean-shell .recharts-tooltip-wrapper {
+  color: #0f172a;
+}
+.dean-shell .dean-integrity-link {
+  color: #67e8f9;
+  font-weight: 800;
+}
+.dean-shell .dean-integrity-link:hover {
+  color: #bae6fd;
+}
+.dean-shell .dean-integrity-audio {
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.72);
+}
 .dean-course-search {
   width: min(100%, 520px);
 }
@@ -2674,7 +2706,7 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   padding: 22px;
 }
 .professor-monitoring-modal {
-  width: min(100%, 760px);
+  width: min(96vw, 1040px);
   max-height: 82vh;
   overflow: auto;
   border-radius: 22px;
@@ -2683,6 +2715,26 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   box-shadow: 0 24px 80px rgba(15, 23, 42, 0.22);
   padding: 22px;
   animation: modal-rise 160ms ease-out;
+}
+.professor-monitoring-filters {
+  margin-left: auto;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.professor-monitoring-filters select {
+  min-height: 38px;
+  max-width: 180px;
+  border: 1px solid #d7deea;
+  border-radius: 999px;
+  background: #fff;
+  color: #111827;
+  padding: 0 12px;
+  outline: 0;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 .professor-monitoring-alert-list {
   display: grid;
@@ -3488,6 +3540,7 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .professor-analytics-filters select,
 .professor-exam-section-filters input,
 .professor-exam-section-filters select,
+.professor-monitoring-filters select,
 .professor-score-filters .field input,
 .professor-score-filters .field select,
 .professor-score-filters .search-box,
@@ -7100,9 +7153,9 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .new-message-panel {
   position: absolute;
   top: 18px;
-  right: 214px;
+  right: 250px;
   z-index: 3;
-  width: min(520px, calc(100% - 430px));
+  width: min(520px, calc(100% - 466px));
   margin: 0;
   padding: 0;
   border: 0;

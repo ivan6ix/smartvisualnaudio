@@ -82,7 +82,7 @@ export default function DeanLayout() {
 
   return (
     <>
-      <header className="cluster-topbar dean-topbar">
+      <header className="cluster-topbar cluster-role-topbar dean-topbar">
         <button className="brand cluster-brand" onClick={() => navigate("/dean")}>
           <strong>Smart Proctoring</strong>
           <span>Dean Portal</span>
@@ -134,7 +134,7 @@ export default function DeanLayout() {
           </div>
         </div>
       </header>
-      <main className="cluster-shell dean-shell">
+      <main className="cluster-shell cluster-role-shell dean-shell">
         <Outlet />
       </main>
       {messagesOpen ? <MessageModal initialConversationId={messageTargetId} onClose={() => setMessagesOpen(false)} /> : null}
