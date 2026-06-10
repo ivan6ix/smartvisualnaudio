@@ -64,6 +64,9 @@ const BASIC_FACE_SAMPLE_HEIGHT = 100;
 const OBJECT_SCAN_INTERVAL_MS = 1000;
 const ENV_SCAN_OBJECT_CONFIDENCE = 0.62;
 const ROBOFLOW_OBJECT_CONFIDENCE = Number(import.meta.env.VITE_ROBOFLOW_OBJECT_CONFIDENCE || 0.35);
+const ROBOFLOW_MODEL_ID = import.meta.env.VITE_ROBOFLOW_MODEL || "spare-gadget-detection";
+const ROBOFLOW_MODEL_VERSION = import.meta.env.VITE_ROBOFLOW_MODEL_VERSION || "16";
+const ROBOFLOW_API_BASE = import.meta.env.VITE_ROBOFLOW_API_BASE || "https://detect.roboflow.com";
 const PHONE_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone"]);
 const GADGET_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "laptop", "tablet"]);
 const ROBOFLOW_GADGET_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "laptop", "tablet", "ipad"]);
@@ -324,7 +327,13 @@ export default function StudentExamTake() {
   const hasTimer = durationMinutes > 0;
   const examAlreadyTaken = existingAttemptCount > 0;
   const attemptsExhausted = examAlreadyTaken || (Number.isFinite(attemptLimit) && existingAttemptCount >= attemptLimit);
-  const proctoringEnabled = examSettings.liveCameraMonitoring || examSettings.liveAudioMonitoring;
+  const roboflowConfigured = Boolean(
+    import.meta.env.VITE_ROBOFLOW_API_KEY
+    || import.meta.env.VITE_ROBOFLOW_PROXY_URL
+    || import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT,
+  );
+  const liveCameraMonitoringEnabled = examSettings.liveCameraMonitoring || roboflowConfigured;
+  const proctoringEnabled = liveCameraMonitoringEnabled || examSettings.liveAudioMonitoring;
   const secureModeRequired = proctoringEnabled;
   const audioMonitoring = useLiveAudioMonitoring({
     enabled: examSettings.liveAudioMonitoring,
@@ -982,11 +991,6 @@ export default function StudentExamTake() {
     const capturedCount = scanCheckpoints.reduce((total, step) => total + (frames[step.id] || []).length, 0);
     if (!capturedCount) throw new Error("No scan image was captured.");
 
-    const localFindings = await detectEnvironmentGadgets(frames);
-    if (localFindings.length) {
-      return { passed: false, findings: localFindings };
-    }
-
     try {
       const roboflowResult = await analyzeEnvironmentWithRoboflow(frames, progressScores);
       if (roboflowResult) {
@@ -994,6 +998,11 @@ export default function StudentExamTake() {
       }
     } catch (error) {
       window.console.warn("[EnvironmentScan] Roboflow scan unavailable, using fallback analysis.", error);
+    }
+
+    const localFindings = await detectEnvironmentGadgets(frames);
+    if (localFindings.length) {
+      return { passed: false, findings: localFindings };
     }
 
     const endpoint = getUsableScanEndpoint(import.meta.env.VITE_ENV_SCAN_ENDPOINT);
@@ -1033,7 +1042,19 @@ export default function StudentExamTake() {
   async function analyzeEnvironmentWithRoboflow(frames, progressScores = {}) {
     const proxyUrl = import.meta.env.VITE_ROBOFLOW_PROXY_URL;
     const endpoint = getUsableScanEndpoint(import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT || (proxyUrl ? `${proxyUrl.replace(/\/$/, "")}/api/environment-scan` : ""));
-    if (!endpoint) return null;
+    const framePayload = scanCheckpoints.map((step) => ({
+      angle: step.id,
+      images: (frames[step.id] || []).map((frame) => dataUrlToPayload(frame.image || frame)),
+      captures: (frames[step.id] || []).map((frame) => ({
+        timestamp: frame.timestamp,
+        angle: frame.angle,
+      })),
+      movementScore: Number((progressScores[step.id] || 0).toFixed(2)),
+    }));
+
+    if (!endpoint) {
+      return analyzeEnvironmentWithDirectRoboflow(framePayload);
+    }
 
     const response = await fetchWithTimeout(endpoint, {
       method: "POST",
@@ -1041,15 +1062,7 @@ export default function StudentExamTake() {
       body: JSON.stringify({
         examId,
         studentId: user?.id,
-        frames: scanCheckpoints.map((step) => ({
-          angle: step.id,
-          images: (frames[step.id] || []).map((frame) => dataUrlToPayload(frame.image || frame)),
-          captures: (frames[step.id] || []).map((frame) => ({
-            timestamp: frame.timestamp,
-            angle: frame.angle,
-          })),
-          movementScore: Number((progressScores[step.id] || 0).toFixed(2)),
-        })),
+        frames: framePayload,
       }),
     });
 
@@ -1059,6 +1072,57 @@ export default function StudentExamTake() {
     }
 
     return response.json();
+  }
+
+  async function runDirectRoboflowImageDetection(image) {
+    const apiKey = import.meta.env.VITE_ROBOFLOW_API_KEY;
+    if (!apiKey || !ROBOFLOW_MODEL_ID || !ROBOFLOW_MODEL_VERSION) return null;
+
+    const endpoint = `${ROBOFLOW_API_BASE.replace(/\/$/, "")}/${ROBOFLOW_MODEL_ID}/${ROBOFLOW_MODEL_VERSION}`;
+    const url = new URL(endpoint);
+    url.searchParams.set("api_key", apiKey);
+    url.searchParams.set("confidence", String(Math.round(ROBOFLOW_OBJECT_CONFIDENCE * 100)));
+
+    const response = await fetchWithTimeout(url.toString(), {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: image,
+    });
+    if (!response.ok) {
+      const message = await response.text().catch(() => "");
+      throw new Error(message || `Roboflow model error (${response.status}).`);
+    }
+    return response.json();
+  }
+
+  async function analyzeEnvironmentWithDirectRoboflow(framePayload) {
+    if (!import.meta.env.VITE_ROBOFLOW_API_KEY) return null;
+
+    const findings = [];
+    const detectedLabels = new Set();
+    for (const frame of framePayload) {
+      for (const image of frame.images || []) {
+        const result = await runDirectRoboflowImageDetection(image);
+        const prediction = collectRoboflowPredictions(result).find((item) => (
+          ROBOFLOW_GADGET_LABELS.has(item.label)
+          && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE
+          && !detectedLabels.has(item.label)
+        ));
+        if (!prediction) continue;
+        detectedLabels.add(prediction.label);
+        findings.push({
+          angle: frame.angle,
+          class: prediction.label,
+          name: prediction.label,
+          label: `${getDetectedGadgetLabel(prediction)} detected by Roboflow`,
+          detected: true,
+          confidence: prediction.confidence,
+          instruction: `Remove the detected item from your exam area and scan again. Confidence: ${Math.round(prediction.confidence * 100)}%.`,
+        });
+      }
+    }
+
+    return { passed: findings.length === 0, findings };
   }
 
   function loadScanImage(dataUrl) {
@@ -1541,12 +1605,11 @@ export default function StudentExamTake() {
   function getRoboflowImageScanEndpoint() {
     const proxyUrl = import.meta.env.VITE_ROBOFLOW_PROXY_URL;
     const proxyBase = proxyUrl?.replace(/\/api\/init-webrtc\/?$/, "").replace(/\/$/, "");
-    return import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT || (proxyBase ? `${proxyBase}/api/environment-scan` : "");
+    return getUsableScanEndpoint(import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT || (proxyBase ? `${proxyBase}/api/environment-scan` : ""));
   }
 
   async function detectWithRoboflowImage(video) {
     const endpoint = getRoboflowImageScanEndpoint();
-    if (!endpoint) return null;
 
     const canvas = window.document.createElement("canvas");
     canvas.width = video.videoWidth;
@@ -1554,6 +1617,14 @@ export default function StudentExamTake() {
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     const image = dataUrlToPayload(canvas.toDataURL("image/jpeg", 0.78));
+
+    if (!endpoint) {
+      const result = await runDirectRoboflowImageDetection(image);
+      return collectRoboflowPredictions(result).find((item) => (
+        ROBOFLOW_GADGET_LABELS.has(item.label)
+        && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE
+      )) || null;
+    }
 
     const response = await fetchWithTimeout(endpoint, {
       method: "POST",
@@ -1646,7 +1717,7 @@ export default function StudentExamTake() {
   async function startRoboflowMonitoring(stream) {
     const config = getRoboflowConfig();
     if (!config) {
-      setRoboflowStatus(getRoboflowImageScanEndpoint() ? "Roboflow image detector active" : "Roboflow detector off");
+      setRoboflowStatus(import.meta.env.VITE_ROBOFLOW_API_KEY || getRoboflowImageScanEndpoint() ? "Roboflow image detector active" : "Roboflow detector off");
       return;
     }
 
@@ -1670,7 +1741,7 @@ export default function StudentExamTake() {
       setRoboflowStatus("Roboflow detector active");
     } catch (error) {
       window.console.error("[RoboflowLive]", error);
-      setRoboflowStatus(getRoboflowImageScanEndpoint() ? "Roboflow image detector active" : "Roboflow detector unavailable");
+      setRoboflowStatus(import.meta.env.VITE_ROBOFLOW_API_KEY || getRoboflowImageScanEndpoint() ? "Roboflow image detector active" : "Roboflow detector unavailable");
     }
   }
 
@@ -1703,7 +1774,7 @@ export default function StudentExamTake() {
   }
 
   async function startProctorCamera() {
-    if (!examSettings.liveCameraMonitoring && !examSettings.liveAudioMonitoring) {
+    if (!liveCameraMonitoringEnabled && !examSettings.liveAudioMonitoring) {
       stopProctoring();
       setFaceStatus("Live camera monitoring disabled");
       setRoboflowStatus("Roboflow detector off");
@@ -1711,7 +1782,7 @@ export default function StudentExamTake() {
     }
 
     const stream = await window.navigator.mediaDevices.getUserMedia({
-      video: examSettings.liveCameraMonitoring ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 360 } } : false,
+      video: liveCameraMonitoringEnabled ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 360 } } : false,
       audio: examSettings.liveAudioMonitoring ? {
         echoCancellation: false,
         noiseSuppression: false,
@@ -1720,7 +1791,7 @@ export default function StudentExamTake() {
     });
     stopProctoring();
     proctorStreamRef.current = stream;
-    if (examSettings.liveCameraMonitoring) {
+    if (liveCameraMonitoringEnabled) {
       if (proctorVideoRef.current) proctorVideoRef.current.srcObject = stream;
       void startFaceMonitoring();
       startObjectMonitoring();
@@ -2204,13 +2275,13 @@ export default function StudentExamTake() {
         <aside className="student-proctor-dock" aria-label="Live proctoring panel">
           <section className="student-proctor-camera-card">
             <div className="student-proctor-title">
-              {examSettings.liveCameraMonitoring ? <FiCamera /> : <FiMic />}
+              {liveCameraMonitoringEnabled ? <FiCamera /> : <FiMic />}
               <div>
-                <strong>{examSettings.liveCameraMonitoring ? "Live Camera" : "Live Audio"}</strong>
-                <span>{examSettings.liveCameraMonitoring ? "Fixed proctor view" : "Audio monitoring only"}</span>
+                <strong>{liveCameraMonitoringEnabled ? "Live Camera" : "Live Audio"}</strong>
+                <span>{liveCameraMonitoringEnabled ? "Roboflow detection active" : "Audio monitoring only"}</span>
               </div>
             </div>
-            {examSettings.liveCameraMonitoring ? (
+            {liveCameraMonitoringEnabled ? (
               <>
                 <div className="student-proctor-video-frame">
                   <video autoPlay muted playsInline ref={proctorVideoRef} />
