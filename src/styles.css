@@ -3208,22 +3208,22 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .professor-exam-actions {
   display: grid;
-  grid-template-columns: repeat(2, minmax(82px, 1fr));
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: center;
-  gap: 8px;
-  width: 188px;
-  min-width: 188px;
+  gap: 6px;
+  width: 156px;
+  min-width: 156px;
   margin: 0 auto;
 }
 .professor-exam-actions button {
   border: 0;
   border-radius: 999px;
-  min-height: 30px;
+  min-height: 26px;
   width: 100%;
-  padding: 0 10px;
+  padding: 0 7px;
   background: #2563eb;
   color: #fff;
-  font-size: 0.72rem;
+  font-size: 0.64rem;
   font-weight: 900;
   white-space: nowrap;
 }
@@ -3254,7 +3254,7 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .professor-exam-actions button:last-child:nth-child(odd) {
   grid-column: 1 / -1;
   justify-self: center;
-  width: 92px;
+  width: 74px;
 }
 .professor-exams-empty {
   padding: 22px;
@@ -3688,7 +3688,9 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .professor-shell .professor-exams-table th:last-child,
 .professor-shell .professor-exams-table td:last-child {
-  padding-right: 26px;
+  width: 170px;
+  padding-right: 12px;
+  padding-left: 12px;
 }
 .professor-shell .professor-exams-table tbody tr:last-child td {
   border-bottom: 0;
@@ -3712,12 +3714,15 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   white-space: nowrap;
 }
 .professor-shell .professor-exam-actions {
-  width: 188px;
-  min-width: 188px;
+  width: 156px;
+  min-width: 156px;
   justify-content: stretch;
 }
 .professor-shell .professor-exam-actions button {
   min-width: 0;
+  min-height: 26px;
+  padding: 0 7px;
+  font-size: 0.64rem;
   white-space: nowrap;
 }
 .professor-violation-chart {
@@ -3949,7 +3954,9 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .professor-shell .professor-exams-table th:last-child,
 .professor-shell .professor-exams-table td:last-child {
-  padding-right: 26px;
+  width: 170px;
+  padding-right: 12px;
+  padding-left: 12px;
 }
 .professor-shell .professor-exams-table tbody tr:last-child td {
   border-bottom: 0;
@@ -3973,12 +3980,15 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   white-space: nowrap;
 }
 .professor-shell .professor-exam-actions {
-  width: 188px;
-  min-width: 188px;
+  width: 156px;
+  min-width: 156px;
   justify-content: stretch;
 }
 .professor-shell .professor-exam-actions button {
   min-width: 0;
+  min-height: 26px;
+  padding: 0 7px;
+  font-size: 0.64rem;
   white-space: nowrap;
 }
 
