@@ -90,10 +90,7 @@ export default function ClusterExamReview() {
           <Card className="cluster-modal">
             <h2>Reject Examination</h2>
             <TextArea label="Reason for rejection" rows={5} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Enter reason for rejecting this examination..." />
-            <div className="rejection-examples">
-              <span>Incorrect answer key</span><span>Duplicate questions</span><span>Missing instructions</span><span>Time limit is too short</span><span>Question format issue</span>
-            </div>
-            <div className="header-actions"><Button onClick={handleReject}>Reject Exam</Button><Button variant="light" onClick={() => setRejectOpen(false)}>Cancel</Button></div>
+            <div className="header-actions reject-modal-actions"><Button onClick={handleReject}>Reject Exam</Button><Button variant="light" onClick={() => setRejectOpen(false)}>Cancel</Button></div>
           </Card>
         </div>
       ) : null}

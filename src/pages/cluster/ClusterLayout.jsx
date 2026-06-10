@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FiBell, FiChevronDown, FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
+import { FiBell, FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import AccountSettingsModal from "../../components/AccountSettingsModal";
 import MessageModal from "../../components/MessageModal";
@@ -40,7 +40,7 @@ export default function ClusterLayout() {
 
   return (
     <>
-      <header className="cluster-topbar">
+      <header className="cluster-topbar cluster-role-topbar">
         <button className="brand cluster-brand" onClick={() => navigate("/cluster")}>
           <strong>Smart Proctoring</strong>
           <span>Cluster Professor Portal</span>
@@ -80,9 +80,8 @@ export default function ClusterLayout() {
             </div>
           </div>
           <div className={`cluster-profile-menu ${profileOpen ? "open" : ""}`}>
-            <button onClick={() => setProfileOpen((open) => !open)} title="Profile" type="button">
+            <button aria-label="Open profile menu" onClick={() => setProfileOpen((open) => !open)} title="Profile" type="button">
               <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
-              <FiChevronDown />
             </button>
             <div>
               <button onClick={() => { setSettingsModal("profile"); setProfileOpen(false); }} type="button"><FiUser /> Profile Settings</button>
@@ -92,7 +91,7 @@ export default function ClusterLayout() {
           </div>
         </div>
       </header>
-      <main className="cluster-shell">
+      <main className="cluster-shell cluster-role-shell">
         <Outlet />
       </main>
       {messagesOpen ? <MessageModal initialConversationId={messageTargetId} onClose={() => setMessagesOpen(false)} /> : null}

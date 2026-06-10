@@ -125,9 +125,8 @@ export default function ProfessorLayout() {
             </div>
           </div>
           <div className={`cluster-profile-menu ${profileOpen ? "open" : ""}`}>
-            <button onClick={() => setProfileOpen((open) => !open)} title="Profile" type="button">
+            <button aria-label="Open profile menu" onClick={() => setProfileOpen((open) => !open)} title="Profile" type="button">
               <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
-              <FiChevronDown />
             </button>
             <div>
               <button onClick={() => { setSettingsModal("profile"); setProfileOpen(false); }} type="button"><FiUser /> Profile Settings</button>

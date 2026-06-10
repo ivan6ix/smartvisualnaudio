@@ -493,7 +493,7 @@ a { color: inherit; text-decoration: none; }
   align-items: center;
   gap: 7px;
 }
-.nav-tools button span:not(:only-child) { font-size: 0.8rem; }
+.nav-tools button > span:not(.profile-avatar) { font-size: 0.8rem; }
 .nav-tools .message-menu > button,
 .nav-tools .notification-menu > button {
   background: #fff;
@@ -503,8 +503,8 @@ a { color: inherit; text-decoration: none; }
 .nav-tools .notification-menu > button:hover {
   background: #f7f7f4;
 }
-.nav-tools .message-menu > button span,
-.nav-tools .notification-menu > button span {
+.nav-tools .message-menu > button > span:not(.profile-avatar),
+.nav-tools .notification-menu > button > span:not(.profile-avatar) {
   background: #b91c1c;
   color: #fff;
   border-radius: 999px;
@@ -627,14 +627,23 @@ a { color: inherit; text-decoration: none; }
   background: rgba(255, 255, 255, 0.06);
   color: #e0f2fe;
 }
+.top-nav .nav-tools .profile-menu > button {
+  width: 58px;
+  height: 58px;
+  min-height: 58px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 999px;
+  overflow: hidden;
+}
 .top-nav .nav-tools .message-menu > button:hover,
 .top-nav .nav-tools .notification-menu > button:hover,
 .top-nav .nav-tools .profile-menu > button:hover {
   background: rgba(6, 182, 212, 0.14);
   border-color: rgba(125, 211, 252, 0.34);
 }
-.top-nav .nav-tools .message-menu > button span,
-.top-nav .nav-tools .notification-menu > button span {
+.top-nav .nav-tools .message-menu > button > span:not(.profile-avatar),
+.top-nav .nav-tools .notification-menu > button > span:not(.profile-avatar) {
   background: #06b6d4;
   color: #fff;
 }
@@ -656,6 +665,8 @@ a { color: inherit; text-decoration: none; }
   width: 100%;
   height: 100%;
   object-fit: cover;
+  border-radius: inherit;
+  display: block;
 }
 .profile-avatar svg {
   width: 16px;
@@ -668,6 +679,27 @@ a { color: inherit; text-decoration: none; }
 .profile-avatar-large svg {
   width: 42px;
   height: 42px;
+}
+.profile-menu > button .profile-avatar,
+.cluster-profile-menu > button .profile-avatar {
+  width: 100%;
+  height: 100%;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.cluster-tools button .profile-avatar,
+.top-nav .nav-tools button .profile-avatar {
+  padding: 0;
+  background: transparent;
+  color: #e0f2fe;
+}
+.cluster-tools button .profile-avatar img,
+.top-nav .nav-tools button .profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .profile-menu { position: relative; }
@@ -1480,8 +1512,10 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   height: 16px;
 }
 .avatar-crop-preview {
-  width: min(280px, 72vw);
-  aspect-ratio: 1;
+  width: 280px;
+  height: 280px;
+  max-width: 72vw;
+  max-height: 72vw;
   justify-self: center;
   position: relative;
   overflow: hidden;
@@ -1491,10 +1525,9 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   box-shadow: 0 0 0 12px rgba(6, 182, 212, 0.08), 0 18px 40px rgba(2, 6, 23, 0.36);
 }
 .avatar-crop-preview img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transform-origin: center;
+  position: absolute;
+  max-width: none;
+  object-fit: fill;
 }
 .avatar-crop-controls {
   display: grid;
@@ -1698,7 +1731,18 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   color: #111;
   font-weight: 800;
 }
-.cluster-tools button span {
+.cluster-profile-menu > button {
+  width: 58px;
+  height: 58px;
+  min-height: 58px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+}
+.cluster-tools button > span:not(.profile-avatar) {
   background: #b91c1c;
   color: #fff;
   border-radius: 999px;
@@ -1761,6 +1805,312 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 }
 .cluster-shell .btn:not(.btn-light), .cluster-shell .quick-action {
   background: #b91c1c;
+}
+.cluster-role-topbar {
+  background:
+    linear-gradient(135deg, rgba(15, 23, 42, 0.96), rgba(2, 6, 23, 0.92)),
+    radial-gradient(circle at 18% 0%, rgba(6, 182, 212, 0.2), transparent 28%);
+  border-bottom: 1px solid rgba(125, 211, 252, 0.18);
+  box-shadow: 0 18px 50px rgba(2, 6, 23, 0.24);
+}
+.cluster-role-topbar .cluster-brand {
+  position: relative;
+  padding-left: 46px;
+}
+.cluster-role-topbar .cluster-brand::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  border: 1px solid rgba(34, 211, 238, 0.5);
+  border-radius: 12px;
+  transform: translateY(-50%);
+  background: radial-gradient(circle, rgba(6, 182, 212, 0.28), rgba(37, 99, 235, 0.12));
+  box-shadow: 0 0 22px rgba(6, 182, 212, 0.24);
+}
+.cluster-role-topbar .cluster-brand strong,
+.cluster-role-topbar nav a {
+  color: #fff;
+}
+.cluster-role-topbar .cluster-brand span,
+.cluster-role-topbar .message-menu-panel article p,
+.cluster-role-topbar .message-menu-panel article small,
+.cluster-role-topbar .notification-menu-panel article p,
+.cluster-role-topbar .notification-menu-panel article small,
+.cluster-role-topbar .message-menu-empty {
+  color: #94a3b8;
+}
+.cluster-role-topbar nav a {
+  border: 1px solid rgba(125, 211, 252, 0.08);
+  background: rgba(255, 255, 255, 0.04);
+}
+.cluster-role-topbar nav a.active,
+.cluster-role-topbar nav a:hover {
+  color: #fff;
+  border-color: rgba(34, 211, 238, 0.38);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.34), rgba(6, 182, 212, 0.16));
+  box-shadow: 0 0 22px rgba(6, 182, 212, 0.14);
+}
+.cluster-role-topbar .cluster-tools button {
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e0f2fe;
+}
+.cluster-role-topbar .cluster-tools button:hover {
+  background: rgba(6, 182, 212, 0.14);
+  border-color: rgba(125, 211, 252, 0.34);
+}
+.cluster-role-topbar .cluster-message-menu > button span,
+.cluster-role-topbar .cluster-notification-menu > button span {
+  background: #06b6d4;
+}
+.cluster-role-topbar .message-menu-panel,
+.cluster-role-topbar .notification-menu-panel,
+.cluster-role-topbar .cluster-profile-menu > div {
+  border-color: rgba(125, 211, 252, 0.18);
+  background: rgba(15, 23, 42, 0.96);
+  color: #e2e8f0;
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.38);
+  backdrop-filter: blur(18px);
+}
+.cluster-role-topbar .message-menu-panel article,
+.cluster-role-topbar .notification-menu-panel article {
+  background: rgba(255, 255, 255, 0.06);
+  color: #fff;
+}
+.cluster-role-topbar .message-menu-panel article:hover,
+.cluster-role-topbar .notification-menu-panel article:hover,
+.cluster-role-topbar .cluster-profile-menu > div button:hover {
+  background: rgba(6, 182, 212, 0.12);
+}
+.cluster-role-topbar .cluster-profile-menu > div button {
+  color: #e2e8f0;
+}
+.cluster-role-shell {
+  position: relative;
+  color: #e5f3ff;
+  background:
+    radial-gradient(circle at 16% 6%, rgba(6, 182, 212, 0.18), transparent 30%),
+    radial-gradient(circle at 88% 18%, rgba(37, 99, 235, 0.16), transparent 28%),
+    linear-gradient(135deg, #0f172a 0%, #111827 48%, #020617 100%);
+}
+.cluster-role-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  opacity: 0.5;
+  background:
+    linear-gradient(rgba(148, 163, 184, 0.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(148, 163, 184, 0.055) 1px, transparent 1px);
+  background-size: 42px 42px;
+}
+.cluster-role-shell .page-header {
+  min-height: 170px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 22px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at 86% 18%, rgba(6, 182, 212, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.78));
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  padding: clamp(24px, 4vw, 40px);
+  backdrop-filter: blur(18px);
+}
+.cluster-role-shell .page-header h1 {
+  color: #fff;
+  font-size: clamp(2rem, 4vw, 3.8rem);
+  line-height: 0.98;
+}
+.cluster-role-shell .page-header p,
+.cluster-role-shell .card p,
+.cluster-role-shell .info-list span,
+.cluster-role-shell .notification-list p,
+.cluster-role-shell .notification-list small,
+.cluster-role-shell .empty-state,
+.cluster-role-shell .message-date-separator {
+  color: #cbd5e1;
+}
+.cluster-role-shell .chat-card .page-header {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  padding: 0;
+  backdrop-filter: none;
+}
+.cluster-role-shell .chat-card .page-header h1 {
+  font-size: clamp(1.8rem, 3vw, 2.6rem);
+}
+.cluster-role-shell .card,
+.cluster-role-shell .messages-layout > .card,
+.cluster-role-shell .chat-card,
+.cluster-role-shell .new-message-panel,
+.cluster-role-shell .cluster-modal {
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  background: rgba(15, 23, 42, 0.72);
+  color: #e5f3ff;
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.34), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(18px);
+}
+.cluster-role-shell .card h2,
+.cluster-role-shell .card strong,
+.cluster-role-shell .conversation-list button strong,
+.cluster-role-shell .notification-list strong,
+.cluster-role-shell .cluster-question-list strong {
+  color: #fff;
+}
+.cluster-role-shell .stat-card {
+  border-color: rgba(125, 211, 252, 0.18);
+  background: linear-gradient(145deg, rgba(15, 23, 42, 0.82), rgba(2, 6, 23, 0.68));
+  color: #e5f3ff;
+}
+.cluster-role-shell .stat-card svg {
+  color: #67e8f9;
+}
+.cluster-role-shell .stat-card strong {
+  color: #fff;
+}
+.cluster-role-shell .stat-card span,
+.cluster-role-shell .conversation-list button small,
+.cluster-role-shell .conversation-list button span {
+  color: #cbd5e1;
+}
+.cluster-role-shell .btn:not(.btn-light),
+.cluster-role-shell .quick-action {
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  color: #fff;
+  box-shadow: 0 14px 28px rgba(37, 99, 235, 0.24);
+}
+.cluster-role-shell .btn-light,
+.cluster-role-shell .cluster-toggle {
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e0f2fe;
+}
+.cluster-role-shell .btn-light:hover {
+  border-color: rgba(125, 211, 252, 0.44);
+  background: rgba(6, 182, 212, 0.14);
+}
+.cluster-role-shell .field span {
+  color: #bfdbfe;
+}
+.cluster-role-shell .search-box,
+.cluster-role-shell .field input,
+.cluster-role-shell .field select,
+.cluster-role-shell .field textarea {
+  border-color: rgba(125, 211, 252, 0.18);
+  background: rgba(2, 6, 23, 0.46);
+  color: #f8fafc;
+  outline: 0;
+}
+.cluster-role-shell option {
+  background: #0f172a;
+  color: #fff;
+}
+.cluster-role-shell .search-box input {
+  color: #f8fafc;
+}
+.cluster-role-shell .search-box input::placeholder,
+.cluster-role-shell .field input::placeholder,
+.cluster-role-shell .field textarea::placeholder {
+  color: #94a3b8;
+}
+.cluster-role-shell .table-wrap {
+  border: 1px solid rgba(125, 211, 252, 0.16);
+  border-radius: 18px;
+  background: rgba(2, 6, 23, 0.36);
+}
+.cluster-role-shell table {
+  color: #e2e8f0;
+}
+.cluster-role-shell th,
+.cluster-role-shell td {
+  border-bottom-color: rgba(125, 211, 252, 0.1);
+}
+.cluster-role-shell th {
+  color: #fff;
+  background: rgba(15, 23, 42, 0.92);
+}
+.cluster-role-shell td {
+  color: #fff;
+}
+.cluster-role-shell .badge {
+  background: rgba(148, 163, 184, 0.14);
+  color: #e2e8f0;
+}
+.cluster-role-shell .badge-success {
+  background: rgba(16, 185, 129, 0.16);
+  color: #86efac;
+}
+.cluster-role-shell .badge-danger {
+  background: rgba(239, 68, 68, 0.16);
+  color: #fca5a5;
+}
+.cluster-role-shell .badge-warn {
+  background: rgba(245, 158, 11, 0.17);
+  color: #fde68a;
+}
+.cluster-role-shell .badge-blue {
+  background: rgba(37, 99, 235, 0.2);
+  color: #bfdbfe;
+}
+.cluster-role-shell .info-list span,
+.cluster-role-shell .notification-list article,
+.cluster-role-shell .conversation-list button,
+.cluster-role-shell .cluster-question-list article {
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  background: rgba(2, 6, 23, 0.38);
+  color: #e5f3ff;
+}
+.cluster-role-shell .conversation-list button.active,
+.cluster-role-shell .conversation-list button:hover,
+.cluster-role-shell .notification-list article:hover {
+  border-color: rgba(34, 211, 238, 0.42);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.32), rgba(6, 182, 212, 0.14));
+}
+.cluster-role-shell .conversation-list button b,
+.cluster-role-shell .cluster-dot {
+  background: #06b6d4;
+  color: #fff;
+}
+.cluster-role-shell .cluster-dot.read {
+  background: rgba(148, 163, 184, 0.42);
+}
+.cluster-role-shell .message-history {
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  background:
+    linear-gradient(135deg, rgba(2, 6, 23, 0.7), rgba(15, 23, 42, 0.52)),
+    linear-gradient(90deg, rgba(125, 211, 252, 0.045) 1px, transparent 1px),
+    linear-gradient(rgba(125, 211, 252, 0.045) 1px, transparent 1px);
+  background-size: auto, 22px 22px, 22px 22px;
+}
+.cluster-role-shell .bubble {
+  background: rgba(15, 23, 42, 0.84);
+  border-color: rgba(125, 211, 252, 0.2);
+  color: #fff;
+}
+.cluster-role-shell .bubble.mine {
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  color: #fff;
+}
+.cluster-role-shell .cluster-question-list article div span,
+.cluster-role-shell .cluster-question-list footer span {
+  color: #67e8f9;
+}
+.cluster-role-shell .cluster-question-list p,
+.cluster-role-shell .cluster-question-list ul {
+  color: #cbd5e1;
+}
+.cluster-role-shell .rejection-examples span {
+  background: rgba(6, 182, 212, 0.12);
+  color: #bfdbfe;
 }
 .professor-shell {
   background: linear-gradient(180deg, #fff 0%, #fff7f7 100%);
@@ -2996,7 +3346,7 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   background: rgba(6, 182, 212, 0.14);
   border-color: rgba(125, 211, 252, 0.34);
 }
-.professor-topbar .cluster-tools button span { background: #06b6d4; }
+.professor-topbar .cluster-tools button > span:not(.profile-avatar) { background: #06b6d4; }
 .professor-topbar .message-menu-panel,
 .professor-topbar .notification-menu-panel,
 .professor-topbar .cluster-profile-menu > div {
@@ -3808,7 +4158,7 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
   background: rgba(6, 182, 212, 0.14);
   border-color: rgba(125, 211, 252, 0.34);
 }
-.student-topbar .cluster-tools button span {
+.student-topbar .cluster-tools button > span:not(.profile-avatar) {
   background: #06b6d4;
 }
 .student-topbar .message-menu-panel,
@@ -6919,6 +7269,10 @@ th { color: #666; font-size: 0.82rem; text-transform: uppercase; }
 .cluster-modal {
   width: min(100%, 520px);
   animation: modal-rise 160ms ease-out;
+}
+.reject-modal-actions {
+  margin-top: 18px;
+  gap: 12px;
 }
 .rejection-examples {
   display: flex;

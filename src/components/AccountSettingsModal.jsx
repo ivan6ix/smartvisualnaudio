@@ -25,24 +25,40 @@ function loadImage(src) {
   });
 }
 
-async function cropAvatar(imageSrc, crop) {
+const CROP_PREVIEW_SIZE = 280;
+const AVATAR_OUTPUT_SIZE = 512;
+
+function getCropLayout(imageMeta, crop, size) {
+  const baseScale = Math.max(size / imageMeta.width, size / imageMeta.height);
+  const scale = baseScale * crop.zoom;
+  const width = imageMeta.width * scale;
+  const height = imageMeta.height * scale;
+  return {
+    width,
+    height,
+    x: (size - width) / 2 + crop.x * (size / CROP_PREVIEW_SIZE),
+    y: (size - height) / 2 + crop.y * (size / CROP_PREVIEW_SIZE),
+  };
+}
+
+function blobToDataUrl(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function cropAvatar(imageSrc, crop, imageMeta) {
   const image = await loadImage(imageSrc);
-  const size = 512;
   const canvas = document.createElement("canvas");
   const context = canvas.getContext("2d");
-  canvas.width = size;
-  canvas.height = size;
+  canvas.width = AVATAR_OUTPUT_SIZE;
+  canvas.height = AVATAR_OUTPUT_SIZE;
 
-  const baseScale = Math.max(size / image.naturalWidth, size / image.naturalHeight);
-  const scale = baseScale * crop.zoom;
-  const width = image.naturalWidth * scale;
-  const height = image.naturalHeight * scale;
-  const overflowX = Math.max(0, width - size);
-  const overflowY = Math.max(0, height - size);
-  const x = (size - width) / 2 + (crop.x / 100) * (overflowX / 2);
-  const y = (size - height) / 2 + (crop.y / 100) * (overflowY / 2);
-
-  context.drawImage(image, x, y, width, height);
+  const layout = getCropLayout(imageMeta, crop, AVATAR_OUTPUT_SIZE);
+  context.drawImage(image, layout.x, layout.y, layout.width, layout.height);
 
   return new Promise((resolve) => {
     canvas.toBlob((blob) => resolve(blob), "image/png", 0.92);
@@ -55,6 +71,7 @@ export default function AccountSettingsModal({ mode, onClose }) {
   const fileInputRef = useRef(null);
   const [avatarUrl, setAvatarUrl] = useState(user?.avatarUrl || "");
   const [cropImage, setCropImage] = useState("");
+  const [cropImageMeta, setCropImageMeta] = useState(null);
   const [crop, setCrop] = useState({ zoom: 1, x: 0, y: 0 });
   const [savingAvatar, setSavingAvatar] = useState(false);
   const isSecurity = mode === "security";
@@ -92,19 +109,21 @@ export default function AccountSettingsModal({ mode, onClose }) {
     }
 
     const imageSrc = await readImageFile(file);
+    const image = await loadImage(imageSrc);
     setCropImage(imageSrc);
+    setCropImageMeta({ width: image.naturalWidth, height: image.naturalHeight });
     setCrop({ zoom: 1, x: 0, y: 0 });
   }
 
   async function saveAvatar() {
-    if (!cropImage || !user?.id) return;
+    if (!cropImage || !cropImageMeta || !user?.id) return;
     setSavingAvatar(true);
 
     try {
-      const blob = await cropAvatar(cropImage, crop);
+      const blob = await cropAvatar(cropImage, crop, cropImageMeta);
       if (!blob) throw new Error("Unable to crop image.");
 
-      let nextAvatarUrl = cropImage;
+      let nextAvatarUrl = await blobToDataUrl(blob);
       if (hasSupabaseConfig) {
         const path = `${user.id}/avatar.png`;
         const { error: uploadError } = await supabase.storage
@@ -125,6 +144,7 @@ export default function AccountSettingsModal({ mode, onClose }) {
       setAvatarUrl(nextAvatarUrl);
       updateCachedUser?.({ avatarUrl: nextAvatarUrl });
       setCropImage("");
+      setCropImageMeta(null);
       toast.success("Profile picture updated");
     } catch (error) {
       toast.error(error.message);
@@ -183,23 +203,29 @@ export default function AccountSettingsModal({ mode, onClose }) {
           </Card>
         )}
 
-        {cropImage ? (
-          <div className="avatar-crop-backdrop" onClick={() => setCropImage("")} role="presentation">
+        {cropImage && cropImageMeta ? (
+          <div className="avatar-crop-backdrop" onClick={() => { setCropImage(""); setCropImageMeta(null); }} role="presentation">
             <section className="avatar-crop-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true">
               <header>
                 <div>
                   <h2>Adjust Profile Picture</h2>
                   <p>Position your photo inside the circle.</p>
                 </div>
-                <button aria-label="Close crop editor" onClick={() => setCropImage("")} type="button"><FiX /></button>
+                <button aria-label="Close crop editor" onClick={() => { setCropImage(""); setCropImageMeta(null); }} type="button"><FiX /></button>
               </header>
               <div className="avatar-crop-preview">
                 <img
                   alt="Profile crop preview"
                   src={cropImage}
-                  style={{
-                    transform: `translate(${crop.x}px, ${crop.y}px) scale(${crop.zoom})`,
-                  }}
+                  style={(() => {
+                    const layout = getCropLayout(cropImageMeta, crop, CROP_PREVIEW_SIZE);
+                    return {
+                      height: `${layout.height}px`,
+                      left: `${layout.x}px`,
+                      top: `${layout.y}px`,
+                      width: `${layout.width}px`,
+                    };
+                  })()}
                 />
               </div>
               <div className="avatar-crop-controls">
