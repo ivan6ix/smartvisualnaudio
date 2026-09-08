@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { FiActivity, FiBookOpen, FiCheckCircle, FiCpu, FiDatabase, FiFileText, FiPlus, FiRadio, FiShield, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { Card, QuickAction, Table, Badge } from "../components/ui";
+import { useChartTheme } from "../context/ThemeContext";
 import { exams, logs, violationChart } from "../data/mockData";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
@@ -40,18 +42,14 @@ async function countRows(query) {
 }
 
 export default function Dashboard() {
+  const chartTheme = useChartTheme();
   const navigate = useNavigate();
-  const [liveStats, setLiveStats] = useState(defaultStats);
-  const [liveViolationChart, setLiveViolationChart] = useState(violationChart);
-  const [liveExams, setLiveExams] = useState(exams);
-  const [liveLogs, setLiveLogs] = useState(logs);
   const [systemHealth, setSystemHealth] = useState(defaultHealth);
 
-  useEffect(() => {
-    if (!hasSupabaseConfig) return;
-
-    async function loadStats() {
-      try {
+  const statsQuery = useQuery({
+    queryKey: ["admin-dashboard-stats"],
+    enabled: hasSupabaseConfig,
+    queryFn: async () => {
         const today = new Date().toISOString().slice(0, 10);
         const tomorrow = new Date();
         tomorrow.setDate(tomorrow.getDate() + 1);
@@ -66,14 +64,9 @@ export default function Dashboard() {
           countRows(supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "Dean")),
         ]);
 
-        setLiveStats({ professors, students, courses, activeExams, violationsToday, deans });
-      } catch {
-        setLiveStats(defaultStats);
-      }
-    }
-
-    loadStats();
-  }, []);
+      return { professors, students, courses, activeExams, violationsToday, deans };
+    },
+  });
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -119,10 +112,10 @@ export default function Dashboard() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!hasSupabaseConfig) return;
-
-    async function loadDashboardDetails() {
+  const detailsQuery = useQuery({
+    queryKey: ["admin-dashboard-details"],
+    enabled: hasSupabaseConfig,
+    queryFn: async () => {
       const [{ data: violationRows, error: violationsError }, { data: examRows, error: examsError }, { data: logRows, error: logsError }] = await Promise.all([
         supabase.from("violations").select("violation_type").limit(500),
         supabase
@@ -138,36 +131,36 @@ export default function Dashboard() {
           .limit(8),
       ]);
 
-      if (!violationsError) {
-        const counts = (violationRows || []).reduce((items, row) => {
-          items[row.violation_type] = (items[row.violation_type] || 0) + 1;
-          return items;
-        }, {});
-        setLiveViolationChart(Object.entries(violationLabels).map(([key, name]) => ({ name, count: counts[key] || 0 })));
-      }
-
-      if (!examsError) {
-        setLiveExams((examRows || []).map((exam) => ({
+      if (violationsError) throw violationsError;
+      if (examsError) throw examsError;
+      if (logsError) throw logsError;
+      const counts = (violationRows || []).reduce((items, row) => {
+        items[row.violation_type] = (items[row.violation_type] || 0) + 1;
+        return items;
+      }, {});
+      return {
+        violationChart: Object.entries(violationLabels).map(([key, name]) => ({ name, count: counts[key] || 0 })),
+        exams: (examRows || []).map((exam) => ({
           id: exam.id,
           title: exam.exam_title || exam.title,
           course: exam.courses?.course_name || exam.course || "Unassigned course",
           duration: exam.time_limit || exam.duration,
           status: exam.status,
-        })));
-      }
-
-      if (!logsError) {
-        setLiveLogs((logRows || []).map((log) => ({
+        })),
+        logs: (logRows || []).map((log) => ({
           id: log.id,
           action: log.action,
           description: log.description,
           createdAt: new Date(log.created_at).toLocaleString(),
-        })));
-      }
-    }
+        })),
+      };
+    },
+  });
 
-    loadDashboardDetails();
-  }, []);
+  const liveStats = hasSupabaseConfig ? statsQuery.data || defaultStats : defaultStats;
+  const liveViolationChart = hasSupabaseConfig ? detailsQuery.data?.violationChart || violationChart : violationChart;
+  const liveExams = hasSupabaseConfig ? detailsQuery.data?.exams || exams : exams;
+  const liveLogs = hasSupabaseConfig ? detailsQuery.data?.logs || logs : logs;
 
   const stats = [
     ["Total Professors", liveStats.professors, FiUsers],
@@ -264,10 +257,10 @@ export default function Dashboard() {
           <div className="chart-box">
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={liveViolationChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.18)" />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(34, 211, 238, 0.25)", borderRadius: 14, color: "#fff" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
                 <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

@@ -4,6 +4,7 @@ import { FiUpload, FiX } from "react-icons/fi";
 import { toast } from "sonner";
 import { Button, Card, Field } from "./ui";
 import ProfileAvatar from "./ProfileAvatar";
+import ThemeSettings from "./ThemeSettings";
 import { useAuth } from "../context/AuthContext";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
@@ -183,6 +184,7 @@ export default function AccountSettingsModal({ mode, onClose }) {
               <span>Email <strong>{user?.email || "-"}</strong></span>
               <span>Role <strong>{user?.role || "-"}</strong></span>
             </div>
+            <ThemeSettings />
           </Card>
         ) : (
           <Card>

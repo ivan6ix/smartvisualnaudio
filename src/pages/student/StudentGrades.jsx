@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FiChevronUp } from "react-icons/fi";
 import { toast } from "sonner";
 import { useAuth } from "../../context/AuthContext";
@@ -84,13 +85,22 @@ function groupByPeriod(grades) {
 
 export default function StudentGrades() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [joinedCourses] = useLocalStorageState("smartproctor.student.courses", studentCourses);
   const [courses, setCourses] = useState(() => joinedCourses.map(mapCourse).filter(Boolean));
   const [grades, setGrades] = useState(() => studentGrades.map((grade) => ({ ...grade, academicYear: "2025-2026" })));
-  const [openCourseId, setOpenCourseId] = useState(courses[0]?.id || "");
+  const [openCourseId, setOpenCourseId] = useState(null);
 
-  const loadGrades = useCallback(async () => {
+  const loadGrades = useCallback(async (force = false) => {
     if (!hasSupabaseConfig || !user?.id) return;
+    const queryKey = ["student-grades", user.id];
+    const cached = queryClient.getQueryData(queryKey);
+    const cacheState = queryClient.getQueryState(queryKey);
+    if (cached) {
+      setCourses(cached.courses);
+      setGrades(cached.grades);
+    }
+    if (!force && cacheState?.dataUpdatedAt && Date.now() - cacheState.dataUpdatedAt < 3 * 60 * 1000) return;
 
     const { data: enrollmentRows, error: enrollmentError } = await supabase
       .from("course_enrollments")
@@ -105,7 +115,6 @@ export default function StudentGrades() {
 
     const liveCourses = (enrollmentRows || []).map((row) => mapCourse(row.courses)).filter(Boolean);
     setCourses(liveCourses);
-    setOpenCourseId((current) => current || liveCourses[0]?.id || "");
 
     let attemptRows = [];
     let attemptsError = null;
@@ -113,7 +122,8 @@ export default function StudentGrades() {
       .from("exam_attempts")
       .select("id, score, earned_points, max_points, status, submitted_at, exams(id, title, exam_title, exam_type, course_id, courses(id, course_name, course_code, section))")
       .eq("student_id", user.id)
-      .order("submitted_at", { ascending: false });
+      .order("submitted_at", { ascending: false })
+      .limit(500);
 
     if (attemptResult.error?.message?.includes("submitted_at") || attemptResult.error?.message?.includes("earned_points") || attemptResult.error?.message?.includes("max_points")) {
       const fallbackAttemptResult = await supabase
@@ -178,15 +188,19 @@ export default function StudentGrades() {
         questionPoints: questionPointsById.get(answer.question_id),
       }));
 
-      gradeOverrides = answerRowsWithPoints.reduce((items, row) => {
-        const rows = answerRowsWithPoints.filter((answer) => answer.attempt_id === row.attempt_id);
-        const grade = computeAttemptGradeFromAnswers(rows);
-        return grade === null ? items : { ...items, [row.attempt_id]: grade };
+      const answersByAttempt = answerRowsWithPoints.reduce((items, row) => {
+        (items[row.attempt_id] ||= []).push(row);
+        return items;
       }, {});
+      gradeOverrides = Object.fromEntries(Object.entries(answersByAttempt)
+        .map(([attemptId, rows]) => [attemptId, computeAttemptGradeFromAnswers(rows)])
+        .filter(([, grade]) => grade !== null));
     }
 
-    setGrades((attemptRows || []).map((attempt) => mapAttempt(attempt, gradeOverrides)));
-  }, [user?.id]);
+    const nextGrades = (attemptRows || []).map((attempt) => mapAttempt(attempt, gradeOverrides));
+    setGrades(nextGrades);
+    queryClient.setQueryData(queryKey, { courses: liveCourses, grades: nextGrades });
+  }, [queryClient, user?.id]);
 
   useEffect(() => {
     void loadGrades();
@@ -197,8 +211,8 @@ export default function StudentGrades() {
 
     const channel = supabase
       .channel(`student-grades-${user.id}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_attempts" }, () => void loadGrades())
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_attempt_answers" }, () => void loadGrades())
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_attempts" }, () => void loadGrades(true))
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_attempt_answers" }, () => void loadGrades(true))
       .subscribe();
 
     return () => {
@@ -237,7 +251,7 @@ export default function StudentGrades() {
 
           return (
             <section className="student-card student-grade-course" key={course.id}>
-              <button className="student-grade-course-toggle" onClick={() => setOpenCourseId(isOpen ? "" : course.id)} type="button">
+              <button className="student-grade-course-toggle" onClick={() => setOpenCourseId((current) => current === course.id ? null : course.id)} type="button">
                 <div>
                   <h2>{course.name}</h2>
                   <p>{course.section}</p>

@@ -24,17 +24,52 @@ export async function uploadAudioViolation({
   professorId,
   studentId,
   triggeredAt,
+  onRecorded,
 }) {
   const timestamp = triggeredAt || new Date().toISOString();
+  const initialDescription = "Background voice or loud audio was detected for at least 3 seconds.";
+  const corePayload = {
+    student_id: studentId,
+    exam_id: exam.id,
+    violation_type: AUDIO_VIOLATION_TYPE,
+    description: initialDescription,
+    severity: "Medium",
+    created_at: timestamp,
+  };
+  let violationId = null;
+  let inserted = null;
+  let insertError = null;
+  const minimalPayload = {
+    student_id: studentId,
+    exam_id: exam.id,
+    severity: "Medium",
+    created_at: timestamp,
+  };
+  for (const payload of [
+    corePayload,
+    { ...minimalPayload, violation_type: AUDIO_VIOLATION_TYPE },
+    { ...corePayload, violation_type: FALLBACK_AUDIO_VIOLATION_TYPE },
+    { ...minimalPayload, violation_type: FALLBACK_AUDIO_VIOLATION_TYPE },
+  ]) {
+    const result = await supabase.from("violations").insert(payload).select("id").single();
+    inserted = result.data;
+    insertError = result.error;
+    if (!insertError) break;
+  }
+  if (insertError) throw insertError;
+  violationId = inserted?.id;
+  const limitReached = onRecorded?.({ violationId, timestamp }) === true;
+
+  const resolvedAudioBlob = await audioBlob;
   let evidenceUrl = null;
   let evidenceType = "audio";
   let description = "Audio level reached 50% or higher for 3 seconds. The next 10 seconds of audio was recorded for review.";
 
   try {
-    if (audioBlob?.size) {
+    if (resolvedAudioBlob?.size) {
       const path = `${studentId}/${exam.id}/${safeTimestamp(timestamp)}.webm`;
-      const { error } = await supabase.storage.from("audio-violations").upload(path, audioBlob, {
-        contentType: audioBlob.type || "audio/webm",
+      const { error } = await supabase.storage.from("audio-violations").upload(path, resolvedAudioBlob, {
+        contentType: resolvedAudioBlob.type || "audio/webm",
         upsert: false,
       });
       if (error) throw error;
@@ -42,9 +77,9 @@ export async function uploadAudioViolation({
     }
   } catch (error) {
     window.console.error("[AudioMonitoring]", error);
-    if (audioBlob?.size) {
+    if (resolvedAudioBlob?.size) {
       try {
-        evidenceUrl = await blobToDataUrl(audioBlob);
+        evidenceUrl = await blobToDataUrl(resolvedAudioBlob);
         evidenceType = "audio_inline";
         description = "Audio level reached 50% or higher for 3 seconds. The 10-second audio clip was saved inline because storage upload failed.";
       } catch (inlineError) {
@@ -56,60 +91,27 @@ export async function uploadAudioViolation({
     }
   }
 
-  const basePayload = {
-    student_id: studentId,
-    exam_id: exam.id,
+  if (limitReached) description = "Audio violation recorded. Recording stopped at the violation limit; any captured audio was retained. The exam reached 5 violations and automatic submission was triggered.";
+
+  const evidencePayload = {
     professor_id: professorId || exam.professor_id || exam.created_by || null,
     course_id: courseId || exam.course_id || null,
     description,
-    severity: "Medium",
     screenshot_url: evidenceUrl,
     evidence_url: evidenceUrl,
     evidence_type: evidenceType,
     audio_level: audioLevel,
-    created_at: timestamp,
   };
-
-  let { error: insertError } = await supabase
-    .from("violations")
-    .insert({ ...basePayload, violation_type: AUDIO_VIOLATION_TYPE });
-
-  if (insertError) {
-    window.console.error("[AudioMonitoring]", insertError);
-    const fallback = await supabase
+  if (violationId) {
+    const { error: updateError } = await supabase
       .from("violations")
-      .insert({ ...basePayload, violation_type: FALLBACK_AUDIO_VIOLATION_TYPE });
-    insertError = fallback.error;
+      .update(evidencePayload)
+      .eq("id", violationId)
+      .eq("student_id", studentId);
+    if (updateError) {
+      window.console.warn("[AudioMonitoring] Violation saved, but evidence metadata update failed.", updateError);
+    }
   }
 
-  if (insertError) {
-    window.console.error("[AudioMonitoring]", insertError);
-    const minimalFallback = await supabase.from("violations").insert({
-      student_id: studentId,
-      exam_id: exam.id,
-      professor_id: basePayload.professor_id,
-      course_id: basePayload.course_id,
-      violation_type: FALLBACK_AUDIO_VIOLATION_TYPE,
-      description,
-      severity: "Medium",
-      screenshot_url: evidenceUrl,
-      created_at: timestamp,
-    });
-    insertError = minimalFallback.error;
-  }
-
-  if (insertError) {
-    const bareFallback = await supabase.from("violations").insert({
-      student_id: studentId,
-      exam_id: exam.id,
-      professor_id: basePayload.professor_id,
-      course_id: basePayload.course_id,
-      violation_type: FALLBACK_AUDIO_VIOLATION_TYPE,
-      severity: "Medium",
-      created_at: timestamp,
-    });
-    if (bareFallback.error) throw bareFallback.error;
-  }
-
-  return { evidenceUrl, timestamp };
+  return { evidenceUrl, timestamp, violationId };
 }

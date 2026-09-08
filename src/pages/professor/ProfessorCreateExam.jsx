@@ -611,7 +611,7 @@ export default function ProfessorCreateExam() {
             <label className="professor-question-image-upload">
               <span>{questionDraft.questionImageName || "Upload question picture"}</span>
               <input accept="image/*" onChange={handleQuestionImageUpload} type="file" />
-              {questionDraft.questionImageDataUrl ? <img alt="Question preview" src={questionDraft.questionImageDataUrl} /> : null}
+              {questionDraft.questionImageDataUrl ? <img alt="Question preview" decoding="async" loading="lazy" src={questionDraft.questionImageDataUrl} /> : null}
             </label>
           ) : null}
           <div className="professor-choice-grid">

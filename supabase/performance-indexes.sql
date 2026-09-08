@@ -4,6 +4,9 @@
 create index if not exists idx_profiles_role
 on public.profiles (role);
 
+create index if not exists idx_profiles_role_status_full_name
+on public.profiles (role, status, full_name);
+
 create index if not exists idx_profiles_created_at_desc
 on public.profiles (created_at desc);
 
@@ -61,6 +64,9 @@ on public.course_enrollments (student_id, joined_at desc);
 create index if not exists idx_course_enrollments_course_joined_at
 on public.course_enrollments (course_id, joined_at asc);
 
+create index if not exists idx_course_enrollments_course_student
+on public.course_enrollments (course_id, student_id);
+
 create index if not exists idx_course_periods_course_professor_created_at
 on public.course_periods (course_id, professor_id, created_at asc);
 
@@ -94,6 +100,9 @@ on public.notifications (user_id, created_at desc);
 create index if not exists idx_notifications_user_unread_created_at
 on public.notifications (user_id, is_read, created_at desc);
 
+create index if not exists idx_notifications_user_type_created_at
+on public.notifications (user_id, type, created_at desc);
+
 create index if not exists idx_messages_receiver_unread_created_at
 on public.messages (receiver_id, is_read, created_at desc);
 
@@ -108,3 +117,9 @@ on public.logs (created_at desc);
 
 create index if not exists idx_logs_user_created_at
 on public.logs (user_id, created_at desc);
+
+create index if not exists idx_student_resource_folders_student_created_at
+on public.student_resource_folders (student_id, created_at desc);
+
+create index if not exists idx_student_resource_files_student_folder_created_at
+on public.student_resource_files (student_id, folder_id, created_at desc);

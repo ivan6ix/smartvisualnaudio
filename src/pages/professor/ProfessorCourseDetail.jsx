@@ -136,7 +136,7 @@ function renderQuestionContent(question) {
     return (
       <>
         {question.question_type === "Picture Choice" && config.questionImage ? (
-          <img className="assessment-question-image" alt="Question reference" src={config.questionImage} />
+          <img className="assessment-question-image" alt="Question reference" decoding="async" loading="lazy" src={config.questionImage} />
         ) : null}
         <div className="assessment-question-options">
           {choices.map((choice) => {
@@ -419,10 +419,11 @@ export default function ProfessorCourseDetail() {
           .order("joined_at", { ascending: true }),
         supabase
           .from("course_modules")
-          .select("*")
+          .select("id, title, description, period, file_name, file_path, file_size, mime_type, archived, created_at")
           .eq("course_id", courseId)
           .eq("professor_id", user.id)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(250),
         supabase
           .from("course_periods")
           .select("id, name, created_at")
@@ -440,11 +441,12 @@ export default function ProfessorCourseDetail() {
       if (moduleError && !isMissingModulesTable(moduleError)) {
         toast.error(moduleError.message);
       } else {
-        const modulesWithUrls = await Promise.all((moduleRows || []).map(async (module) => {
-          if (!module.file_path) return module;
-          const { data: signed } = await supabase.storage.from("course-modules").createSignedUrl(module.file_path, 60 * 60);
-          return { ...module, signedUrl: signed?.signedUrl || "" };
-        }));
+        const modulePaths = (moduleRows || []).map((module) => module.file_path).filter(Boolean);
+        const { data: signedModules } = modulePaths.length
+          ? await supabase.storage.from("course-modules").createSignedUrls(modulePaths, 60 * 60)
+          : { data: [] };
+        const moduleUrlByPath = new Map((signedModules || []).map((item, index) => [item.path || modulePaths[index], item.signedUrl || ""]));
+        const modulesWithUrls = (moduleRows || []).map((module) => ({ ...module, signedUrl: moduleUrlByPath.get(module.file_path) || "" }));
         setModules(modulesWithUrls.map(mapModule));
       }
 
@@ -987,7 +989,7 @@ export default function ProfessorCourseDetail() {
             </header>
             <div className="module-preview-body">
               {previewModule.mimeType?.startsWith("image/") ? (
-                <img alt={previewModule.title} src={previewModule.fileUrl} />
+                <img alt={previewModule.title} decoding="async" loading="lazy" src={previewModule.fileUrl} />
               ) : (
                 <iframe src={previewModule.fileUrl} title={previewModule.title} />
               )}

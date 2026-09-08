@@ -158,14 +158,16 @@ export default function ProfessorScores() {
         .from("exam_attempts")
         .select("id, exam_id, score, earned_points, max_points, status, submitted_at, started_at, student_id, profiles:student_id(full_name, student_number, email)")
         .in("exam_id", examIds)
-        .order("submitted_at", { ascending: false });
+        .order("submitted_at", { ascending: false })
+        .limit(1000);
 
       if (attemptResult.error?.message?.includes("status")) {
         const fallbackAttemptResult = await supabase
           .from("exam_attempts")
           .select("id, exam_id, score, earned_points, max_points, submitted_at, started_at, student_id, profiles:student_id(full_name, student_number, email)")
           .in("exam_id", examIds)
-          .order("submitted_at", { ascending: false });
+          .order("submitted_at", { ascending: false })
+          .limit(1000);
         attemptRows = fallbackAttemptResult.data || [];
         attemptsError = fallbackAttemptResult.error;
       } else {

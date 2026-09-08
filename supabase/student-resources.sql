@@ -26,27 +26,8 @@ create index if not exists student_resource_folders_student_idx
 create index if not exists student_resource_files_student_idx
   on public.student_resource_files(student_id, folder_id, archived, created_at);
 
-create or replace function public.delete_student_resource_storage_object()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, storage
-as $$
-begin
-  if old.file_path is not null then
-    delete from storage.objects
-    where bucket_id = 'student-resources'
-    and name = old.file_path;
-  end if;
-
-  return old;
-end;
-$$;
-
 drop trigger if exists delete_student_resource_storage_object on public.student_resource_files;
-create trigger delete_student_resource_storage_object
-after delete on public.student_resource_files
-for each row execute function public.delete_student_resource_storage_object();
+drop function if exists public.delete_student_resource_storage_object();
 
 alter table public.student_resource_folders enable row level security;
 alter table public.student_resource_files enable row level security;

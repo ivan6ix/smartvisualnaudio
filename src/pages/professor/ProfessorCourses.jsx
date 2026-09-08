@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { FiBookOpen, FiFileText, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -41,17 +42,17 @@ function mapExam(exam) {
 export default function ProfessorCourses() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [courses, setCourses] = useState(() => hasSupabaseConfig ? [] : professorCourses.map((course) => mapCourse(course)));
-  const [exams, setExams] = useState(() => hasSupabaseConfig ? [] : professorExams.map((exam) => ({
+  const demoCourses = useMemo(() => professorCourses.map((course) => mapCourse(course)), []);
+  const demoExams = useMemo(() => professorExams.map((exam) => ({
     ...mapExam(exam),
     courseId: professorCourses.find((course) => course.courseName === exam.course && course.section === exam.section)?.id,
-  })));
-  const [selectedCourseId, setSelectedCourseId] = useState(courses[0]?.id || "");
+  })), []);
+  const [selectedCourseId, setSelectedCourseId] = useState(demoCourses[0]?.id || "");
 
-  useEffect(() => {
-    if (!hasSupabaseConfig || !user?.id) return;
-
-    async function loadCourses() {
+  const coursesQuery = useQuery({
+    queryKey: ["professor-courses", user?.id],
+    enabled: hasSupabaseConfig && Boolean(user?.id),
+    queryFn: async () => {
       const { data: courseRows, error: coursesError } = await supabase
         .from("courses")
         .select("id, course_name, course_code, section, joining_code, archived")
@@ -60,36 +61,43 @@ export default function ProfessorCourses() {
         .order("created_at", { ascending: false });
 
       if (coursesError) {
-        toast.error(coursesError.message);
-        return;
+        throw coursesError;
       }
 
       const courseIds = (courseRows || []).map((course) => course.id);
       let enrollmentCounts = {};
+      let uniqueStudentCount = 0;
 
       if (courseIds.length) {
         const { data: enrollmentRows, error: enrollmentsError } = await supabase
           .from("course_enrollments")
-          .select("course_id")
+          .select("course_id, student_id")
           .in("course_id", courseIds);
 
         if (enrollmentsError) {
-          toast.error(enrollmentsError.message);
+          throw enrollmentsError;
         } else {
-          enrollmentCounts = (enrollmentRows || []).reduce((items, enrollment) => {
-            items[enrollment.course_id] = (items[enrollment.course_id] || 0) + 1;
-            return items;
-          }, {});
+          const studentsByCourse = {};
+          const uniqueStudents = new Set();
+
+          (enrollmentRows || []).forEach((enrollment) => {
+            if (!enrollment.course_id || !enrollment.student_id) return;
+            if (!studentsByCourse[enrollment.course_id]) studentsByCourse[enrollment.course_id] = new Set();
+            studentsByCourse[enrollment.course_id].add(enrollment.student_id);
+            uniqueStudents.add(enrollment.student_id);
+          });
+
+          enrollmentCounts = Object.fromEntries(
+            Object.entries(studentsByCourse).map(([courseId, students]) => [courseId, students.size]),
+          );
+          uniqueStudentCount = uniqueStudents.size;
         }
       }
 
       const liveCourses = (courseRows || []).map((course) => mapCourse(course, enrollmentCounts));
-      setCourses(liveCourses);
-      setSelectedCourseId((current) => current && liveCourses.some((course) => course.id === current) ? current : liveCourses[0]?.id || "");
 
       if (!courseIds.length) {
-        setExams([]);
-        return;
+        return { courses: liveCourses, exams: [], uniqueStudentCount };
       }
 
       const { data: examRows, error: examsError } = await supabase
@@ -100,19 +108,28 @@ export default function ProfessorCourses() {
         .order("created_at", { ascending: false });
 
       if (examsError) {
-        toast.error(examsError.message);
-        return;
+        throw examsError;
       }
 
-      setExams((examRows || []).map(mapExam));
-    }
+      return { courses: liveCourses, exams: (examRows || []).map(mapExam), uniqueStudentCount };
+    },
+  });
 
-    loadCourses();
-  }, [user?.id]);
+  const courses = useMemo(() => hasSupabaseConfig ? coursesQuery.data?.courses || [] : demoCourses, [coursesQuery.data, demoCourses]);
+  const exams = useMemo(() => hasSupabaseConfig ? coursesQuery.data?.exams || [] : demoExams, [coursesQuery.data, demoExams]);
+  const uniqueEnrolledStudents = hasSupabaseConfig ? coursesQuery.data?.uniqueStudentCount ?? null : null;
+
+  useEffect(() => {
+    setSelectedCourseId((current) => current && courses.some((course) => course.id === current) ? current : courses[0]?.id || "");
+  }, [courses]);
+
+  useEffect(() => {
+    if (coursesQuery.error) toast.error(coursesQuery.error.message);
+  }, [coursesQuery.error]);
 
   const selectedCourse = courses.find((course) => course.id === selectedCourseId);
   const selectedExams = useMemo(() => exams.filter((exam) => exam.courseId === selectedCourseId), [exams, selectedCourseId]);
-  const totalStudents = courses.reduce((total, course) => total + Number(course.students || 0), 0);
+  const totalStudents = uniqueEnrolledStudents ?? courses.reduce((total, course) => total + Number(course.students || 0), 0);
 
   return (
     <>
@@ -147,7 +164,7 @@ export default function ProfessorCourses() {
             >
               <FiBookOpen />
               <div>
-                <strong>{course.courseCode}</strong>
+                <strong className="professor-course-code">{course.courseCode}</strong>
                 <span>{course.courseName}</span>
                 <small>{course.section} • {course.students} students</small>
               </div>

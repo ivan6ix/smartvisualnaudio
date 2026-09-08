@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FiArrowRight, FiPlus, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -27,9 +28,9 @@ function formatDurationLabel(duration) {
 
 export default function StudentDashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { user } = useAuth();
   const [courses, setCourses] = useLocalStorageState("smartproctor.student.courses", studentCourses);
-  const [availableExams, setAvailableExams] = useState([]);
   const [joinOpen, setJoinOpen] = useState(false);
   const [courseCode, setCourseCode] = useState("");
 
@@ -58,10 +59,10 @@ export default function StudentDashboard() {
     };
   }
 
-  useEffect(() => {
-    if (!hasSupabaseConfig || !user?.id) return;
-
-    async function loadEnrollments() {
+  const dashboardQuery = useQuery({
+    queryKey: ["student-dashboard", user?.id],
+    enabled: hasSupabaseConfig && Boolean(user?.id),
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("course_enrollments")
         .select("course_id, courses(id, course_name, course_code, section, joining_code)")
@@ -69,17 +70,13 @@ export default function StudentDashboard() {
         .order("joined_at", { ascending: false });
 
       if (error) {
-        toast.error(error.message);
-        return;
+        throw error;
       }
 
       const liveCourses = (data || []).map((enrollment) => mapLiveCourse(enrollment.courses)).filter(Boolean);
-      setCourses(liveCourses);
-
       const courseIds = liveCourses.map((course) => course.id);
       if (!courseIds.length) {
-        setAvailableExams([]);
-        return;
+        return { courses: liveCourses, availableExams: [] };
       }
 
       const { data: examRows, error: examsError } = await supabase
@@ -90,8 +87,7 @@ export default function StudentDashboard() {
         .order("created_at", { ascending: false });
 
       if (examsError) {
-        toast.error(examsError.message);
-        return;
+        throw examsError;
       }
 
       const examIds = (examRows || []).map((exam) => exam.id);
@@ -105,8 +101,7 @@ export default function StudentDashboard() {
           .in("exam_id", examIds);
 
         if (attemptsError) {
-          toast.error(attemptsError.message);
-          return;
+          throw attemptsError;
         }
 
         attemptsByExam = (attemptRows || []).reduce((items, attempt) => ({
@@ -123,11 +118,19 @@ export default function StudentDashboard() {
           return attemptsTaken === 0 && (!Number.isFinite(attemptLimit) || attemptsTaken < attemptLimit);
         });
 
-      setAvailableExams(visibleExams.map(mapLiveExam));
-    }
+      return { courses: liveCourses, availableExams: visibleExams.map(mapLiveExam) };
+    },
+  });
 
-    loadEnrollments();
-  }, [setCourses, user?.id]);
+  const availableExams = dashboardQuery.data?.availableExams || [];
+
+  useEffect(() => {
+    if (dashboardQuery.data?.courses) setCourses(dashboardQuery.data.courses);
+  }, [dashboardQuery.data, setCourses]);
+
+  useEffect(() => {
+    if (dashboardQuery.error) toast.error(dashboardQuery.error.message);
+  }, [dashboardQuery.error]);
 
   async function handleJoinCourse(event) {
     event.preventDefault();
@@ -166,6 +169,7 @@ export default function StudentDashboard() {
         if (current.some((item) => item.id === course.id)) return current;
         return [mapLiveCourse(course), ...current];
       });
+      await queryClient.invalidateQueries({ queryKey: ["student-dashboard", user.id] });
       toast.success("Course joined");
     } else {
       setCourses((current) => [

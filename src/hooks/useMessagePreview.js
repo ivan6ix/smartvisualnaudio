@@ -1,58 +1,46 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 export default function useMessagePreview(user) {
-  const [profiles, setProfiles] = useState([]);
-  const [messages, setMessages] = useState([]);
-
-  useEffect(() => {
-    if (!hasSupabaseConfig || !user?.id) {
-      setProfiles([]);
-      setMessages([]);
-      return undefined;
-    }
-
-    let ignore = false;
-
-    async function loadPreview() {
+  const queryClient = useQueryClient();
+  const queryKey = useMemo(() => ["message-preview", user?.id], [user?.id]);
+  const previewQuery = useQuery({
+    queryKey,
+    enabled: hasSupabaseConfig && Boolean(user?.id),
+    queryFn: async () => {
       const { data: messageRows, error: messagesError } = await supabase
         .from("messages")
         .select("id, sender_id, receiver_id, message, is_read, created_at")
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .order("created_at", { ascending: false })
         .limit(40);
-
-      if (messagesError || ignore) return;
-
+      if (messagesError) throw messagesError;
       const otherIds = [...new Set((messageRows || []).map((message) => (
         message.sender_id === user.id ? message.receiver_id : message.sender_id
       )))];
+      if (!otherIds.length) return { messages: messageRows || [], profiles: [] };
+      const { data: profileRows, error: profilesError } = await supabase
+        .from("profiles")
+        .select("id, full_name, role")
+        .in("id", otherIds);
+      if (profilesError) throw profilesError;
+      return { messages: messageRows || [], profiles: profileRows || [] };
+    },
+  });
+  const profiles = useMemo(() => previewQuery.data?.profiles || [], [previewQuery.data]);
+  const messages = useMemo(() => previewQuery.data?.messages || [], [previewQuery.data]);
 
-      let profileRows = [];
-      if (otherIds.length) {
-        const { data } = await supabase
-          .from("profiles")
-          .select("id, full_name, role")
-          .in("id", otherIds);
-        profileRows = data || [];
-      }
-
-      if (!ignore) {
-        setMessages(messageRows || []);
-        setProfiles(profileRows);
-      }
-    }
-
-    loadPreview();
+  useEffect(() => {
+    if (!hasSupabaseConfig || !user?.id) return undefined;
 
     function handleMessagesRead(event) {
       const { senderId, receiverId } = event.detail || {};
       if (receiverId !== user.id) return;
-      setMessages((current) => current.map((message) => (
-        message.sender_id === senderId && message.receiver_id === receiverId
-          ? { ...message, is_read: true }
-          : message
-      )));
+      queryClient.setQueryData(queryKey, (current = { messages: [], profiles: [] }) => ({
+        ...current,
+        messages: current.messages.map((message) => message.sender_id === senderId && message.receiver_id === receiverId ? { ...message, is_read: true } : message),
+      }));
     }
 
     window.addEventListener("smartvisualnaudio:messages-read", handleMessagesRead);
@@ -62,21 +50,24 @@ export default function useMessagePreview(user) {
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "messages" }, (payload) => {
         const row = payload.new;
         if (row.sender_id !== user.id && row.receiver_id !== user.id) return;
-        setMessages((current) => current.some((item) => item.id === row.id) ? current : [row, ...current]);
+        queryClient.setQueryData(queryKey, (current = { messages: [], profiles: [] }) => ({
+          ...current,
+          messages: current.messages.some((item) => item.id === row.id) ? current.messages : [row, ...current.messages].slice(0, 40),
+        }));
+        void queryClient.invalidateQueries({ queryKey });
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "messages" }, (payload) => {
         const row = payload.new;
         if (row.sender_id !== user.id && row.receiver_id !== user.id) return;
-        setMessages((current) => current.map((item) => item.id === row.id ? row : item));
+        queryClient.setQueryData(queryKey, (current = { messages: [], profiles: [] }) => ({ ...current, messages: current.messages.map((item) => item.id === row.id ? row : item) }));
       })
       .subscribe();
 
     return () => {
-      ignore = true;
       window.removeEventListener("smartvisualnaudio:messages-read", handleMessagesRead);
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [queryClient, queryKey, user?.id]);
 
   return useMemo(() => {
     const profileById = new Map(profiles.map((profile) => [profile.id, profile]));

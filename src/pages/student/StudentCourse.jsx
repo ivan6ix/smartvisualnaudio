@@ -392,9 +392,10 @@ export default function StudentCourse() {
           .order("joined_at", { ascending: true }),
         supabase
           .from("course_modules")
-          .select("*")
+          .select("id, title, description, period, file_name, file_path, file_size, mime_type, archived, created_at")
           .eq("course_id", courseId)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(250),
         supabase
           .from("course_periods")
           .select("id, name, created_at")
@@ -402,15 +403,17 @@ export default function StudentCourse() {
           .order("created_at", { ascending: true }),
         supabase
           .from("course_permit_requests")
-          .select("*")
+          .select("id, course_id, professor_id, deadline, created_at")
           .eq("course_id", courseId)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(50),
         supabase
           .from("course_permit_files")
-          .select("*")
+          .select("id, request_id, course_id, student_id, file_name, file_path, file_size, mime_type, created_at")
           .eq("course_id", courseId)
           .eq("student_id", user.id)
-          .order("created_at", { ascending: false }),
+          .order("created_at", { ascending: false })
+          .limit(250),
       ]);
 
       if (enrollmentError) {
@@ -457,11 +460,12 @@ export default function StudentCourse() {
       if (moduleError && !isMissingModulesTable(moduleError)) {
         toast.error(moduleError.message);
       } else {
-        const modulesWithUrls = await Promise.all((moduleRows || []).map(async (module) => {
-          if (!module.file_path) return module;
-          const { data: signed } = await supabase.storage.from("course-modules").createSignedUrl(module.file_path, 60 * 60);
-          return { ...module, signedUrl: signed?.signedUrl || "" };
-        }));
+        const modulePaths = (moduleRows || []).map((module) => module.file_path).filter(Boolean);
+        const { data: signedModules } = modulePaths.length
+          ? await supabase.storage.from("course-modules").createSignedUrls(modulePaths, 60 * 60)
+          : { data: [] };
+        const moduleUrlByPath = new Map((signedModules || []).map((item, index) => [item.path || modulePaths[index], item.signedUrl || ""]));
+        const modulesWithUrls = (moduleRows || []).map((module) => ({ ...module, signedUrl: moduleUrlByPath.get(module.file_path) || "" }));
         setModules(modulesWithUrls.map(mapModule).filter((module) => !module.archived));
       }
 
@@ -484,10 +488,12 @@ export default function StudentCourse() {
       if (permitFileError && !isMissingPermitsTable(permitFileError)) {
         toast.error(permitFileError.message);
       } else {
-        const permitsWithUrls = await Promise.all((permitFileRows || []).map(async (file) => {
-          const { data: signed } = await supabase.storage.from("course-permits").createSignedUrl(file.file_path, 60 * 60);
-          return { ...file, signedUrl: signed?.signedUrl || "" };
-        }));
+        const permitPaths = (permitFileRows || []).map((file) => file.file_path).filter(Boolean);
+        const { data: signedPermits } = permitPaths.length
+          ? await supabase.storage.from("course-permits").createSignedUrls(permitPaths, 60 * 60)
+          : { data: [] };
+        const permitUrlByPath = new Map((signedPermits || []).map((item, index) => [item.path || permitPaths[index], item.signedUrl || ""]));
+        const permitsWithUrls = (permitFileRows || []).map((file) => ({ ...file, signedUrl: permitUrlByPath.get(file.file_path) || "" }));
         setPermitFiles(permitsWithUrls.map(mapPermitFile));
       }
     }
@@ -660,7 +666,7 @@ export default function StudentCourse() {
             </header>
             <div className="module-preview-body">
               {previewModule.mimeType?.startsWith("image/") ? (
-                <img alt={previewModule.title} src={previewModule.fileUrl} />
+                <img alt={previewModule.title} decoding="async" loading="lazy" src={previewModule.fileUrl} />
               ) : (
                 <iframe src={previewModule.fileUrl} title={previewModule.title} />
               )}

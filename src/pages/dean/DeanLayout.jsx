@@ -21,7 +21,7 @@ function mapNotification(notification) {
 }
 
 export default function DeanLayout() {
-  const { user, logout, loading } = useAuth();
+  const { user, logout, loading, hasLoggedInThisSession } = useAuth();
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messageTargetId, setMessageTargetId] = useState("");
@@ -70,7 +70,7 @@ export default function DeanLayout() {
   }, [user?.id]);
 
   if (loading) return <PageSkeleton />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!hasLoggedInThisSession || !user) return <Navigate to="/login" replace />;
   if (user.role !== "Dean") return <Navigate to="/" replace />;
 
   const links = [

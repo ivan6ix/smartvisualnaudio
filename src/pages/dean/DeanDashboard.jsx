@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { FiActivity, FiBookOpen, FiFileText, FiUsers } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Card, PageHeader, StatCard } from "../../components/ui";
+import { useChartTheme } from "../../context/ThemeContext";
 import { violationChart } from "../../data/mockData";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -31,43 +32,36 @@ async function countRows(query) {
 }
 
 export default function DeanDashboard() {
-  const [stats, setStats] = useState(defaultStats);
-  const [violationData, setViolationData] = useState(violationChart);
-
-  useEffect(() => {
-    if (!hasSupabaseConfig) return;
-
-    async function loadDeanDashboard() {
+  const chartTheme = useChartTheme();
+  const dashboardQuery = useQuery({
+    queryKey: ["dean-dashboard"],
+    enabled: hasSupabaseConfig,
+    queryFn: async () => {
       const today = new Date().toISOString().slice(0, 10);
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       const tomorrowIso = tomorrow.toISOString().slice(0, 10);
 
-      try {
-        const [students, courses, activeExams, violationsToday, violationsResponse] = await Promise.all([
+      const [students, courses, activeExams, violationsToday, violationsResponse] = await Promise.all([
           countRows(supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "Student")),
           countRows(supabase.from("courses").select("id", { count: "exact", head: true }).eq("archived", false)),
           countRows(supabase.from("exams").select("id", { count: "exact", head: true }).in("status", ["Active", "Published"])),
           countRows(supabase.from("violations").select("id", { count: "exact", head: true }).gte("created_at", today).lt("created_at", tomorrowIso)),
           supabase.from("violations").select("violation_type").limit(500),
-        ]);
-
-        setStats({ students, courses, activeExams, violationsToday });
-
-        if (!violationsResponse.error) {
-          const counts = (violationsResponse.data || []).reduce((items, row) => {
-            items[row.violation_type] = (items[row.violation_type] || 0) + 1;
-            return items;
-          }, {});
-          setViolationData(Object.entries(violationLabels).map(([key, name]) => ({ name, count: counts[key] || 0 })));
-        }
-      } catch {
-        setStats(defaultStats);
-      }
-    }
-
-    loadDeanDashboard();
-  }, []);
+      ]);
+      if (violationsResponse.error) throw violationsResponse.error;
+      const counts = (violationsResponse.data || []).reduce((items, row) => {
+        items[row.violation_type] = (items[row.violation_type] || 0) + 1;
+        return items;
+      }, {});
+      return {
+        stats: { students, courses, activeExams, violationsToday },
+        violationData: Object.entries(violationLabels).map(([key, name]) => ({ name, count: counts[key] || 0 })),
+      };
+    },
+  });
+  const stats = hasSupabaseConfig ? dashboardQuery.data?.stats || defaultStats : defaultStats;
+  const violationData = hasSupabaseConfig ? dashboardQuery.data?.violationData || violationChart : violationChart;
 
   const cards = [
     ["Total Students", stats.students, FiUsers],
@@ -87,10 +81,10 @@ export default function DeanDashboard() {
         <div className="chart-box">
           <ResponsiveContainer width="100%" height={280}>
             <BarChart data={violationData}>
-              <CartesianGrid strokeDasharray="3 3" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis />
-              <Tooltip />
+              <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+              <XAxis axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} />
+              <YAxis axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} tick={{ fill: chartTheme.axis }} />
+              <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
               <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>

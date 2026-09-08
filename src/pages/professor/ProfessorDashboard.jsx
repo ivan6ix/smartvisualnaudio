@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FiActivity, FiBookOpen, FiFileText, FiMonitor } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import { Badge, Card, PageHeader, StatCard } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
+import { useChartTheme } from "../../context/ThemeContext";
 import { professorAlerts, professorCourses, professorExams } from "../../data/professorData";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -72,6 +74,8 @@ async function countRows(query) {
 
 export default function ProfessorDashboard() {
   const { user } = useAuth();
+  const chartTheme = useChartTheme();
+  const queryClient = useQueryClient();
   const [stats, setStats] = useState({
     courses: hasSupabaseConfig ? 0 : professorCourses.length,
     exams: hasSupabaseConfig ? 0 : professorExams.length,
@@ -90,7 +94,19 @@ export default function ProfessorDashboard() {
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return;
 
-    async function loadDashboard() {
+    const queryKey = ["professor-dashboard", user.id];
+    const applyDashboard = (snapshot) => {
+      setStats(snapshot.stats);
+      setProfessorExamRows(snapshot.examRows);
+      setViolationRows(snapshot.violations);
+      setLiveAlerts(snapshot.violations.slice(0, 8).map(mapAlert));
+    };
+    const cached = queryClient.getQueryData(queryKey);
+    if (cached) applyDashboard(cached);
+
+    async function loadDashboard(force = false) {
+      const state = queryClient.getQueryState(queryKey);
+      if (!force && state?.dataUpdatedAt && Date.now() - state.dataUpdatedAt < 3 * 60 * 1000) return;
       try {
         const [coursesCount, examsCount, publishedCount, allExamIdsResponse] = await Promise.all([
           countRows(supabase.from("courses").select("id", { count: "exact", head: true }).eq("professor_id", user.id).eq("archived", false)),
@@ -111,16 +127,16 @@ export default function ProfessorDashboard() {
           ? await countRows(supabase.from("violations").select("id", { count: "exact", head: true }).in("exam_id", examIds))
           : 0;
 
-        setStats({
+        const nextStats = {
           courses: coursesCount,
           exams: examsCount,
           published: publishedCount,
           alerts: alertsCount,
-        });
+        };
         if (!examIds.length) {
-          setLiveAlerts([]);
-          setProfessorExamRows([]);
-          setViolationRows([]);
+          const snapshot = { stats: nextStats, examRows: [], violations: [] };
+          queryClient.setQueryData(queryKey, snapshot);
+          applyDashboard(snapshot);
           return;
         }
 
@@ -133,9 +149,9 @@ export default function ProfessorDashboard() {
 
         if (violationsError) throw violationsError;
         const violations = violationRows || [];
-        setProfessorExamRows(examRows);
-        setViolationRows(violations);
-        setLiveAlerts(violations.slice(0, 8).map(mapAlert));
+        const snapshot = { stats: nextStats, examRows, violations };
+        queryClient.setQueryData(queryKey, snapshot);
+        applyDashboard(snapshot);
       } catch (error) {
         toast.error(error.message);
       }
@@ -145,17 +161,17 @@ export default function ProfessorDashboard() {
     const channel = supabase
       .channel(`professor-dashboard-${user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => {
-        void loadDashboard();
+        void loadDashboard(true);
       })
       .on("postgres_changes", { event: "*", schema: "public", table: "exams" }, () => {
-        void loadDashboard();
+        void loadDashboard(true);
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user?.id]);
+  }, [queryClient, user?.id]);
 
   const statCards = [
     ["My Courses", stats.courses, FiBookOpen],
@@ -227,10 +243,14 @@ export default function ProfessorDashboard() {
           <div className="chart-box professor-violation-chart">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={violationChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(148, 163, 184, 0.18)" />
-                <XAxis dataKey="name" interval={0} tick={{ fontSize: 11, fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fill: "#cbd5e1" }} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={{ background: "#0f172a", border: "1px solid rgba(34, 211, 238, 0.25)", borderRadius: 14, color: "#fff" }} />
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                <XAxis dataKey="name" interval={0} tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                <YAxis allowDecimals={false} tick={{ fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: chartTheme.cursor }}
+                  contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }}
+                  itemStyle={{ color: chartTheme.tooltipText }}
+                  labelStyle={{ color: chartTheme.tooltipText }}
+                />
                 <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>

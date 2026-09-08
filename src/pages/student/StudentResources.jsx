@@ -50,7 +50,7 @@ function mapFile(row) {
 }
 
 function safeStorageName(name) {
-  return name.replace(/[^\w.\-]+/g, "_");
+  return name.replace(/[^\w.-]+/g, "_");
 }
 
 export default function StudentResources() {
@@ -110,12 +110,14 @@ export default function StudentResources() {
           .from("student_resource_folders")
           .select("id, name, course_label, course_id, folder_type, archived, created_at")
           .eq("student_id", user.id)
-          .order("created_at", { ascending: true }),
+          .order("created_at", { ascending: true })
+          .limit(250),
         supabase
           .from("student_resource_files")
           .select("id, folder_id, file_name, file_path, file_size, mime_type, archived, created_at")
           .eq("student_id", user.id)
-          .order("created_at", { ascending: true }),
+          .order("created_at", { ascending: true })
+          .limit(500),
       ]);
 
       if (foldersResponse.error || filesResponse.error) {
@@ -395,7 +397,11 @@ export default function StudentResources() {
     if (useSupabaseResources) {
       const folderFiles = files.filter((file) => file.folderId === folderId && file.filePath).map((file) => file.filePath);
       if (folderFiles.length) {
-        await supabase.storage.from("student-resources").remove(folderFiles);
+        const { error: storageError } = await supabase.storage.from("student-resources").remove(folderFiles);
+        if (storageError) {
+          toast.error(storageError.message);
+          return;
+        }
       }
 
       const { error } = await supabase
@@ -450,7 +456,11 @@ export default function StudentResources() {
     const file = files.find((item) => item.id === fileId);
     if (useSupabaseResources) {
       if (file?.filePath) {
-        await supabase.storage.from("student-resources").remove([file.filePath]);
+        const { error: storageError } = await supabase.storage.from("student-resources").remove([file.filePath]);
+        if (storageError) {
+          toast.error(storageError.message);
+          return;
+        }
       }
 
       const { error } = await supabase
@@ -599,7 +609,7 @@ export default function StudentResources() {
               <button aria-label="Close preview" onClick={() => setPreviewFile(null)} type="button"><FiX /></button>
             </div>
             <div className="student-preview-box">
-              {previewFile.previewUrl && previewFile.mimeType?.startsWith("image/") ? <img alt={previewFile.name} src={previewFile.previewUrl} /> : null}
+              {previewFile.previewUrl && previewFile.mimeType?.startsWith("image/") ? <img alt={previewFile.name} decoding="async" loading="lazy" src={previewFile.previewUrl} /> : null}
               {previewFile.previewUrl && previewFile.mimeType === "application/pdf" ? <iframe src={previewFile.previewUrl} title={previewFile.name} /> : null}
               {previewFile.previewUrl && previewFile.mimeType?.startsWith("text/") ? <iframe src={previewFile.previewUrl} title={previewFile.name} /> : null}
               {!previewFile.previewUrl || (!previewFile.mimeType?.startsWith("image/") && previewFile.mimeType !== "application/pdf" && !previewFile.mimeType?.startsWith("text/")) ? (
@@ -684,7 +694,7 @@ export default function StudentResources() {
                           <span>{folder.course}</span>
                         </div>
                         <button onClick={() => restoreFolder(folder.id)} type="button"><FiRefreshCw /> Restore</button>
-                        <button className="danger" onClick={() => deleteFolder(folder.id)} type="button"><FiTrash2 /> Delete</button>
+                        <button className="danger folder-delete" onClick={() => deleteFolder(folder.id)} type="button"><FiTrash2 /> Delete</button>
                       </article>
                     ))}
                   </div>

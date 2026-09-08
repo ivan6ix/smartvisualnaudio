@@ -36,11 +36,19 @@ create table if not exists public.profiles (
   employee_number text unique,
   student_number text unique,
   avatar_url text,
+  theme_color text default '#2563EB',
+  font_color text default '#FFFFFF',
+  background_color text default '#000000',
+  icon_color text default '#FFFFFF',
   status public.account_status not null default 'Active',
   created_at timestamptz not null default now()
 );
 
 alter table public.profiles add column if not exists avatar_url text;
+alter table public.profiles add column if not exists theme_color text default '#2563EB';
+alter table public.profiles add column if not exists font_color text default '#FFFFFF';
+alter table public.profiles add column if not exists background_color text default '#000000';
+alter table public.profiles add column if not exists icon_color text default '#FFFFFF';
 
 create table if not exists public.cluster_professors (
   id uuid primary key references public.profiles(id) on delete cascade,
@@ -298,27 +306,8 @@ create index if not exists student_resource_folders_student_idx
 create index if not exists student_resource_files_student_idx
   on public.student_resource_files(student_id, folder_id, archived, created_at);
 
-create or replace function public.delete_student_resource_storage_object()
-returns trigger
-language plpgsql
-security definer
-set search_path = public, storage
-as $$
-begin
-  if old.file_path is not null then
-    delete from storage.objects
-    where bucket_id = 'student-resources'
-    and name = old.file_path;
-  end if;
-
-  return old;
-end;
-$$;
-
 drop trigger if exists delete_student_resource_storage_object on public.student_resource_files;
-create trigger delete_student_resource_storage_object
-after delete on public.student_resource_files
-for each row execute function public.delete_student_resource_storage_object();
+drop function if exists public.delete_student_resource_storage_object();
 
 do $$
 begin
@@ -839,6 +828,12 @@ with check (true);
 
 create policy "violations_student_insert" on public.violations
 for insert to authenticated
+with check (auth.uid() = student_id);
+
+drop policy if exists "violations_student_update_own" on public.violations;
+create policy "violations_student_update_own" on public.violations
+for update to authenticated
+using (auth.uid() = student_id)
 with check (auth.uid() = student_id);
 
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)

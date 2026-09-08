@@ -147,10 +147,12 @@ export default function ProfessorCoursePermits() {
       if (fileError) {
         toast.error(fileError.message);
       } else {
-        const filesWithUrls = await Promise.all((fileRows || []).map(async (file) => {
-          const { data: signed } = await supabase.storage.from("course-permits").createSignedUrl(file.file_path, 60 * 60);
-          return { ...file, signedUrl: signed?.signedUrl || "" };
-        }));
+        const filePaths = (fileRows || []).map((file) => file.file_path).filter(Boolean);
+        const { data: signedFiles } = filePaths.length
+          ? await supabase.storage.from("course-permits").createSignedUrls(filePaths, 60 * 60)
+          : { data: [] };
+        const fileUrlByPath = new Map((signedFiles || []).map((item, index) => [item.path || filePaths[index], item.signedUrl || ""]));
+        const filesWithUrls = (fileRows || []).map((file) => ({ ...file, signedUrl: fileUrlByPath.get(file.file_path) || "" }));
         setPermitFiles(filesWithUrls.map(mapPermitFile));
       }
 
@@ -349,7 +351,7 @@ export default function ProfessorCoursePermits() {
               <button aria-label="Close preview" onClick={() => setPreviewFile(null)} type="button"><FiX /></button>
             </header>
             <div className="module-preview-body">
-              {previewFile.mimeType?.startsWith("image/") ? <img alt={previewFile.fileName} src={previewFile.fileUrl} /> : <iframe src={previewFile.fileUrl} title={previewFile.fileName} />}
+              {previewFile.mimeType?.startsWith("image/") ? <img alt={previewFile.fileName} decoding="async" loading="lazy" src={previewFile.fileUrl} /> : <iframe loading="lazy" src={previewFile.fileUrl} title={previewFile.fileName} />}
             </div>
           </section>
         </div>

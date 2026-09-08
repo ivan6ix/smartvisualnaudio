@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FiUsers } from "react-icons/fi";
 import { Button, Card, PageHeader, SearchBox, SelectField, Table, Badge } from "../components/ui";
@@ -20,47 +21,47 @@ function mapProfile(profile) {
 
 export default function Accounts() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const [storedAccounts, setStoredAccounts] = useLocalStorageState("smartproctor.admin.accounts", seedAccounts);
-  const [liveAccounts, setLiveAccounts] = useState([]);
-  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
   const [role, setRole] = useState("All Roles");
+  const accountsQuery = useQuery({
+    queryKey: ["admin-accounts"],
+    enabled: hasSupabaseConfig,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("id, role, full_name, email, employee_number, student_number, status, created_at")
+        .order("created_at", { ascending: false })
+        .limit(250);
+
+      if (error) throw error;
+      return (data || []).map(mapProfile);
+    },
+  });
   const accounts = useMemo(
-    () => (hasSupabaseConfig ? liveAccounts : storedAccounts.map((account) => ({ ...account, displayId: account.displayId || account.id }))),
-    [liveAccounts, storedAccounts],
+    () => (hasSupabaseConfig ? accountsQuery.data || [] : storedAccounts.map((account) => ({ ...account, displayId: account.displayId || account.id }))),
+    [accountsQuery.data, storedAccounts],
   );
+
+  useEffect(() => {
+    if (accountsQuery.error) toast.error(accountsQuery.error.message);
+  }, [accountsQuery.error]);
 
   useEffect(() => {
     if (!hasSupabaseConfig) return undefined;
 
-    async function loadAccounts() {
-      setLoading(true);
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("id, role, full_name, email, employee_number, student_number, status, created_at")
-        .order("created_at", { ascending: false });
-
-      if (error) {
-        toast.error(error.message);
-      } else {
-        setLiveAccounts((data || []).map(mapProfile));
-      }
-      setLoading(false);
-    }
-
-    loadAccounts();
-
     const channel = supabase
       .channel("admin-manage-accounts")
       .on("postgres_changes", { event: "*", schema: "public", table: "profiles" }, () => {
-        loadAccounts();
+        void queryClient.invalidateQueries({ queryKey: ["admin-accounts"] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [queryClient]);
 
   const filtered = useMemo(() => accounts.filter((account) => {
     const matchesRole = role === "All Roles" || account.role === role;
@@ -84,7 +85,7 @@ export default function Accounts() {
     try {
       if (hasSupabaseConfig) {
         const data = await callAccountFunction({ action: "update-status", userId: account.id, status });
-        setLiveAccounts((current) => current.map((item) => item.id === account.id ? mapProfile(data.profile) : item));
+        queryClient.setQueryData(["admin-accounts"], (current = []) => current.map((item) => item.id === account.id ? mapProfile(data.profile) : item));
       } else {
         setStoredAccounts((current) => current.map((item) => item.id === account.id ? { ...item, status } : item));
       }
@@ -121,7 +122,7 @@ export default function Accounts() {
       </div>
       <Card className="admin-panel admin-activity-panel">
         <h2>Active Accounts</h2>
-        {loading ? <p className="muted">Loading live accounts...</p> : null}
+        {accountsQuery.isPending && !accounts.length ? <p className="muted">Loading live accounts...</p> : null}
         <Table columns={columns} rows={filtered.filter((account) => account.status !== "Deactivated")} renderActions={(row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>} />
       </Card>
       <Card className="admin-panel admin-activity-panel">

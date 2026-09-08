@@ -1,8 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FaceLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { connectors, webrtc } from "@roboflow/inference-sdk";
-import * as cocoSsd from "@tensorflow-models/coco-ssd";
-import "@tensorflow/tfjs";
 import { FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -12,6 +8,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useLiveAudioMonitoring } from "../../hooks/useLiveAudioMonitoring";
 import { computeAttemptScore, FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
+import { createIncidentTracker, EXAM_VIOLATION_LIMIT, hasProvidedAnswer, mergeAttemptViolations, violationWarning } from "../../lib/examViolationLimit";
 
 function toJsonAnswer(value) {
   return value === undefined ? null : value;
@@ -82,6 +79,28 @@ const DEFAULT_EXAM_SETTINGS = {
   liveAudioMonitoring: false,
   captureSnapshots: false,
 };
+
+let mediaPipeModulePromise;
+let roboflowModulePromise;
+let cocoSsdModulePromise;
+
+function loadMediaPipe() {
+  mediaPipeModulePromise ||= import("@mediapipe/tasks-vision");
+  return mediaPipeModulePromise;
+}
+
+function loadRoboflow() {
+  roboflowModulePromise ||= import("@roboflow/inference-sdk");
+  return roboflowModulePromise;
+}
+
+function loadCocoSsd() {
+  cocoSsdModulePromise ||= Promise.all([
+    import("@tensorflow/tfjs"),
+    import("@tensorflow-models/coco-ssd"),
+  ]).then(([, cocoSsd]) => cocoSsd);
+  return cocoSsdModulePromise;
+}
 
 function normalizeDetectionLabel(value) {
   return String(value || "")
@@ -285,6 +304,22 @@ export default function StudentExamTake() {
   const [timerEndsAt, setTimerEndsAt] = useState(null);
   const [remainingMs, setRemainingMs] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [autoSubmitRequired, setAutoSubmitRequired] = useState(false);
+  const [submissionError, setSubmissionError] = useState("");
+  const [progressReady, setProgressReady] = useState(false);
+  const answersRef = useRef({});
+  const filesRef = useRef({});
+  const touchedAnswersRef = useRef(new Set());
+  const violationsRef = useRef([]);
+  const startedAtRef = useRef(null);
+  const incidentTrackerRef = useRef(createIncidentTracker());
+  const violationLimitReachedRef = useRef(false);
+  const submissionSnapshotRef = useRef(null);
+  const submitLatestRef = useRef(null);
+  const mountedRef = useRef(true);
+  const progressMetaRef = useRef({});
+  const activeExamRef = useRef(examId);
+  activeExamRef.current = examId;
   const videoRef = useRef(null);
   const proctorVideoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -320,12 +355,22 @@ export default function StudentExamTake() {
   const [cameraError, setCameraError] = useState("");
   const [examModeReady, setExamModeReady] = useState(false);
   const [examLocked, setExamLocked] = useState(false);
+  const [isMicrophoneBlocked, setIsMicrophoneBlocked] = useState(false);
+  const [microphoneBlockReason, setMicrophoneBlockReason] = useState("");
   const [existingAttemptCount, setExistingAttemptCount] = useState(0);
   const [violations, setViolations] = useState([]);
   const [savedProgress, setSavedProgress] = useState(null);
   const examSubmittingRef = useRef(false);
   const examSubmittedRef = useRef(false);
+  const examModeReadyRef = useRef(false);
   const timerExpiredRef = useRef(false);
+  const microphoneBlockedRef = useRef(false);
+  const microphoneInterruptionRecordedRef = useRef(false);
+  const microphonePauseStartedAtRef = useRef(null);
+  const microphoneTrackCleanupRef = useRef(null);
+  const microphoneRecoveryRef = useRef({ inFlight: false, lastAttemptAt: 0 });
+  const microphoneSignalBlockedRef = useRef(false);
+  const microphonePermissionDeniedRef = useRef(false);
   const [faceStatus, setFaceStatus] = useState("Checking face position");
   const [roboflowStatus, setRoboflowStatus] = useState("Roboflow detector off");
   const totalPoints = useMemo(() => questions.reduce((total, question) => total + Number(question.points || 0), 0), [questions]);
@@ -337,6 +382,7 @@ export default function StudentExamTake() {
     }
   }, [exam]);
   const scanPassed = !examSettings.requireEnvironmentScan || scanStatus === "passed";
+  progressMetaRef.current = { scanStatus, timerEndsAt };
   const attemptLimit = getAttemptLimit(exam?.exam_settings);
   const durationMinutes = getDurationMinutes(exam);
   const hasTimer = durationMinutes > 0;
@@ -354,14 +400,29 @@ export default function StudentExamTake() {
     enabled: examSettings.liveAudioMonitoring,
     exam,
     student: user,
-    onViolation: (violation) => {
-      setViolations((current) => [...current, violation]);
-      toast.warning(violation.message);
-    },
+    canRecordViolation: () => examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current && !violationLimitReachedRef.current,
+    onViolation: acceptRecordedViolation,
+    onMicrophoneIssue: handleMicrophoneIssue,
+    onMicrophoneRestored: handleMicrophoneSignalRestored,
   });
 
   useEffect(() => {
     if (!hasSupabaseConfig || !examId || !user?.id) return;
+    let cancelled = false;
+    setProgressReady(false);
+    setAutoSubmitRequired(false);
+    setSubmissionError("");
+    setExamModeReady(false);
+    examModeReadyRef.current = false;
+    examSubmittingRef.current = false;
+    examSubmittedRef.current = false;
+    violationLimitReachedRef.current = false;
+    timerExpiredRef.current = false;
+    submissionSnapshotRef.current = null;
+    incidentTrackerRef.current = createIncidentTracker();
+    violationsRef.current = [];
+    filesRef.current = {};
+    setFiles({});
 
     async function loadExam() {
       let examRow = null;
@@ -406,6 +467,7 @@ export default function StudentExamTake() {
         return;
       }
 
+      if (cancelled) return;
       setExam(examRow);
       setExistingAttemptCount(count || 0);
       setQuestions(questionRows || []);
@@ -418,8 +480,35 @@ export default function StudentExamTake() {
         if (question.question_type === "Multiple Select") items[question.id] = [];
         return items;
       }, {});
-      setAnswers({ ...defaultAnswers, ...(saved?.answers || {}) });
-      setViolations(saved?.violations || []);
+      const restoredAnswers = { ...defaultAnswers, ...(saved?.answers || {}) };
+      answersRef.current = restoredAnswers;
+      setAnswers(restoredAnswers);
+      touchedAnswersRef.current = new Set(saved?.touchedAnswers || Object.keys(saved?.answers || {}).filter((id) => {
+        const question = (questionRows || []).find((item) => String(item.id) === id);
+        return question?.question_type !== "Ordering / Sequencing";
+      }));
+      startedAtRef.current = saved?.startedAt || null;
+      let restoredViolations = saved?.startedAt ? saved.violations || [] : [];
+      if (saved?.startedAt && !(count > 0)) {
+        const { data: recorded, error: violationError } = await supabase.from("violations")
+          .select("id, violation_type, description, severity, created_at")
+          .eq("student_id", user.id).eq("exam_id", examId).gte("created_at", saved.startedAt);
+        if (violationError) {
+          toast.error(`Unable to restore exam violations: ${violationError.message}. Refresh to retry.`);
+          return;
+        }
+        if (cancelled) return;
+        restoredViolations = mergeAttemptViolations([...restoredViolations, ...(recorded || []).map((row) => ({
+          id: row.id, type: row.violation_type, message: row.description || row.violation_type,
+          severity: row.severity, timestamp: row.created_at,
+        }))], saved.startedAt);
+      }
+      violationsRef.current = restoredViolations;
+      setViolations(restoredViolations);
+      if (!(count > 0) && restoredViolations.length >= EXAM_VIOLATION_LIMIT) {
+        violationLimitReachedRef.current = true;
+        setAutoSubmitRequired(true);
+      }
       setSavedProgress(saved);
       setStartedAt(saved?.startedAt || null);
       setTimerEndsAt(saved?.timerEndsAt || null);
@@ -427,13 +516,22 @@ export default function StudentExamTake() {
         setScanStatus("passed");
         setScanOpen(false);
       }
+      setProgressReady(true);
     }
 
     loadExam();
+    return () => { cancelled = true; };
   }, [examId, user?.id]);
 
   useEffect(() => {
+    examModeReadyRef.current = examModeReady;
+  }, [examModeReady]);
+
+  useEffect(() => {
+    mountedRef.current = true;
     return () => {
+      mountedRef.current = false;
+      examModeReadyRef.current = false;
       scanCancelledRef.current = true;
       streamRef.current?.getTracks().forEach((track) => track.stop());
       stopProctoring();
@@ -453,17 +551,24 @@ export default function StudentExamTake() {
   }, [exam, examSettings.requireEnvironmentScan, secureModeRequired]);
 
   useEffect(() => {
-    if (!examModeReady || examSubmittedRef.current || !user?.id || !examId) return;
+    if (!examModeReady || examSubmittedRef.current || violationLimitReachedRef.current || !user?.id || !examId) return;
     writeSavedExamProgress(user.id, examId, {
       answers,
       violations,
       scanStatus,
       startedAt,
       timerEndsAt,
+      touchedAnswers: [...touchedAnswersRef.current],
       savedAt: new Date().toISOString(),
     });
     setSavedProgress({ answers, violations, scanStatus, startedAt, timerEndsAt, savedAt: new Date().toISOString() });
   }, [answers, examId, examModeReady, scanStatus, startedAt, timerEndsAt, user?.id, violations]);
+
+  // Detector/timer callbacks may outlive a render; submission always reads current refs.
+  submitLatestRef.current = handleSubmit;
+  useEffect(() => {
+    if (progressReady && autoSubmitRequired && !attemptsExhausted) void submitLatestRef.current("violation_limit");
+  }, [progressReady, autoSubmitRequired, attemptsExhausted]);
 
   useEffect(() => {
     if (!examModeReady || examSubmittedRef.current) return undefined;
@@ -551,6 +656,7 @@ export default function StudentExamTake() {
     }
 
     function handleKeyDown(event) {
+      if (event.repeat) return;
       const key = event.key.toLowerCase();
       const blockedCombo = event.ctrlKey || event.metaKey;
       const blockedKeys = ["c", "v", "x", "p", "s", "a", "u"];
@@ -575,7 +681,7 @@ export default function StudentExamTake() {
       if (!getFullscreenElement()) {
         setExamLocked(true);
         recordGuardViolation("FULLSCREEN_EXIT", "Fullscreen mode was exited. Return to fullscreen to continue.", "High");
-      }
+      } else incidentTrackerRef.current.clear("FULLSCREEN_EXIT");
     }
 
     function handleVisibilityChange() {
@@ -583,7 +689,11 @@ export default function StudentExamTake() {
       if (window.document.hidden) {
         setExamLocked(true);
         recordGuardViolation("TAB_SWITCH", "Tab switch or hidden exam tab detected.", "High");
-      }
+      } else if (window.document.hasFocus()) incidentTrackerRef.current.clear("TAB_SWITCH");
+    }
+
+    function clearTabIncident() {
+      if (!window.document.hidden && window.document.hasFocus()) incidentTrackerRef.current.clear("TAB_SWITCH");
     }
 
     function handleWindowBlur() {
@@ -607,6 +717,8 @@ export default function StudentExamTake() {
     window.document.addEventListener("visibilitychange", handleVisibilityChange);
     window.document.addEventListener("mouseleave", handleMouseLeave);
     window.addEventListener("blur", handleWindowBlur);
+    window.addEventListener("focus", clearTabIncident);
+    window.document.addEventListener("mouseenter", clearTabIncident);
 
     return () => {
       blockedEvents.forEach((eventName) => window.document.removeEventListener(eventName, blockEvent, true));
@@ -615,13 +727,15 @@ export default function StudentExamTake() {
       window.document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.document.removeEventListener("mouseleave", handleMouseLeave);
       window.removeEventListener("blur", handleWindowBlur);
+      window.removeEventListener("focus", clearTabIncident);
+      window.document.removeEventListener("mouseenter", clearTabIncident);
     };
   // The guard listeners should only be rebound when secure exam mode changes.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [examModeReady, scanOpen, scanPassed]);
 
   useEffect(() => {
-    if (!examModeReady || !hasTimer || !timerEndsAt || examSubmittedRef.current) return undefined;
+    if (!examModeReady || !hasTimer || !timerEndsAt || isMicrophoneBlocked || examSubmittedRef.current) return undefined;
 
     function tick() {
       const nextRemaining = new Date(timerEndsAt).getTime() - Date.now();
@@ -629,7 +743,7 @@ export default function StudentExamTake() {
       if (nextRemaining <= 0 && !timerExpiredRef.current && !examSubmittingRef.current && !examSubmittedRef.current) {
         timerExpiredRef.current = true;
         toast.error("Time is up. Submitting your exam now.");
-        void handleSubmit();
+        void submitLatestRef.current("timer");
       }
     }
 
@@ -637,15 +751,110 @@ export default function StudentExamTake() {
     const interval = window.setInterval(tick, 1000);
     return () => window.clearInterval(interval);
   // Timer should follow only the active deadline and exam mode.
+  }, [examModeReady, hasTimer, isMicrophoneBlocked, timerEndsAt]);
+
+  useEffect(() => {
+    if (!examModeReady || !examSettings.liveAudioMonitoring || examSubmittedRef.current) return undefined;
+
+    function checkMicrophone() {
+      const track = proctorStreamRef.current?.getAudioTracks?.()[0];
+      if (!track) {
+        handleMicrophoneIssue("No microphone audio track is available.", "MICROPHONE_UNAVAILABLE");
+        void recoverMicrophone();
+        return;
+      }
+      if (track.readyState !== "live") {
+        handleMicrophoneIssue("The microphone track ended or became unavailable.", "MICROPHONE_DISCONNECTED");
+        void recoverMicrophone();
+        return;
+      }
+      if (!track.enabled) {
+        handleMicrophoneIssue("The microphone track was disabled.", "MICROPHONE_MUTED");
+        track.enabled = true;
+        return;
+      }
+      if (track.muted) {
+        handleMicrophoneIssue("The microphone track is muted or receiving no data.", "MICROPHONE_MUTED");
+        return;
+      }
+      if (microphoneBlockedRef.current && !microphoneSignalBlockedRef.current && !microphonePermissionDeniedRef.current) {
+        audioMonitoring.start(proctorStreamRef.current);
+        restoreMicrophoneAccess();
+      }
+    }
+
+    function handleDeviceChange() {
+      checkMicrophone();
+      if (microphoneBlockedRef.current && !microphoneSignalBlockedRef.current) void recoverMicrophone();
+    }
+
+    let permissionStatus;
+    function handlePermissionChange() {
+      if (permissionStatus?.state === "denied") {
+        microphonePermissionDeniedRef.current = true;
+        handleMicrophoneIssue("Microphone permission was lost.", "MICROPHONE_ACCESS_LOST");
+      } else if (permissionStatus?.state === "granted" && microphonePermissionDeniedRef.current) {
+        microphonePermissionDeniedRef.current = false;
+        void recoverMicrophone();
+      }
+    }
+
+    const interval = window.setInterval(() => {
+      checkMicrophone();
+      if (microphoneBlockedRef.current && !microphoneSignalBlockedRef.current) void recoverMicrophone();
+    }, 2000);
+    window.navigator.mediaDevices?.addEventListener?.("devicechange", handleDeviceChange);
+    void window.navigator.permissions?.query?.({ name: "microphone" }).then((status) => {
+      permissionStatus = status;
+      status.addEventListener?.("change", handlePermissionChange);
+      handlePermissionChange();
+    }).catch(() => {});
+    checkMicrophone();
+
+    return () => {
+      window.clearInterval(interval);
+      window.navigator.mediaDevices?.removeEventListener?.("devicechange", handleDeviceChange);
+      permissionStatus?.removeEventListener?.("change", handlePermissionChange);
+    };
+  // Microphone guard owns one polling interval for the active exam only.
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [examModeReady, hasTimer, timerEndsAt]);
+  }, [examModeReady, examSettings.liveAudioMonitoring]);
+
+  useEffect(() => {
+    if (!isMicrophoneBlocked || autoSubmitRequired) return undefined;
+    const blockInteraction = (event) => {
+      if (event.target?.closest?.(".student-microphone-lock-overlay")) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+    };
+    const events = ["beforeinput", "click", "keydown", "pointerdown", "submit"];
+    events.forEach((eventName) => window.document.addEventListener(eventName, blockInteraction, true));
+    return () => events.forEach((eventName) => window.document.removeEventListener(eventName, blockInteraction, true));
+  }, [isMicrophoneBlocked, autoSubmitRequired]);
+
+  function updateAnswers(update) {
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    answersRef.current = update(answersRef.current);
+    setAnswers(answersRef.current);
+  }
+
+  function setFileAnswer(questionId, file) {
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    touchedAnswersRef.current.add(questionId);
+    filesRef.current = { ...filesRef.current, [questionId]: file };
+    setFiles(filesRef.current);
+  }
 
   function setAnswer(questionId, value) {
-    setAnswers((current) => ({ ...current, [questionId]: value }));
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    touchedAnswersRef.current.add(questionId);
+    updateAnswers((current) => ({ ...current, [questionId]: value }));
   }
 
   function toggleMultiAnswer(questionId, key) {
-    setAnswers((current) => {
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    touchedAnswersRef.current.add(questionId);
+    updateAnswers((current) => {
       const selected = current[questionId] || [];
       return {
         ...current,
@@ -655,14 +864,18 @@ export default function StudentExamTake() {
   }
 
   function setEnumerationAnswer(questionId, index, value) {
-    setAnswers((current) => ({
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    touchedAnswersRef.current.add(questionId);
+    updateAnswers((current) => ({
       ...current,
       [questionId]: (current[questionId] || ["", "", ""]).map((item, itemIndex) => itemIndex === index ? value : item),
     }));
   }
 
   function setMatchingAnswer(questionId, left, right) {
-    setAnswers((current) => {
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    touchedAnswersRef.current.add(questionId);
+    updateAnswers((current) => {
       const nextMatches = Object.entries(current[questionId] || {}).reduce((items, [key, value]) => {
         if (value !== right || key === left) items[key] = value;
         return items;
@@ -687,7 +900,9 @@ export default function StudentExamTake() {
   }
 
   function moveOrderingAnswer(questionId, fromIndex, toIndex) {
-    setAnswers((current) => ({
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    touchedAnswersRef.current.add(questionId);
+    updateAnswers((current) => ({
       ...current,
       [questionId]: moveItemToIndex(current[questionId] || [], fromIndex, toIndex),
     }));
@@ -1197,6 +1412,7 @@ export default function StudentExamTake() {
       }
 
       if (!objectDetectorRef.current) {
+        const cocoSsd = await loadCocoSsd();
         objectDetectorRef.current = await cocoSsd.load();
       }
 
@@ -1223,6 +1439,7 @@ export default function StudentExamTake() {
   async function detectEnvironmentGadgets(frames) {
     try {
       if (!objectDetectorRef.current) {
+        const cocoSsd = await loadCocoSsd();
         objectDetectorRef.current = await cocoSsd.load();
       }
 
@@ -1251,14 +1468,44 @@ export default function StudentExamTake() {
   }
 
   function recordManualViolation(type, message, severity = "Medium") {
+    if (!examModeReadyRef.current || examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (!incidentTrackerRef.current.claim(type)) return;
     const timestamp = new Date().toISOString();
-    setViolations((current) => [
-      ...current,
-      { type, message, severity, timestamp },
-    ]);
     if (hasSupabaseConfig && user?.id && exam?.id) {
       void persistViolation({ type, message, severity, timestamp });
     }
+  }
+
+  function saveCurrentProgress() {
+    const progress = {
+      answers: answersRef.current, violations: violationsRef.current, ...progressMetaRef.current,
+      startedAt: startedAtRef.current, touchedAnswers: [...touchedAnswersRef.current],
+      savedAt: new Date().toISOString(),
+    };
+    writeSavedExamProgress(user.id, examId, progress);
+    return progress;
+  }
+
+  function acceptRecordedViolation(violation) {
+    if (!mountedRef.current || examSubmittedRef.current || !startedAtRef.current || (violation.examId && violation.examId !== activeExamRef.current)) return;
+    const next = mergeAttemptViolations([...violationsRef.current, violation], startedAtRef.current);
+    if (next.length === violationsRef.current.length) return;
+    violationsRef.current = next;
+    setViolations(next);
+    if (next.length >= EXAM_VIOLATION_LIMIT && !violationLimitReachedRef.current) {
+      violationLimitReachedRef.current = true;
+      // Lock and freeze before any asynchronous saving or subsequent detector callback.
+      submissionSnapshotRef.current = { answers: { ...answersRef.current }, files: { ...filesRef.current }, touched: new Set(touchedAnswersRef.current) };
+      examModeReadyRef.current = false;
+      setExamModeReady(false);
+      setAutoSubmitRequired(true);
+      stopProctoring();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    }
+    try { saveCurrentProgress(); } catch (error) { toast.error(`Progress backup failed: ${error.message}`); }
+    if (next.length < EXAM_VIOLATION_LIMIT) toast.warning(violationWarning(next.length));
+    else void submitLatestRef.current("violation_limit");
+    return violationLimitReachedRef.current;
   }
 
   function captureProctorSnapshot() {
@@ -1293,8 +1540,12 @@ export default function StudentExamTake() {
   }
 
   async function persistViolation({ type, message, severity, timestamp }) {
+    // Capture evidence before submission can stop the camera; upload need not delay counting.
+    const screenshotPromise = uploadProctorSnapshot(type, timestamp).catch((error) => {
+      toast.error(`Snapshot was not saved: ${error.message}`);
+      return null;
+    });
     try {
-      const screenshotPath = await uploadProctorSnapshot(type, timestamp);
       const payload = {
         student_id: user.id,
         exam_id: exam.id,
@@ -1303,10 +1554,9 @@ export default function StudentExamTake() {
         violation_type: type,
         description: message || type,
         severity,
-        screenshot_url: screenshotPath,
         created_at: timestamp,
       };
-      let { error } = await supabase.from("violations").insert(payload);
+      let { data, error } = await supabase.from("violations").insert(payload).select("id").single();
       if (
         error?.message?.includes("professor_id")
         || error?.message?.includes("course_id")
@@ -1317,18 +1567,136 @@ export default function StudentExamTake() {
           exam_id: exam.id,
           violation_type: type,
           severity,
-          screenshot_url: screenshotPath,
           created_at: timestamp,
-        });
+        }).select("id").single();
         error = fallback.error;
+        data = fallback.data;
       }
       if (error) throw error;
+      acceptRecordedViolation({ id: data.id, examId: exam.id, type, message, severity, timestamp });
+      const screenshotPath = await screenshotPromise;
+      if (screenshotPath) {
+        const { error: evidenceError } = await supabase.from("violations").update({ screenshot_url: screenshotPath })
+          .eq("id", data.id).eq("student_id", user.id);
+        if (evidenceError) toast.error(`Snapshot metadata was not saved: ${evidenceError.message}`);
+      }
     } catch (error) {
+      incidentTrackerRef.current.clear(type);
       toast.error(`Monitoring alert was not saved: ${error.message}`);
     }
   }
 
+  function detachMicrophoneTrackListeners() {
+    microphoneTrackCleanupRef.current?.();
+    microphoneTrackCleanupRef.current = null;
+  }
+
+  function restoreMicrophoneAccess() {
+    if (!microphoneBlockedRef.current) return;
+    const pausedAt = microphonePauseStartedAtRef.current;
+    microphonePauseStartedAtRef.current = null;
+    if (pausedAt && hasTimer) {
+      const pausedFor = Math.max(0, Date.now() - pausedAt);
+      setTimerEndsAt((current) => current
+        ? new Date(new Date(current).getTime() + pausedFor).toISOString()
+        : current);
+    }
+    microphoneBlockedRef.current = false;
+    microphoneInterruptionRecordedRef.current = false;
+    for (const type of ["MICROPHONE_UNAVAILABLE", "MICROPHONE_DISCONNECTED", "MICROPHONE_MUTED", "MICROPHONE_ACCESS_LOST"]) incidentTrackerRef.current.clear(type);
+    microphoneSignalBlockedRef.current = false;
+    microphonePermissionDeniedRef.current = false;
+    setIsMicrophoneBlocked(false);
+    setMicrophoneBlockReason("");
+  }
+
+  function handleMicrophoneSignalRestored() {
+    const track = proctorStreamRef.current?.getAudioTracks?.()[0];
+    if (track?.readyState === "live" && track.enabled && !track.muted) restoreMicrophoneAccess();
+  }
+
+  function handleMicrophoneIssue(reason, type = "MICROPHONE_UNAVAILABLE") {
+    if (!examModeReadyRef.current || !examSettings.liveAudioMonitoring || examSubmittingRef.current || examSubmittedRef.current) return;
+    if (type === "MICROPHONE_MUTED" && reason.includes("No audio input signal")) {
+      microphoneSignalBlockedRef.current = true;
+    }
+    if (!microphoneBlockedRef.current) {
+      microphoneBlockedRef.current = true;
+      microphonePauseStartedAtRef.current = Date.now();
+      if (timerEndsAt) setRemainingMs(Math.max(0, new Date(timerEndsAt).getTime() - Date.now()));
+      setIsMicrophoneBlocked(true);
+    }
+    setMicrophoneBlockReason(reason);
+    if (!microphoneInterruptionRecordedRef.current) {
+      microphoneInterruptionRecordedRef.current = true;
+      recordManualViolation(type, reason, "High");
+    }
+  }
+
+  function attachMicrophoneTrackListeners(track) {
+    detachMicrophoneTrackListeners();
+    if (!track) return;
+
+    const handleMute = () => handleMicrophoneIssue("The microphone track was muted by the browser or audio device.", "MICROPHONE_MUTED");
+    const handleUnmute = () => {
+      if (!microphoneSignalBlockedRef.current && track.readyState === "live" && track.enabled && !track.muted) {
+        audioMonitoring.start(proctorStreamRef.current);
+        restoreMicrophoneAccess();
+      }
+    };
+    const handleEnded = () => handleMicrophoneIssue("The microphone stopped or was disconnected.", "MICROPHONE_DISCONNECTED");
+    track.addEventListener("mute", handleMute);
+    track.addEventListener("unmute", handleUnmute);
+    track.addEventListener("ended", handleEnded);
+    microphoneTrackCleanupRef.current = () => {
+      track.removeEventListener("mute", handleMute);
+      track.removeEventListener("unmute", handleUnmute);
+      track.removeEventListener("ended", handleEnded);
+    };
+  }
+
+  async function recoverMicrophone() {
+    const recovery = microphoneRecoveryRef.current;
+    if (recovery.inFlight || Date.now() - recovery.lastAttemptAt < 7000 || !examModeReadyRef.current) return;
+    recovery.inFlight = true;
+    recovery.lastAttemptAt = Date.now();
+    try {
+      const replacementStream = await window.navigator.mediaDevices.getUserMedia({
+        video: false,
+        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
+      });
+      const replacementTrack = replacementStream.getAudioTracks()[0];
+      if (!replacementTrack || replacementTrack.readyState !== "live" || replacementTrack.muted || !replacementTrack.enabled) {
+        replacementStream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      const stream = proctorStreamRef.current;
+      if (!stream) {
+        replacementTrack.stop();
+        return;
+      }
+      detachMicrophoneTrackListeners();
+      stream.getAudioTracks().forEach((track) => {
+        stream.removeTrack(track);
+        track.stop();
+      });
+      stream.addTrack(replacementTrack);
+      attachMicrophoneTrackListeners(replacementTrack);
+      audioMonitoring.start(stream);
+      restoreMicrophoneAccess();
+    } catch (error) {
+      const permissionLost = /notallowed|permission|denied|security/i.test(error?.name || error?.message || "");
+      handleMicrophoneIssue(
+        permissionLost ? "Microphone permission was denied or lost." : "No available microphone input could be opened.",
+        permissionLost ? "MICROPHONE_ACCESS_LOST" : "MICROPHONE_UNAVAILABLE",
+      );
+    } finally {
+      recovery.inFlight = false;
+    }
+  }
+
   function stopProctoring() {
+    detachMicrophoneTrackListeners();
     roboflowConnectionRef.current?.cleanup?.();
     roboflowConnectionRef.current = null;
     proctorStreamRef.current?.getTracks().forEach((track) => track.stop());
@@ -1365,6 +1733,9 @@ export default function StudentExamTake() {
   }
 
   function processFaceState({ centerX, faceRatio, faceCount = 1, lookingDown = false, eyeLookingDown = false, eyeLookingAway = false, eyeDirection = "", gazeCalibrating = false, gazeCalibrationProgress = 0 }) {
+    if (faceCount > 0) incidentTrackerRef.current.clear("NO_FACE");
+    if (faceCount <= 1) incidentTrackerRef.current.clear("MULTIPLE_FACE");
+    if (faceCount === 1 && !gazeCalibrating && !lookingDown && !eyeLookingDown && !eyeLookingAway && centerX >= 0.34 && centerX <= 0.66 && faceRatio >= 0.16) incidentTrackerRef.current.clear("LOOKING_AWAY");
     if (!faceCount) {
       setFaceStatus("No face detected");
       lookingAwaySinceRef.current = null;
@@ -1609,6 +1980,7 @@ export default function StudentExamTake() {
   }
 
   async function createMediaPipeFaceLandmarker() {
+    const { FaceLandmarker, FilesetResolver } = await loadMediaPipe();
     const vision = await FilesetResolver.forVisionTasks(VISION_WASM_PATH);
     return FaceLandmarker.createFromOptions(vision, {
       baseOptions: {
@@ -1624,6 +1996,11 @@ export default function StudentExamTake() {
   async function startFaceMonitoring() {
     try {
       faceDetectorRef.current = await createMediaPipeFaceLandmarker();
+      if (!mountedRef.current || violationLimitReachedRef.current || examSubmittedRef.current || !proctorStreamRef.current) {
+        faceDetectorRef.current?.close?.();
+        faceDetectorRef.current = null;
+        return;
+      }
       setFaceStatus("MediaPipe face AI active");
       faceMonitorRef.current = window.setInterval(() => {
         const video = proctorVideoRef.current;
@@ -1642,6 +2019,7 @@ export default function StudentExamTake() {
       }, 1000);
       return;
     } catch {
+      if (!mountedRef.current || violationLimitReachedRef.current || examSubmittedRef.current || !proctorStreamRef.current) return;
       setFaceStatus("Basic face tracking active");
       faceMonitorRef.current = window.setInterval(() => {
         const video = proctorVideoRef.current;
@@ -1714,6 +2092,7 @@ export default function StudentExamTake() {
 
   async function detectWithCocoSsd(video) {
     if (!objectDetectorRef.current) {
+      const cocoSsd = await loadCocoSsd();
       objectDetectorRef.current = await cocoSsd.load();
     }
     const predictions = await objectDetectorRef.current.detect(video);
@@ -1774,7 +2153,13 @@ export default function StudentExamTake() {
   function handleRoboflowData(data) {
     const predictions = collectRoboflowPredictions(data);
     const detected = predictions.find((item) => (ROBOFLOW_GADGET_LABELS.has(item.label) || isPhoneDetectionLabel(item.label)) && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE);
-    if (!detected) return;
+    if (!detected) {
+      if (roboflowConnectionRef.current) {
+        incidentTrackerRef.current.clear("PHONE_DETECTED");
+        incidentTrackerRef.current.clear("GADGET_DETECTED");
+      }
+      return;
+    }
 
     const isPhone = isPhoneDetectionLabel(detected.label) || detected.label === "tablet" || detected.label === "ipad";
     const cooldownRef = isPhone ? phoneAlertCooldownRef : roboflowAlertCooldownRef;
@@ -1796,6 +2181,7 @@ export default function StudentExamTake() {
 
     try {
       setRoboflowStatus("Connecting Roboflow detector");
+      const { connectors, webrtc } = await loadRoboflow();
       const connector = connectors.withProxyUrl(config.proxyUrl);
       roboflowConnectionRef.current = await webrtc.useStream({
         source: stream,
@@ -1811,6 +2197,11 @@ export default function StudentExamTake() {
         },
         onData: handleRoboflowData,
       });
+      if (!mountedRef.current || violationLimitReachedRef.current || examSubmittedRef.current || !proctorStreamRef.current) {
+        roboflowConnectionRef.current?.cleanup?.();
+        roboflowConnectionRef.current = null;
+        return;
+      }
       setRoboflowStatus("Roboflow detector active");
     } catch (error) {
       window.console.error("[RoboflowLive]", error);
@@ -1845,6 +2236,9 @@ export default function StudentExamTake() {
 
         cooldownRef.current = Date.now();
         recordManualViolation(violationType, `${readableLabel} detected in camera view.`, "High");
+      } else if (!roboflowConnectionRef.current) {
+        incidentTrackerRef.current.clear("PHONE_DETECTED");
+        incidentTrackerRef.current.clear("GADGET_DETECTED");
       }
     } catch {
       // Keep exam proctoring active even if the optional object detector is unreachable.
@@ -1874,8 +2268,15 @@ export default function StudentExamTake() {
         autoGainControl: true,
       } : false,
     });
+    if (!mountedRef.current || violationLimitReachedRef.current || examSubmittedRef.current) {
+      stream.getTracks().forEach((track) => track.stop());
+      return;
+    }
     stopProctoring();
     proctorStreamRef.current = stream;
+    if (examSettings.liveAudioMonitoring) {
+      attachMicrophoneTrackListeners(stream.getAudioTracks()[0]);
+    }
     if (liveCameraMonitoringEnabled) {
       if (proctorVideoRef.current) proctorVideoRef.current.srcObject = stream;
       void startFaceMonitoring();
@@ -1899,8 +2300,10 @@ export default function StudentExamTake() {
   }
 
   async function enterExamMode() {
+    if (!progressReady || violationLimitReachedRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
     function startTimerIfNeeded() {
-      const start = startedAt || new Date().toISOString();
+      const start = startedAtRef.current || new Date().toISOString();
+      startedAtRef.current = start;
       setStartedAt(start);
       if (hasTimer && !timerEndsAt) {
         setTimerEndsAt(new Date(new Date(start).getTime() + durationMinutes * 60 * 1000).toISOString());
@@ -1917,10 +2320,13 @@ export default function StudentExamTake() {
       }
       startTimerIfNeeded();
       setExamLocked(false);
+      examModeReadyRef.current = true;
       setExamModeReady(true);
       setScanOpen(false);
+      saveCurrentProgress();
       toast.success(secureModeRequired ? "Secure exam mode started" : "Exam started in fullscreen");
     } catch (error) {
+      examModeReadyRef.current = false;
       setExamModeReady(false);
       setExamLocked(false);
       recordManualViolation("FULLSCREEN_EXIT", error instanceof Error ? error.message : "Secure exam mode failed to start.", "High");
@@ -1933,8 +2339,6 @@ export default function StudentExamTake() {
   }
 
   async function resumeExamMode() {
-    if (savedProgress?.answers) setAnswers((current) => ({ ...current, ...savedProgress.answers }));
-    if (savedProgress?.violations) setViolations(savedProgress.violations);
     if (savedProgress?.scanStatus === "passed") {
       setScanStatus("passed");
       setScanOpen(false);
@@ -1943,6 +2347,7 @@ export default function StudentExamTake() {
   }
 
   async function restoreExamLock() {
+    if (violationLimitReachedRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
     try {
       await requestExamLock();
       setExamLocked(false);
@@ -1952,8 +2357,9 @@ export default function StudentExamTake() {
     }
   }
 
-  async function handleSubmit() {
-    if (!scanPassed) {
+  async function handleSubmit(reason = "manual") {
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
+    if (!scanPassed && reason !== "violation_limit") {
       toast.error("Complete and pass the environment scan before submitting the exam.");
       setScanOpen(true);
       return;
@@ -1961,6 +2367,9 @@ export default function StudentExamTake() {
     if (!hasSupabaseConfig || !user?.id || !exam) return;
     examSubmittingRef.current = true;
     setSubmitting(true);
+    setSubmissionError("");
+    const snapshot = submissionSnapshotRef.current || { answers: { ...answersRef.current }, files: { ...filesRef.current }, touched: new Set(touchedAnswersRef.current) };
+    if (reason === "violation_limit") submissionSnapshotRef.current = snapshot;
 
     try {
       const { count, error: attemptCountError } = await supabase
@@ -1977,21 +2386,41 @@ export default function StudentExamTake() {
       }
 
       const uploadedPaths = {};
-      const submissionAnswers = { ...answers };
+      const submissionAnswers = { ...snapshot.answers };
       for (const question of questions) {
-        if (question.question_type === "File Upload" && files[question.id]) {
-          uploadedPaths[question.id] = await uploadFile(question.id, files[question.id]);
-          submissionAnswers[question.id] = { fileName: files[question.id].name, path: uploadedPaths[question.id] };
+        if (question.question_type === "Ordering / Sequencing" && !snapshot.touched.has(question.id)) delete submissionAnswers[question.id];
+      }
+      for (const question of questions) {
+        if (question.question_type === "File Upload" && snapshot.files[question.id]) {
+          uploadedPaths[question.id] = await uploadFile(question.id, snapshot.files[question.id]);
+          submissionAnswers[question.id] = { fileName: snapshot.files[question.id].name, path: uploadedPaths[question.id] };
         }
       }
 
+      // Empty responses receive zero; answered manual types retain manual grading.
+      for (const question of questions) {
+        if (!hasProvidedAnswer(submissionAnswers[question.id])) submissionAnswers[question.id] = null;
+      }
       const grading = computeAttemptScore(questions, submissionAnswers);
+      for (const result of grading.results) {
+        if (!hasProvidedAnswer(submissionAnswers[result.questionId])) {
+          result.earnedPoints = 0;
+          result.manual = false;
+          result.isCorrect = false;
+        }
+      }
+      grading.hasManual = grading.results.some((result) => result.manual);
+      grading.earned = grading.results.reduce((sum, result) => sum + Number(result.earnedPoints || 0), 0);
+      grading.percentage = grading.max ? grading.earned / grading.max * 100 : 0;
       const attemptPayload = {
         exam_id: exam.id,
         student_id: user.id,
         score: grading.hasManual ? null : Number(grading.percentage.toFixed(2)),
-        violations,
-        started_at: startedAt || new Date().toISOString(),
+        violations: violationsRef.current.map((violation, index) => violationLimitReachedRef.current && index === EXAM_VIOLATION_LIMIT - 1
+          ? { ...violation, submissionReason: "violation_limit", submissionMessage: "Exam automatically submitted after reaching 5 violations." }
+          : violation),
+        status: grading.hasManual ? "Pending Manual Grading" : "Submitted",
+        started_at: startedAtRef.current || new Date().toISOString(),
         submitted_at: new Date().toISOString(),
       };
 
@@ -2047,16 +2476,29 @@ export default function StudentExamTake() {
         throw answersResult.error;
       }
 
+      const limitViolation = violationsRef.current[EXAM_VIOLATION_LIMIT - 1];
+      if (violationLimitReachedRef.current && limitViolation?.id) {
+        const { error: logError } = await supabase.from("violations").update({
+          description: `${limitViolation.message} Exam automatically submitted after reaching 5 violations.`,
+        }).eq("id", limitViolation.id).eq("student_id", user.id);
+        if (logError) window.console.warn("Automatic submission reason is saved on the attempt; violation description update failed.", logError);
+      }
+
       toast.success(grading.hasManual ? "Exam submitted for manual grading" : "Exam submitted and graded");
       examSubmittedRef.current = true;
       clearSavedExamProgress(user.id, examId);
+      examModeReadyRef.current = false;
+      setExamModeReady(false);
       stopProctoring();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
       await exitFullscreen();
       navigate("/student/grades");
     } catch (error) {
+      setSubmissionError(error.message || "Submission failed. Please retry.");
       toast.error(error.message);
     } finally {
       if (!examSubmittedRef.current) examSubmittingRef.current = false;
+      if (!examSubmittedRef.current && reason === "timer") timerExpiredRef.current = false;
       setSubmitting(false);
     }
   }
@@ -2093,7 +2535,7 @@ export default function StudentExamTake() {
 
         {question.question_type === "Picture Choice" && config.questionImage ? (
           <div className="student-question-image">
-            <img alt="Question reference" src={config.questionImage} />
+            <img alt="Question reference" decoding="async" loading="lazy" src={config.questionImage} />
           </div>
         ) : null}
 
@@ -2185,7 +2627,7 @@ export default function StudentExamTake() {
           <label className="student-file-answer">
             <FiUpload />
             <span>{files[question.id]?.name || "Upload PDF, DOCX, DOC, JPG, or PNG up to 10MB"}</span>
-            <input accept={FILE_UPLOAD_ACCEPT} onChange={(event) => setFiles((current) => ({ ...current, [question.id]: event.target.files?.[0] }))} type="file" />
+            <input accept={FILE_UPLOAD_ACCEPT} onChange={(event) => setFileAnswer(question.id, event.target.files?.[0])} type="file" />
           </label>
         ) : null}
       </Card>
@@ -2193,7 +2635,7 @@ export default function StudentExamTake() {
   }
 
   if (!hasSupabaseConfig) return <PageHeader title="Exam" subtitle="Live Supabase exam taking is required." />;
-  if (!exam) return <main className="center-screen">Loading exam...</main>;
+  if (!exam || !progressReady) return <main className="center-screen">Loading exam and saved progress...</main>;
 
   if (attemptsExhausted) {
     return (
@@ -2210,6 +2652,23 @@ export default function StudentExamTake() {
               <p>Your submitted attempt is already recorded. Retakes are not allowed.</p>
             </div>
           </div>
+        </Card>
+      </section>
+    );
+  }
+
+  if (autoSubmitRequired) {
+    return (
+      <section className="student-exam-take-page" role="alert" aria-live="assertive" aria-busy={submitting}>
+        <PageHeader title={exam.exam_title || exam.title} subtitle={`Violations: ${Math.min(violations.length, EXAM_VIOLATION_LIMIT)} / ${EXAM_VIOLATION_LIMIT}`} />
+        <Card>
+          <FiShield />
+          <h2>Maximum violation limit reached</h2>
+          <p>{violationWarning(EXAM_VIOLATION_LIMIT)}</p>
+          {submissionError ? <>
+            <p>Your answers are locked. Submission failed: {submissionError}</p>
+            <Button disabled={submitting} onClick={() => handleSubmit("violation_limit")}>Retry Submission</Button>
+          </> : <p>Saving your completed answers. Please keep this page open.</p>}
         </Card>
       </section>
     );
@@ -2353,8 +2812,16 @@ export default function StudentExamTake() {
       <PageHeader
         title={exam.exam_title || exam.title}
         subtitle={`${exam.courses?.course_code || ""} ${exam.courses?.section || ""} - ${formatDurationLabel(exam.time_limit || exam.duration)} - ${totalPoints} points`}
-        actions={<Button disabled={submitting || !scanPassed || examLocked || attemptsExhausted} onClick={handleSubmit}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
+        actions={<Button disabled={submitting || !scanPassed || examLocked || isMicrophoneBlocked || attemptsExhausted} onClick={() => handleSubmit("manual")}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
       />
+
+      <div className={`student-exam-timer ${violations.length >= 3 ? "urgent" : ""}`} role="status" aria-live="polite">
+        <FiShield />
+        <div>
+          <strong>Violations: {violations.length} / {EXAM_VIOLATION_LIMIT}</strong>
+          <span>{violations.length ? violationWarning(violations.length) : "Your exam will automatically submit after 5 violations."}</span>
+        </div>
+      </div>
 
       {proctoringEnabled ? (
         <aside className="student-proctor-dock" aria-label="Live proctoring panel">
@@ -2428,6 +2895,19 @@ export default function StudentExamTake() {
             <h2>Exam Paused</h2>
             <p>Fullscreen was exited or the exam window lost focus. Return to secure exam mode to continue.</p>
             <Button onClick={restoreExamLock}>Return to Fullscreen</Button>
+          </Card>
+        </div>
+      ) : null}
+
+      {isMicrophoneBlocked ? (
+        <div className="student-exam-lock-overlay student-microphone-lock-overlay" role="alert" aria-live="assertive">
+          <Card>
+            <FiMic />
+            <h2>Microphone Required</h2>
+            <p>Your microphone appears to be muted, disabled, disconnected, or unavailable. Microphone access is required during the exam.</p>
+            <p>Please unmute or reconnect your microphone to continue.</p>
+            {microphoneBlockReason ? <small>{microphoneBlockReason}</small> : null}
+            <span>Checking microphone automatically…</span>
           </Card>
         </div>
       ) : null}

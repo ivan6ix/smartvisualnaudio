@@ -222,7 +222,8 @@ export default function ProfessorMonitoring() {
         .from("violations")
         .select(violationSelect)
         .or(violationFilter)
-        .order("created_at", { ascending: false });
+        .order("created_at", { ascending: false })
+        .limit(500);
 
       if (
         violationsResult.error?.message?.includes("evidence_url")
@@ -235,7 +236,8 @@ export default function ProfessorMonitoring() {
           .from("violations")
           .select(fallbackViolationSelect)
           .in("exam_id", examIds)
-          .order("created_at", { ascending: false });
+          .order("created_at", { ascending: false })
+          .limit(500);
         violationRows = fallbackViolationsResult.data || [];
         violationsError = fallbackViolationsResult.error;
       } else {
@@ -349,7 +351,9 @@ export default function ProfessorMonitoring() {
       return matchesSearch && matchesCourse && matchesSection;
     });
   }, [studentCourseFilter, studentSearch, studentSectionFilter, studentsWithCounts]);
-  const selectedViolations = selectedStudent ? violations.filter((violation) => violation.studentId === selectedStudent.id) : [];
+  const selectedViolations = useMemo(() => selectedStudent
+    ? violations.filter((violation) => violation.studentId === selectedStudent.id)
+    : [], [selectedStudent, violations]);
   const filterOptions = useMemo(() => {
     const selectedCourseIds = new Set((selectedStudent?.courses || []).map((course) => course.id).filter(Boolean));
     const activeCourseIds = activityFilters.course === "All Courses"
@@ -502,7 +506,7 @@ export default function ProfessorMonitoring() {
                     <small>{violation.date} - {violation.time}</small>
                     {violation.screenshotUrl ? (
                       <a href={violation.screenshotUrl} rel="noreferrer" target="_blank">
-                        <img alt={`${violation.activity} snapshot`} src={violation.screenshotUrl} />
+                        <img alt={`${violation.activity} snapshot`} decoding="async" loading="lazy" src={violation.screenshotUrl} />
                       </a>
                     ) : null}
                     {violation.audioUrl ? (

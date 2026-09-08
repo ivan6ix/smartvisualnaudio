@@ -11,10 +11,10 @@ const roleHome = {
 };
 
 export default function ProtectedRoute({ roles }) {
-  const { user, loading } = useAuth();
+  const { user, loading, hasLoggedInThisSession } = useAuth();
 
   if (loading) return <PageSkeleton />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!hasLoggedInThisSession || !user) return <Navigate to="/login" replace />;
   if (roles?.length && !roles.includes(user.role)) return <Navigate to={roleHome[user.role] || "/login"} replace />;
 
   return (

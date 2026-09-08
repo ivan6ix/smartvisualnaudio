@@ -9,7 +9,7 @@ const violationLabels = {
   NO_FACE: "No face detected",
   BACKGROUND_VOICE: "Background voice detected",
   LOUD_NOISE_DETECTED: "Background voice detected",
-  AUDIO_DETECTED: "Audio detected",
+  AUDIO_DETECTED: "Background voice detected",
   LOUD_AUDIO: "Loud audio detected",
   TAB_SWITCH: "Tab switch attempt",
   COPY_ATTEMPT: "Copy attempt detected",
@@ -52,7 +52,7 @@ export default function DeanExamIntegrity() {
     async function loadViolations() {
       const { data, error } = await supabase
         .from("violations")
-        .select("id, student_id, exam_id, violation_type, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at")
+        .select("id, student_id, exam_id, violation_type, description, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at")
         .order("created_at", { ascending: false })
         .limit(500);
 
@@ -91,7 +91,7 @@ export default function DeanExamIntegrity() {
           studentNumber: profile?.student_number || "-",
           exam: exam?.title || "Unknown exam",
           violationType: violationLabels[violation.violation_type] || violation.violation_type || "Monitoring alert",
-          description: violation.audio_level ? `Audio level: ${violation.audio_level}%` : "-",
+          description: violation.description || (violation.audio_level ? `Audio level: ${violation.audio_level}%` : "-"),
           severity: violation.severity || "Low",
           date,
           time,

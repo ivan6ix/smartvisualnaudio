@@ -89,22 +89,62 @@ const StudentLayout = lazy(pageImports.StudentLayout);
 const StudentMessages = lazy(pageImports.StudentMessages);
 const StudentResources = lazy(pageImports.StudentResources);
 
-function preloadPortalPages() {
-  Object.entries(pageImports).forEach(([name, load]) => {
-    if (name === "StudentExamTake") return;
-    void load();
-  });
+function getPageImportForPath(pathname) {
+  if (/^\/student\/exams\//.test(pathname)) return pageImports.StudentExamTake;
+  if (/^\/student\/courses\//.test(pathname)) return pageImports.StudentCourse;
+  if (/^\/professor\/courses\/[^/]+\/permits/.test(pathname)) return pageImports.ProfessorCoursePermits;
+  if (/^\/professor\/courses\//.test(pathname)) return pageImports.ProfessorCourseDetail;
+  if (/^\/cluster\/exams\//.test(pathname)) return pageImports.ClusterExamReview;
+  const routeImports = {
+    "/": pageImports.Dashboard,
+    "/accounts": pageImports.Accounts,
+    "/courses": pageImports.Courses,
+    "/messages": pageImports.Messages,
+    "/notifications": pageImports.Notifications,
+    "/reports": pageImports.Reports,
+    "/security": pageImports.SecurityPrivacy,
+    "/student": pageImports.StudentDashboard,
+    "/student/resources": pageImports.StudentResources,
+    "/student/grades": pageImports.StudentGrades,
+    "/student/messages": pageImports.StudentMessages,
+    "/professor": pageImports.ProfessorDashboard,
+    "/professor/courses": pageImports.ProfessorCourses,
+    "/professor/exams": pageImports.ProfessorExams,
+    "/professor/exams/create": pageImports.ProfessorCreateExam,
+    "/professor/monitoring": pageImports.ProfessorMonitoring,
+    "/professor/scores": pageImports.ProfessorScores,
+    "/professor/messages": pageImports.ProfessorMessages,
+    "/cluster": pageImports.ClusterDashboard,
+    "/cluster/pending": pageImports.ClusterExamList,
+    "/cluster/approved": pageImports.ClusterExamList,
+    "/cluster/rejected": pageImports.ClusterExamList,
+    "/cluster/history": pageImports.ClusterHistory,
+    "/cluster/reports": pageImports.ClusterReports,
+    "/cluster/messages": pageImports.ClusterMessages,
+    "/cluster/notifications": pageImports.ClusterNotifications,
+    "/cluster/profile": pageImports.ClusterProfile,
+    "/dean": pageImports.DeanDashboard,
+    "/dean/integrity": pageImports.DeanExamIntegrity,
+    "/dean/courses": pageImports.Courses,
+    "/dean/reports": pageImports.Reports,
+  };
+  return routeImports[pathname];
 }
 
 export default function App() {
   useEffect(() => {
-    if ("requestIdleCallback" in window) {
-      const id = window.requestIdleCallback(preloadPortalPages, { timeout: 2500 });
-      return () => window.cancelIdleCallback(id);
+    function prefetchLink(event) {
+      const link = event.target?.closest?.("a[href]");
+      if (!link || link.origin !== window.location.origin) return;
+      const load = getPageImportForPath(link.pathname);
+      if (load) void load();
     }
-
-    const id = window.setTimeout(preloadPortalPages, 1200);
-    return () => window.clearTimeout(id);
+    window.document.addEventListener("pointerover", prefetchLink, true);
+    window.document.addEventListener("focusin", prefetchLink, true);
+    return () => {
+      window.document.removeEventListener("pointerover", prefetchLink, true);
+      window.document.removeEventListener("focusin", prefetchLink, true);
+    };
   }, []);
 
   return (

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FiArchive, FiPlus, FiRefreshCw } from "react-icons/fi";
 import { Button, Card, Field, PageHeader, SearchBox, SelectField, Table, Badge } from "../components/ui";
@@ -17,6 +18,7 @@ function isUuid(value) {
 
 export default function Courses() {
   const { user } = useAuth();
+  const queryClient = useQueryClient();
   const isReadOnly = user?.role === "Dean";
   const [courses, setCourses] = useLocalStorageState("smartproctor.admin.courses", seedCourses);
   const [professorOptions, setProfessorOptions] = useState(hasSupabaseConfig ? [] : professors.filter((professor) => professor.status === "Active"));
@@ -45,10 +47,10 @@ export default function Courses() {
     };
   }
 
-  useEffect(() => {
-    if (!hasSupabaseConfig) return;
-
-    async function loadLiveCourses() {
+  const coursesQuery = useQuery({
+    queryKey: ["admin-courses"],
+    enabled: hasSupabaseConfig,
+    queryFn: async () => {
       const [{ data: courseRows, error: coursesError }, { data: professorRows, error: professorsError }] = await Promise.all([
         supabase
           .from("courses")
@@ -63,11 +65,10 @@ export default function Courses() {
       ]);
 
       if (coursesError) {
-        toast.error(coursesError.message);
-        return;
+        throw coursesError;
       }
       if (professorsError) {
-        toast.error(professorsError.message);
+        throw professorsError;
       }
 
       const profilesById = new Map((professorRows || []).map((professor) => [professor.id, professor]));
@@ -79,26 +80,37 @@ export default function Courses() {
         status: professor.status,
       }));
 
-      setCourses((courseRows || []).map((course) => mapCourse(course, profilesById)));
-      if (liveProfessors.length) {
-        setProfessorOptions(liveProfessors);
-        setForm((current) => isUuid(current.professorId) ? current : { ...current, professorId: liveProfessors[0].id });
-      }
-    }
+      return { courses: (courseRows || []).map((course) => mapCourse(course, profilesById)), professors: liveProfessors };
+    },
+  });
 
-    loadLiveCourses();
+  useEffect(() => {
+    if (!coursesQuery.data) return;
+    setCourses(coursesQuery.data.courses);
+    if (coursesQuery.data.professors.length) {
+      setProfessorOptions(coursesQuery.data.professors);
+      setForm((current) => isUuid(current.professorId) ? current : { ...current, professorId: coursesQuery.data.professors[0].id });
+    }
+  }, [coursesQuery.data, setCourses]);
+
+  useEffect(() => {
+    if (coursesQuery.error) toast.error(coursesQuery.error.message);
+  }, [coursesQuery.error]);
+
+  useEffect(() => {
+    if (!hasSupabaseConfig) return undefined;
 
     const channel = supabase
       .channel("courses-live")
       .on("postgres_changes", { event: "*", schema: "public", table: "courses" }, () => {
-        loadLiveCourses();
+        void queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
       })
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [setCourses]);
+  }, [queryClient]);
 
   async function createCourse(event) {
     event.preventDefault();
@@ -131,6 +143,7 @@ export default function Courses() {
       }
 
       setCourses((current) => [{ ...mapCourse(data), professor: selectedProfessor?.name || "Unassigned" }, ...current]);
+      await queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
     } else {
       setCourses((current) => [nextCourse, ...current]);
     }
@@ -149,6 +162,7 @@ export default function Courses() {
     }
 
     setCourses((current) => current.map((course) => course.id === id ? { ...course, archived: archivedState } : course));
+    if (hasSupabaseConfig) await queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
     toast.success(archivedState ? "Course archived" : "Course restored");
   }
 
@@ -171,11 +185,13 @@ export default function Courses() {
         </div>
         <strong>{visible.length}</strong>
       </div>
-      <PageHeader
-        title="Courses"
-        subtitle={isReadOnly ? "View courses and assigned professors across the institution." : "Create courses, assign professors, generate joining codes, and manage archives."}
-        actions={!isReadOnly ? <Button variant="light" onClick={() => setShowArchived(true)}><FiArchive /> Archived Courses</Button> : null}
-      />
+      {!isReadOnly ? (
+        <PageHeader
+          title="Courses"
+          subtitle="Create courses, assign professors, generate joining codes, and manage archives."
+          actions={<Button variant="light" onClick={() => setShowArchived(true)}><FiArchive /> Archived Courses</Button>}
+        />
+      ) : null}
       {!isReadOnly ? (
         <Card className="admin-panel admin-form-panel">
           <form className="inline-form" onSubmit={createCourse}>

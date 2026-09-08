@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FiEdit2, FiGrid, FiPlus, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
@@ -69,6 +70,7 @@ function mapExam(row, reviewByExam = {}) {
 }
 
 export default function ProfessorExams() {
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { professorExams, publishProfessorExam, submitProfessorExamForApproval } = useCluster();
@@ -107,14 +109,20 @@ export default function ProfessorExams() {
     });
   }
 
-  const loadExams = useCallback(async function loadExams() {
+  const loadExams = useCallback(async function loadExams(force = false) {
     if (!hasSupabaseConfig || !user?.id) return;
+    const queryKey = ["professor-exams", user.id];
+    const cached = queryClient.getQueryData(queryKey);
+    const cacheState = queryClient.getQueryState(queryKey);
+    if (cached) setLiveExams(cached);
+    if (!force && cacheState?.dataUpdatedAt && Date.now() - cacheState.dataUpdatedAt < 3 * 60 * 1000) return;
 
     const { data, error } = await supabase
       .from("exams")
       .select("id, title, exam_title, course_id, description, course, exam_type, duration, time_limit, status, submitted_at, approved_at, rejected_at, courses(course_name, course_code, section)")
       .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .limit(250);
 
     if (error) {
       toast.error(error.message);
@@ -131,7 +139,8 @@ export default function ProfessorExams() {
         .select("exam_id, remarks, decision, review_date")
         .in("exam_id", examIds)
         .eq("decision", "Rejected")
-        .order("review_date", { ascending: false });
+        .order("review_date", { ascending: false })
+        .limit(500);
 
       if (!reviewError) {
         reviewByExam = (reviewRows || []).reduce((items, review) => (
@@ -140,8 +149,10 @@ export default function ProfessorExams() {
       }
     }
 
-    setLiveExams(examRows.map((exam) => mapExam(exam, reviewByExam)));
-  }, [user?.id]);
+    const nextExams = examRows.map((exam) => mapExam(exam, reviewByExam));
+    setLiveExams(nextExams);
+    queryClient.setQueryData(queryKey, nextExams);
+  }, [queryClient, user?.id]);
 
   useEffect(() => {
     loadExams();
@@ -205,7 +216,7 @@ export default function ProfessorExams() {
 
       if (error) throw error;
       toast.success(successMessage);
-      await loadExams();
+      await loadExams(true);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -257,7 +268,7 @@ export default function ProfessorExams() {
       if (error) throw error;
       await notifyClusterExamSubmitted(exam);
       toast.success("Exam submitted to cluster professor");
-      await loadExams();
+      await loadExams(true);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -339,7 +350,7 @@ export default function ProfessorExams() {
       }
 
       toast.success(`Exam shared to ${targetCourse.course_code} - ${targetCourse.section}`);
-      await loadExams();
+      await loadExams(true);
       closeShareModal();
     } catch (error) {
       toast.error(error.message);

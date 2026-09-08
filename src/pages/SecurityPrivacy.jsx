@@ -1,6 +1,7 @@
 import { useForm } from "react-hook-form";
 import { FiShield, FiUserCheck } from "react-icons/fi";
 import { toast } from "sonner";
+import ThemeSettings from "../components/ThemeSettings";
 import { Button, Card, Field, PageHeader, Table } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { logs } from "../data/mockData";
@@ -44,6 +45,9 @@ export default function SecurityPrivacy() {
           </form>
         </Card>
       </div>
+      <Card className="admin-panel settings-surface-card">
+        <ThemeSettings />
+      </Card>
       <Card className="admin-panel admin-activity-panel settings-surface-card">
         <h2>Activity Logs</h2>
         <Table columns={[{ key: "action", label: "Action" }, { key: "description", label: "Description" }, { key: "createdAt", label: "Date" }]} rows={logs.filter((log) => ["Login", "Logout", "Password Change"].includes(log.action))} />

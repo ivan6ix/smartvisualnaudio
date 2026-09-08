@@ -5,6 +5,16 @@ import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const tabs = ["Overview", "All Users", "Students", "Violations", "Courses", "Exams", "Professors", "Deans"];
 const violationTypes = ["MULTIPLE_FACE", "NO_FACE", "BACKGROUND_VOICE", "LOUD_NOISE_DETECTED", "AUDIO_DETECTED", "LOUD_AUDIO", "TAB_SWITCH", "COPY_ATTEMPT", "FULLSCREEN_EXIT", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED"];
+const audioViolationAliases = new Set(["BACKGROUND_VOICE", "BACKGROUND_VOICE_DETECTED", "CONVERSATION_DETECTED", "AUDIO_DETECTED", "LOUD_AUDIO", "LOUD_NOISE_DETECTED"]);
+
+function normalizeViolationType(value) {
+  const normalized = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+  return audioViolationAliases.has(normalized) ? "AUDIO_DETECTED" : normalized;
+}
+
+function violationTypeLabel(value) {
+  return normalizeViolationType(value) === "AUDIO_DETECTED" ? "Background voice detected" : value || "-";
+}
 
 const emptyStats = {
   students: 0,
@@ -84,7 +94,7 @@ export default function Reports() {
         supabase.from("profiles").select("id, role, full_name, email, employee_number, student_number, status, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("courses").select("id, course_name, course_code, section, joining_code, professor_id, archived, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("exams").select("id, title, exam_title, course_id, course, duration, time_limit, status, created_at").order("created_at", { ascending: false }).limit(1000),
-        supabase.from("violations").select("id, student_id, exam_id, violation_type, severity, created_at").order("created_at", { ascending: false }).limit(1000),
+        supabase.from("violations").select("id, student_id, exam_id, violation_type, description, severity, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("exam_attempts").select("id, exam_id, student_id, score, submitted_at").order("submitted_at", { ascending: false }).limit(1000),
         supabase.from("logs").select("id, action, description, created_at").order("created_at", { ascending: false }).limit(1000),
       ]);
@@ -157,7 +167,7 @@ export default function Reports() {
     });
 
     const violationRows = reportData.violations
-      .filter((violation) => violationFilter === "All Violations" || violation.violation_type === violationFilter)
+      .filter((violation) => violationFilter === "All Violations" || normalizeViolationType(violation.violation_type) === normalizeViolationType(violationFilter))
       .map((violation) => {
         const student = profilesById.get(violation.student_id);
         const exam = examsById.get(violation.exam_id);
@@ -169,7 +179,8 @@ export default function Reports() {
           student: student?.full_name || "Unknown student",
           course: course?.course_code || course?.course_name || exam?.course || "-",
           exam: exam?.exam_title || exam?.title || "Unknown exam",
-          violationType: violation.violation_type || "-",
+          violationType: violationTypeLabel(violation.violation_type),
+          details: violation.description || "-",
           date,
           time,
           severity: violation.severity || "-",
@@ -219,6 +230,7 @@ export default function Reports() {
       { key: "course", label: "Course" },
       { key: "exam", label: "Exam" },
       { key: "violationType", label: "Violation Type" },
+      { key: "details", label: "Details" },
       { key: "date", label: "Date" },
       { key: "time", label: "Time" },
       { key: "severity", label: "Severity" },
@@ -243,6 +255,7 @@ export default function Reports() {
       { key: "course", label: "Course" },
       { key: "exam", label: "Exam" },
       { key: "violationType", label: "Violation Type" },
+      { key: "details", label: "Details" },
       { key: "date", label: "Date" },
       { key: "time", label: "Time" },
       { key: "severity", label: "Severity" },

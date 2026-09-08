@@ -21,7 +21,7 @@ function mapNotification(notification) {
 }
 
 export default function StudentLayout() {
-  const { user, logout, loading } = useAuth();
+  const { user, logout, loading, hasLoggedInThisSession } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const [messagesOpen, setMessagesOpen] = useState(false);
@@ -67,7 +67,7 @@ export default function StudentLayout() {
   }, [user?.id]);
 
   if (loading) return <PageSkeleton />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!hasLoggedInThisSession || !user) return <Navigate to="/login" replace />;
   if (user.role !== "Student") return <Navigate to="/" replace />;
 
   return (

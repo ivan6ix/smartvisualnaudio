@@ -4,6 +4,17 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Smart Proctoring</title>
+    <script>
+      try {
+        const theme = localStorage.getItem("smartvisualnaudio.appearance") === "light" ? "light" : "dark";
+        document.documentElement.dataset.theme = theme;
+        document.documentElement.dataset.appearance = theme;
+        document.documentElement.style.colorScheme = theme;
+      } catch {
+        document.documentElement.dataset.theme = "dark";
+        document.documentElement.dataset.appearance = "dark";
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

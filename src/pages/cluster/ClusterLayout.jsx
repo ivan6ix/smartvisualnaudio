@@ -10,7 +10,7 @@ import { useCluster } from "../../context/ClusterContext";
 import useMessagePreview from "../../hooks/useMessagePreview";
 
 export default function ClusterLayout() {
-  const { user, logout, loading } = useAuth();
+  const { user, logout, loading, hasLoggedInThisSession } = useAuth();
   const { notifications } = useCluster();
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
@@ -26,7 +26,7 @@ export default function ClusterLayout() {
   }
 
   if (loading) return <PageSkeleton />;
-  if (!user) return <Navigate to="/login" replace />;
+  if (!hasLoggedInThisSession || !user) return <Navigate to="/login" replace />;
   if (user.role !== "Cluster Professor") return <Navigate to="/" replace />;
 
   const links = [
