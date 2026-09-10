@@ -1,3 +1,4 @@
+import LegalLinks from "../components/LegalLinks";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -169,6 +170,12 @@ export default function Register() {
               </label>
             </div>
 
+            <div className="agreement-fields">
+              <label><input type="checkbox" {...register("termsAccepted", { required: "Please agree to the Terms of Use." })} /> I agree to the <Link to="/terms" target="_blank" rel="noopener">Terms of Use</Link></label>
+              {errors.termsAccepted && <p role="alert">{errors.termsAccepted.message}</p>}
+              <label><input type="checkbox" {...register("privacyAccepted", { required: "Please acknowledge the Privacy Policy." })} /> I acknowledge the <Link to="/privacy" target="_blank" rel="noopener">Privacy Policy</Link></label>
+              {errors.privacyAccepted && <p role="alert">{errors.privacyAccepted.message}</p>}
+            </div>
             <button className="ai-login-submit mt-7 flex min-h-[58px] w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#2563EB] to-[#06B6D4] px-6 text-base font-extrabold text-white shadow-[0_18px_42px_rgba(37,99,235,0.36)] transition hover:shadow-[0_0_36px_rgba(6,182,212,0.48)] disabled:cursor-not-allowed disabled:opacity-70" disabled={isSubmitting} type="submit">
               <ShieldCheck size={21} />
               {isSubmitting ? "Creating Account..." : "Create Student Account"}
@@ -178,7 +185,7 @@ export default function Register() {
               <Link className="font-semibold text-accent hover:text-primary" to="/login">Back to Login</Link>
             </div>
           </div>
-        </form>
+        <LegalLinks /></form>
       </section>
     </main>
   );

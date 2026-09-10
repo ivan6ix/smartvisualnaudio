@@ -1,5 +1,8 @@
-import { useEffect, useState } from "react";
-import { FiBell, FiChevronDown, FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
+import NotificationPreview from "../../components/NotificationPreview";
+import useAdminNotifications from "../../hooks/useAdminNotifications";
+import PortalNav from "../../components/PortalNav";
+import { useState } from "react";
+import { FiBell, FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import AccountSettingsModal from "../../components/AccountSettingsModal";
 import MessageModal from "../../components/MessageModal";
@@ -7,18 +10,6 @@ import ProfileAvatar from "../../components/ProfileAvatar";
 import { PageSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useMessagePreview from "../../hooks/useMessagePreview";
-import { hasSupabaseConfig, supabase } from "../../lib/supabase";
-
-function mapNotification(notification) {
-  return {
-    id: notification.id,
-    title: notification.title,
-    type: notification.type,
-    message: notification.message,
-    isRead: notification.is_read,
-    createdAt: notification.created_at,
-  };
-}
 
 export default function StudentLayout() {
   const { user, logout, loading, hasLoggedInThisSession } = useAuth();
@@ -28,43 +19,14 @@ export default function StudentLayout() {
   const [messageTargetId, setMessageTargetId] = useState("");
   const [settingsModal, setSettingsModal] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
-  const [notifications, setNotifications] = useState([]);
   const { conversations, unreadCount } = useMessagePreview(user);
-  const unreadNotifications = notifications.filter((notification) => !notification.isRead).length;
+  const { notifications, unreadCount: unreadNotifications, markAllRead } = useAdminNotifications(user);
   const isTakingExam = location.pathname.startsWith("/student/exams/");
 
   function openMessages(conversationId = "") {
     setMessageTargetId(conversationId);
     setMessagesOpen(true);
   }
-
-  useEffect(() => {
-    if (!hasSupabaseConfig || !user?.id) return undefined;
-
-    async function loadNotifications() {
-      const { data, error } = await supabase
-        .from("notifications")
-        .select("id, title, message, type, is_read, created_at")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (!error) setNotifications((data || []).map(mapNotification));
-    }
-
-    loadNotifications();
-
-    const channel = supabase
-      .channel(`student-notifications-${user.id}`)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, (payload) => {
-        setNotifications((current) => [mapNotification(payload.new), ...current].slice(0, 20));
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [user?.id]);
 
   if (loading) return <PageSkeleton />;
   if (!hasLoggedInThisSession || !user) return <Navigate to="/login" replace />;
@@ -78,11 +40,11 @@ export default function StudentLayout() {
             <strong>Smart Proctoring</strong>
             <span>Student Portal</span>
           </button>
-          <nav>
+          <PortalNav>
             <NavLink end to="/student">Courses</NavLink>
             <NavLink to="/student/resources">Resources</NavLink>
             <NavLink to="/student/grades">Grades</NavLink>
-          </nav>
+          </PortalNav>
           <div className="cluster-tools">
             <div className="message-menu cluster-message-menu">
               <button onClick={() => openMessages()} title="Messages" type="button">
@@ -109,14 +71,14 @@ export default function StudentLayout() {
                 {unreadNotifications ? <span>{unreadNotifications}</span> : null}
               </button>
               <div className="notification-menu-panel">
-                <strong>Notifications</strong>
+                <strong>Notifications</strong><button type="button" onClick={markAllRead}>Mark All as Read</button>
                 {notifications.map((notification) => (
                   <article key={notification.id}>
                     <div>
                       <b>{notification.title}</b>
                       <small>{notification.type}</small>
                     </div>
-                    <p>{notification.message}</p>
+                    <NotificationPreview>{notification.message}</NotificationPreview>
                     {!notification.isRead ? <i aria-label="Unread notification" /> : null}
                   </article>
                 ))}

@@ -161,7 +161,7 @@ export default function LiveMessages({ composeOpen = false, initialConversationI
         ? { ...message, is_read: true }
         : message
     )));
-    window.dispatchEvent(new CustomEvent("smartvisualnaudio:messages-read", {
+    window.dispatchEvent(new window.CustomEvent("smartvisualnaudio:messages-read", {
       detail: { senderId: profileId, receiverId: user.id },
     }));
 
@@ -201,6 +201,7 @@ export default function LiveMessages({ composeOpen = false, initialConversationI
   async function submit(event) {
     event.preventDefault();
     const text = draft.trim();
+    if (text.length > 4000) { toast.error("Messages must be 4000 characters or fewer."); return; }
     if (!text || !selectedUser || !user?.id) return;
 
     if (!hasSupabaseConfig) {
@@ -310,7 +311,7 @@ export default function LiveMessages({ composeOpen = false, initialConversationI
             {!conversation.length ? <div className="empty-state">No messages yet.</div> : null}
           </div>
           <form className="reply-box" onSubmit={submit}>
-            <Field disabled={!selectedUser} label="Message" value={draft} onChange={(event) => setDraft(event.target.value)} />
+            <Field disabled={!selectedUser} label={`Message (${draft.length} / 4000)`} maxLength={4000} value={draft} onChange={(event) => setDraft(event.target.value)} />
             <Button disabled={!selectedUser || !draft.trim()}><FiSend /> Send</Button>
           </form>
         </Card>

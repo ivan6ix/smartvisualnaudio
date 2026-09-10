@@ -1,3 +1,4 @@
+import { examAvailability } from "../../lib/examValidation";
 import { useEffect, useMemo, useState } from "react";
 import { FiBookOpen, FiChevronDown, FiDownload, FiEye, FiFileText, FiFolder, FiUpload, FiUsers, FiX } from "react-icons/fi";
 import { NavLink, Navigate, useNavigate, useParams } from "react-router-dom";
@@ -66,7 +67,8 @@ function mapAssessment(exam, attemptByExam = {}) {
     type,
     label: rawType,
     period: exam.description || "No period",
-    status: exam.status || "Published",
+    status: examAvailability(exam.exam_settings),
+    examSettings: exam.exam_settings,
     score: attempt?.score,
     submittedAt: attempt?.submittedAt || exam.created_at,
     duration: exam.time_limit || exam.duration || 0,
@@ -241,7 +243,7 @@ function StudentMaterialFolder({
                     <a href={item.fileUrl} rel="noreferrer" target="_blank"><FiDownload /> Open</a>
                   ) : null}
                   {item.source === "assessment" && !item.completed ? (
-                    <button onClick={() => onStart(item)} type="button">Start</button>
+                    <button disabled={examAvailability(item.examSettings) !== "Available"} onClick={() => onStart(item)} type="button">{examAvailability(item.examSettings) === "Available" ? "Start" : examAvailability(item.examSettings)}</button>
                   ) : null}
                 </div>
               </section>
@@ -302,6 +304,8 @@ function StudentPeriodFolder({
 }
 
 export default function StudentCourse() {
+  const [, refreshSchedule] = useState(0);
+  useEffect(() => { const timer = window.setInterval(() => refreshSchedule(value => value + 1), 1000); return () => window.clearInterval(timer); }, []);
   const { user } = useAuth();
   const navigate = useNavigate();
   const { courseId, tab = "materials" } = useParams();
@@ -381,7 +385,7 @@ export default function StudentCourse() {
           .order("submitted_at", { ascending: false }),
         supabase
           .from("exams")
-          .select("id, title, exam_title, exam_type, description, duration, time_limit, status, created_at")
+          .select("id, title, exam_title, exam_type, description, duration, time_limit, status, exam_settings, created_at")
           .eq("course_id", courseId)
           .in("status", ["Published", "published", "Active", "active"])
           .order("created_at", { ascending: false }),

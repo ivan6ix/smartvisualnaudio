@@ -38,6 +38,7 @@ function formatDateTime(value) {
 export default function DeanExamIntegrity() {
   const [violations, setViolations] = useState([]);
   const [search, setSearch] = useState("");
+  const [typeFilter, setTypeFilter] = useState("All");
   const [severity, setSeverity] = useState("All Severities");
 
   useEffect(() => {
@@ -120,8 +121,8 @@ export default function DeanExamIntegrity() {
   const filteredViolations = useMemo(() => violations.filter((violation) => {
     const matchesSeverity = severity === "All Severities" || violation.severity === severity;
     const matchesSearch = `${violation.student} ${violation.studentNumber} ${violation.exam} ${violation.violationType}`.toLowerCase().includes(search.toLowerCase());
-    return matchesSeverity && matchesSearch;
-  }), [search, severity, violations]);
+    return matchesSeverity && matchesSearch && (typeFilter === "All" || violation.violationType === typeFilter);
+  }), [search, severity, violations, typeFilter]);
 
   const highCount = violations.filter((violation) => violation.severity === "High").length;
   const snapshotCount = violations.filter((violation) => violation.screenshotUrl || violation.audioUrl).length;
@@ -163,7 +164,7 @@ export default function DeanExamIntegrity() {
             <option>High</option>
             <option>Medium</option>
             <option>Low</option>
-          </SelectField>
+          </SelectField><SelectField label="Violation Type" value={typeFilter} onChange={event => setTypeFilter(event.target.value)}><option>All</option>{[...new Set(violations.map(item => item.violationType))].filter(Boolean).map(type => <option key={type}>{type}</option>)}</SelectField>
         </div>
         <Table columns={columns} rows={filteredViolations} />
       </Card>

@@ -1,3 +1,5 @@
+import { validateExam, toLocalDateTime } from "../../lib/examValidation";
+import { queryClient } from "../../lib/queryClient";
 import { useEffect, useRef, useState } from "react";
 import { FiEdit2, FiPlus, FiSave, FiTrash2 } from "react-icons/fi";
 import { useNavigate, useSearchParams } from "react-router-dom";
@@ -11,7 +13,7 @@ const examTypes = ["Quiz", "Exam", "Long Exam", "Activity"];
 const periods = ["Prelim", "Midterm", "Semi-Final", "Final"];
 const semesters = ["1st Semester", "2nd Semester", "Summer"];
 const attempts = ["1 attempt", "2 attempts", "3 attempts", "Unlimited"];
-const statuses = ["Draft", "Submit for Review", "Published"];
+const statuses = ["Draft", "Submit for Review"];
 
 const settings = [
   { key: "randomizeQuestions", label: "Randomize question order per student" },
@@ -83,7 +85,7 @@ function hasFilledValues(values) {
 
 function readImageDataUrl(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+    const reader = new window.FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = () => reject(reader.error);
     reader.readAsDataURL(file);
@@ -110,8 +112,10 @@ export default function ProfessorCreateExam() {
     duration: "",
     attempts: "",
     deadline: "",
+    startsAt: "",
     status: "Draft",
     instructions: "",
+    description: "",
     settings: {
       randomizeQuestions: false,
       randomizeChoices: false,
@@ -191,6 +195,12 @@ export default function ProfessorCreateExam() {
         return;
       }
 
+      const { count: attemptCount, error: attemptsError } = await supabase.from("exam_attempts").select("id", { count: "exact", head: true }).eq("exam_id", editId);
+      if (attemptsError || attemptCount > 0) {
+        toast.error(attemptsError?.message || "This exam already has attempts. Create a new exam to preserve answers and grades.");
+        navigate("/professor/exams");
+        return;
+      }
       const { data: questionRows, error: questionError } = await supabase
         .from("exam_questions")
         .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
@@ -213,6 +223,10 @@ export default function ProfessorCreateExam() {
         semester: exam.semester || "",
         duration: String(exam.time_limit || exam.duration || ""),
         attempts: exam.exam_settings?.attemptLimit || exam.exam_settings?.attempts || "",
+        deadline: toLocalDateTime(exam.exam_settings?.deadline),
+        startsAt: toLocalDateTime(exam.exam_settings?.startsAt),
+        instructions: exam.exam_settings?.instructions || "",
+        description: exam.exam_settings?.description || "",
         status: "Draft",
         settings: {
           ...current.settings,
@@ -339,6 +353,8 @@ export default function ProfessorCreateExam() {
   }
 
   function validateQuestion() {
+    const fieldError = validateExam({ title: "Question validation" }, [questionDraft]);
+    if (fieldError) return fieldError;
     const title = questionDraft.title.trim();
     if (!title || !questionDraft.type || Number(questionDraft.points) <= 0) return "Question title, type, and points are required.";
 
@@ -436,6 +452,8 @@ export default function ProfessorCreateExam() {
 
   async function handleSaveExam() {
     if (savingRef.current) return;
+    const validationError = validateExam(examForm, questions);
+    if (validationError) { toast.error(validationError); return; }
 
     if (!examForm.courseId || !examForm.title.trim() || !examForm.examType || !examForm.period || !questions.length) {
       toast.error("Complete exam details and add at least one question.");
@@ -463,7 +481,7 @@ export default function ProfessorCreateExam() {
         professor_id: user.id,
         created_by: user.id,
         exam_type: examForm.examType,
-        exam_settings: { ...examForm.settings, attemptLimit: examForm.attempts || "Unlimited" },
+        exam_settings: { ...examForm.settings, description: examForm.description, instructions: examForm.instructions, startsAt: examForm.startsAt ? new Date(examForm.startsAt).toISOString() : null, deadline: examForm.deadline ? new Date(examForm.deadline).toISOString() : null, attemptLimit: examForm.attempts || "Unlimited" },
         duration: durationValue,
         time_limit: durationValue,
         questions_count: questions.length,
@@ -473,85 +491,7 @@ export default function ProfessorCreateExam() {
         rejected_at: null,
       };
 
-      let exam = null;
-      let examError = null;
-
-      if (isEditingExam) {
-        const result = await supabase
-          .from("exams")
-          .update(examPayload)
-          .eq("id", editId)
-          .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
-          .select("id")
-          .single();
-        exam = result.data;
-        examError = result.error;
-      } else {
-        const result = await supabase
-          .from("exams")
-          .insert(examPayload)
-          .select("id")
-          .single();
-        exam = result.data;
-        examError = result.error;
-      }
-
-      if (examError?.message?.includes("exam_settings")) {
-        throw new Error("Supabase is missing the exam_settings column. Run the latest schema.sql before saving exam settings.");
-      }
-
-      if (examError?.message?.includes("semester")) {
-        const fallbackPayload = { ...examPayload };
-        if (examError.message.includes("semester")) delete fallbackPayload.semester;
-        const runFallback = () => isEditingExam
-          ? supabase
-            .from("exams")
-            .update(fallbackPayload)
-            .eq("id", editId)
-            .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
-            .select("id")
-            .single()
-          : supabase
-            .from("exams")
-            .insert(fallbackPayload)
-            .select("id")
-            .single();
-        let fallbackResult = await runFallback();
-        if (fallbackResult.error?.message?.includes("semester") && fallbackPayload.semester) {
-          delete fallbackPayload.semester;
-          fallbackResult = await runFallback();
-        }
-        exam = fallbackResult.data;
-        examError = fallbackResult.error;
-      }
-
-      if (examError?.message?.includes("duration") && examError.message.includes("not-null")) {
-        const fallbackPayload = { ...examPayload, duration: 0, time_limit: null };
-        const fallbackResult = isEditingExam
-          ? await supabase
-            .from("exams")
-            .update(fallbackPayload)
-            .eq("id", editId)
-            .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
-            .select("id")
-            .single()
-          : await supabase
-            .from("exams")
-            .insert(fallbackPayload)
-            .select("id")
-            .single();
-        exam = fallbackResult.data;
-        examError = fallbackResult.error;
-      }
-
-      if (examError) throw examError;
-      if (isEditingExam) {
-        const { error: deleteQuestionsError } = await supabase.from("exam_questions").delete().eq("exam_id", exam.id);
-        if (deleteQuestionsError) throw deleteQuestionsError;
-      }
-
       const questionRows = questions.map((question) => ({
-        exam_id: exam.id,
         question_text: question.title,
         question_type: question.type,
         choices: question.choices || [],
@@ -562,12 +502,9 @@ export default function ProfessorCreateExam() {
         points: Number(question.points),
       }));
 
-      const { error: questionError } = await supabase.from("exam_questions").insert(questionRows);
-      if (questionError) {
-        if (!isEditingExam) await supabase.from("exams").delete().eq("id", exam.id);
-        throw questionError;
-      }
-
+      const { error: saveError } = await supabase.rpc("save_exam", { p_id: editId || null, p_exam: examPayload, p_questions: questionRows });
+      if (saveError) throw saveError;
+      queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
       if (status === "Pending Review") {
         const { data: clusterRows, error: clusterError } = await supabase
           .from("profiles")
@@ -587,7 +524,7 @@ export default function ProfessorCreateExam() {
 
         if (notificationRows.length) {
           const { error: notificationError } = await supabase.from("notifications").insert(notificationRows);
-          if (notificationError) throw notificationError;
+          if (notificationError) toast.error(`Exam saved, but the review notification failed: ${notificationError.message}`);
         }
       }
 
@@ -739,12 +676,13 @@ export default function ProfessorCreateExam() {
                 <option value="" disabled>Attempts</option>
                 {attempts.map((attempt) => <option key={attempt}>{attempt}</option>)}
               </SelectInput>
-              <TextInput onChange={(event) => setExamValue("deadline", event.target.value)} type="datetime-local" value={examForm.deadline} />
+              <label>Start (local time)<TextInput onChange={(event) => setExamValue("startsAt", event.target.value)} type="datetime-local" value={examForm.startsAt} /></label><label>Deadline (local time)<TextInput onChange={(event) => setExamValue("deadline", event.target.value)} type="datetime-local" value={examForm.deadline} /></label>
               <SelectInput onChange={(event) => setExamValue("status", event.target.value)} value={examForm.status}>
                 {statuses.map((status) => <option key={status}>{status}</option>)}
               </SelectInput>
             </div>
-            <textarea className="professor-create-textarea" onChange={(event) => setExamValue("instructions", event.target.value)} placeholder="Exam instructions" value={examForm.instructions} />
+            <label>Description<textarea className="professor-create-textarea" maxLength={1000} value={examForm.description} onChange={event => setExamValue("description", event.target.value)} /><small>{examForm.description.length} / 1000</small></label>
+            <textarea className="professor-create-textarea" onChange={(event) => setExamValue("instructions", event.target.value)} maxLength={5000} placeholder="Exam instructions" value={examForm.instructions} /><small>{examForm.instructions.length} / 5000</small>
           </section>
 
           <section className="professor-create-card professor-settings-card">

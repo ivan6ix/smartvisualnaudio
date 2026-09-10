@@ -24,6 +24,7 @@ export default function Accounts() {
   const queryClient = useQueryClient();
   const [storedAccounts, setStoredAccounts] = useLocalStorageState("smartproctor.admin.accounts", seedAccounts);
   const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState("All");
   const [role, setRole] = useState("All Roles");
   const accountsQuery = useQuery({
     queryKey: ["admin-accounts"],
@@ -66,8 +67,8 @@ export default function Accounts() {
   const filtered = useMemo(() => accounts.filter((account) => {
     const matchesRole = role === "All Roles" || account.role === role;
     const matchesSearch = `${account.name} ${account.displayId || account.id} ${account.email || ""} ${account.role}`.toLowerCase().includes(search.toLowerCase());
-    return matchesRole && matchesSearch;
-  }), [accounts, role, search]);
+    return matchesRole && matchesSearch && (statusFilter === "All" || account.status === statusFilter);
+  }), [accounts, role, search, statusFilter]);
 
   async function callAccountFunction(body) {
     const { data, error } = await supabase.functions.invoke("create-account", { body });
@@ -118,7 +119,7 @@ export default function Accounts() {
         <SelectField label="Role Filter" value={role} onChange={(event) => setRole(event.target.value)}>
           <option>All Roles</option>
           {roles.map((item) => <option key={item}>{item}</option>)}
-        </SelectField>
+        </SelectField><SelectField label="Status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>{["All", "Active", "Pending", "Deactivated"].map(status => <option key={status}>{status}</option>)}</SelectField>
       </div>
       <Card className="admin-panel admin-activity-panel">
         <h2>Active Accounts</h2>

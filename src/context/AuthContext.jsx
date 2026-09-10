@@ -1,10 +1,11 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
-import { queryClient } from "../lib/queryClient";
+import { queryClient, queryPersister } from "../lib/queryClient";
 
 const AuthContext = createContext(null);
 const AUTH_USER_STORAGE_KEY = "smartvisualnaudio.auth.user";
+const SESSION_VALIDATION_INTERVAL_MS = 60_000;
 const CURRENT_SESSION_LOGIN_KEY = "smartvisualnaudio.auth.current-session-login";
 
 const demoUser = {
@@ -173,6 +174,7 @@ export function AuthProvider({ children }) {
     return getCachedUser() || (allowDemoAuth ? demoUser : null);
   });
   const userRef = useRef(user);
+  const intentionalLogout = useRef(false);
   const [loading, setLoading] = useState(() => Boolean(hasSupabaseConfig && hasCurrentSessionLogin()));
 
   useEffect(() => {
@@ -186,6 +188,20 @@ export function AuthProvider({ children }) {
     }
 
     let active = true;
+    let generation = 0;
+    function expireSession() {
+      generation += 1;
+      if (!active) return;
+      if (hasCurrentSessionLogin() && !intentionalLogout.current) toast.error("Your session has expired. Please log in again.");
+      setCurrentSessionLogin(false);
+      setHasLoggedInThisSession(false);
+      queryClient.clear();
+      queryPersister.removeClient();
+      userRef.current = null;
+      setUser(null);
+      cacheUser(null);
+      setLoading(false);
+    }
 
     async function loadSession() {
       if (!hasCurrentSessionLogin()) {
@@ -196,60 +212,61 @@ export function AuthProvider({ children }) {
       }
 
       try {
-        const { data } = await withTimeout(supabase.auth.getSession());
-        const authUser = data.session?.user;
+        const version = generation;
+        const { data, error } = await withTimeout(supabase.auth.getSession());
+        if (error || !data.session) { expireSession(); return; }
+        const validation = await withTimeout(supabase.auth.getUser());
+        if (validation.error || !validation.data.user) { expireSession(); return; }
+        const authUser = validation.data.user;
         const nextUser = await mapAuthUser(authUser, userRef.current || getCachedUser());
-        if (active) {
+        if (active && version === generation) {
+          userRef.current = nextUser;
           setUser(nextUser);
           cacheUser(nextUser);
         }
       } catch (error) {
         window.console.error("[Auth] Session load failed", error);
-        if (active) setUser((currentUser) => currentUser || getCachedUser());
+        expireSession();
       } finally {
         if (active) setLoading(false);
       }
     }
 
     loadSession();
+    const validationTimer = window.setInterval(async () => {
+      if (!hasCurrentSessionLogin()) return;
+      const { error } = await supabase.auth.getUser();
+      if (error && (error.status === 401 || error.status === 403 || error.name === "AuthSessionMissingError")) expireSession();
+    }, SESSION_VALIDATION_INTERVAL_MS);
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (event === "SIGNED_OUT") {
-        setCurrentSessionLogin(false);
-        setHasLoggedInThisSession(false);
-        setUser(null);
-        cacheUser(null);
-        setLoading(false);
-        return;
-      }
-
-      // INITIAL_SESSION and token refresh events may expose a persisted Supabase
-      // session. They must not grant app access without a login in this tab.
-      if (!hasCurrentSessionLogin()) {
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      // loadSession already hydrates the initial session. Ignoring this duplicate
-      // event avoids issuing a second profile request during application startup.
-      if (event === "INITIAL_SESSION") return;
-
-      const authUser = session?.user;
-      if (!authUser) return;
-      const nextUser = await mapAuthUser(authUser, userRef.current);
-      setUser(nextUser);
-      cacheUser(nextUser);
-      setLoading(false);
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT") { expireSession(); return; }
+      if (!hasCurrentSessionLogin() || event === "INITIAL_SESSION") return;
+      if (!session?.user) { expireSession(); return; }
+      // Refresh events keep the validated profile and avoid duplicate profile requests.
+      if (event === "TOKEN_REFRESHED" && session.user.id === userRef.current?.id) return;
+      const version = generation;
+      // Run outside the auth callback to avoid holding the Supabase auth lock.
+      window.setTimeout(async () => {
+        const nextUser = await mapAuthUser(session.user, userRef.current);
+        if (!active || version !== generation || !hasCurrentSessionLogin()) return;
+        userRef.current = nextUser;
+        setUser(nextUser);
+        cacheUser(nextUser);
+      }, 0);
     });
 
     return () => {
       active = false;
+      window.clearInterval(validationTimer);
       listener.subscription.unsubscribe();
     };
   }, []);
 
   async function login(email, password) {
+    intentionalLogout.current = false;
+    queryClient.clear();
+    queryPersister.removeClient();
     if (hasSupabaseConfig) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
@@ -272,6 +289,9 @@ export function AuthProvider({ children }) {
   }
 
   async function register(values) {
+    if (!values.termsAccepted || !values.privacyAccepted) throw new Error("Agree to the Terms of Use and acknowledge the Privacy Policy to register.");
+    if (!values.fullName?.trim() || values.fullName.length > 120) throw new Error("Full name is required and must be 120 characters or fewer.");
+    if (!values.studentNumber?.trim() || values.studentNumber.length > 40) throw new Error("Student number is required and must be 40 characters or fewer.");
     if (hasSupabaseConfig) {
       const { error } = await supabase.auth.signUp({
         email: values.email,
@@ -305,6 +325,8 @@ export function AuthProvider({ children }) {
   }
 
   async function logout() {
+    intentionalLogout.current = true;
+    queryPersister.removeClient();
     if (hasSupabaseConfig) await supabase.auth.signOut();
     setCurrentSessionLogin(false);
     setHasLoggedInThisSession(false);
@@ -325,7 +347,7 @@ export function AuthProvider({ children }) {
 
   const value = useMemo(() => ({ user, loading, hasLoggedInThisSession, login, logout, register, resetPassword, updateCachedUser }), [user, loading, hasLoggedInThisSession]);
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  return <AuthContext.Provider value={value}><Fragment key={user?.id || "signed-out"}>{children}</Fragment></AuthContext.Provider>;
 }
 
 export function useAuth() {

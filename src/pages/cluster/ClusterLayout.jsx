@@ -1,3 +1,5 @@
+import NotificationPreview from "../../components/NotificationPreview";
+import PortalNav from "../../components/PortalNav";
 import { useState } from "react";
 import { FiBell, FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
@@ -11,13 +13,13 @@ import useMessagePreview from "../../hooks/useMessagePreview";
 
 export default function ClusterLayout() {
   const { user, logout, loading, hasLoggedInThisSession } = useAuth();
-  const { notifications } = useCluster();
+  const { notifications, markAllNotifications, unreadNotificationCount } = useCluster();
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messageTargetId, setMessageTargetId] = useState("");
   const [settingsModal, setSettingsModal] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
-  const unreadNotifications = notifications.filter((item) => !item.isRead).length;
+  const unreadNotifications = unreadNotificationCount;
   const { conversations, unreadCount } = useMessagePreview(user);
 
   function openMessages(conversationId = "") {
@@ -45,7 +47,7 @@ export default function ClusterLayout() {
           <strong>Smart Proctoring</strong>
           <span>Cluster Professor Portal</span>
         </button>
-        <nav>{links.map(([label, to]) => <NavLink key={to} end={to === "/cluster"} to={to}>{label}</NavLink>)}</nav>
+        <PortalNav>{links.map(([label, to]) => <NavLink key={to} end={to === "/cluster"} to={to}>{label}</NavLink>)}</PortalNav>
         <div className="cluster-tools">
           <div className="message-menu cluster-message-menu">
             <button onClick={() => openMessages()} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
@@ -66,14 +68,14 @@ export default function ClusterLayout() {
           <div className="notification-menu cluster-notification-menu">
             <button title="Notifications" type="button"><FiBell />{unreadNotifications ? <span>{unreadNotifications}</span> : null}</button>
             <div className="notification-menu-panel">
-              <strong>Notifications</strong>
+              <strong>Notifications</strong><button type="button" onClick={markAllNotifications}>Mark All as Read</button>
               {notifications.map((notification) => (
                 <article key={notification.id}>
                   <div>
                     <b>{notification.title}</b>
                     <small>{notification.type}</small>
                   </div>
-                  <p>{notification.message}</p>
+                  <NotificationPreview>{notification.message}</NotificationPreview>
                   {!notification.isRead ? <i aria-label="Unread notification" /> : null}
                 </article>
               ))}

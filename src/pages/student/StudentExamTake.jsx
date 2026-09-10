@@ -2301,6 +2301,11 @@ export default function StudentExamTake() {
 
   async function enterExamMode() {
     if (!progressReady || violationLimitReachedRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
+    if (hasSupabaseConfig) {
+      const { data: serverStart, error } = await supabase.rpc("authorize_exam_start", { p_exam_id: examId });
+      if (error) { toast.error(error.message); return; }
+      if (!startedAtRef.current) startedAtRef.current = serverStart;
+    }
     function startTimerIfNeeded() {
       const start = startedAtRef.current || new Date().toISOString();
       startedAtRef.current = start;
@@ -2785,7 +2790,7 @@ export default function StudentExamTake() {
     return (
       <section className="student-exam-start-page">
         <div className="student-exam-start-panel">
-          <h1>{exam.exam_title || exam.title}</h1>
+          <h1>{exam.exam_title || exam.title}</h1>{exam.exam_settings?.instructions ? <p style={{ whiteSpace: "pre-wrap" }}>{exam.exam_settings.instructions}</p> : null}
           <div className="student-exam-start-meta">
             <span>{exam.courses?.course_code || "Course"}</span>
             <span>{formatDurationLabel(exam.time_limit || exam.duration)}</span>

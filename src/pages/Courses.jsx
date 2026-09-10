@@ -114,6 +114,7 @@ export default function Courses() {
 
   async function createCourse(event) {
     event.preventDefault();
+    if (!form.courseName.trim() || form.courseName.length > 160 || !form.courseCode.trim() || form.courseCode.length > 32 || !form.section.trim() || form.section.length > 40) { toast.error("Course name (160), code (32), and section (40) are required and must fit their character limits."); return; }
     const selectedProfessor = professorOptions.find((professor) => professor.id === form.professorId);
     const nextCourse = {
       id: crypto.randomUUID(),

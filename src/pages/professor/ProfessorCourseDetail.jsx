@@ -578,6 +578,7 @@ export default function ProfessorCourseDetail() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (file.name.length > 255) { toast.error("File names must be 255 characters or fewer."); return; }
 
     if (file.size > 25 * 1024 * 1024) {
       toast.error("Module file must be 25MB or smaller.");

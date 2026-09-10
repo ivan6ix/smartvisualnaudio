@@ -4,13 +4,13 @@ import { FiUpload, FiX } from "react-icons/fi";
 import { toast } from "sonner";
 import { Button, Card, Field } from "./ui";
 import ProfileAvatar from "./ProfileAvatar";
-import ThemeSettings from "./ThemeSettings";
+import SettingsSections from "./SettingsSections";
 import { useAuth } from "../context/AuthContext";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 function readImageFile(file) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+    const reader = new window.FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -19,7 +19,7 @@ function readImageFile(file) {
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
-    const image = new Image();
+    const image = new window.Image();
     image.onload = () => resolve(image);
     image.onerror = reject;
     image.src = src;
@@ -44,7 +44,7 @@ function getCropLayout(imageMeta, crop, size) {
 
 function blobToDataUrl(blob) {
   return new Promise((resolve, reject) => {
-    const reader = new FileReader();
+    const reader = new window.FileReader();
     reader.onload = () => resolve(reader.result);
     reader.onerror = reject;
     reader.readAsDataURL(blob);
@@ -184,7 +184,7 @@ export default function AccountSettingsModal({ mode, onClose }) {
               <span>Email <strong>{user?.email || "-"}</strong></span>
               <span>Role <strong>{user?.role || "-"}</strong></span>
             </div>
-            <ThemeSettings />
+            <SettingsSections />
           </Card>
         ) : (
           <Card>

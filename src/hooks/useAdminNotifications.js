@@ -25,7 +25,6 @@ export default function useAdminNotifications(user) {
         .from("notifications")
         .select("id, title, message, type, is_read, created_at")
         .eq("user_id", user.id)
-        .eq("type", "Password Reset")
         .order("created_at", { ascending: false })
         .limit(30);
       if (error) throw error;
@@ -33,7 +32,13 @@ export default function useAdminNotifications(user) {
     },
   });
   const notifications = notificationsQuery.data || [];
-  const unreadCount = notifications.filter((notification) => !notification.isRead).length;
+  const countKey = useMemo(() => ["notification-count", user?.id], [user?.id]);
+  const countQuery = useQuery({ queryKey: countKey, enabled: hasSupabaseConfig && Boolean(user?.id), queryFn: async () => {
+    const { count, error } = await supabase.from("notifications").select("id", { count: "exact", head: true }).eq("user_id", user.id).eq("is_read", false);
+    if (error) throw error;
+    return count || 0;
+  }});
+  const unreadCount = countQuery.data ?? notifications.filter((notification) => !notification.isRead).length;
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return undefined;
@@ -41,11 +46,10 @@ export default function useAdminNotifications(user) {
     const channel = supabase
       .channel(`admin-password-reset-notifications-${user.id}`)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, (payload) => {
-        if (payload.new?.type !== "Password Reset") return;
+        queryClient.invalidateQueries({ queryKey: countKey });
         queryClient.setQueryData(queryKey, (current = []) => [mapNotification(payload.new), ...current]);
       })
       .on("postgres_changes", { event: "UPDATE", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, (payload) => {
-        if (payload.new?.type !== "Password Reset") return;
         queryClient.setQueryData(queryKey, (current = []) => current.map((notification) => notification.id === payload.new.id ? mapNotification(payload.new) : notification));
       })
       .subscribe();
@@ -53,7 +57,7 @@ export default function useAdminNotifications(user) {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [queryClient, queryKey, user?.id]);
+  }, [queryClient, queryKey, countKey, user?.id]);
 
   useEffect(() => {
     if (notificationsQuery.error) toast.error(notificationsQuery.error.message);
@@ -68,7 +72,6 @@ export default function useAdminNotifications(user) {
       .from("notifications")
       .update({ is_read: true })
       .eq("user_id", user.id)
-      .eq("type", "Password Reset")
       .eq("is_read", false);
 
     if (error) {
@@ -76,6 +79,9 @@ export default function useAdminNotifications(user) {
       return;
     }
 
+    await queryClient.cancelQueries({ queryKey: countKey });
+    await queryClient.cancelQueries({ queryKey });
+    queryClient.setQueryData(countKey, 0);
     queryClient.setQueryData(queryKey, (current = []) => current.map((notification) => ({ ...notification, isRead: true })));
   }
 

@@ -77,7 +77,7 @@ export default function ClusterExamReview() {
         </div>
       </Card>
       {approveOpen ? (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setApproveOpen(false); }}>
           <Card className="cluster-modal">
             <h2>Approve Examination</h2>
             <p>Are you sure you want to approve this examination?</p>
@@ -86,7 +86,7 @@ export default function ClusterExamReview() {
         </div>
       ) : null}
       {rejectOpen ? (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setRejectOpen(false); }}>
           <Card className="cluster-modal">
             <h2>Reject Examination</h2>
             <TextArea label="Reason for rejection" rows={5} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Enter reason for rejecting this examination..." />

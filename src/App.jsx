@@ -1,3 +1,4 @@
+import Legal from "./pages/Legal";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./routes/ProtectedRoute";
@@ -150,6 +151,7 @@ export default function App() {
   return (
     <Suspense fallback={<PageSkeleton />}>
       <Routes>
+        {["privacy", "terms", "storage"].map((path) => <Route key={path} path={`/${path}`} element={<Legal />} />)}
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />

@@ -1,3 +1,4 @@
+import SettingsSections from "../../components/SettingsSections";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button, Card, Field, PageHeader } from "../../components/ui";
@@ -10,7 +11,7 @@ export default function ClusterProfile() {
 
   return (
     <>
-      <PageHeader title="Profile" subtitle="Cluster Professor account details and security controls." />
+      <SettingsSections /><PageHeader title="Profile" subtitle="Cluster Professor account details and security controls." />
       <div className="dashboard-grid">
         <Card>
           <h2>Account Information</h2>

@@ -1,7 +1,9 @@
+import { hasSupabaseConfig } from "../lib/supabase";
 import { useEffect, useState } from "react";
 
 export default function useLocalStorageState(key, initialValue) {
   const [value, setValue] = useState(() => {
+    if (hasSupabaseConfig) return initialValue;
     try {
       const stored = window.localStorage.getItem(key);
       return stored ? JSON.parse(stored) : initialValue;
@@ -11,6 +13,7 @@ export default function useLocalStorageState(key, initialValue) {
   });
 
   useEffect(() => {
+    if (hasSupabaseConfig) return;
     try {
       window.localStorage.setItem(key, JSON.stringify(value));
     } catch {

@@ -1,3 +1,4 @@
+import LegalLinks from "../components/LegalLinks";
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -287,7 +288,7 @@ export default function Login() {
           </div>
 
           <Sparkles className="pointer-events-none absolute right-8 top-8 text-accent/40" size={22} />
-        </form>
+        <LegalLinks /></form>
       </section>
     </main>
   );

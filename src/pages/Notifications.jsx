@@ -10,8 +10,8 @@ export default function Notifications() {
     <>
       <PageHeader
         title="Notifications"
-        subtitle="Live password reset requests from professors, cluster professors, and deans."
-        actions={<Button variant="light" onClick={markAllRead}>Mark All Read</Button>}
+        subtitle="Your account and examination notifications."
+        actions={<Button variant="light" onClick={markAllRead}>Mark All as Read</Button>}
       />
       <Card>
         <div className="notification-list">
@@ -25,7 +25,7 @@ export default function Notifications() {
               </div>
             </article>
           ))}
-          {!notifications.length ? <div className="empty-state">No password reset requests yet.</div> : null}
+          {!notifications.length ? <div className="empty-state">No notifications yet.</div> : null}
         </div>
       </Card>
     </>

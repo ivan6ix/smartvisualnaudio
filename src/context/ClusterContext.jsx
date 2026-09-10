@@ -1,3 +1,5 @@
+import { queryClient } from "../lib/queryClient";
+import useAdminNotifications from "../hooks/useAdminNotifications";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "./AuthContext";
@@ -136,16 +138,7 @@ function mapLiveExam(exam, profileMap, questionMap, reviewMap) {
   };
 }
 
-function mapNotification(notification) {
-  return {
-    id: notification.id,
-    title: notification.title,
-    message: notification.message,
-    type: notification.type,
-    isRead: Boolean(notification.is_read),
-    createdAt: notification.created_at,
-  };
-}
+
 
 function updateExamDecisionState(exams, examId, decision, remarks = "") {
   return exams.map((exam) => {
@@ -165,6 +158,7 @@ function updateExamDecisionState(exams, examId, decision, remarks = "") {
 
 export function ClusterProvider({ children }) {
   const { user } = useAuth();
+  const liveNotifications = useAdminNotifications(user?.role === "Cluster Professor" ? user : null);
   const [exams, setExams] = useLocalStorageState("smartproctor.cluster.exams", clusterExams);
   const [professorExams, setProfessorExams] = useLocalStorageState("smartproctor.professor.exams", initialProfessorExams);
   const [reviews, setReviews] = useLocalStorageState("smartproctor.cluster.reviews", [
@@ -177,7 +171,7 @@ export function ClusterProvider({ children }) {
   const [filterOptions, setFilterOptions] = useState(() => buildFilterOptions(clusterExams));
 
   const loadLiveClusterData = useCallback(async function loadLiveClusterData() {
-    if (!hasSupabaseConfig || !user?.id) return;
+    if (!hasSupabaseConfig || !user?.id || user.role !== "Cluster Professor") return;
 
     const { data: examRows, error: examError } = await supabase
       .from("exams")
@@ -196,7 +190,7 @@ export function ClusterProvider({ children }) {
     const examIds = liveExamRows.map((exam) => exam.id);
     const professorIds = [...new Set(liveExamRows.flatMap((exam) => [exam.professor_id, exam.created_by]).filter(Boolean))];
 
-    const [{ data: profileRows, error: profileError }, { data: questionRows, error: questionError }, { data: reviewRows, error: reviewError }, { data: messageRows, error: messageError }, { data: notificationRows, error: notificationError }, { data: courseOptionRows, error: courseOptionError }, { data: professorOptionRows, error: professorOptionError }] = await Promise.all([
+    const [{ data: profileRows, error: profileError }, { data: questionRows, error: questionError }, { data: reviewRows, error: reviewError }, { data: messageRows, error: messageError }, { data: courseOptionRows, error: courseOptionError }, { data: professorOptionRows, error: professorOptionError }] = await Promise.all([
       professorIds.length
         ? supabase.from("profiles").select("id, full_name, email").in("id", professorIds)
         : Promise.resolve({ data: [], error: null }),
@@ -207,7 +201,6 @@ export function ClusterProvider({ children }) {
         ? supabase.from("exam_reviews").select("id, exam_id, decision, remarks, review_date, cluster_professor_id").in("exam_id", examIds).order("review_date", { ascending: false })
         : Promise.resolve({ data: [], error: null }),
       supabase.from("messages").select("id, sender_id, receiver_id, message, is_read, created_at").eq("receiver_id", user.id).eq("is_read", false),
-      supabase.from("notifications").select("id, title, message, type, is_read, created_at").eq("user_id", user.id).order("created_at", { ascending: false }).limit(30),
       supabase.from("courses").select("id, course_name, course_code, section").eq("archived", false).order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, full_name, email").eq("role", "Professor").eq("status", "Active").order("full_name", { ascending: true }),
     ]);
@@ -226,10 +219,6 @@ export function ClusterProvider({ children }) {
     }
     if (messageError) {
       toast.error(messageError.message);
-      return;
-    }
-    if (notificationError) {
-      toast.error(notificationError.message);
       return;
     }
 
@@ -267,9 +256,9 @@ export function ClusterProvider({ children }) {
       };
     }));
     setMessages([{ id: "live-unread", unread: (messageRows || []).length, lastMessage: "", messages: [] }]);
-    setNotifications((notificationRows || []).map(mapNotification));
+
     setReportsGenerated((reviewRows || []).length);
-  }, [setExams, setMessages, setNotifications, setReportsGenerated, setReviews, user?.id]);
+  }, [setExams, setMessages, setReportsGenerated, setReviews, user?.id, user?.role]);
 
   useEffect(() => {
     loadLiveClusterData();
@@ -281,20 +270,19 @@ export function ClusterProvider({ children }) {
   }, [exams]);
 
   useEffect(() => {
-    if (!hasSupabaseConfig || !user?.id) return undefined;
+    if (!hasSupabaseConfig || !user?.id || user.role !== "Cluster Professor") return undefined;
 
     const channel = supabase
       .channel(`cluster-context-live-${user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "exams" }, () => void loadLiveClusterData())
       .on("postgres_changes", { event: "*", schema: "public", table: "exam_reviews" }, () => void loadLiveClusterData())
       .on("postgres_changes", { event: "*", schema: "public", table: "messages", filter: `receiver_id=eq.${user.id}` }, () => void loadLiveClusterData())
-      .on("postgres_changes", { event: "*", schema: "public", table: "notifications", filter: `user_id=eq.${user.id}` }, () => void loadLiveClusterData())
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadLiveClusterData, user?.id]);
+  }, [loadLiveClusterData, setNotifications, user?.id, user?.role]);
 
   function addNotification(title, message, type = "Exam") {
     setNotifications((current) => [{ id: crypto.randomUUID(), title, message, type, isRead: false, createdAt: new Date().toLocaleString() }, ...current]);
@@ -486,11 +474,15 @@ export function ClusterProvider({ children }) {
     } : conversation));
   }
 
-  function markNotification(id) {
+  async function markNotification(id) {
+    if (hasSupabaseConfig) { const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id).eq("user_id", user.id); if (error) { toast.error(error.message); return; } }
+    queryClient.setQueryData(["admin-notifications", user?.id], (current = []) => current.map(item => item.id === id ? { ...item, isRead: true } : item));
+    queryClient.invalidateQueries({ queryKey: ["notification-count", user?.id] });
     setNotifications((current) => current.map((item) => item.id === id ? { ...item, isRead: true } : item));
   }
 
   function deleteNotification(id) {
+    queryClient.setQueryData(["admin-notifications", user?.id], (current = []) => current.filter(item => item.id !== id));
     setNotifications((current) => current.filter((item) => item.id !== id));
   }
 
@@ -499,7 +491,8 @@ export function ClusterProvider({ children }) {
     professorExams,
     reviews,
     messages,
-    notifications,
+    notifications: hasSupabaseConfig ? liveNotifications.notifications : notifications,
+    unreadNotificationCount: hasSupabaseConfig ? liveNotifications.unreadCount : notifications.filter(item => !item.isRead).length,
     reportsGenerated,
     filterOptions,
     setReportsGenerated,
@@ -511,7 +504,10 @@ export function ClusterProvider({ children }) {
     publishProfessorExam,
     sendMessage,
     markNotification,
-    markAllNotifications: () => setNotifications((current) => current.map((item) => ({ ...item, isRead: true }))),
+    markAllNotifications: async () => {
+      if (hasSupabaseConfig) return liveNotifications.markAllRead();
+      setNotifications(current => current.map(item => ({ ...item, isRead: true })));
+    },
     deleteNotification,
   };
 

@@ -1,7 +1,8 @@
+import { supabase, hasSupabaseConfig } from "../lib/supabase";
 import { useForm } from "react-hook-form";
 import { FiShield, FiUserCheck } from "react-icons/fi";
 import { toast } from "sonner";
-import ThemeSettings from "../components/ThemeSettings";
+import SettingsSections from "../components/SettingsSections";
 import { Button, Card, Field, PageHeader, Table } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { logs } from "../data/mockData";
@@ -10,8 +11,13 @@ export default function SecurityPrivacy() {
   const { user } = useAuth();
   const { register, handleSubmit, reset } = useForm();
 
-  function changePassword() {
-    toast.success("Password change request submitted");
+  async function changePassword(values) {
+    if (values.newPassword.length < 6 || values.newPassword !== values.confirmPassword) { toast.error("Use at least 6 characters and matching passwords."); return; }
+    if (hasSupabaseConfig) {
+      const { error } = await supabase.auth.updateUser({ password: values.newPassword });
+      if (error) { toast.error(error.message); return; }
+    }
+    toast.success("Password updated");
     reset();
   }
 
@@ -46,7 +52,7 @@ export default function SecurityPrivacy() {
         </Card>
       </div>
       <Card className="admin-panel settings-surface-card">
-        <ThemeSettings />
+        <SettingsSections />
       </Card>
       <Card className="admin-panel admin-activity-panel settings-surface-card">
         <h2>Activity Logs</h2>

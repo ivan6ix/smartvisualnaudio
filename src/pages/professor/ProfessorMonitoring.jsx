@@ -326,10 +326,11 @@ export default function ProfessorMonitoring() {
     };
   }, [user?.id]);
 
-  const studentsWithCounts = useMemo(() => students.map((student) => ({
-    ...student,
-    alertCount: violations.filter((violation) => violation.studentId === student.id).length,
-  })), [students, violations]);
+  const studentsWithCounts = useMemo(() => {
+    const counts = new Map();
+    for (const violation of violations) counts.set(violation.studentId, (counts.get(violation.studentId) || 0) + 1);
+    return students.map(student => ({ ...student, alertCount: counts.get(student.id) || 0 }));
+  }, [students, violations]);
   const studentCourseOptions = useMemo(() => [...monitoringCourses]
     .sort((first, second) => String(first.course_code || "").localeCompare(String(second.course_code || ""))), [monitoringCourses]);
   const studentSectionOptions = useMemo(() => [...new Set(monitoringCourses

@@ -55,6 +55,7 @@ function mapExam(row, reviewByExam = {}) {
   const latestReview = reviewByExam[row.id];
   return {
     id: row.id,
+    archived: Boolean(row.exam_settings?.archived),
     courseId: row.course_id,
     courseCode: course?.course_code || "",
     section: course?.section || "",
@@ -82,7 +83,19 @@ export default function ProfessorExams() {
   const [loadingActionId, setLoadingActionId] = useState("");
   const [sharingTargetId, setSharingTargetId] = useState("");
   const [sectionFilters, setSectionFilters] = useState(initialSectionFilters);
-  const exams = hasSupabaseConfig ? liveExams : professorExams;
+  const [archiveFilter, setArchiveFilter] = useState("Active");
+  const allExams = hasSupabaseConfig ? liveExams : professorExams;
+  const exams = allExams.filter(exam => archiveFilter === "All" || Boolean(exam.archived) === (archiveFilter === "Archived"));
+  async function setArchived(exam) {
+    if (!hasSupabaseConfig) { toast.error("Exam archiving requires a connected account."); return; }
+    setLoadingActionId(exam.id);
+    const { error } = await supabase.rpc("set_exam_archived", { p_id: exam.id, p_archived: !exam.archived });
+    setLoadingActionId("");
+    if (error) { toast.error(error.message); return; }
+    const next = liveExams.map(item => item.id === exam.id ? { ...item, archived: !exam.archived } : item);
+    setLiveExams(next);
+    queryClient.setQueryData(["professor-exams", user.id], next);
+  }
   const publishedExams = useMemo(() => exams.filter((exam) => exam.status === "published"), [exams]);
   const pendingExams = useMemo(() => exams.filter((exam) => exam.status === "pending"), [exams]);
   const unpublishedExams = useMemo(() => exams.filter((exam) => exam.status === "unpublished"), [exams]);
@@ -115,11 +128,11 @@ export default function ProfessorExams() {
     const cached = queryClient.getQueryData(queryKey);
     const cacheState = queryClient.getQueryState(queryKey);
     if (cached) setLiveExams(cached);
-    if (!force && cacheState?.dataUpdatedAt && Date.now() - cacheState.dataUpdatedAt < 3 * 60 * 1000) return;
+    if (!force && !cacheState?.isInvalidated && cacheState?.dataUpdatedAt && Date.now() - cacheState.dataUpdatedAt < 3 * 60 * 1000) return;
 
     const { data, error } = await supabase
       .from("exams")
-      .select("id, title, exam_title, course_id, description, course, exam_type, duration, time_limit, status, submitted_at, approved_at, rejected_at, courses(course_name, course_code, section)")
+      .select("id, title, exam_title, course_id, description, course, exam_type, duration, time_limit, status, exam_settings, submitted_at, approved_at, rejected_at, courses(course_name, course_code, section)")
       .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
       .order("created_at", { ascending: false })
       .limit(250);
@@ -502,9 +515,9 @@ export default function ProfessorExams() {
                     </div>
                   </td>
                   <td>
-                    <div className="professor-exam-actions">
+                    <div className="professor-exam-actions"><button disabled={loadingActionId === exam.id} onClick={() => setArchived(exam)}>{exam.archived ? "Restore" : "Archive"}</button>
                       {exam.status === "published" ? <button className="danger" disabled={loadingActionId === exam.id} onClick={() => handleUnpublish(exam)}>Unpublish</button> : null}
-                      {exam.status === "unpublished" && exam.clusterStatus === "rejected" ? (
+                      {exam.status === "unpublished" ? (
                         <button disabled={loadingActionId === exam.id} onClick={() => navigate(`/professor/exams/create?editId=${exam.id}`)}>
                           <FiEdit2 /> Edit
                         </button>
@@ -550,6 +563,7 @@ export default function ProfessorExams() {
         <Button className="professor-create-exam" onClick={() => navigate("/professor/exams/create")}><FiPlus /> Create Exam</Button>
       </div>
 
+      <label>Records <select value={archiveFilter} onChange={event => setArchiveFilter(event.target.value)}>{["All", "Active", "Archived"].map(value => <option key={value}>{value}</option>)}</select></label>
       {renderExamSection("published", "Published Exams", "Exams currently available to students.", publishedExams)}
       {renderExamSection("pending", "Pending for Approval", "Exams waiting for cluster professor review.", pendingExams)}
       {renderExamSection("unpublished", "Unpublished Exams", "Drafts and hidden exams that are not visible to students.", unpublishedExams)}

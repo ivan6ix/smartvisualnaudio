@@ -1,3 +1,5 @@
+import NotificationPreview from "./NotificationPreview";
+import PortalNav from "./PortalNav";
 import { useState } from "react";
 import { FiBell, FiLogOut, FiMessageCircle, FiShield, FiUserCheck } from "react-icons/fi";
 import { NavLink, useNavigate } from "react-router-dom";
@@ -16,7 +18,7 @@ export default function TopNav() {
   const [settingsModal, setSettingsModal] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const { conversations, unreadCount } = useMessagePreview(user);
-  const { notifications, unreadCount: unreadNotifications } = useAdminNotifications(user);
+  const { notifications, unreadCount: unreadNotifications, markAllRead } = useAdminNotifications(user);
   const links = [
     ["Dashboard", "/"],
     ["Create Account", "/create-account"],
@@ -37,9 +39,9 @@ export default function TopNav() {
           <strong>Smart Proctoring</strong>
           <span>{user?.role || "Admin"} Portal</span>
         </button>
-        <nav>
+        <PortalNav>
           {links.map(([label, to]) => <NavLink key={to} to={to}>{label}</NavLink>)}
-        </nav>
+        </PortalNav>
         <div className="nav-tools">
           <div className="message-menu">
             <button onClick={() => openMessages()} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
@@ -60,14 +62,14 @@ export default function TopNav() {
           <div className="notification-menu">
             <button title="Notifications" type="button"><FiBell />{unreadNotifications ? <span>{unreadNotifications}</span> : null}</button>
             <div className="notification-menu-panel">
-              <strong>Notifications</strong>
+              <strong>Notifications</strong><button type="button" onClick={markAllRead}>Mark All as Read</button>
               {notifications.map((notification) => (
                 <article key={notification.id}>
                   <div>
                     <b>{notification.title}</b>
                     <small>{notification.type}</small>
                   </div>
-                  <p>{notification.message}</p>
+                  <NotificationPreview>{notification.message}</NotificationPreview>
                   {!notification.isRead ? <i aria-label="Unread notification" /> : null}
                 </article>
               ))}
