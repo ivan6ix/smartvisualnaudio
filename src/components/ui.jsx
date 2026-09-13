@@ -101,12 +101,12 @@ export function PageSkeleton({ cards = 4, rows = 5 }) {
   );
 }
 
-export function Table({ columns, rows, renderActions }) {
+export function Table({ columns, rows, renderActions, emptyTitle, emptyDescription }) {
   return (
     <div className="table-wrap">
       <table>
         <thead>
-          <tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}{renderActions ? <th>Actions</th> : null}</tr>
+          <tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}{renderActions ? <th className="actions-heading">Actions</th> : null}</tr>
         </thead>
         <tbody>
           {rows.map((row) => (
@@ -117,7 +117,7 @@ export function Table({ columns, rows, renderActions }) {
           ))}
         </tbody>
       </table>
-      {!rows.length ? <EmptyState /> : null}
+      {!rows.length ? <EmptyState title={emptyTitle} description={emptyDescription} /> : null}
     </div>
   );
 }

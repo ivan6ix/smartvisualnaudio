@@ -13,7 +13,6 @@ const pageImports = {
   ClusterLayout: () => import("./pages/cluster/ClusterLayout"),
   ClusterMessages: () => import("./pages/cluster/ClusterMessages"),
   ClusterNotifications: () => import("./pages/cluster/ClusterNotifications"),
-  ClusterProfile: () => import("./pages/cluster/ClusterProfile"),
   ClusterReports: () => import("./pages/cluster/ClusterReports"),
   Courses: () => import("./pages/Courses"),
   Dashboard: () => import("./pages/Dashboard"),
@@ -25,6 +24,7 @@ const pageImports = {
   Messages: () => import("./pages/Messages"),
   Notifications: () => import("./pages/Notifications"),
   People: () => import("./pages/People"),
+  ProfileSettings: () => import("./pages/ProfileSettings"),
   ProfessorDashboard: () => import("./pages/professor/ProfessorDashboard"),
   ProfessorCreateExam: () => import("./pages/professor/ProfessorCreateExam"),
   ProfessorCourseDetail: () => import("./pages/professor/ProfessorCourseDetail"),
@@ -56,7 +56,6 @@ const ClusterHistory = lazy(pageImports.ClusterHistory);
 const ClusterLayout = lazy(pageImports.ClusterLayout);
 const ClusterMessages = lazy(pageImports.ClusterMessages);
 const ClusterNotifications = lazy(pageImports.ClusterNotifications);
-const ClusterProfile = lazy(pageImports.ClusterProfile);
 const ClusterReports = lazy(pageImports.ClusterReports);
 const Courses = lazy(pageImports.Courses);
 const Dashboard = lazy(pageImports.Dashboard);
@@ -68,6 +67,7 @@ const Login = lazy(pageImports.Login);
 const Messages = lazy(pageImports.Messages);
 const Notifications = lazy(pageImports.Notifications);
 const People = lazy(pageImports.People);
+const ProfileSettings = lazy(pageImports.ProfileSettings);
 const ProfessorDashboard = lazy(pageImports.ProfessorDashboard);
 const ProfessorCreateExam = lazy(pageImports.ProfessorCreateExam);
 const ProfessorCourseDetail = lazy(pageImports.ProfessorCourseDetail);
@@ -102,13 +102,18 @@ function getPageImportForPath(pathname) {
     "/courses": pageImports.Courses,
     "/messages": pageImports.Messages,
     "/notifications": pageImports.Notifications,
+    "/profile": pageImports.ProfileSettings,
     "/reports": pageImports.Reports,
     "/security": pageImports.SecurityPrivacy,
     "/student": pageImports.StudentDashboard,
+    "/student/profile": pageImports.ProfileSettings,
+    "/student/security": pageImports.SecurityPrivacy,
     "/student/resources": pageImports.StudentResources,
     "/student/grades": pageImports.StudentGrades,
     "/student/messages": pageImports.StudentMessages,
     "/professor": pageImports.ProfessorDashboard,
+    "/professor/profile": pageImports.ProfileSettings,
+    "/professor/security": pageImports.SecurityPrivacy,
     "/professor/courses": pageImports.ProfessorCourses,
     "/professor/exams": pageImports.ProfessorExams,
     "/professor/exams/create": pageImports.ProfessorCreateExam,
@@ -116,6 +121,8 @@ function getPageImportForPath(pathname) {
     "/professor/scores": pageImports.ProfessorScores,
     "/professor/messages": pageImports.ProfessorMessages,
     "/cluster": pageImports.ClusterDashboard,
+    "/cluster/profile": pageImports.ProfileSettings,
+    "/cluster/security": pageImports.SecurityPrivacy,
     "/cluster/pending": pageImports.ClusterExamList,
     "/cluster/approved": pageImports.ClusterExamList,
     "/cluster/rejected": pageImports.ClusterExamList,
@@ -123,8 +130,9 @@ function getPageImportForPath(pathname) {
     "/cluster/reports": pageImports.ClusterReports,
     "/cluster/messages": pageImports.ClusterMessages,
     "/cluster/notifications": pageImports.ClusterNotifications,
-    "/cluster/profile": pageImports.ClusterProfile,
     "/dean": pageImports.DeanDashboard,
+    "/dean/profile": pageImports.ProfileSettings,
+    "/dean/security": pageImports.SecurityPrivacy,
     "/dean/integrity": pageImports.DeanExamIntegrity,
     "/dean/courses": pageImports.Courses,
     "/dean/reports": pageImports.Reports,
@@ -166,7 +174,8 @@ export default function App() {
           <Route path="reports" element={<ClusterReports />} />
           <Route path="messages" element={<ClusterMessages />} />
           <Route path="notifications" element={<ClusterNotifications />} />
-          <Route path="profile" element={<ClusterProfile />} />
+          <Route path="profile" element={<ProfileSettings />} />
+          <Route path="security" element={<SecurityPrivacy />} />
         </Route>
         <Route path="/professor" element={<ProfessorLayout />}>
           <Route index element={<ProfessorDashboard />} />
@@ -178,13 +187,16 @@ export default function App() {
           <Route path="monitoring" element={<ProfessorMonitoring />} />
           <Route path="scores" element={<ProfessorScores />} />
           <Route path="messages" element={<ProfessorMessages />} />
-          <Route path="profile" element={<SecurityPrivacy />} />
+          <Route path="profile" element={<ProfileSettings />} />
+          <Route path="security" element={<SecurityPrivacy />} />
         </Route>
         <Route path="/student" element={<StudentLayout />}>
           <Route index element={<StudentDashboard />} />
           <Route path="resources" element={<StudentResources />} />
           <Route path="grades" element={<StudentGrades />} />
           <Route path="messages" element={<StudentMessages />} />
+          <Route path="profile" element={<ProfileSettings />} />
+          <Route path="security" element={<SecurityPrivacy />} />
           <Route path="exams/:examId" element={<StudentExamTake />} />
           <Route path="courses/:courseId/:tab" element={<StudentCourse />} />
         </Route>
@@ -193,7 +205,8 @@ export default function App() {
           <Route path="integrity" element={<DeanExamIntegrity />} />
           <Route path="courses" element={<Courses />} />
           <Route path="reports" element={<Reports />} />
-          <Route path="profile" element={<SecurityPrivacy />} />
+          <Route path="profile" element={<ProfileSettings />} />
+          <Route path="security" element={<SecurityPrivacy />} />
         </Route>
         <Route element={<ProtectedRoute roles={["Admin"]} />}>
           <Route index element={<Dashboard />} />
@@ -205,6 +218,7 @@ export default function App() {
           <Route path="/accounts" element={<Accounts />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/notifications" element={<Notifications />} />
+          <Route path="/profile" element={<ProfileSettings />} />
           <Route path="/security" element={<SecurityPrivacy />} />
           <Route path="/reports" element={<Reports />} />
         </Route>

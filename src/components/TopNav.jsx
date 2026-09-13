@@ -3,7 +3,6 @@ import PortalNav from "./PortalNav";
 import { useState } from "react";
 import { FiBell, FiLogOut, FiMessageCircle, FiShield, FiUserCheck } from "react-icons/fi";
 import { NavLink, useNavigate } from "react-router-dom";
-import AccountSettingsModal from "./AccountSettingsModal";
 import ProfileAvatar from "./ProfileAvatar";
 import { useAuth } from "../context/AuthContext";
 import useAdminNotifications from "../hooks/useAdminNotifications";
@@ -15,7 +14,6 @@ export default function TopNav() {
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messageTargetId, setMessageTargetId] = useState("");
-  const [settingsModal, setSettingsModal] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const { conversations, unreadCount } = useMessagePreview(user);
   const { notifications, unreadCount: unreadNotifications, markAllRead } = useAdminNotifications(user);
@@ -81,15 +79,14 @@ export default function TopNav() {
               <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
             </button>
             <div>
-              <button onClick={() => { setSettingsModal("profile"); setProfileOpen(false); }} type="button"><FiUserCheck /> Profile Settings</button>
-              <button onClick={() => { setSettingsModal("security"); setProfileOpen(false); }} type="button"><FiShield /> Security & Privacy</button>
+              <button onClick={() => { navigate("/profile"); setProfileOpen(false); }} type="button"><FiUserCheck /> Profile Settings</button>
+              <button onClick={() => { navigate("/security"); setProfileOpen(false); }} type="button"><FiShield /> Security & Privacy</button>
               <button onClick={logout}><FiLogOut /> Logout</button>
             </div>
           </div>
         </div>
       </header>
       {messagesOpen ? <MessageModal initialConversationId={messageTargetId} onClose={() => setMessagesOpen(false)} /> : null}
-      {settingsModal ? <AccountSettingsModal mode={settingsModal} onClose={() => setSettingsModal(null)} /> : null}
     </>
   );
 }

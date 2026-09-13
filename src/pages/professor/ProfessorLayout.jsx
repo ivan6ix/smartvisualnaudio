@@ -4,7 +4,6 @@ import PortalNav from "../../components/PortalNav";
 import { useState } from "react";
 import { FiBell, FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
-import AccountSettingsModal from "../../components/AccountSettingsModal";
 import MessageModal from "../../components/MessageModal";
 import ProfileAvatar from "../../components/ProfileAvatar";
 import { PageSkeleton } from "../../components/ui";
@@ -16,7 +15,6 @@ export default function ProfessorLayout() {
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messageTargetId, setMessageTargetId] = useState("");
-  const [settingsModal, setSettingsModal] = useState(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const { conversations, unreadCount } = useMessagePreview(user);
   const { notifications, unreadCount: unreadNotifications, markAllRead } = useAdminNotifications(user);
@@ -85,8 +83,8 @@ export default function ProfessorLayout() {
               <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
             </button>
             <div>
-              <button onClick={() => { setSettingsModal("profile"); setProfileOpen(false); }} type="button"><FiUser /> Profile Settings</button>
-              <button onClick={() => { setSettingsModal("security"); setProfileOpen(false); }} type="button"><FiShield /> Security & Privacy</button>
+              <button onClick={() => { navigate("/professor/profile"); setProfileOpen(false); }} type="button"><FiUser /> Profile Settings</button>
+              <button onClick={() => { navigate("/professor/security"); setProfileOpen(false); }} type="button"><FiShield /> Security & Privacy</button>
               <button onClick={logout}><FiLogOut /> Logout</button>
             </div>
           </div>
@@ -96,7 +94,6 @@ export default function ProfessorLayout() {
         <Outlet />
       </main>
       {messagesOpen ? <MessageModal initialConversationId={messageTargetId} onClose={() => setMessagesOpen(false)} /> : null}
-      {settingsModal ? <AccountSettingsModal mode={settingsModal} onClose={() => setSettingsModal(null)} /> : null}
     </>
   );
 }

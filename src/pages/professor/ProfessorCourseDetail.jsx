@@ -364,6 +364,7 @@ export default function ProfessorCourseDetail() {
   const [loadingStats, setLoadingStats] = useState(false);
   const [notFound, setNotFound] = useState(false);
   const [examFilters, setExamFilters] = useState(examFilterDefaults);
+  const [memberSearch, setMemberSearch] = useState("");
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id || !courseId) return;
@@ -489,6 +490,11 @@ export default function ProfessorCourseDetail() {
   ].filter(Boolean))], [exams]);
   const examDateOptions = useMemo(() => [...new Set(exams.map((exam) => formatDate(exam.createdAt)).filter((date) => date !== "-"))], [exams]);
   const examTypeOptions = useMemo(() => [...new Set(exams.map((exam) => exam.type).filter(Boolean))], [exams]);
+  const filteredMembers = useMemo(() => {
+    const query = memberSearch.trim().toLowerCase();
+    if (!query) return members;
+    return members.filter((member) => `${member.name} ${member.studentNumber}`.toLowerCase().includes(query));
+  }, [memberSearch, members]);
   const activeModules = useMemo(() => modules.filter((module) => !module.archived), [modules]);
   const archivedModules = useMemo(() => modules.filter((module) => module.archived), [modules]);
   const materialPeriods = useMemo(() => {
@@ -934,10 +940,20 @@ export default function ProfessorCourseDetail() {
                 <h2>Members</h2>
                 <p>Students enrolled in this course.</p>
               </div>
-              <Badge tone="blue">{members.length}</Badge>
+              <Badge tone="blue">{filteredMembers.length}</Badge>
+            </div>
+            <div className="professor-member-search">
+              <input
+                aria-label="Search students"
+                onChange={(event) => setMemberSearch(event.target.value)}
+                placeholder="Search students..."
+                type="search"
+                value={memberSearch}
+              />
+              {memberSearch ? <button onClick={() => setMemberSearch("")} type="button">Clear</button> : null}
             </div>
             <div className="student-member-list">
-              {members.map((member) => (
+              {filteredMembers.map((member) => (
                 <article key={member.id}>
                   <i>{member.initials}</i>
                   <div>
@@ -946,7 +962,7 @@ export default function ProfessorCourseDetail() {
                   </div>
                 </article>
               ))}
-              {!members.length ? <div className="professor-exams-empty">No enrolled students yet.</div> : null}
+              {!filteredMembers.length ? <div className="professor-exams-empty">{members.length ? "No students found." : "No enrolled students yet."}</div> : null}
             </div>
           </section>
         ) : null}

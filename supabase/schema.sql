@@ -368,6 +368,7 @@ drop policy if exists "messages_send" on public.messages;
 drop policy if exists "messages_receiver_read" on public.messages;
 drop policy if exists "notifications_owner" on public.notifications;
 drop policy if exists "logs_read_authenticated" on public.logs;
+drop policy if exists "logs_read_own_or_audit_roles" on public.logs;
 drop policy if exists "exams_read_authenticated" on public.exams;
 drop policy if exists "exam_questions_read_authenticated" on public.exam_questions;
 drop policy if exists "exam_reviews_cluster_manage" on public.exam_reviews;
@@ -423,7 +424,16 @@ with check (
   bucket_id = 'profile-pictures'
   and auth.uid()::text = (storage.foldername(name))[1]
 );
-create policy "logs_read_authenticated" on public.logs for select to authenticated using (true);
+create policy "logs_read_own_or_audit_roles" on public.logs
+for select to authenticated
+using (
+  user_id = auth.uid()
+  or exists (
+    select 1 from public.profiles
+    where profiles.id = auth.uid()
+    and profiles.role in ('Admin', 'Dean')
+  )
+);
 create policy "exams_read_authenticated" on public.exams for select to authenticated using (true);
 create policy "exam_questions_read_authenticated" on public.exam_questions for select to authenticated using (true);
 create policy "exam_reviews_cluster_manage" on public.exam_reviews for all to authenticated using (auth.uid() = cluster_professor_id) with check (auth.uid() = cluster_professor_id);

@@ -24,10 +24,10 @@ export const professorExams = [
 ];
 
 export const professorAlerts = [
-  { id: "A-1001", exam: "CS101 Midterm", student: "Lia Mendoza", activity: "Multiple face detected", severity: "High", time: "10:42" },
-  { id: "A-1002", exam: "Networks Lab Check", student: "Arvin Cole", activity: "Background voice detected", severity: "Medium", time: "10:38" },
-  { id: "A-1003", exam: "CS101 Midterm", student: "Mira Lopez", activity: "Tab switch attempt", severity: "Medium", time: "10:31" },
-  { id: "A-1004", exam: "Sorting Algorithms Checkpoint", student: "Noah Cruz", activity: "Looking away repeatedly", severity: "Low", time: "10:28" },
+  { id: "A-1001", exam: "CS101 Midterm", student: "Lia Mendoza", activity: "Multiple face detected", severity: "High", time: "May 31, 2026 · 10:42 AM" },
+  { id: "A-1002", exam: "Networks Lab Check", student: "Arvin Cole", activity: "Background voice detected", severity: "Medium", time: "May 31, 2026 · 10:38 AM" },
+  { id: "A-1003", exam: "CS101 Midterm", student: "Mira Lopez", activity: "Tab switch attempt", severity: "Medium", time: "May 31, 2026 · 10:31 AM" },
+  { id: "A-1004", exam: "Sorting Algorithms Checkpoint", student: "Noah Cruz", activity: "Looking away repeatedly", severity: "Low", time: "May 31, 2026 · 10:28 AM" },
 ];
 
 export const professorMessages = [

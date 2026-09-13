@@ -45,11 +45,11 @@ function severityTone(severity) {
   return "neutral";
 }
 
-function formatTime(value) {
+function formatAlertDateTime(value) {
   if (!value) return "-";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  return `${date.toLocaleDateString([], { month: "short", day: "numeric", year: "numeric" })} · ${date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}`;
 }
 
 function mapAlert(violation) {
@@ -62,7 +62,7 @@ function mapAlert(violation) {
     student: student?.full_name || "Unknown student",
     activity: violationLabels[violation.violation_type] || violation.violation_type || "Monitoring alert",
     severity: violation.severity || "Low",
-    time: formatTime(violation.created_at),
+    time: formatAlertDateTime(violation.created_at),
   };
 }
 
