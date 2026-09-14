@@ -129,6 +129,74 @@ function normalizeExamSettings(settings) {
   };
 }
 
+function hashSeed(value) {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function seededRandom(seed) {
+  let state = seed >>> 0;
+  return () => {
+    state = Math.imul(1664525, state) + 1013904223;
+    return (state >>> 0) / 4294967296;
+  };
+}
+
+function stableShuffle(items, seedText) {
+  const next = [...items];
+  const random = seededRandom(hashSeed(seedText));
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const swapIndex = Math.floor(random() * (index + 1));
+    [next[index], next[swapIndex]] = [next[swapIndex], next[index]];
+  }
+  return next;
+}
+
+function applySavedOrder(items, savedIds) {
+  if (!Array.isArray(savedIds) || !savedIds.length) return null;
+  const byId = new Map(items.map((item) => [String(item.id ?? item.key), item]));
+  const ordered = savedIds.map((id) => byId.get(String(id))).filter(Boolean);
+  const seen = new Set(ordered.map((item) => String(item.id ?? item.key)));
+  const missing = items.filter((item) => !seen.has(String(item.id ?? item.key)));
+  return ordered.length ? [...ordered, ...missing] : null;
+}
+
+function prepareQuestionsForAttempt(questionRows, settings, savedOrder, studentId, examId) {
+  const shouldRandomizeQuestion = (question) => !["Ordering / Sequencing", "Matching Type"].includes(question.question_type);
+  const stableQuestionOrder = applySavedOrder(questionRows, savedOrder?.questionIds);
+  const orderedQuestions = stableQuestionOrder || (settings.randomizeQuestions
+    ? [
+      ...stableShuffle(questionRows.filter(shouldRandomizeQuestion), `${studentId}:${examId}:questions`),
+      ...questionRows.filter((question) => !shouldRandomizeQuestion(question)),
+    ]
+    : questionRows);
+
+  const choiceOrder = {};
+  const questions = orderedQuestions.map((question) => {
+    const config = getQuestionConfig(question);
+    const choices = question.choices || config.choices || [];
+    if (!settings.randomizeChoices || !["Multiple Choice", "Multiple Select", "Picture Choice"].includes(question.question_type) || choices.length < 2) {
+      return question;
+    }
+    const savedChoices = applySavedOrder(choices, savedOrder?.choiceIds?.[question.id]);
+    const orderedChoices = savedChoices || stableShuffle(choices, `${studentId}:${examId}:${question.id}:choices`);
+    choiceOrder[question.id] = orderedChoices.map((choice) => choice.key);
+    return { ...question, choices: orderedChoices };
+  });
+
+  return {
+    questions,
+    order: {
+      questionIds: questions.map((question) => question.id),
+      choiceIds: { ...(savedOrder?.choiceIds || {}), ...choiceOrder },
+    },
+  };
+}
+
 function getAttemptLimit(settings) {
   const value = String(settings?.attemptLimit || settings?.attempts || "Unlimited").toLowerCase();
   if (value.includes("unlimited")) return Infinity;
@@ -382,7 +450,7 @@ export default function StudentExamTake() {
     }
   }, [exam]);
   const scanPassed = !examSettings.requireEnvironmentScan || scanStatus === "passed";
-  progressMetaRef.current = { scanStatus, timerEndsAt };
+  progressMetaRef.current = { ...progressMetaRef.current, scanStatus, timerEndsAt };
   const attemptLimit = getAttemptLimit(exam?.exam_settings);
   const durationMinutes = getDurationMinutes(exam);
   const hasTimer = durationMinutes > 0;
@@ -467,12 +535,14 @@ export default function StudentExamTake() {
         return;
       }
 
+      const saved = readSavedExamProgress(user.id, examId);
+      const settings = normalizeExamSettings(examRow?.exam_settings);
+      const prepared = prepareQuestionsForAttempt(questionRows || [], settings, saved?.questionOrder, user.id, examId);
       if (cancelled) return;
       setExam(examRow);
       setExistingAttemptCount(count || 0);
-      setQuestions(questionRows || []);
-      const saved = readSavedExamProgress(user.id, examId);
-      const defaultAnswers = (questionRows || []).reduce((items, question) => {
+      setQuestions(prepared.questions);
+      const defaultAnswers = prepared.questions.reduce((items, question) => {
         const config = getQuestionConfig(question);
         if (question.question_type === "Ordering / Sequencing") items[question.id] = [...(config.orderItems || getCorrectAnswers(question))].sort(() => Math.random() - 0.5);
         if (question.question_type === "Enumeration") items[question.id] = ["", "", ""];
@@ -510,6 +580,7 @@ export default function StudentExamTake() {
         setAutoSubmitRequired(true);
       }
       setSavedProgress(saved);
+      progressMetaRef.current = { ...progressMetaRef.current, questionOrder: prepared.order };
       setStartedAt(saved?.startedAt || null);
       setTimerEndsAt(saved?.timerEndsAt || null);
       if (saved?.scanStatus === "passed") {
@@ -558,10 +629,11 @@ export default function StudentExamTake() {
       scanStatus,
       startedAt,
       timerEndsAt,
+      questionOrder: progressMetaRef.current.questionOrder,
       touchedAnswers: [...touchedAnswersRef.current],
       savedAt: new Date().toISOString(),
     });
-    setSavedProgress({ answers, violations, scanStatus, startedAt, timerEndsAt, savedAt: new Date().toISOString() });
+    setSavedProgress({ answers, violations, scanStatus, startedAt, timerEndsAt, questionOrder: progressMetaRef.current.questionOrder, savedAt: new Date().toISOString() });
   }, [answers, examId, examModeReady, scanStatus, startedAt, timerEndsAt, user?.id, violations]);
 
   // Detector/timer callbacks may outlive a render; submission always reads current refs.
@@ -2422,7 +2494,7 @@ export default function StudentExamTake() {
         student_id: user.id,
         score: grading.hasManual ? null : Number(grading.percentage.toFixed(2)),
         violations: violationsRef.current.map((violation, index) => violationLimitReachedRef.current && index === EXAM_VIOLATION_LIMIT - 1
-          ? { ...violation, submissionReason: "violation_limit", submissionMessage: "Exam automatically submitted after reaching 5 violations." }
+          ? { ...violation, submissionReason: "violation_limit", submissionMessage: "Exam submission initiated after reaching 5 violations." }
           : violation),
         status: grading.hasManual ? "Pending Manual Grading" : "Submitted",
         started_at: startedAtRef.current || new Date().toISOString(),
@@ -2484,7 +2556,7 @@ export default function StudentExamTake() {
       const limitViolation = violationsRef.current[EXAM_VIOLATION_LIMIT - 1];
       if (violationLimitReachedRef.current && limitViolation?.id) {
         const { error: logError } = await supabase.from("violations").update({
-          description: `${limitViolation.message} Exam automatically submitted after reaching 5 violations.`,
+          description: `${limitViolation.message} Exam submission initiated after reaching 5 violations.`,
         }).eq("id", limitViolation.id).eq("student_id", user.id);
         if (logError) window.console.warn("Automatic submission reason is saved on the attempt; violation description update failed.", logError);
       }
@@ -2824,7 +2896,7 @@ export default function StudentExamTake() {
         <FiShield />
         <div>
           <strong>Violations: {violations.length} / {EXAM_VIOLATION_LIMIT}</strong>
-          <span>{violations.length ? violationWarning(violations.length) : "Your exam will automatically submit after 5 violations."}</span>
+          <span>{violations.length ? violationWarning(violations.length) : "Your exam will lock and initiate submission after 5 violations."}</span>
         </div>
       </div>
 

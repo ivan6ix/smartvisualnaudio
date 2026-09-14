@@ -17,8 +17,8 @@ export function mergeAttemptViolations(events, startedAt) {
 }
 
 export function violationWarning(count) {
-  if (count >= EXAM_VIOLATION_LIMIT) return "Maximum violation limit reached. Your exam is being submitted automatically.";
-  if (count === 4) return "Final warning: 4 of 5 violations recorded. One more violation will automatically submit your exam.";
+  if (count >= EXAM_VIOLATION_LIMIT) return "Maximum violation limit reached. Your exam is locked while submission is finalized.";
+  if (count === 4) return "Final warning: 4 of 5 violations recorded. One more violation will lock your exam and initiate submission.";
   if (count === 3) return "Warning: 3 of 5 violations recorded.";
   return `Violation detected. ${count} of 5 violations recorded.`;
 }

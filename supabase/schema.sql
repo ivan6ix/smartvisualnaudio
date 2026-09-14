@@ -371,10 +371,15 @@ drop policy if exists "logs_read_authenticated" on public.logs;
 drop policy if exists "logs_read_own_or_audit_roles" on public.logs;
 drop policy if exists "exams_read_authenticated" on public.exams;
 drop policy if exists "exam_questions_read_authenticated" on public.exam_questions;
+drop policy if exists "exam_questions_student_read_available" on public.exam_questions;
+drop policy if exists "exam_questions_audit_read" on public.exam_questions;
 drop policy if exists "exam_reviews_cluster_manage" on public.exam_reviews;
 drop policy if exists "exam_approval_logs_read_authenticated" on public.exam_approval_logs;
 drop policy if exists "exam_rejection_logs_read_authenticated" on public.exam_rejection_logs;
 drop policy if exists "violations_read_authenticated" on public.violations;
+drop policy if exists "violations_student_read_own" on public.violations;
+drop policy if exists "violations_professor_read_own" on public.violations;
+drop policy if exists "violations_audit_read" on public.violations;
 drop policy if exists "attempts_owner" on public.exam_attempts;
 drop policy if exists "attempt_answers_owner_read" on public.exam_attempt_answers;
 
@@ -435,11 +440,58 @@ using (
   )
 );
 create policy "exams_read_authenticated" on public.exams for select to authenticated using (true);
-create policy "exam_questions_read_authenticated" on public.exam_questions for select to authenticated using (true);
+create policy "exam_questions_student_read_available" on public.exam_questions
+for select to authenticated
+using (
+  exists (
+    select 1
+    from public.exams
+    join public.courses on courses.id = exams.course_id
+    join public.course_enrollments on course_enrollments.course_id = exams.course_id
+    where exams.id = exam_questions.exam_id
+    and course_enrollments.student_id = auth.uid()
+    and courses.archived = false
+    and lower(exams.status) in ('published', 'active')
+    and coalesce((exams.exam_settings->>'archived')::boolean, false) = false
+  )
+);
+create policy "exam_questions_audit_read" on public.exam_questions
+for select to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+    and profiles.role in ('Admin', 'Dean', 'Cluster Professor')
+  )
+);
 create policy "exam_reviews_cluster_manage" on public.exam_reviews for all to authenticated using (auth.uid() = cluster_professor_id) with check (auth.uid() = cluster_professor_id);
 create policy "exam_approval_logs_read_authenticated" on public.exam_approval_logs for select to authenticated using (true);
 create policy "exam_rejection_logs_read_authenticated" on public.exam_rejection_logs for select to authenticated using (true);
-create policy "violations_read_authenticated" on public.violations for select to authenticated using (true);
+create policy "violations_student_read_own" on public.violations
+for select to authenticated
+using (auth.uid() = student_id);
+create policy "violations_professor_read_own" on public.violations
+for select to authenticated
+using (
+  professor_id = auth.uid()
+  or exists (
+    select 1
+    from public.exams
+    where exams.id = violations.exam_id
+    and (exams.professor_id = auth.uid() or exams.created_by = auth.uid())
+  )
+);
+create policy "violations_audit_read" on public.violations
+for select to authenticated
+using (
+  exists (
+    select 1
+    from public.profiles
+    where profiles.id = auth.uid()
+    and profiles.role in ('Admin', 'Dean', 'Cluster Professor')
+  )
+);
 create policy "attempts_owner" on public.exam_attempts for select to authenticated using (auth.uid() = student_id);
 create policy "attempt_answers_owner_read" on public.exam_attempt_answers
 for select to authenticated

@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import ActiveSessions from "../components/ActiveSessions";
 import LegalLinks from "../components/LegalLinks";
 import PersonalActivityLogs from "../components/PersonalActivityLogs";
-import { Button, Card, Field, PageHeader } from "../components/ui";
+import { Button, Card, Field } from "../components/ui";
 
 export default function SecurityPrivacy() {
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm();
@@ -30,7 +30,6 @@ export default function SecurityPrivacy() {
         </div>
         <strong><FiUserCheck /></strong>
       </div>
-      <PageHeader title="Security & Privacy" subtitle="Manage authentication, active session details, and privacy resources." />
       <div className="dashboard-grid">
         <Card className="admin-panel settings-surface-card">
           <h2>Password & Authentication</h2>
