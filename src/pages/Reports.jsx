@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiFileText, FiPrinter, FiShield, FiUsers } from "react-icons/fi";
-import { Button, Card, PageHeader, SearchBox, SelectField, Table } from "../components/ui";
+import { Button, Card, SearchBox, SelectField, Table } from "../components/ui";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const tabs = ["Overview", "All Users", "Students", "Violations", "Courses", "Exams", "Professors", "Deans"];
@@ -322,7 +322,7 @@ export default function Reports() {
   ];
 
   return (
-    <section className="admin-dashboard-page admin-section-page">
+    <section className="admin-dashboard-page admin-section-page reports-page">
       <div className="admin-section-hero">
         <div>
           <span><FiPrinter /> Reports Intelligence</span>
@@ -331,7 +331,6 @@ export default function Reports() {
         </div>
         <strong>{filteredRows.length}</strong>
       </div>
-      <PageHeader title="Reports Center" subtitle="Search, filter, review, and print operational reports." actions={<Button variant="light" onClick={() => window.print()}><FiPrinter /> Print / Save as PDF</Button>} />
       <div className="admin-stats-grid">
         {reportStats.map(([label, value, Icon]) => (
           <article className="admin-stat-card" key={label}>
@@ -352,7 +351,12 @@ export default function Reports() {
       </div>
       <div className="tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
       <Card className={`admin-panel admin-activity-panel ${tab === "Overview" || tab === "Violations" ? "admin-violations-report-panel" : ""}`}>
-        <h2>{tab === "Overview" ? "Violations Report" : tab}</h2>
+        <div className="reports-panel-header">
+          <h2>{tab === "Overview" ? "Violations Report" : tab}</h2>
+          <div className="header-actions">
+            <Button variant="light" onClick={() => window.print()}><FiPrinter /> Print / Save as PDF</Button>
+          </div>
+        </div>
         <Table columns={columnsByTab[tab] || columnsByTab.Overview} rows={filteredRows} />
       </Card>
     </section>

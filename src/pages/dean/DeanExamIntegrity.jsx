@@ -166,7 +166,9 @@ export default function DeanExamIntegrity() {
             <option>Low</option>
           </SelectField><SelectField label="Violation Type" value={typeFilter} onChange={event => setTypeFilter(event.target.value)}><option>All</option>{[...new Set(violations.map(item => item.violationType))].filter(Boolean).map(type => <option key={type}>{type}</option>)}</SelectField>
         </div>
-        <Table columns={columns} rows={filteredViolations} />
+        <div className="dean-integrity-table-scroll">
+          <Table columns={columns} rows={filteredViolations} />
+        </div>
       </Card>
     </>
   );

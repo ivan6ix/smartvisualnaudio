@@ -5,6 +5,8 @@ import { Button, Card, PageHeader, TextArea } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import { StatusBadge } from "./helpers";
 
+const REVIEW_NOTES_LIMIT = 1000;
+
 export default function ClusterExamReview() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -54,8 +56,11 @@ export default function ClusterExamReview() {
         </Card>
         <Card>
           <h2>Review Panel</h2>
-          <TextArea label="Review Notes" rows={7} value={notes} onChange={(event) => setNotes(event.target.value)} />
-          <div className="header-actions">
+          <div className="cluster-review-notes">
+            <TextArea label="Review Notes" rows={7} value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={REVIEW_NOTES_LIMIT} />
+            <span className="review-notes-counter">{notes.length} / {REVIEW_NOTES_LIMIT}</span>
+          </div>
+          <div className="header-actions cluster-review-actions">
             <Button variant="light" onClick={() => saveReview(exam.id, notes)}>Save Review</Button>
             <Button onClick={() => setApproveOpen(true)}>Approve Exam</Button>
             <Button variant="light" onClick={() => setRejectOpen(true)}>Reject Exam</Button>

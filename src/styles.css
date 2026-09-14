@@ -1057,6 +1057,16 @@ th { color: var(--app-text-muted); font-size: 0.82rem; text-transform: uppercase
 .dean-integrity-link { color: #2563eb; font-weight: 400; text-decoration: none; }
 .dean-integrity-link:hover { text-decoration: underline; }
 .dean-integrity-audio { width: min(220px, 100%); height: 34px; }
+.dean-integrity-table-scroll {
+  max-height: calc(48px + (51px * 15));
+  overflow-y: auto;
+}
+.dean-integrity-table-scroll thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--app-surface);
+}
 .chart-box { width: 100%; height: 280px; }
 
 .admin-dashboard-page {
@@ -1331,6 +1341,16 @@ th { color: var(--app-text-muted); font-size: 0.82rem; text-transform: uppercase
 .admin-activity-panel .table-wrap {
   border: 1px solid rgba(125, 211, 252, 0.12);
   border-radius: 18px;
+}
+.reports-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.reports-panel-header h2 {
+  margin: 0;
 }
 .admin-violations-report-panel .table-wrap {
   max-height: 512px;
@@ -2482,6 +2502,25 @@ html[data-theme="light"] .settings-switch:not(.on) {
 .cluster-role-shell .field textarea::placeholder {
   color: var(--app-text-muted);
 }
+.cluster-review-notes {
+  display: grid;
+  gap: 8px;
+}
+.review-notes-counter {
+  justify-self: end;
+  color: var(--app-text-muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.cluster-review-actions {
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+}
+.cluster-review-actions .btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
 .cluster-role-shell .table-wrap {
   border: 1px solid rgba(125, 211, 252, 0.16);
   border-radius: 18px;
@@ -2613,6 +2652,37 @@ html[data-theme="light"] .settings-switch:not(.on) {
 .dean-shell .dean-integrity-audio {
   border-radius: 999px;
   background: var(--app-surface);
+}
+.dean-dashboard-controls {
+  display: grid;
+  gap: 14px;
+}
+.dean-dashboard-search-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+.dean-dashboard-filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(150px, 1fr)) auto;
+  gap: 12px;
+  align-items: end;
+}
+.dean-dashboard-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+.dean-dashboard-section-header h2 {
+  margin: 0;
+}
+.dean-dashboard-section-header span {
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
 }
 .dean-course-search {
   width: min(100%, 520px);
@@ -9641,6 +9711,7 @@ html[data-theme] .badge-blue {
   .stats-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .dashboard-grid, .messages-layout { grid-template-columns: 1fr; }
   .inline-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dean-dashboard-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .top-nav { grid-template-columns: 1fr; }
   .top-nav nav { justify-content: flex-start; }
   .cluster-topbar { grid-template-columns: 1fr; }
@@ -9833,6 +9904,9 @@ html[data-theme] .badge-blue {
   }
   .page-header { display: grid; }
   .stats-grid, .form-grid, .inline-form, .toolbar, .quick-grid, .reply-box { grid-template-columns: 1fr; }
+  .dean-dashboard-search-row,
+  .dean-dashboard-filters { grid-template-columns: 1fr; }
+  .dean-dashboard-section-header { align-items: flex-start; flex-direction: column; }
   .nav-tools { flex-wrap: wrap; }
   .profile-menu > button span { display: none; }
   .card { padding: 18px; border-radius: 24px; }
@@ -10000,6 +10074,53 @@ html[data-theme] .badge-blue {
   .top-nav, .cluster-topbar, .toolbar, .tabs, .header-actions { display: none; }
   .app-shell { padding: 0; }
   .card { box-shadow: none; }
+  .reports-page,
+  .reports-page .card,
+  .reports-page .admin-panel,
+  .reports-page .table-wrap {
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .reports-page {
+    background: #fff !important;
+    color: #111827 !important;
+  }
+  .reports-page::before,
+  .reports-page::after {
+    display: none !important;
+  }
+  .reports-page .admin-section-hero,
+  .reports-page .admin-stat-card,
+  .reports-page .card {
+    background: #fff !important;
+    color: #111827 !important;
+    border-color: #d1d5db !important;
+  }
+  .reports-page table {
+    min-width: 0;
+    color: #111827 !important;
+    page-break-inside: auto;
+  }
+  .reports-page thead {
+    display: table-header-group;
+  }
+  .reports-page thead th {
+    position: static !important;
+    background: #f3f4f6 !important;
+    color: #111827 !important;
+  }
+  .reports-page tr {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+  .reports-page th,
+  .reports-page td {
+    border-bottom-color: #d1d5db !important;
+    color: #111827 !important;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
 }
 
 /* Shared portal navigation: keep desktop controls on one line. */
