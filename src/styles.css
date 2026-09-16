@@ -3614,6 +3614,13 @@ html[data-theme="light"] .settings-switch:not(.on) {
   align-items: flex-start;
   gap: 18px;
 }
+.professor-exams-header-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
 .professor-exams-header h1 {
   margin: 0;
   font-size: 1.85rem;
@@ -3683,6 +3690,40 @@ html[data-theme="light"] .settings-switch:not(.on) {
   min-width: 126px;
   background: #2563eb;
   box-shadow: 0 12px 28px rgba(37, 99, 235, 0.22);
+}
+.professor-archived-exams {
+  min-width: 126px;
+  border: 1px solid #d8deea;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+.professor-draft-list {
+  display: grid;
+  gap: 10px;
+}
+.professor-draft-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #e6e8ee;
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+.professor-draft-row > div:first-child {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.professor-draft-row strong,
+.professor-draft-row span,
+.professor-draft-row small {
+  overflow-wrap: anywhere;
+}
+.professor-draft-row span,
+.professor-draft-row small {
+  color: var(--app-text-muted);
 }
 .professor-exams-table-card {
   overflow: hidden;
@@ -4441,13 +4482,17 @@ html[data-theme="light"] .settings-switch:not(.on) {
 .professor-added-questions h2 {
   margin: 0;
 }
-.professor-question-titlebar > div {
+.professor-question-titlebar > div,
+.professor-question-actions {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
 }
 .professor-add-question,
-.professor-save-exam {
+.professor-save-exam,
+.professor-save-draft {
   min-height: 42px;
   border: 0;
   border-radius: 14px;
@@ -4467,6 +4512,17 @@ html[data-theme="light"] .settings-switch:not(.on) {
 .professor-save-exam {
   background: #2563eb;
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+}
+.professor-save-draft {
+  border: 1px solid #d8deea;
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+.professor-autosave-status {
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
+  white-space: nowrap;
 }
 
 .professor-shell .professor-exams-table-card {
@@ -9705,6 +9761,20 @@ html[data-theme] .badge-blue {
 
 @media (max-width: 620px) {
   .theme-mode-grid { grid-template-columns: 1fr; }
+  .professor-exams-header,
+  .professor-draft-row,
+  .professor-question-titlebar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .professor-exams-header-actions,
+  .professor-question-actions,
+  .professor-draft-row .professor-exam-actions {
+    justify-content: flex-start;
+  }
+  .professor-autosave-status {
+    width: 100%;
+  }
 }
 
 @media (max-width: 1100px) {

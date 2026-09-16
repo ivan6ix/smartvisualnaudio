@@ -118,11 +118,13 @@ create table if not exists public.exams (
   submitted_at timestamptz,
   approved_at timestamptz,
   rejected_at timestamptz,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 alter table public.exams add column if not exists semester text;
 alter table public.exams add column if not exists exam_settings jsonb not null default '{}'::jsonb;
+alter table public.exams add column if not exists updated_at timestamptz not null default now();
 alter table public.exams alter column duration drop not null;
 
 create table if not exists public.exam_questions (
