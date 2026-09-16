@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FiArchive, FiEdit2, FiGrid, FiPlus, FiRotateCcw, FiUser, FiUsers, FiX } from "react-icons/fi";
+import { FiArchive, FiEdit2, FiGrid, FiPlus, FiRotateCcw, FiTrash2, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
+import { validateExam } from "../../lib/examValidation";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function normalizeStatus(status) {
@@ -19,7 +20,7 @@ function normalizeStatus(status) {
 function getClusterStatus(exam) {
   const status = String(exam.status || "").toLowerCase();
   if (exam.clusterStatus) return exam.clusterStatus;
-  if (exam.approved_at || ["approved", "published", "active"].includes(status)) return "approved";
+  if (exam.approved_at || status === "approved") return "approved";
   if (exam.rejected_at || status === "rejected") return "rejected";
   if (["pending review", "pending", "submitted"].includes(status)) return "pending";
   return "not submitted";
@@ -35,7 +36,8 @@ function getStatusLabel(exam) {
 
 function getPublishGateLabel(exam) {
   if (exam.clusterStatus === "rejected") return "Rejected";
-  return "Awaiting Approval";
+  if (exam.status === "pending") return "Submitted";
+  return "Publish";
 }
 
 function getApprovalActionLabel(exam) {
@@ -49,6 +51,53 @@ const initialSectionFilters = {
   pending: { search: "", course: "All Courses", type: "All Types", period: "All Periods" },
   unpublished: { search: "", course: "All Courses", type: "All Types", period: "All Periods" },
 };
+
+const CHOICE_TYPES = ["Multiple Choice", "Picture Choice", "Multiple Select"];
+
+function questionRowsToDrafts(rows = []) {
+  return rows.map((question) => ({
+    id: question.id,
+    title: question.question_text || "",
+    type: question.question_type || "",
+    choices: Array.isArray(question.choices) ? question.choices : [],
+    correctAnswer: question.correct_answer || "",
+    correctAnswers: Array.isArray(question.correct_answers) ? question.correct_answers : [],
+    config: question.question_config || {},
+    points: String(question.points || 1),
+    manualGrading: Boolean(question.manual_grading),
+  }));
+}
+
+function validateStoredExamForRelease(exam, questionRows) {
+  const settings = exam.exam_settings || {};
+  const form = {
+    courseId: exam.course_id || "",
+    title: exam.exam_title || exam.title || "",
+    examType: exam.exam_type || "",
+    period: exam.description || "",
+    semester: exam.semester || "",
+    duration: String(exam.time_limit || exam.duration || ""),
+    attempts: settings.attemptLimit || settings.attempts || "",
+    startsAt: settings.startsAt || "",
+    deadline: settings.deadline || "",
+    description: settings.description || "",
+    instructions: settings.instructions || "",
+  };
+  if (!form.courseId || !form.title.trim() || !form.examType || !form.period || !form.duration) return "Complete title, course, type, period, and duration before moving this exam forward.";
+  const questions = questionRowsToDrafts(questionRows);
+  const basicError = validateExam(form, questions);
+  if (basicError) return basicError;
+  if (!questions.length) return "Add at least one question before moving this exam forward.";
+  for (const question of questions) {
+    if (CHOICE_TYPES.includes(question.type)) {
+      if ((question.choices || []).some((choice) => !String(choice.value ?? choice).trim())) return "Complete all answer choices before moving this exam forward.";
+      if (question.type === "Multiple Select" && !question.correctAnswers.length) return "Select at least one correct answer for multiple select questions.";
+      if (question.type !== "Multiple Select" && !question.correctAnswer) return "Select the correct answer for each choice question.";
+    }
+    if (["Identification", "Fill in the Blank", "True or False"].includes(question.type) && !question.correctAnswer.trim()) return "Complete all required correct answers before moving this exam forward.";
+  }
+  return "";
+}
 
 function mapExam(row, reviewByExam = {}) {
   const course = row.courses;
@@ -87,7 +136,12 @@ export default function ProfessorExams() {
   const [loadingActionId, setLoadingActionId] = useState("");
   const [sharingTargetId, setSharingTargetId] = useState("");
   const [sectionFilters, setSectionFilters] = useState(initialSectionFilters);
-  const [showArchived, setShowArchived] = useState(false);
+  const [archiveModalOpen, setArchiveModalOpen] = useState(false);
+  const [archivedSearch, setArchivedSearch] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deletingId, setDeletingId] = useState("");
+  const [publishTarget, setPublishTarget] = useState(null);
+  const [publishingId, setPublishingId] = useState("");
   const sourceExams = hasSupabaseConfig ? liveExams : professorExams;
   const allExams = useMemo(() => Array.isArray(sourceExams) ? sourceExams : [], [sourceExams]);
   const activeExams = useMemo(() => allExams.filter((exam) => !exam.archived), [allExams]);
@@ -106,6 +160,11 @@ export default function ProfessorExams() {
   const pendingExams = useMemo(() => activeExams.filter((exam) => exam.status === "pending"), [activeExams]);
   const draftExams = useMemo(() => activeExams.filter((exam) => exam.status === "draft"), [activeExams]);
   const unpublishedExams = useMemo(() => activeExams.filter((exam) => exam.status === "unpublished"), [activeExams]);
+  const filteredArchivedExams = useMemo(() => {
+    const term = archivedSearch.trim().toLowerCase();
+    if (!term) return archivedExams;
+    return archivedExams.filter((exam) => `${exam.title} ${exam.course} ${exam.courseCode} ${exam.section} ${exam.type} ${exam.period} ${exam.rawStatus}`.toLowerCase().includes(term));
+  }, [archivedExams, archivedSearch]);
 
   function updateSectionFilter(sectionKey, key, value) {
     setSectionFilters((current) => ({
@@ -179,6 +238,22 @@ export default function ProfessorExams() {
   }, [loadExams]);
 
   useEffect(() => {
+    if (!archiveModalOpen && !deleteTarget && !publishTarget) return undefined;
+    function handleKeyDown(event) {
+      if (event.key !== "Escape") return;
+      if (deleteTarget) {
+        setDeleteTarget(null);
+      } else if (publishTarget) {
+        setPublishTarget(null);
+      } else {
+        setArchiveModalOpen(false);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [archiveModalOpen, deleteTarget, publishTarget]);
+
+  useEffect(() => {
     if (!shareExam || !hasSupabaseConfig || !user?.id) return;
 
     async function loadShareTargets() {
@@ -244,6 +319,50 @@ export default function ProfessorExams() {
     }
   }
 
+  async function loadExamForTransition(examId) {
+    const [{ data: exam, error: examError }, { data: questions, error: questionsError }] = await Promise.all([
+      supabase
+        .from("exams")
+        .select("id, title, exam_title, course_id, description, semester, exam_type, duration, time_limit, status, exam_settings, professor_id, created_by")
+        .eq("id", examId)
+        .maybeSingle(),
+      supabase
+        .from("exam_questions")
+        .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
+        .eq("exam_id", examId)
+        .order("id", { ascending: true }),
+    ]);
+    if (examError) throw examError;
+    if (questionsError) throw questionsError;
+    if (!exam) throw new Error("Exam not found.");
+    return { exam, questions: questions || [] };
+  }
+
+  async function validateExamForTransition(exam) {
+    const { exam: examRow, questions } = await loadExamForTransition(exam.id);
+    const validationError = validateStoredExamForRelease(examRow, questions);
+    if (validationError) throw new Error(validationError);
+  }
+
+  async function handleMoveDraftToUnpublished(exam) {
+    if (!hasSupabaseConfig) return;
+    setLoadingActionId(exam.id);
+    try {
+      await validateExamForTransition(exam);
+      const { error } = await supabase
+        .from("exams")
+        .update({ status: "Unpublished", submitted_at: null })
+        .eq("id", exam.id);
+      if (error) throw error;
+      toast.success("Draft moved to Unpublished Exams.");
+      await loadExams(true);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoadingActionId("");
+    }
+  }
+
   async function notifyClusterExamSubmitted(exam) {
     const { data: clusterRows, error: clusterError } = await supabase
       .from("profiles")
@@ -296,22 +415,63 @@ export default function ProfessorExams() {
     }
   }
 
-  function handlePublish(exam) {
+  async function handlePublish(exam) {
     if (!hasSupabaseConfig) {
       publishProfessorExam(exam.id);
       return;
     }
 
-    if (exam.clusterStatus !== "approved") {
-      toast.error("Cluster approval is required before publishing");
-      return;
+    setLoadingActionId(exam.id);
+    try {
+      await validateExamForTransition(exam);
+      setPublishTarget(exam);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoadingActionId("");
     }
+  }
 
-    updateExamStatus(exam, { status: "Published" }, "Exam published for students");
+  async function confirmPublishExam() {
+    if (!publishTarget || !hasSupabaseConfig) return;
+    setPublishingId(publishTarget.id);
+    try {
+      const { error } = await supabase
+        .from("exams")
+        .update({ status: "Published" })
+        .eq("id", publishTarget.id);
+      if (error) throw error;
+      toast.success("Exam published for students");
+      setPublishTarget(null);
+      await loadExams(true);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setPublishingId("");
+    }
   }
 
   function handleUnpublish(exam) {
-    updateExamStatus(exam, { status: "Approved" }, "Exam unpublished");
+    updateExamStatus(exam, { status: "Unpublished" }, "Exam unpublished");
+  }
+
+  async function handleDeleteArchivedExam() {
+    if (!deleteTarget || !hasSupabaseConfig) return;
+    setDeletingId(deleteTarget.id);
+    try {
+      const { error } = await supabase.rpc("delete_archived_exam", { p_id: deleteTarget.id });
+      if (error) throw error;
+      const next = liveExams.filter((exam) => exam.id !== deleteTarget.id);
+      setLiveExams(next);
+      queryClient.setQueryData(["professor-exams", user.id], next);
+      toast.success("Archived exam permanently deleted.");
+      setDeleteTarget(null);
+    } catch (error) {
+      if (import.meta.env.DEV) window.console.error("Archived exam delete failed", error);
+      toast.error(error.message);
+    } finally {
+      setDeletingId("");
+    }
   }
 
   function formatLastModified(value) {
@@ -341,6 +501,9 @@ export default function ProfessorExams() {
               </div>
               <div className="professor-exam-actions">
                 <button disabled={loadingActionId === exam.id} onClick={() => navigate(`/professor/exams/create?editId=${exam.id}`)}><FiEdit2 /> Resume</button>
+                <button disabled={loadingActionId === exam.id} onClick={() => handleMoveDraftToUnpublished(exam)}>
+                  {loadingActionId === exam.id ? "Checking..." : "Move to Unpublished"}
+                </button>
                 <button disabled={loadingActionId === exam.id} onClick={() => setArchived(exam)}>
                   <FiArchive />
                   Archive
@@ -354,35 +517,139 @@ export default function ProfessorExams() {
     );
   }
 
-  function renderArchivedSection() {
+  function renderArchivedModal() {
+    if (!archiveModalOpen) return null;
+
     return (
-      <section className="professor-exams-section professor-drafts-section">
-        <div className="professor-exams-section-header">
-          <div>
-            <h2>Archived Exams</h2>
-            <p>Hidden exams preserved with their original workflow status.</p>
+      <div className="professor-share-backdrop professor-archive-backdrop" onClick={() => setArchiveModalOpen(false)} role="presentation">
+        <section aria-labelledby="professor-archive-title" aria-modal="true" className="professor-share-modal professor-archive-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+          <div className="professor-share-header">
+            <div>
+              <h2 id="professor-archive-title">Archived Exams</h2>
+              <p>Restore hidden exams or permanently delete unused archived drafts.</p>
+            </div>
+            <button aria-label="Close archived exams" onClick={() => setArchiveModalOpen(false)} type="button">
+              <FiX />
+            </button>
           </div>
-          <span>{archivedExams.length}</span>
-        </div>
-        <div className="professor-draft-list">
-          {archivedExams.map((exam) => (
-            <article className="professor-draft-row" key={exam.id}>
-              <div>
-                <strong>{exam.title || "Untitled Exam"}</strong>
-                <span>{exam.course} - {exam.type} - {exam.period}</span>
-                <small>{exam.rawStatus || exam.status} - Last modified {formatLastModified(exam.updatedAt)}</small>
-              </div>
-              <div className="professor-exam-actions">
-                <button disabled={loadingActionId === exam.id} onClick={() => setArchived(exam)}>
-                  <FiRotateCcw />
-                  Restore
-                </button>
-              </div>
-            </article>
-          ))}
-          {!archivedExams.length ? <div className="professor-exams-empty">No archived exams.</div> : null}
-        </div>
-      </section>
+
+          <input
+            aria-label="Search archived exams"
+            className="professor-archive-search"
+            onChange={(event) => setArchivedSearch(event.target.value)}
+            placeholder="Search archived exams..."
+            value={archivedSearch}
+          />
+
+          <div className="professor-archive-list professor-exams-table-card">
+            <table className="professor-exams-table professor-archive-table">
+              <thead>
+                <tr>
+                  <th>Title</th>
+                  <th>Course</th>
+                  <th>Type</th>
+                  <th>Period</th>
+                  <th>Status</th>
+                  <th>Last Modified</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredArchivedExams.map((exam) => (
+                  <tr key={exam.id}>
+                    <td><strong>{exam.title || "Untitled Exam"}</strong></td>
+                    <td>{exam.course}</td>
+                    <td>{exam.type}</td>
+                    <td>{exam.period}</td>
+                    <td>{exam.rawStatus || exam.status}</td>
+                    <td>{formatLastModified(exam.updatedAt)}</td>
+                    <td>
+                      <div className="professor-exam-actions">
+                        <button disabled={loadingActionId === exam.id || deletingId === exam.id} onClick={() => setArchived(exam)}>
+                          <FiRotateCcw />
+                          {loadingActionId === exam.id ? "Restoring..." : "Restore"}
+                        </button>
+                        <button className="danger" disabled={loadingActionId === exam.id || deletingId === exam.id} onClick={() => setDeleteTarget(exam)}>
+                          <FiTrash2 />
+                          Delete
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!filteredArchivedExams.length ? <div className="professor-exams-empty">{archivedSearch.trim() ? "No archived exams found." : "No archived exams."}</div> : null}
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  function renderDeleteConfirmModal() {
+    if (!deleteTarget) return null;
+
+    return (
+      <div className="professor-share-backdrop professor-delete-backdrop" onClick={() => setDeleteTarget(null)} role="presentation">
+        <section aria-labelledby="professor-delete-title" aria-modal="true" className="professor-share-modal professor-delete-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+          <div className="professor-share-header">
+            <div>
+              <h2 id="professor-delete-title">Delete Exam Permanently?</h2>
+              <p>This action may permanently remove this archived exam and unused draft data. This cannot be undone.</p>
+            </div>
+            <button aria-label="Close delete confirmation" disabled={deletingId === deleteTarget.id} onClick={() => setDeleteTarget(null)} type="button">
+              <FiX />
+            </button>
+          </div>
+
+          <div className="professor-delete-summary">
+            <strong>{deleteTarget.title || "Untitled Exam"}</strong>
+            <span>{deleteTarget.course} - {deleteTarget.type} - {deleteTarget.rawStatus || deleteTarget.status}</span>
+            <p>Exams with student starts, attempts, grading, violations, or approval history are protected and will not be deleted.</p>
+          </div>
+
+          <div className="professor-delete-actions">
+            <button disabled={deletingId === deleteTarget.id} onClick={() => setDeleteTarget(null)} type="button">Cancel</button>
+            <button className="danger" disabled={deletingId === deleteTarget.id} onClick={handleDeleteArchivedExam} type="button">
+              <FiTrash2 />
+              {deletingId === deleteTarget.id ? "Deleting..." : "Delete Permanently"}
+            </button>
+          </div>
+        </section>
+      </div>
+    );
+  }
+
+  function renderPublishConfirmModal() {
+    if (!publishTarget) return null;
+
+    return (
+      <div className="professor-share-backdrop professor-publish-backdrop" onClick={() => publishingId ? null : setPublishTarget(null)} role="presentation">
+        <section aria-labelledby="professor-publish-title" aria-modal="true" className="professor-share-modal professor-publish-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+          <div className="professor-share-header">
+            <div>
+              <h2 id="professor-publish-title">Publish Exam?</h2>
+              <p>This will publish the exam directly without submitting it for Cluster Professor review.</p>
+            </div>
+            <button aria-label="Close publish confirmation" disabled={publishingId === publishTarget.id} onClick={() => setPublishTarget(null)} type="button">
+              <FiX />
+            </button>
+          </div>
+
+          <div className="professor-delete-summary">
+            <strong>{publishTarget.title || "Untitled Exam"}</strong>
+            <span>{publishTarget.course} - {publishTarget.type} - {publishTarget.period}</span>
+            <p>Eligible students may be able to access the exam according to its schedule and availability settings.</p>
+          </div>
+
+          <div className="professor-delete-actions">
+            <button disabled={publishingId === publishTarget.id} onClick={() => setPublishTarget(null)} type="button">Cancel</button>
+            <button disabled={publishingId === publishTarget.id} onClick={confirmPublishExam} type="button">
+              {publishingId === publishTarget.id ? "Publishing..." : "Publish Exam"}
+            </button>
+          </div>
+        </section>
+      </div>
     );
   }
 
@@ -426,7 +693,7 @@ export default function ProfessorExams() {
           exam_settings: sourceExam.exam_settings || {},
           questions_count: questionRows?.length || sourceExam.questions_count || 0,
           status: "Published",
-          approved_at: new Date().toISOString(),
+          approved_at: null,
         })
         .select("id")
         .single();
@@ -601,13 +868,13 @@ export default function ProfessorExams() {
                           <FiEdit2 /> Edit
                         </button>
                       ) : null}
-                      {exam.status === "unpublished" && exam.clusterStatus === "approved" ? <button disabled={loadingActionId === exam.id} onClick={() => handlePublish(exam)}>Publish</button> : null}
-                      {exam.status === "unpublished" && exam.clusterStatus !== "approved" ? <button className="locked" disabled>{getPublishGateLabel(exam)}</button> : null}
+                      {exam.status === "unpublished" && exam.clusterStatus !== "rejected" ? <button disabled={loadingActionId === exam.id} onClick={() => handlePublish(exam)}>Publish</button> : null}
+                      {exam.status === "unpublished" && exam.clusterStatus === "rejected" ? <button className="locked" disabled>{getPublishGateLabel(exam)}</button> : null}
                       {exam.status === "pending" ? <button className="muted">View</button> : null}
-                      {exam.status !== "published" ? (
+                      {exam.status !== "published" && exam.status !== "pending" && exam.clusterStatus !== "approved" ? (
                         <button
-                          className={exam.status === "pending" || exam.clusterStatus === "approved" ? "approval submitted" : "approval"}
-                          disabled={exam.status === "pending" || exam.clusterStatus === "approved" || loadingActionId === exam.id}
+                          className="approval"
+                          disabled={loadingActionId === exam.id}
                           onClick={() => handleSubmitForApproval(exam)}
                         >
                           {loadingActionId === exam.id ? "Saving..." : getApprovalActionLabel(exam)}
@@ -640,23 +907,20 @@ export default function ProfessorExams() {
           <p>Create, publish, unpublish, share, and manage your exams.</p>
         </div>
         <div className="professor-exams-header-actions">
-          <Button className="professor-archived-exams" onClick={() => setShowArchived((current) => !current)}>
-            {showArchived ? "Active Exams" : "Archived Exams"}
+          <Button className="professor-archived-exams" onClick={() => setArchiveModalOpen(true)}>
+            Archived Exams
           </Button>
-          <Button className="professor-create-exam" onClick={() => navigate("/professor/exams/create")}><FiPlus /> Create Exam</Button>
+          <Button className="professor-create-exam" onClick={() => navigate("/professor/exams/create", { state: { freshCreateSession: crypto.randomUUID() } })}><FiPlus /> Create Exam</Button>
         </div>
       </div>
 
-      {showArchived ? (
-        renderArchivedSection()
-      ) : (
-        <>
-          {renderDraftsSection()}
-          {renderExamSection("published", "Published Exams", "Exams currently available to students.", publishedExams)}
-          {renderExamSection("pending", "Pending for Approval", "Exams waiting for cluster professor review.", pendingExams)}
-          {renderExamSection("unpublished", "Unpublished Exams", "Hidden exams that are not visible to students.", unpublishedExams)}
-        </>
-      )}
+      {renderDraftsSection()}
+      {renderExamSection("published", "Published Exams", "Exams currently available to students.", publishedExams)}
+      {renderExamSection("pending", "Pending for Approval", "Exams waiting for cluster professor review.", pendingExams)}
+      {renderExamSection("unpublished", "Unpublished Exams", "Hidden exams that are not visible to students.", unpublishedExams)}
+      {renderArchivedModal()}
+      {renderDeleteConfirmModal()}
+      {renderPublishConfirmModal()}
 
       {shareExam ? (
         <div className="professor-share-backdrop" onClick={closeShareModal} role="presentation">

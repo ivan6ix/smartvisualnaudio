@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -6,6 +7,7 @@ import AudioMonitoringTimeline from "../../components/exam/AudioMonitoringTimeli
 import { Button, Card, PageHeader } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useLiveAudioMonitoring } from "../../hooks/useLiveAudioMonitoring";
+import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
 import { computeAttemptScore, FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import { createIncidentTracker, EXAM_VIOLATION_LIMIT, hasProvidedAnswer, mergeAttemptViolations, violationWarning } from "../../lib/examViolationLimit";
@@ -197,13 +199,6 @@ function prepareQuestionsForAttempt(questionRows, settings, savedOrder, studentI
   };
 }
 
-function getAttemptLimit(settings) {
-  const value = String(settings?.attemptLimit || settings?.attempts || "Unlimited").toLowerCase();
-  if (value.includes("unlimited")) return Infinity;
-  const match = value.match(/\d+/);
-  return match ? Number(match[0]) : Infinity;
-}
-
 function formatDurationLabel(duration) {
   return Number(duration) > 0 ? `${duration} minutes` : "No timer";
 }
@@ -363,6 +358,7 @@ export default function StudentExamTake() {
   const { examId } = useParams();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [exam, setExam] = useState(null);
   const [questions, setQuestions] = useState([]);
   const [answers, setAnswers] = useState({});
@@ -451,11 +447,10 @@ export default function StudentExamTake() {
   }, [exam]);
   const scanPassed = !examSettings.requireEnvironmentScan || scanStatus === "passed";
   progressMetaRef.current = { ...progressMetaRef.current, scanStatus, timerEndsAt };
-  const attemptLimit = getAttemptLimit(exam?.exam_settings);
+  const attemptEligibility = useMemo(() => getExamAttemptEligibility(exam, existingAttemptCount), [exam, existingAttemptCount]);
   const durationMinutes = getDurationMinutes(exam);
   const hasTimer = durationMinutes > 0;
-  const examAlreadyTaken = existingAttemptCount > 0;
-  const attemptsExhausted = examAlreadyTaken || (Number.isFinite(attemptLimit) && existingAttemptCount >= attemptLimit);
+  const attemptsExhausted = attemptEligibility.reason === "Attempts Exhausted";
   const roboflowConfigured = Boolean(
     import.meta.env.VITE_ROBOFLOW_API_KEY
     || import.meta.env.VITE_ROBOFLOW_PROXY_URL
@@ -497,7 +492,7 @@ export default function StudentExamTake() {
       let examError = null;
       const examResult = await supabase
         .from("exams")
-        .select("id, title, exam_title, duration, time_limit, exam_type, course_id, professor_id, created_by, exam_settings, courses(course_name, course_code, section)")
+        .select("id, title, exam_title, description, duration, time_limit, exam_type, course_id, professor_id, created_by, status, exam_settings, courses(course_name, course_code, section)")
         .eq("id", examId)
         .maybeSingle();
 
@@ -2456,9 +2451,10 @@ export default function StudentExamTake() {
         .eq("student_id", user.id);
 
       if (attemptCountError) throw attemptCountError;
-      if ((count || 0) > 0 || (Number.isFinite(attemptLimit) && (count || 0) >= attemptLimit)) {
+      const latestEligibility = getExamAttemptEligibility(exam, count || 0);
+      if (!latestEligibility.allowed) {
         setExistingAttemptCount(count || 0);
-        toast.error("You have already taken this exam.");
+        toast.error(latestEligibility.reason === "Attempts Exhausted" ? "You have used all available attempts for this exam." : `This exam is ${String(latestEligibility.reason).toLowerCase()}.`);
         return;
       }
 
@@ -2564,6 +2560,10 @@ export default function StudentExamTake() {
       toast.success(grading.hasManual ? "Exam submitted for manual grading" : "Exam submitted and graded");
       examSubmittedRef.current = true;
       clearSavedExamProgress(user.id, examId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["student-dashboard", user.id] }),
+        queryClient.invalidateQueries({ queryKey: ["student-grades", user.id] }),
+      ]);
       examModeReadyRef.current = false;
       setExamModeReady(false);
       stopProctoring();
@@ -2714,23 +2714,42 @@ export default function StudentExamTake() {
   if (!hasSupabaseConfig) return <PageHeader title="Exam" subtitle="Live Supabase exam taking is required." />;
   if (!exam || !progressReady) return <main className="center-screen">Loading exam and saved progress...</main>;
 
-  if (attemptsExhausted) {
+  if (!attemptEligibility.allowed) {
+    const courseLabel = exam.courses?.course_code && exam.courses?.section ? `${exam.courses.course_code} - ${exam.courses.section}` : exam.courses?.course_code || "Course";
+    const typeLabel = exam.exam_type || "Exam";
+    const periodLabel = exam.description || "No period";
+    const blockedTitle = attemptsExhausted ? "Exam Attempt Completed" : "Exam Unavailable";
+    const blockedMessage = attemptsExhausted
+      ? attemptEligibility.attemptLimit === 1
+        ? "You have completed the available attempt for this exam."
+        : `You have used all ${attemptEligibility.attemptLimit} attempts for this exam.`
+      : attemptEligibility.reason === "Expired"
+        ? "The deadline for this exam has passed."
+        : attemptEligibility.reason === "Scheduled"
+          ? "This exam is scheduled and has not started yet."
+          : "This exam is not currently available.";
     return (
-      <section className="student-exam-take-page">
-        <PageHeader
-          title={exam.exam_title || exam.title}
-          subtitle="You have already taken this exam."
-          actions={<Button onClick={() => navigate("/student")}>Back to Dashboard</Button>}
-        />
-        <Card className="student-exam-question">
-          <div className="student-card-title">
+      <main className="student-exam-blocked-page">
+        <Card className="student-exam-blocked-card">
+          <div className="student-exam-blocked-heading">
             <div>
-              <h2>Exam already taken</h2>
-              <p>Your submitted attempt is already recorded. Retakes are not allowed.</p>
+              <span>{blockedTitle}</span>
+              <h1>{exam.exam_title || exam.title}</h1>
+              <p>{courseLabel} - {typeLabel} - {periodLabel}</p>
             </div>
+            <FiCheckCircle />
+          </div>
+          <p className="student-exam-blocked-message">{blockedMessage}</p>
+          <div className="student-exam-blocked-meta">
+            <span>Attempts Used</span>
+            <strong>{formatAttemptUsage(attemptEligibility)}</strong>
+          </div>
+          <div className="student-exam-blocked-actions">
+            <Button onClick={() => navigate(exam.course_id ? `/student/courses/${exam.course_id}/materials` : "/student")}>Back to Course</Button>
+            {existingAttemptCount > 0 ? <Button onClick={() => navigate("/student/grades")}>View Grades</Button> : null}
           </div>
         </Card>
-      </section>
+      </main>
     );
   }
 

@@ -1,8 +1,8 @@
 import { validateExam, toLocalDateTime } from "../../lib/examValidation";
 import { queryClient } from "../../lib/queryClient";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiEdit2, FiPlus, FiSave, FiTrash2 } from "react-icons/fi";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { FiEdit2, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "../../context/AuthContext";
 import { professorCourses } from "../../data/professorData";
@@ -12,8 +12,7 @@ import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 const examTypes = ["Quiz", "Exam", "Long Exam", "Activity"];
 const periods = ["Prelim", "Midterm", "Semi-Final", "Final"];
 const semesters = ["1st Semester", "2nd Semester", "Summer"];
-const attempts = ["1 attempt", "2 attempts", "3 attempts", "Unlimited"];
-const statuses = ["Draft", "Submit for Review"];
+const attempts = ["1 attempt", "2 attempts", "3 attempts", "Unlimited Attempts"];
 
 const settings = [
   { key: "randomizeQuestions", label: "Randomize question order per student" },
@@ -93,8 +92,26 @@ function readImageDataUrl(file) {
   });
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function recoveryKey(userId, draftId = "new") {
   return `smartvisualnaudio:professor-exam-draft:${userId}:${draftId}`;
+}
+
+function activeCreateSessionKey(userId) {
+  return `smartvisualnaudio:professor-exam-active-create:${userId}`;
+}
+
+function activeCreateDraftKey(userId) {
+  return `smartvisualnaudio:professor-exam-active-draft:${userId}`;
+}
+
+function createSessionRecoveryId(sessionId) {
+  return `new:${sessionId}`;
 }
 
 function isMeaningfulDraft(form, addedQuestions, draftQuestion) {
@@ -137,25 +154,15 @@ function applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraf
   if (snapshot.questionDraft) setQuestionDraft({ ...emptyQuestionDraft(), ...snapshot.questionDraft });
 }
 
-export default function ProfessorCreateExam() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const editId = searchParams.get("editId") || "";
-  const presetCourseId = searchParams.get("courseId") || "";
-  const presetType = searchParams.get("type") || "";
-  const presetPeriod = searchParams.get("period") || "";
-  const isEditingExam = Boolean(editId);
-  const [courses, setCourses] = useState(() => professorCourses.map(mapLiveCourse));
-  const [periodOptions, setPeriodOptions] = useState(() => [...new Set([...periods, presetPeriod].filter(Boolean))]);
-  const [examForm, setExamForm] = useState({
+function defaultExamForm({ presetCourseId = "", presetType = "", presetPeriod = "" } = {}) {
+  return {
     courseId: presetCourseId,
     title: "",
     examType: examTypes.includes(presetType) ? presetType : "",
     period: presetPeriod,
     semester: "",
     duration: "",
-    attempts: "",
+    attempts: "Unlimited Attempts",
     deadline: "",
     startsAt: "",
     status: "Draft",
@@ -169,18 +176,36 @@ export default function ProfessorCreateExam() {
       liveAudioMonitoring: false,
       captureSnapshots: false,
     },
-  });
+  };
+}
+
+export default function ProfessorCreateExam() {
+  const { user } = useAuth();
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const editId = searchParams.get("editId") || "";
+  const presetCourseId = searchParams.get("courseId") || "";
+  const presetType = searchParams.get("type") || "";
+  const presetPeriod = searchParams.get("period") || "";
+  const isEditingExam = Boolean(editId);
+  const [courses, setCourses] = useState(() => professorCourses.map(mapLiveCourse));
+  const [periodOptions, setPeriodOptions] = useState(() => [...new Set([...periods, presetPeriod].filter(Boolean))]);
+  const [examForm, setExamForm] = useState(() => defaultExamForm({ presetCourseId, presetType, presetPeriod }));
   const [questionDraft, setQuestionDraft] = useState(emptyQuestionDraft);
   const [questions, setQuestions] = useState([]);
   const [editingQuestionId, setEditingQuestionId] = useState("");
   const [saving, setSaving] = useState(false);
+  const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [draftExamId, setDraftExamId] = useState(editId);
   const [autosaveStatus, setAutosaveStatus] = useState("Saved locally");
   const savingRef = useRef(false);
   const hydratedRef = useRef(false);
+  const createSessionIdRef = useRef("");
   const autosaveTimerRef = useRef(null);
   const autosaveInFlightRef = useRef(false);
   const autosavePendingRef = useRef(false);
+  const finalPublishRef = useRef(false);
   const latestSnapshotRef = useRef(null);
   const lastSyncedJsonRef = useRef("");
 
@@ -227,27 +252,50 @@ export default function ProfessorCreateExam() {
   }, [presetCourseId, presetPeriod, presetType, user?.id]);
 
   useEffect(() => {
-    if (!user?.id || editId || hydratedRef.current) return;
+    const freshCreateSession = location.state?.freshCreateSession;
+    if (!user?.id || editId || (hydratedRef.current && !freshCreateSession)) return;
+    const sessionId = freshCreateSession || window.sessionStorage.getItem(activeCreateSessionKey(user.id)) || crypto.randomUUID();
+    createSessionIdRef.current = sessionId;
+    window.sessionStorage.setItem(activeCreateSessionKey(user.id), sessionId);
+
+    if (freshCreateSession) {
+      window.sessionStorage.removeItem(activeCreateDraftKey(user.id));
+      window.localStorage.removeItem(recoveryKey(user.id, "new"));
+      setDraftExamId("");
+      setQuestions([]);
+      setQuestionDraft(emptyQuestionDraft());
+      setEditingQuestionId("");
+      setExamForm(defaultExamForm({ presetCourseId, presetType, presetPeriod }));
+      latestSnapshotRef.current = null;
+      lastSyncedJsonRef.current = "";
+      window.clearTimeout(autosaveTimerRef.current);
+      hydratedRef.current = true;
+      setAutosaveStatus("Saved locally");
+      return;
+    }
+
+    const activeDraftId = window.sessionStorage.getItem(activeCreateDraftKey(user.id));
+    if (activeDraftId) {
+      navigate(`/professor/exams/create?editId=${activeDraftId}`, { replace: true });
+      return;
+    }
+
     try {
-      const saved = window.localStorage.getItem(recoveryKey(user.id, "new"));
-      if (!saved) {
-        hydratedRef.current = true;
-        return;
+      const saved = window.localStorage.getItem(recoveryKey(user.id, createSessionRecoveryId(sessionId)));
+      if (saved) {
+        const snapshot = JSON.parse(saved);
+        applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraft);
+        latestSnapshotRef.current = snapshot;
+        setAutosaveStatus("Recovered locally");
+      } else {
+        setAutosaveStatus("Saved locally");
       }
-      const snapshot = JSON.parse(saved);
-      if (snapshot?.linkedDraftId) {
-        navigate(`/professor/exams/create?editId=${snapshot.linkedDraftId}`, { replace: true });
-        return;
-      }
-      applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraft);
-      latestSnapshotRef.current = snapshot;
-      setAutosaveStatus("Recovered locally");
     } catch {
       setAutosaveStatus("Saved locally");
     } finally {
       hydratedRef.current = true;
     }
-  }, [editId, navigate, user?.id]);
+  }, [editId, location.state, navigate, presetCourseId, presetPeriod, presetType, user?.id]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id || !editId) return;
@@ -299,7 +347,7 @@ export default function ProfessorCreateExam() {
         period,
         semester: exam.semester || "",
         duration: String(exam.time_limit || exam.duration || ""),
-        attempts: exam.exam_settings?.attemptLimit || exam.exam_settings?.attempts || "",
+        attempts: exam.exam_settings?.attemptLimit || exam.exam_settings?.attempts || "Unlimited Attempts",
         deadline: toLocalDateTime(exam.exam_settings?.deadline),
         startsAt: toLocalDateTime(exam.exam_settings?.startsAt),
         instructions: exam.exam_settings?.instructions || "",
@@ -362,7 +410,7 @@ export default function ProfessorCreateExam() {
         instructions: examForm.instructions,
         startsAt: examForm.startsAt ? new Date(examForm.startsAt).toISOString() : null,
         deadline: examForm.deadline ? new Date(examForm.deadline).toISOString() : null,
-        attemptLimit: examForm.attempts || "Unlimited",
+        attemptLimit: examForm.attempts || "Unlimited Attempts",
         draftSnapshot: snapshot,
       },
       duration: durationValue,
@@ -391,19 +439,34 @@ export default function ProfessorCreateExam() {
     return { examPayload, questionRows, snapshot };
   }, [examForm, questionDraft, questions, selectedCourse, user?.id]);
 
+  const getRecoveryTargetId = useCallback(() => {
+    if (draftExamId) return draftExamId;
+    return createSessionRecoveryId(createSessionIdRef.current || "current");
+  }, [draftExamId]);
+
   const persistLocalSnapshot = useCallback((snapshot, targetId = draftExamId || "new") => {
     if (!user?.id || !snapshot) return;
     try {
       window.localStorage.setItem(recoveryKey(user.id, targetId), JSON.stringify(snapshot));
-      if (targetId !== "new") window.localStorage.setItem(recoveryKey(user.id, "new"), JSON.stringify({ ...snapshot, linkedDraftId: targetId }));
       setAutosaveStatus(window.navigator.onLine ? "Unsaved changes" : "Offline - saved locally");
     } catch {
       setAutosaveStatus("Unable to save locally");
     }
   }, [draftExamId, user?.id]);
 
+  function clearActiveCreateRecovery(savedId = draftExamId || editId) {
+    if (!user?.id) return;
+    const sessionId = createSessionIdRef.current || window.sessionStorage.getItem(activeCreateSessionKey(user.id));
+    if (sessionId) window.localStorage.removeItem(recoveryKey(user.id, createSessionRecoveryId(sessionId)));
+    if (savedId) window.localStorage.removeItem(recoveryKey(user.id, savedId));
+    window.localStorage.removeItem(recoveryKey(user.id, "new"));
+    window.sessionStorage.removeItem(activeCreateSessionKey(user.id));
+    window.sessionStorage.removeItem(activeCreateDraftKey(user.id));
+  }
+
   const syncDraftNow = useCallback(async (manual = false) => {
     if (!hasSupabaseConfig || !user?.id) return false;
+    if (finalPublishRef.current) return false;
     const { examPayload, snapshot } = buildSavePayload("Draft");
     if (!isMeaningfulDraft(examForm, questions, questionDraft)) return false;
     if (!examPayload.course_id) {
@@ -414,11 +477,12 @@ export default function ProfessorCreateExam() {
     const snapshotJson = JSON.stringify(snapshot);
     if (!manual && snapshotJson === lastSyncedJsonRef.current) return true;
     latestSnapshotRef.current = snapshot;
-    persistLocalSnapshot(snapshot);
+    persistLocalSnapshot(snapshot, getRecoveryTargetId());
     autosavePendingRef.current = true;
     if (autosaveInFlightRef.current) return false;
 
     while (autosavePendingRef.current) {
+      if (finalPublishRef.current) return false;
       autosavePendingRef.current = false;
       autosaveInFlightRef.current = true;
       setAutosaveStatus("Saving...");
@@ -432,11 +496,17 @@ export default function ProfessorCreateExam() {
         });
         if (error) throw error;
         const nextId = savedId || draftExamId;
-        if (nextId && nextId !== draftExamId) setDraftExamId(nextId);
+        if (nextId && nextId !== draftExamId) {
+          setDraftExamId(nextId);
+          window.sessionStorage.setItem(activeCreateDraftKey(user.id), nextId);
+          const sessionId = createSessionIdRef.current;
+          if (sessionId) window.localStorage.removeItem(recoveryKey(user.id, createSessionRecoveryId(sessionId)));
+        }
         if (nextId) persistLocalSnapshot(latest, nextId);
         lastSyncedJsonRef.current = JSON.stringify(latest);
         setAutosaveStatus("Saved");
-      } catch {
+      } catch (error) {
+        if (import.meta.env.DEV) window.console.error("Exam draft sync failed", error);
         setAutosaveStatus(window.navigator.onLine ? "Unable to sync - saved locally" : "Offline - saved locally");
         autosaveInFlightRef.current = false;
         return false;
@@ -444,20 +514,20 @@ export default function ProfessorCreateExam() {
       autosaveInFlightRef.current = false;
     }
     return true;
-  }, [buildSavePayload, draftExamId, examForm, persistLocalSnapshot, questionDraft, questions, user?.id]);
+  }, [buildSavePayload, draftExamId, examForm, getRecoveryTargetId, persistLocalSnapshot, questionDraft, questions, user?.id]);
 
   useEffect(() => {
     if (!user?.id || !hydratedRef.current) return;
     const snapshot = buildDraftSnapshot(examForm, questions, questionDraft);
     latestSnapshotRef.current = snapshot;
-    persistLocalSnapshot(snapshot);
+    persistLocalSnapshot(snapshot, getRecoveryTargetId());
     window.clearTimeout(autosaveTimerRef.current);
     if (!isMeaningfulDraft(examForm, questions, questionDraft)) return;
     autosaveTimerRef.current = window.setTimeout(() => {
       void syncDraftNow(false);
     }, AUTOSAVE_DELAY_MS);
     return () => window.clearTimeout(autosaveTimerRef.current);
-  }, [examForm, persistLocalSnapshot, questionDraft, questions, syncDraftNow, user?.id]);
+  }, [examForm, getRecoveryTargetId, persistLocalSnapshot, questionDraft, questions, syncDraftNow, user?.id]);
 
   useEffect(() => {
     function handleOnline() {
@@ -675,7 +745,7 @@ export default function ProfessorCreateExam() {
     }
     if (!examForm.courseId) {
       const snapshot = buildDraftSnapshot(examForm, questions, questionDraft);
-      persistLocalSnapshot(snapshot);
+      persistLocalSnapshot(snapshot, getRecoveryTargetId());
       toast.success("Draft saved locally. Select a course to sync it.");
       return;
     }
@@ -685,6 +755,7 @@ export default function ProfessorCreateExam() {
       const synced = await syncDraftNow(true);
       if (!synced && hasSupabaseConfig) throw new Error("Draft is saved locally but could not sync yet.");
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
+      clearActiveCreateRecovery(draftExamId || editId);
       toast.success("Exam saved as draft.");
       navigate("/professor/exams");
     } catch (error) {
@@ -714,16 +785,13 @@ export default function ProfessorCreateExam() {
     savingRef.current = true;
     setSaving(true);
     try {
-      const status = examForm.status === "Published" ? "Published" : examForm.status === "Submit for Review" ? "Pending Review" : "Draft";
+      const status = "Pending Review";
       const { examPayload, questionRows } = buildSavePayload(status);
 
       const { data: savedId, error: saveError } = await supabase.rpc("save_exam", { p_id: draftExamId || editId || null, p_exam: examPayload, p_questions: questionRows });
       if (saveError) throw saveError;
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
-      if (status !== "Draft") {
-        window.localStorage.removeItem(recoveryKey(user.id, "new"));
-        if (savedId || draftExamId || editId) window.localStorage.removeItem(recoveryKey(user.id, savedId || draftExamId || editId));
-      }
+      clearActiveCreateRecovery(savedId || draftExamId || editId);
       if (status === "Pending Review") {
         const { data: clusterRows, error: clusterError } = await supabase
           .from("profiles")
@@ -747,11 +815,71 @@ export default function ProfessorCreateExam() {
         }
       }
 
-      toast.success(isEditingExam ? "Exam updated. You can resubmit it for approval." : "Exam saved");
+      toast.success(isEditingExam ? "Exam updated and submitted for approval." : "Exam submitted for approval.");
       navigate("/professor/exams");
     } catch (error) {
       toast.error(error.message);
     } finally {
+      savingRef.current = false;
+      setSaving(false);
+    }
+  }
+
+  function handlePublishExam() {
+    const validationError = validateExam(examForm, questions);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    setPublishConfirmOpen(true);
+  }
+
+  async function confirmPublishExam() {
+    if (savingRef.current) return;
+    const validationError = validateExam(examForm, questions);
+    if (validationError) {
+      toast.error(validationError);
+      setPublishConfirmOpen(false);
+      return;
+    }
+
+    if (!examForm.courseId || !examForm.title.trim() || !examForm.examType || !examForm.period || !questions.length) {
+      toast.error("Complete exam details and add at least one question.");
+      return;
+    }
+
+    if (!hasSupabaseConfig || !user?.id) {
+      toast.success("Exam published locally for preview.");
+      setPublishConfirmOpen(false);
+      navigate("/professor/exams");
+      return;
+    }
+
+    savingRef.current = true;
+    finalPublishRef.current = true;
+    autosavePendingRef.current = false;
+    window.clearTimeout(autosaveTimerRef.current);
+    setSaving(true);
+    try {
+      while (autosaveInFlightRef.current) {
+        await wait(100);
+      }
+      const { examPayload, questionRows } = buildSavePayload("Published");
+      const { data: savedId, error: saveError } = await supabase.rpc("save_exam", {
+        p_id: draftExamId || editId || null,
+        p_exam: examPayload,
+        p_questions: questionRows,
+      });
+      if (saveError) throw saveError;
+      queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
+      clearActiveCreateRecovery(savedId || draftExamId || editId);
+      toast.success("Exam published for students.");
+      setPublishConfirmOpen(false);
+      navigate("/professor/exams");
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      finalPublishRef.current = false;
       savingRef.current = false;
       setSaving(false);
     }
@@ -896,9 +1024,6 @@ export default function ProfessorCreateExam() {
                 {attempts.map((attempt) => <option key={attempt}>{attempt}</option>)}
               </SelectInput>
               <label>Start (local time)<TextInput onChange={(event) => setExamValue("startsAt", event.target.value)} type="datetime-local" value={examForm.startsAt} /></label><label>Deadline (local time)<TextInput onChange={(event) => setExamValue("deadline", event.target.value)} type="datetime-local" value={examForm.deadline} /></label>
-              <SelectInput onChange={(event) => setExamValue("status", event.target.value)} value={examForm.status}>
-                {statuses.map((status) => <option key={status}>{status}</option>)}
-              </SelectInput>
             </div>
             <label>Description<textarea className="professor-create-textarea" maxLength={1000} value={examForm.description} onChange={event => setExamValue("description", event.target.value)} /><small>{examForm.description.length} / 1000</small></label>
             <textarea className="professor-create-textarea" onChange={(event) => setExamValue("instructions", event.target.value)} maxLength={5000} placeholder="Exam instructions" value={examForm.instructions} /><small>{examForm.instructions.length} / 5000</small>
@@ -924,7 +1049,8 @@ export default function ProfessorCreateExam() {
               <span className="professor-autosave-status">{autosaveStatus}</span>
               <button className="professor-add-question" onClick={handleAddQuestion} type="button"><FiPlus /> {editingQuestionId ? "Update Question" : "Add Question"}</button>
               <button className="professor-save-draft" disabled={saving} onClick={handleSaveDraft} type="button"><FiSave /> {saving ? "Saving..." : "Save as Draft"}</button>
-              <button className="professor-save-exam" disabled={saving} onClick={handleSaveExam} type="button"><FiSave /> {saving ? "Saving..." : isEditingExam ? "Save Changes" : "Save Exam"}</button>
+              <button className="professor-submit-review" disabled={saving} onClick={handleSaveExam} title="Send this exam to the Cluster Professor for review before publishing." type="button"><FiSave /> {saving ? "Saving..." : "Submit for Review"}</button>
+              <button className="professor-save-exam" disabled={saving} onClick={handlePublishExam} title="Publish directly without Cluster Professor review." type="button"><FiSave /> Publish</button>
             </div>
           </div>
 
@@ -962,6 +1088,32 @@ export default function ProfessorCreateExam() {
           )}
         </aside>
       </form>
+      {publishConfirmOpen ? (
+        <div className="professor-share-backdrop professor-publish-backdrop" onClick={() => saving ? null : setPublishConfirmOpen(false)} role="presentation">
+          <section aria-labelledby="create-publish-title" aria-modal="true" className="professor-share-modal professor-publish-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+            <div className="professor-share-header">
+              <div>
+                <h2 id="create-publish-title">Publish Exam?</h2>
+                <p>This will publish the exam directly without submitting it for Cluster Professor review.</p>
+              </div>
+              <button aria-label="Close publish confirmation" disabled={saving} onClick={() => setPublishConfirmOpen(false)} type="button">
+                <FiX />
+              </button>
+            </div>
+            <div className="professor-delete-summary">
+              <strong>{examForm.title || "Untitled Exam"}</strong>
+              <span>{selectedCourse ? `${selectedCourse.courseCode} - ${selectedCourse.section}` : "No course selected"} - {examForm.examType || "Exam"} - {examForm.period || "No period"}</span>
+              <p>Eligible students may be able to access the exam according to its schedule and availability settings. Do you want to continue?</p>
+            </div>
+            <div className="professor-delete-actions">
+              <button disabled={saving} onClick={() => setPublishConfirmOpen(false)} type="button">Cancel</button>
+              <button disabled={saving} onClick={confirmPublishExam} type="button">
+                {saving ? "Publishing..." : "Publish Exam"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </section>
   );
 }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FiArchive, FiCopy, FiFolder, FiFolderPlus, FiMoreVertical, FiRefreshCw, FiTrash2, FiUpload, FiX } from "react-icons/fi";
 import { toast } from "sonner";
 import { studentFiles, studentFolders } from "../../data/studentData";
@@ -61,8 +61,10 @@ export default function StudentResources() {
   const [liveFiles, setLiveFiles] = useState([]);
   const [resourcesReady, setResourcesReady] = useState(false);
   const [resourcesOnline, setResourcesOnline] = useState(false);
+  const loadSequenceRef = useRef(0);
+  const mutationVersionRef = useRef(0);
   const [folderName, setFolderName] = useState("");
-  const [selectedFolderId, setSelectedFolderId] = useState(studentFolders[0]?.id || "");
+  const [selectedFolderId, setSelectedFolderId] = useState("");
   const [previewFile, setPreviewFile] = useState(null);
   const [shareFile, setShareFile] = useState(null);
   const [shareTarget, setShareTarget] = useState("");
@@ -71,9 +73,11 @@ export default function StudentResources() {
   const [openFileMenu, setOpenFileMenu] = useState("");
   const [archiveOpen, setArchiveOpen] = useState(false);
   const [resourceSearch, setResourceSearch] = useState("");
+  const loadingSupabaseResources = hasSupabaseConfig && Boolean(user?.id) && !resourcesReady;
+  const usingLiveResourceSource = hasSupabaseConfig && Boolean(user?.id) && (resourcesOnline || !resourcesReady);
   const useSupabaseResources = hasSupabaseConfig && resourcesOnline && user?.id;
-  const folders = useSupabaseResources ? liveFolders : localFolders;
-  const files = useSupabaseResources ? liveFiles : localFiles;
+  const folders = usingLiveResourceSource ? liveFolders : localFolders;
+  const files = usingLiveResourceSource ? liveFiles : localFiles;
   const setFolders = useSupabaseResources ? setLiveFolders : setLocalFolders;
   const setFiles = useSupabaseResources ? setLiveFiles : setLocalFiles;
   const activeFolders = folders.filter((folder) => !folder.archived);
@@ -99,12 +103,23 @@ export default function StudentResources() {
   const selectedFolder = activeFolders.find((folder) => folder.id === selectedFolderId) || activeFolders[0];
   const selectedFiles = files.filter((file) => file.folderId === selectedFolder?.id && !file.archived);
 
+  function markResourceMutation() {
+    mutationVersionRef.current += 1;
+  }
+
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return undefined;
 
     let active = true;
+    setResourcesReady(false);
+    setResourcesOnline(false);
+    setLiveFolders([]);
+    setLiveFiles([]);
+    setSelectedFolderId("");
 
     async function loadResources() {
+      const requestId = ++loadSequenceRef.current;
+      const mutationVersion = mutationVersionRef.current;
       const [foldersResponse, filesResponse] = await Promise.all([
         supabase
           .from("student_resource_folders")
@@ -119,6 +134,8 @@ export default function StudentResources() {
           .order("created_at", { ascending: true })
           .limit(500),
       ]);
+
+      if (!active || requestId !== loadSequenceRef.current || mutationVersion !== mutationVersionRef.current) return;
 
       if (foldersResponse.error || filesResponse.error) {
         const error = foldersResponse.error || filesResponse.error;
@@ -154,6 +171,7 @@ export default function StudentResources() {
 
     return () => {
       active = false;
+      loadSequenceRef.current += 1;
       supabase.removeChannel(channel);
     };
   }, [user?.id]);
@@ -164,6 +182,7 @@ export default function StudentResources() {
     if (!name) return;
 
     if (useSupabaseResources) {
+      markResourceMutation();
       const { data, error } = await supabase
         .from("student_resource_folders")
         .insert({
@@ -207,6 +226,7 @@ export default function StudentResources() {
     if (!selectedFolder || !uploaded.length) return;
 
     if (useSupabaseResources) {
+      markResourceMutation();
       const storedFiles = [];
 
       for (const file of uploaded) {
@@ -273,6 +293,7 @@ export default function StudentResources() {
     event.preventDefault();
     if (!shareFile || !shareTarget) return;
     if (useSupabaseResources) {
+      markResourceMutation();
       const { error } = await supabase
         .from("student_resource_files")
         .update({ folder_id: shareTarget })
@@ -294,6 +315,7 @@ export default function StudentResources() {
     if (!copyFile || !copyTarget) return;
 
     if (useSupabaseResources) {
+      markResourceMutation();
       let nextPath = copyFile.filePath;
       if (copyFile.filePath) {
         nextPath = `${user.id}/${copyTarget}/${crypto.randomUUID()}-${safeStorageName(copyFile.name)}`;
@@ -358,6 +380,7 @@ export default function StudentResources() {
 
   async function archiveFolder(folderId) {
     if (useSupabaseResources) {
+      markResourceMutation();
       const { error } = await supabase
         .from("student_resource_folders")
         .update({ archived: true })
@@ -378,6 +401,7 @@ export default function StudentResources() {
 
   async function restoreFolder(folderId) {
     if (useSupabaseResources) {
+      markResourceMutation();
       const { error } = await supabase
         .from("student_resource_folders")
         .update({ archived: false })
@@ -395,15 +419,8 @@ export default function StudentResources() {
 
   async function deleteFolder(folderId) {
     if (useSupabaseResources) {
+      markResourceMutation();
       const folderFiles = files.filter((file) => file.folderId === folderId && file.filePath).map((file) => file.filePath);
-      if (folderFiles.length) {
-        const { error: storageError } = await supabase.storage.from("student-resources").remove(folderFiles);
-        if (storageError) {
-          toast.error(storageError.message);
-          return;
-        }
-      }
-
       const { error } = await supabase
         .from("student_resource_folders")
         .delete()
@@ -414,6 +431,10 @@ export default function StudentResources() {
         toast.error(error.message);
         return;
       }
+      if (folderFiles.length) {
+        const { error: storageError } = await supabase.storage.from("student-resources").remove(folderFiles);
+        if (storageError) toast.error(`Folder deleted, but storage cleanup failed: ${storageError.message}`);
+      }
     }
     setFolders((current) => current.filter((folder) => folder.id !== folderId));
     setFiles((current) => current.filter((file) => file.folderId !== folderId));
@@ -421,6 +442,7 @@ export default function StudentResources() {
 
   async function archiveFile(fileId) {
     if (useSupabaseResources) {
+      markResourceMutation();
       const { error } = await supabase
         .from("student_resource_files")
         .update({ archived: true })
@@ -438,6 +460,7 @@ export default function StudentResources() {
 
   async function restoreFile(fileId) {
     if (useSupabaseResources) {
+      markResourceMutation();
       const { error } = await supabase
         .from("student_resource_files")
         .update({ archived: false })
@@ -455,14 +478,7 @@ export default function StudentResources() {
   async function deleteFile(fileId) {
     const file = files.find((item) => item.id === fileId);
     if (useSupabaseResources) {
-      if (file?.filePath) {
-        const { error: storageError } = await supabase.storage.from("student-resources").remove([file.filePath]);
-        if (storageError) {
-          toast.error(storageError.message);
-          return;
-        }
-      }
-
+      markResourceMutation();
       const { error } = await supabase
         .from("student_resource_files")
         .delete()
@@ -472,6 +488,10 @@ export default function StudentResources() {
       if (error) {
         toast.error(error.message);
         return;
+      }
+      if (file?.filePath) {
+        const { error: storageError } = await supabase.storage.from("student-resources").remove([file.filePath]);
+        if (storageError) toast.error(`File deleted, but storage cleanup failed: ${storageError.message}`);
       }
     }
     setFiles((current) => current.filter((file) => file.id !== fileId));
@@ -502,8 +522,11 @@ export default function StudentResources() {
       {hasSupabaseConfig && user?.id && resourcesReady && !resourcesOnline ? (
         <div className="student-empty-box">Resources are using local storage until the Supabase student resources SQL is applied.</div>
       ) : null}
+      {loadingSupabaseResources ? (
+        <div className="student-empty-box">Loading resources...</div>
+      ) : null}
 
-      <div className="student-resources-layout">
+      {!loadingSupabaseResources ? <div className="student-resources-layout">
         <form className="student-card student-folder-form" onSubmit={handleCreateFolder}>
           <h2>Create Folder</h2>
           <input onChange={(event) => setFolderName(event.target.value)} placeholder="Folder name" value={folderName} />
@@ -555,9 +578,9 @@ export default function StudentResources() {
             )}
           </section>
         </div>
-      </div>
+      </div> : null}
 
-      {selectedFolder ? (
+      {!loadingSupabaseResources && selectedFolder ? (
         <section className="student-card student-file-panel">
           <div className="student-card-title">
             <div>

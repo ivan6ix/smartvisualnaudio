@@ -77,7 +77,7 @@ Deno.serve(async (req) => {
     const { data: updatedExam, error: updateError } = await adminClient
       .from("exams")
       .update({
-        status: decision,
+        status: action === "approve" ? "Unpublished" : decision,
         approved_at: action === "approve" ? now : null,
         rejected_at: action === "reject" ? now : null,
       })

@@ -3603,7 +3603,7 @@ html[data-theme="light"] .settings-switch:not(.on) {
   line-height: 1.5;
 }
 .professor-exams-page {
-  width: min(100%, 1120px);
+  width: min(100%, 1320px);
   margin: 0 auto;
   display: grid;
   gap: 22px;
@@ -3725,15 +3725,119 @@ html[data-theme="light"] .settings-switch:not(.on) {
 .professor-draft-row small {
   color: var(--app-text-muted);
 }
-.professor-exams-table-card {
+.professor-archive-modal {
+  width: calc(100vw - 32px);
+  max-width: 1440px;
+  height: calc(100vh - 32px);
+  max-height: 920px;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
   overflow: hidden;
+}
+.professor-archive-search {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #d8deea;
+  border-radius: 12px;
+  background: var(--app-input);
+  color: var(--app-text);
+  padding: 0 14px;
+  font-weight: 800;
+  outline: 0;
+}
+.professor-archive-search:focus {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+.professor-archive-list {
+  min-height: 0;
+  overflow: auto;
+  display: block;
+  padding-right: 0;
+}
+.professor-archive-table {
+  min-width: 980px;
+}
+.professor-archive-table th,
+.professor-archive-table td {
+  white-space: nowrap;
+}
+.professor-archive-table td:first-child strong {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+.professor-archive-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px;
+  border: 1px solid #e6e8ee;
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+.professor-archive-row > div:first-child,
+.professor-delete-summary {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  width: 100%;
+}
+.professor-archive-row strong,
+.professor-archive-row span,
+.professor-archive-row small,
+.professor-delete-summary strong,
+.professor-delete-summary span,
+.professor-delete-summary p {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+.professor-archive-row span,
+.professor-archive-row small,
+.professor-delete-summary span,
+.professor-delete-summary p {
+  color: var(--app-text-muted);
+}
+.professor-delete-modal {
+  width: min(560px, calc(100vw - 28px));
+}
+.professor-delete-summary {
+  border: 1px solid #e6e8ee;
+  border-radius: 8px;
+  background: var(--app-surface);
+  padding: 14px;
+}
+.professor-delete-actions {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.professor-delete-actions button {
+  min-height: 42px;
+  border: 1px solid #d8deea;
+  border-radius: 12px;
+  padding: 0 16px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-weight: 900;
+}
+.professor-exam-actions button.danger,
+.professor-delete-actions button.danger {
+  border-color: rgba(239, 68, 68, 0.36);
+  background: rgba(239, 68, 68, 0.14);
+  color: #fecaca;
+}
+.professor-exams-table-card {
+  overflow-x: auto;
+  overflow-y: hidden;
   background: var(--app-surface);
   border: 1px solid #e6e8ee;
   border-radius: 18px;
   box-shadow: 0 18px 50px rgba(16, 24, 40, 0.08);
 }
 .professor-exams-table {
-  min-width: 1180px;
+  min-width: 1280px;
   width: 100%;
   border-collapse: collapse;
   table-layout: auto;
@@ -3759,8 +3863,8 @@ html[data-theme="light"] .settings-switch:not(.on) {
 }
 .professor-exams-table th:last-child,
 .professor-exams-table td:last-child {
-  width: 34%;
-  min-width: 360px;
+  width: 40%;
+  min-width: 460px;
 }
 .professor-status-stack {
   display: grid;
@@ -3814,7 +3918,7 @@ html[data-theme="light"] .settings-switch:not(.on) {
   justify-content: flex-start;
   gap: 8px;
   flex-wrap: wrap;
-  min-width: 336px;
+  min-width: 440px;
 }
 .professor-exam-actions button {
   display: inline-flex;
@@ -3881,6 +3985,12 @@ html[data-theme="light"] .settings-switch:not(.on) {
   box-shadow: 0 26px 70px rgba(15, 23, 42, 0.22);
   padding: 20px;
   animation: modal-rise 160ms ease-out;
+}
+.professor-share-modal.professor-archive-modal {
+  width: calc(100vw - 32px);
+  max-width: 1440px;
+  height: calc(100vh - 32px);
+  max-height: 920px;
 }
 .professor-share-header {
   display: flex;
@@ -4289,8 +4399,8 @@ html[data-theme="light"] .settings-switch:not(.on) {
 }
 .professor-shell .professor-exams-table th:last-child,
 .professor-shell .professor-exams-table td:last-child {
-  width: 34%;
-  min-width: 360px;
+  width: 40%;
+  min-width: 460px;
   padding-right: 18px;
   padding-left: 18px;
 }
@@ -4316,7 +4426,7 @@ html[data-theme="light"] .settings-switch:not(.on) {
   white-space: nowrap;
 }
 .professor-shell .professor-exam-actions {
-  min-width: 336px;
+  min-width: 440px;
   justify-content: flex-start;
 }
 .professor-shell .professor-exam-actions button {
@@ -4325,6 +4435,101 @@ html[data-theme="light"] .settings-switch:not(.on) {
   padding: 7px 12px;
   font-size: 0.78rem;
   white-space: nowrap;
+}
+
+.professor-exams-section .professor-exams-table-card,
+.professor-shell .professor-exams-section .professor-exams-table-card {
+  overflow-x: visible;
+  overflow-y: visible;
+}
+.professor-exams-section .professor-exams-table,
+.professor-shell .professor-exams-section .professor-exams-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+.professor-exams-section .professor-exams-table th,
+.professor-exams-section .professor-exams-table td,
+.professor-shell .professor-exams-section .professor-exams-table th,
+.professor-shell .professor-exams-section .professor-exams-table td {
+  padding: 14px 12px;
+  overflow-wrap: anywhere;
+  word-break: normal;
+}
+.professor-exams-section .professor-exams-table th:first-child,
+.professor-exams-section .professor-exams-table td:first-child,
+.professor-shell .professor-exams-section .professor-exams-table th:first-child,
+.professor-shell .professor-exams-section .professor-exams-table td:first-child {
+  width: 21%;
+  padding-left: 16px;
+}
+.professor-exams-section .professor-exams-table th:nth-child(2),
+.professor-exams-section .professor-exams-table td:nth-child(2) {
+  width: 15%;
+}
+.professor-exams-section .professor-exams-table th:nth-child(3),
+.professor-exams-section .professor-exams-table td:nth-child(3) {
+  width: 9%;
+}
+.professor-exams-section .professor-exams-table th:nth-child(4),
+.professor-exams-section .professor-exams-table td:nth-child(4) {
+  width: 9%;
+}
+.professor-exams-section .professor-exams-table th:nth-child(5),
+.professor-exams-section .professor-exams-table td:nth-child(5) {
+  width: 9%;
+}
+.professor-exams-section .professor-exams-table th:nth-child(6),
+.professor-exams-section .professor-exams-table td:nth-child(6) {
+  width: 14%;
+}
+.professor-exams-section .professor-exams-table th:last-child,
+.professor-exams-section .professor-exams-table td:last-child,
+.professor-shell .professor-exams-section .professor-exams-table th:last-child,
+.professor-shell .professor-exams-section .professor-exams-table td:last-child {
+  width: 23%;
+  min-width: 0;
+  padding-right: 12px;
+  padding-left: 12px;
+}
+.professor-exams-section .professor-exams-table td:first-child strong {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+.professor-exams-section .professor-status-stack,
+.professor-shell .professor-exams-section .professor-status-stack {
+  min-width: 0;
+  justify-items: start;
+}
+.professor-exams-section .professor-status-pill,
+.professor-shell .professor-exams-section .professor-status-pill {
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
+  padding: 5px 10px;
+}
+.professor-exams-section .professor-exam-actions,
+.professor-shell .professor-exams-section .professor-exam-actions {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+}
+.professor-exams-section .professor-exam-actions button,
+.professor-shell .professor-exams-section .professor-exam-actions button {
+  flex: 1 1 72px;
+  min-width: 0;
+  min-height: 32px;
+  padding: 6px 9px;
+  font-size: 0.76rem;
+  line-height: 1.15;
 }
 .professor-violation-chart {
   border-color: rgba(125, 211, 252, 0.12);
@@ -4492,6 +4697,7 @@ html[data-theme="light"] .settings-switch:not(.on) {
 }
 .professor-add-question,
 .professor-save-exam,
+.professor-submit-review,
 .professor-save-draft {
   min-height: 42px;
   border: 0;
@@ -4512,6 +4718,10 @@ html[data-theme="light"] .settings-switch:not(.on) {
 .professor-save-exam {
   background: #2563eb;
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
+}
+.professor-submit-review {
+  background: #0891b2;
+  box-shadow: 0 10px 22px rgba(8, 145, 178, 0.22);
 }
 .professor-save-draft {
   border: 1px solid #d8deea;
@@ -4570,8 +4780,8 @@ html[data-theme="light"] .settings-switch:not(.on) {
 }
 .professor-shell .professor-exams-table th:last-child,
 .professor-shell .professor-exams-table td:last-child {
-  width: 34%;
-  min-width: 360px;
+  width: 40%;
+  min-width: 460px;
   padding-right: 18px;
   padding-left: 18px;
 }
@@ -4597,7 +4807,7 @@ html[data-theme="light"] .settings-switch:not(.on) {
   white-space: nowrap;
 }
 .professor-shell .professor-exam-actions {
-  min-width: 336px;
+  min-width: 440px;
   justify-content: flex-start;
 }
 .professor-shell .professor-exam-actions button {
@@ -5139,6 +5349,11 @@ html[data-theme="light"] .settings-switch:not(.on) {
   padding: 18px;
   text-align: left;
   box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
+  cursor: pointer;
+}
+.student-course-card:focus-visible {
+  outline: 3px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  outline-offset: 3px;
 }
 .student-course-card strong,
 .student-folder-grid strong {
@@ -5211,6 +5426,27 @@ html[data-theme="light"] .settings-switch:not(.on) {
 .student-dashboard-overview .student-course-card i {
   background: rgba(6, 182, 212, 0.14);
   color: var(--accent);
+}
+.student-course-access-state {
+  width: min(520px, 100%);
+  margin: clamp(36px, 8vw, 84px) auto 0;
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  border: 1px solid var(--app-line);
+  border-radius: 18px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  padding: clamp(24px, 5vw, 36px);
+  text-align: center;
+}
+.student-course-access-state h1,
+.student-course-access-state p {
+  margin: 0;
+}
+.student-course-access-state p {
+  color: var(--app-text-muted);
+  font-weight: 700;
 }
 .student-exam-list {
   display: grid;
@@ -5362,6 +5598,86 @@ html[data-theme="light"] .settings-switch:not(.on) {
 .student-exam-start-actions .button {
   min-width: 118px;
   justify-content: center;
+}
+.student-exam-blocked-page {
+  min-height: calc(100vh - 120px);
+  display: grid;
+  place-items: center;
+  padding: clamp(20px, 5vw, 48px);
+  color: var(--app-text);
+}
+.student-exam-blocked-card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 18px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: 0 20px 54px rgba(2, 6, 23, 0.16);
+  padding: clamp(20px, 4vw, 30px);
+}
+.student-exam-blocked-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+}
+.student-exam-blocked-heading span {
+  display: block;
+  color: var(--app-text-muted);
+  font-size: 0.8rem;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.student-exam-blocked-heading h1 {
+  margin: 8px 0 4px;
+  color: var(--app-text);
+  font-size: clamp(1.45rem, 4vw, 2rem);
+  line-height: 1.12;
+}
+.student-exam-blocked-heading p,
+.student-exam-blocked-message {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-weight: 700;
+}
+.student-exam-blocked-heading svg {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  color: var(--accent);
+}
+.student-exam-blocked-message {
+  color: var(--app-text);
+  line-height: 1.55;
+}
+.student-exam-blocked-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-active);
+  padding: 12px 14px;
+}
+.student-exam-blocked-meta span {
+  color: var(--app-text-muted);
+  font-weight: 800;
+}
+.student-exam-blocked-meta strong {
+  color: var(--app-text);
+}
+.student-exam-blocked-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.student-exam-blocked-actions .button {
+  justify-content: center;
+  min-width: 132px;
 }
 .student-exam-resume-note {
   display: grid;
@@ -8882,6 +9198,7 @@ html[data-theme] #root,
 html[data-theme] .student-page,
 html[data-theme] .student-exam-take-page,
 html[data-theme] .student-exam-start-page,
+html[data-theme] .student-exam-blocked-page,
 html[data-theme] .student-environment-page,
 html[data-theme] .professor-create-page,
 html[data-theme] .reports-page {
@@ -9759,10 +10076,77 @@ html[data-theme] .badge-blue {
   border-color: var(--app-line) !important;
 }
 
+@media (max-width: 900px) {
+  .professor-exams-section .professor-exams-table-card,
+  .professor-shell .professor-exams-section .professor-exams-table-card {
+    overflow: visible;
+  }
+  .professor-exams-section .professor-exams-table,
+  .professor-exams-section .professor-exams-table thead,
+  .professor-exams-section .professor-exams-table tbody,
+  .professor-exams-section .professor-exams-table tr,
+  .professor-exams-section .professor-exams-table th,
+  .professor-exams-section .professor-exams-table td {
+    display: block;
+    width: 100% !important;
+  }
+  .professor-exams-section .professor-exams-table thead {
+    display: none;
+  }
+  .professor-exams-section .professor-exams-table {
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+  .professor-exams-section .professor-exams-table tbody {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+  .professor-exams-section .professor-exams-table tr {
+    border: 1px solid rgba(125, 211, 252, 0.16);
+    border-radius: 14px;
+    background: var(--app-surface);
+    overflow: hidden;
+  }
+  .professor-exams-section .professor-exams-table td,
+  .professor-shell .professor-exams-section .professor-exams-table td {
+    min-height: 0;
+    height: auto;
+    display: grid;
+    grid-template-columns: 116px minmax(0, 1fr);
+    gap: 12px;
+    align-items: start;
+    padding: 10px 14px;
+    border-bottom: 1px solid rgba(125, 211, 252, 0.1);
+    text-align: left;
+  }
+  .professor-exams-section .professor-exams-table td::before {
+    color: var(--app-text-muted);
+    font-size: 0.76rem;
+    font-weight: 900;
+    text-transform: uppercase;
+  }
+  .professor-exams-section .professor-exams-table td:nth-child(1)::before { content: "Title"; }
+  .professor-exams-section .professor-exams-table td:nth-child(2)::before { content: "Course"; }
+  .professor-exams-section .professor-exams-table td:nth-child(3)::before { content: "Type"; }
+  .professor-exams-section .professor-exams-table td:nth-child(4)::before { content: "Period"; }
+  .professor-exams-section .professor-exams-table td:nth-child(5)::before { content: "Duration"; }
+  .professor-exams-section .professor-exams-table td:nth-child(6)::before { content: "Status"; }
+  .professor-exams-section .professor-exams-table td:nth-child(7)::before { content: "Actions"; }
+  .professor-exams-section .professor-exams-table td:last-child {
+    border-bottom: 0;
+  }
+  .professor-exams-section .professor-exam-actions button,
+  .professor-shell .professor-exams-section .professor-exam-actions button {
+    flex: 1 1 112px;
+  }
+}
+
 @media (max-width: 620px) {
   .theme-mode-grid { grid-template-columns: 1fr; }
   .professor-exams-header,
   .professor-draft-row,
+  .professor-archive-row,
   .professor-question-titlebar {
     align-items: stretch;
     flex-direction: column;
@@ -9774,6 +10158,24 @@ html[data-theme] .badge-blue {
   }
   .professor-autosave-status {
     width: 100%;
+  }
+  .professor-archive-modal,
+  .professor-delete-modal {
+    width: calc(100vw - 8px);
+    height: calc(100dvh - 8px);
+    max-height: calc(100dvh - 8px);
+  }
+  .professor-archive-row {
+    padding: 14px;
+  }
+  .professor-archive-table {
+    min-width: 860px;
+  }
+  .professor-archive-row .professor-exam-actions {
+    width: 100%;
+  }
+  .professor-archive-row .professor-exam-actions button {
+    flex: 1 1 128px;
   }
 }
 
@@ -10042,7 +10444,7 @@ html[data-theme] .badge-blue {
   .professor-question-titlebar { align-items: flex-start; flex-direction: column; }
   .professor-question-titlebar > div { width: 100%; }
   .professor-added-list { grid-template-columns: 1fr; }
-  .professor-add-question, .professor-save-exam { flex: 1 1 150px; }
+  .professor-add-question, .professor-save-exam, .professor-submit-review { flex: 1 1 150px; }
   .professor-course-detail-heading, .professor-course-panel-title { display: grid; }
   .professor-material-actions { justify-content: flex-start; }
   .student-shell { padding: 12px 16px 48px; }

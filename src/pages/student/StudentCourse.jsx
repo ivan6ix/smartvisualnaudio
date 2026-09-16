@@ -1,3 +1,4 @@
+import { countUsedExamAttemptsByExam, getExamAttemptEligibility } from "../../lib/examAttempts";
 import { examAvailability } from "../../lib/examValidation";
 import { useEffect, useMemo, useState } from "react";
 import { FiBookOpen, FiChevronDown, FiDownload, FiEye, FiFileText, FiFolder, FiUpload, FiUsers, FiX } from "react-icons/fi";
@@ -55,11 +56,13 @@ function mapAttempt(attempt) {
   };
 }
 
-function mapAssessment(exam, attemptByExam = {}) {
+function mapAssessment(exam, attemptByExam = {}, attemptCountsByExam = {}) {
   const rawType = exam.exam_type || "Exam";
   const normalizedType = rawType.toLowerCase();
   const type = normalizedType.includes("activity") ? "activity" : normalizedType.includes("quiz") ? "quiz" : "exam";
   const attempt = attemptByExam[exam.id];
+  const attemptsTaken = attemptCountsByExam[exam.id] || 0;
+  const eligibility = getExamAttemptEligibility({ ...exam, examSettings: exam.exam_settings }, attemptsTaken);
   return {
     id: exam.id,
     examId: exam.id,
@@ -73,6 +76,8 @@ function mapAssessment(exam, attemptByExam = {}) {
     submittedAt: attempt?.submittedAt || exam.created_at,
     duration: exam.time_limit || exam.duration || 0,
     completed: Boolean(attempt),
+    attemptsTaken,
+    attemptEligibility: eligibility,
     source: "assessment",
   };
 }
@@ -242,8 +247,10 @@ function StudentMaterialFolder({
                   {item.fileUrl ? (
                     <a href={item.fileUrl} rel="noreferrer" target="_blank"><FiDownload /> Open</a>
                   ) : null}
-                  {item.source === "assessment" && !item.completed ? (
-                    <button disabled={examAvailability(item.examSettings) !== "Available"} onClick={() => onStart(item)} type="button">{examAvailability(item.examSettings) === "Available" ? "Start" : examAvailability(item.examSettings)}</button>
+                  {item.source === "assessment" ? (
+                    <button disabled={!item.attemptEligibility?.allowed} onClick={() => onStart(item)} type="button">
+                      {item.attemptEligibility?.allowed ? item.completed ? "Retake" : "Start" : item.attemptEligibility?.reason || examAvailability(item.examSettings)}
+                    </button>
                   ) : null}
                 </div>
               </section>
@@ -320,6 +327,8 @@ export default function StudentCourse() {
   const [permitRequests, setPermitRequests] = useState([]);
   const [permitFiles, setPermitFiles] = useState([]);
   const [uploadingPermit, setUploadingPermit] = useState(false);
+  const [loadingCourse, setLoadingCourse] = useState(() => hasSupabaseConfig);
+  const [courseAccessError, setCourseAccessError] = useState("");
   const [openPeriods, setOpenPeriods] = useState({});
   const [openFolders, setOpenFolders] = useState({});
   const [previewModule, setPreviewModule] = useState(null);
@@ -368,8 +377,11 @@ export default function StudentCourse() {
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id || !courseId) return;
+    let cancelled = false;
 
     async function loadCourseDetails() {
+      setLoadingCourse(true);
+      setCourseAccessError("");
       const [{ data: enrollmentRows, error: enrollmentError }, { data: attemptRows, error: attemptError }, { data: assessmentRows, error: assessmentError }, { data: memberRows, error: memberError }, { data: moduleRows, error: moduleError }, { data: periodRows, error: periodError }, { data: permitRequestRows, error: permitRequestError }, { data: permitFileRows, error: permitFileError }] = await Promise.all([
         supabase
           .from("course_enrollments")
@@ -420,8 +432,27 @@ export default function StudentCourse() {
           .limit(250),
       ]);
 
+      if (cancelled) return;
+
       if (enrollmentError) {
         toast.error(enrollmentError.message);
+        setCourseAccessError("Unable to load this course.");
+        setLiveCourse(null);
+        setLoadingCourse(false);
+        return;
+      }
+      if (!enrollmentRows?.courses) {
+        setCourseAccessError("You do not have access to this course.");
+        setLiveCourse(null);
+        setAttempts([]);
+        setAssessments([]);
+        setMembers([]);
+        setModules([]);
+        setPeriods([]);
+        setPermitRequests([]);
+        setPermitFiles([]);
+        setLoadingCourse(false);
+        return;
       } else {
         setLiveCourse(mapLiveCourse(enrollmentRows?.courses));
       }
@@ -438,16 +469,18 @@ export default function StudentCourse() {
         } else {
           const mappedAttempts = (fallbackAttemptRows || []).map(mapAttempt);
           setAttempts(mappedAttempts);
-          const attemptByExam = mappedAttempts.reduce((items, attempt) => ({ ...items, [attempt.examId]: attempt }), {});
-          setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam)));
+          const attemptByExam = mappedAttempts.reduce((items, attempt) => ({ ...items, [attempt.examId]: items[attempt.examId] || attempt }), {});
+          const attemptCountsByExam = countUsedExamAttemptsByExam((fallbackAttemptRows || []).map((attempt) => ({ exam_id: attempt.exams?.id })));
+          setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam)));
         }
       } else if (attemptError) {
         toast.error(attemptError.message);
       } else {
         const mappedAttempts = (attemptRows || []).map(mapAttempt);
         setAttempts(mappedAttempts);
-        const attemptByExam = mappedAttempts.reduce((items, attempt) => ({ ...items, [attempt.examId]: attempt }), {});
-        setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam)));
+        const attemptByExam = mappedAttempts.reduce((items, attempt) => ({ ...items, [attempt.examId]: items[attempt.examId] || attempt }), {});
+        const attemptCountsByExam = countUsedExamAttemptsByExam((attemptRows || []).map((attempt) => ({ exam_id: attempt.exams?.id })));
+        setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam)));
       }
 
       if (assessmentError) {
@@ -500,10 +533,33 @@ export default function StudentCourse() {
         const permitsWithUrls = (permitFileRows || []).map((file) => ({ ...file, signedUrl: permitUrlByPath.get(file.file_path) || "" }));
         setPermitFiles(permitsWithUrls.map(mapPermitFile));
       }
+
+      setLoadingCourse(false);
     }
 
     loadCourseDetails();
+    return () => { cancelled = true; };
   }, [courseId, user?.id]);
+
+  if (hasSupabaseConfig && loadingCourse && !course) {
+    return (
+      <section className="student-page">
+        <div className="student-empty-box">Loading course...</div>
+      </section>
+    );
+  }
+
+  if (hasSupabaseConfig && courseAccessError) {
+    return (
+      <section className="student-page">
+        <div className="student-course-access-state">
+          <h1>{courseAccessError}</h1>
+          <p>Course access is based on your current enrollment.</p>
+          <button className="student-primary-button" onClick={() => navigate("/student")} type="button">Back to Dashboard</button>
+        </div>
+      </section>
+    );
+  }
 
   if (!course) return <Navigate to="/student" replace />;
 

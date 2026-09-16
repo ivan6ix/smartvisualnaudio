@@ -457,10 +457,6 @@ export function ClusterProvider({ children }) {
   function publishProfessorExam(professorExamId) {
     setProfessorExams((current) => current.map((exam) => {
       if (exam.id !== professorExamId) return exam;
-      if (exam.clusterStatus !== "approved") {
-        toast.error("Cluster approval is required before publishing");
-        return exam;
-      }
       toast.success("Exam published for students");
       return { ...exam, status: "published" };
     }));

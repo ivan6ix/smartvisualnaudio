@@ -7,19 +7,13 @@ import { Badge, Card, PageHeader } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { studentCourses } from "../../data/studentData";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
+import { countUsedExamAttemptsByExam, getExamAttemptEligibility, getAttemptLimit } from "../../lib/examAttempts";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function examTone(status) {
   if (status === "Published" || status === "Active") return "success";
   if (status === "Scheduled") return "blue";
   return "neutral";
-}
-
-function getAttemptLimit(settings) {
-  const value = String(settings?.attemptLimit || settings?.attempts || "Unlimited").toLowerCase();
-  if (value.includes("unlimited")) return Infinity;
-  const match = value.match(/\d+/);
-  return match ? Number(match[0]) : Infinity;
 }
 
 function formatDurationLabel(duration) {
@@ -96,7 +90,7 @@ export default function StudentDashboard() {
       if (examIds.length) {
         const { data: attemptRows, error: attemptsError } = await supabase
           .from("exam_attempts")
-          .select("exam_id")
+          .select("id, exam_id, status, submitted_at")
           .eq("student_id", user.id)
           .in("exam_id", examIds);
 
@@ -104,18 +98,14 @@ export default function StudentDashboard() {
           throw attemptsError;
         }
 
-        attemptsByExam = (attemptRows || []).reduce((items, attempt) => ({
-          ...items,
-          [attempt.exam_id]: (items[attempt.exam_id] || 0) + 1,
-        }), {});
+        attemptsByExam = countUsedExamAttemptsByExam(attemptRows || []);
       }
 
       const visibleExams = (examRows || [])
         .map((exam) => ({ ...exam, attemptsTaken: attemptsByExam[exam.id] || 0 }))
         .filter((exam) => {
-          const attemptLimit = getAttemptLimit(exam.exam_settings);
-          const attemptsTaken = attemptsByExam[exam.id] || 0;
-          return attemptsTaken === 0 && (!Number.isFinite(attemptLimit) || attemptsTaken < attemptLimit);
+          const eligibility = getExamAttemptEligibility(exam, attemptsByExam[exam.id] || 0);
+          return eligibility.allowed;
         });
 
       return { courses: liveCourses, availableExams: visibleExams.map(mapLiveExam) };
@@ -123,6 +113,7 @@ export default function StudentDashboard() {
   });
 
   const availableExams = dashboardQuery.data?.availableExams || [];
+  const examsLoading = hasSupabaseConfig && dashboardQuery.isFetching;
 
   useEffect(() => {
     if (dashboardQuery.data?.courses) setCourses(dashboardQuery.data.courses);
@@ -221,7 +212,8 @@ export default function StudentDashboard() {
             <span>{availableExams.length}</span>
           </div>
           <div className="student-exam-list">
-            {availableExams.map((exam) => (
+            {examsLoading ? <div className="student-empty-box">Loading available exams...</div> : null}
+            {!examsLoading ? availableExams.map((exam) => (
               <article key={exam.id}>
                 <div>
                   <strong>{exam.title}</strong>
@@ -233,8 +225,8 @@ export default function StudentDashboard() {
                   <button className="student-start-exam" onClick={() => navigate(`/student/exams/${exam.id}`)} type="button">Start</button>
                 </div>
               </article>
-            ))}
-            {!availableExams.length ? <div className="student-empty-box">No available exams yet.</div> : null}
+            )) : null}
+            {!examsLoading && !availableExams.length ? <div className="student-empty-box">No available exams yet.</div> : null}
           </div>
         </Card>
       </div>
