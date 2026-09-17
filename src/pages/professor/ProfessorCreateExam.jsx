@@ -864,15 +864,24 @@ export default function ProfessorCreateExam() {
       while (autosaveInFlightRef.current) {
         await wait(100);
       }
-      const { examPayload, questionRows } = buildSavePayload("Published");
+      const { examPayload, questionRows } = buildSavePayload("Draft");
       const { data: savedId, error: saveError } = await supabase.rpc("save_exam", {
         p_id: draftExamId || editId || null,
         p_exam: examPayload,
         p_questions: questionRows,
       });
       if (saveError) throw saveError;
+      const examId = savedId || draftExamId || editId;
+      if (!examId) throw new Error("Exam was saved, but its record could not be identified for publishing.");
+
+      const { error: publishError } = await supabase
+        .from("exams")
+        .update({ status: "Published" })
+        .eq("id", examId);
+      if (publishError) throw publishError;
+
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
-      clearActiveCreateRecovery(savedId || draftExamId || editId);
+      clearActiveCreateRecovery(examId);
       toast.success("Exam published for students.");
       setPublishConfirmOpen(false);
       navigate("/professor/exams");

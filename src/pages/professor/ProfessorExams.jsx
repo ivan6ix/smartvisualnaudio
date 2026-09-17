@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FiArchive, FiEdit2, FiGrid, FiPlus, FiRotateCcw, FiTrash2, FiUser, FiUsers, FiX } from "react-icons/fi";
+import { FiArchive, FiEdit2, FiGrid, FiMoreVertical, FiPlus, FiRotateCcw, FiTrash2, FiUser, FiUsers, FiX } from "react-icons/fi";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../../components/ui";
@@ -44,6 +45,111 @@ function getApprovalActionLabel(exam) {
   if (exam.status === "pending") return "Submitted";
   if (exam.clusterStatus === "approved") return "Cluster Approved";
   return exam.clusterStatus === "rejected" ? "Resubmit for Approval" : "Submit for Approval";
+}
+
+function ExamActionsMenu({ actions, exam, loading, menuId, openMenuId, setOpenMenuId }) {
+  const wrapperRef = useRef(null);
+  const menuRef = useRef(null);
+  const isOpen = openMenuId === menuId;
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
+  const availableActions = actions.filter(Boolean);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    function handlePointerDown(event) {
+      if (wrapperRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      setOpenMenuId("");
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setOpenMenuId("");
+    }
+
+    function updateMenuPosition() {
+      const triggerRect = wrapperRef.current?.getBoundingClientRect();
+      if (!triggerRect) return;
+      const menuWidth = menuRef.current?.offsetWidth || 210;
+      const menuHeight = menuRef.current?.offsetHeight || 210;
+      const gap = 6;
+      const edge = 12;
+      const spaceBelow = window.innerHeight - triggerRect.bottom;
+      const openUp = spaceBelow < menuHeight + gap && triggerRect.top > spaceBelow;
+      const left = Math.min(Math.max(edge, triggerRect.right - menuWidth), window.innerWidth - menuWidth - edge);
+      const top = openUp
+        ? Math.max(edge, triggerRect.top - menuHeight - gap)
+        : Math.min(triggerRect.bottom + gap, window.innerHeight - menuHeight - edge);
+      setMenuPosition({ left, top });
+    }
+
+    updateMenuPosition();
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [isOpen, setOpenMenuId]);
+
+  function toggleMenu() {
+    if (isOpen) {
+      setOpenMenuId("");
+      return;
+    }
+    setOpenMenuId(menuId);
+  }
+
+  function runAction(action) {
+    if (action.disabled) return;
+    setOpenMenuId("");
+    action.onClick();
+  }
+
+  return (
+    <div className="professor-exam-actions-menu" ref={wrapperRef}>
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={`Exam actions for ${exam.title || "exam"}`}
+        className="professor-exam-actions-trigger"
+        disabled={!availableActions.length || loading}
+        onClick={toggleMenu}
+        title="Exam actions"
+        type="button"
+      >
+        <FiMoreVertical />
+      </button>
+      {isOpen ? createPortal(
+        <div
+          className="professor-exam-actions-popover"
+          ref={menuRef}
+          role="menu"
+          style={{ left: `${menuPosition.left}px`, top: `${menuPosition.top}px` }}
+        >
+          {availableActions.map((action, index) => action.separator ? (
+            <div aria-hidden="true" className="professor-exam-actions-divider" key={`separator-${index}`} />
+          ) : (
+            <button
+              className={action.danger ? "danger" : ""}
+              disabled={action.disabled}
+              key={action.label}
+              onClick={() => runAction(action)}
+              role="menuitem"
+              type="button"
+            >
+              {action.icon ? <action.icon /> : null}
+              <span>{action.label}</span>
+            </button>
+          ))}
+        </div>,
+        document.body,
+      ) : null}
+    </div>
+  );
 }
 
 const initialSectionFilters = {
@@ -142,6 +248,7 @@ export default function ProfessorExams() {
   const [deletingId, setDeletingId] = useState("");
   const [publishTarget, setPublishTarget] = useState(null);
   const [publishingId, setPublishingId] = useState("");
+  const [openMenuId, setOpenMenuId] = useState("");
   const sourceExams = hasSupabaseConfig ? liveExams : professorExams;
   const allExams = useMemo(() => Array.isArray(sourceExams) ? sourceExams : [], [sourceExams]);
   const activeExams = useMemo(() => allExams.filter((exam) => !exam.archived), [allExams]);
@@ -481,6 +588,56 @@ export default function ProfessorExams() {
     return date.toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
   }
 
+  function getDraftActions(exam) {
+    return [
+      { label: "Resume", icon: FiEdit2, onClick: () => navigate(`/professor/exams/create?editId=${exam.id}`) },
+      { label: loadingActionId === exam.id ? "Checking..." : "Move to Unpublished", onClick: () => handleMoveDraftToUnpublished(exam), disabled: loadingActionId === exam.id },
+      { separator: true },
+      { label: "Archive", icon: FiArchive, danger: true, onClick: () => setArchived(exam) },
+    ];
+  }
+
+  function getExamActions(exam) {
+    const actions = [];
+
+    if (exam.status === "pending") {
+      actions.push({ label: "View", onClick: () => navigate(`/professor/exams/create?editId=${exam.id}`) });
+      actions.push({ label: "Share", disabled: true, onClick: () => setShareExam(exam) });
+      actions.push({ separator: true });
+      actions.push({ label: exam.archived ? "Restore" : "Archive", icon: FiArchive, danger: true, onClick: () => setArchived(exam) });
+      return actions;
+    }
+
+    if (exam.status === "published") {
+      actions.push({ label: "Unpublish", onClick: () => handleUnpublish(exam) });
+      actions.push({ label: "Share", onClick: () => setShareExam(exam) });
+      actions.push({ separator: true });
+      actions.push({ label: exam.archived ? "Restore" : "Archive", icon: FiArchive, danger: true, onClick: () => setArchived(exam) });
+      return actions;
+    }
+
+    if (exam.status === "unpublished") {
+      actions.push({ label: "Edit", icon: FiEdit2, onClick: () => navigate(`/professor/exams/create?editId=${exam.id}`) });
+      if (exam.clusterStatus !== "rejected") {
+        actions.push({ label: "Publish", onClick: () => handlePublish(exam) });
+      } else {
+        actions.push({ label: getPublishGateLabel(exam), disabled: true, onClick: () => {} });
+      }
+      if (exam.clusterStatus !== "approved") {
+        actions.push({
+          label: loadingActionId === exam.id ? "Saving..." : getApprovalActionLabel(exam),
+          onClick: () => handleSubmitForApproval(exam),
+          disabled: loadingActionId === exam.id,
+        });
+      }
+      actions.push({ label: "Share", onClick: () => setShareExam(exam) });
+      actions.push({ separator: true });
+      actions.push({ label: exam.archived ? "Restore" : "Archive", icon: FiArchive, danger: true, onClick: () => setArchived(exam) });
+    }
+
+    return actions;
+  }
+
   function renderDraftsSection() {
     return (
       <section className="professor-exams-section professor-drafts-section">
@@ -500,14 +657,14 @@ export default function ProfessorExams() {
                 <small>Last modified {formatLastModified(exam.updatedAt)} - {exam.questionCount} question{exam.questionCount === 1 ? "" : "s"}</small>
               </div>
               <div className="professor-exam-actions">
-                <button disabled={loadingActionId === exam.id} onClick={() => navigate(`/professor/exams/create?editId=${exam.id}`)}><FiEdit2 /> Resume</button>
-                <button disabled={loadingActionId === exam.id} onClick={() => handleMoveDraftToUnpublished(exam)}>
-                  {loadingActionId === exam.id ? "Checking..." : "Move to Unpublished"}
-                </button>
-                <button disabled={loadingActionId === exam.id} onClick={() => setArchived(exam)}>
-                  <FiArchive />
-                  Archive
-                </button>
+                <ExamActionsMenu
+                  actions={getDraftActions(exam)}
+                  exam={exam}
+                  loading={loadingActionId === exam.id}
+                  menuId={`draft-${exam.id}`}
+                  openMenuId={openMenuId}
+                  setOpenMenuId={setOpenMenuId}
+                />
               </div>
             </article>
           ))}
@@ -861,32 +1018,15 @@ export default function ProfessorExams() {
                     </div>
                   </td>
                   <td>
-                    <div className="professor-exam-actions"><button disabled={loadingActionId === exam.id} onClick={() => setArchived(exam)}>{exam.archived ? "Restore" : "Archive"}</button>
-                      {exam.status === "published" ? <button className="danger" disabled={loadingActionId === exam.id} onClick={() => handleUnpublish(exam)}>Unpublish</button> : null}
-                      {exam.status === "unpublished" ? (
-                        <button disabled={loadingActionId === exam.id} onClick={() => navigate(`/professor/exams/create?editId=${exam.id}`)}>
-                          <FiEdit2 /> Edit
-                        </button>
-                      ) : null}
-                      {exam.status === "unpublished" && exam.clusterStatus !== "rejected" ? <button disabled={loadingActionId === exam.id} onClick={() => handlePublish(exam)}>Publish</button> : null}
-                      {exam.status === "unpublished" && exam.clusterStatus === "rejected" ? <button className="locked" disabled>{getPublishGateLabel(exam)}</button> : null}
-                      {exam.status === "pending" ? <button className="muted">View</button> : null}
-                      {exam.status !== "published" && exam.status !== "pending" && exam.clusterStatus !== "approved" ? (
-                        <button
-                          className="approval"
-                          disabled={loadingActionId === exam.id}
-                          onClick={() => handleSubmitForApproval(exam)}
-                        >
-                          {loadingActionId === exam.id ? "Saving..." : getApprovalActionLabel(exam)}
-                        </button>
-                      ) : null}
-                      <button
-                        className={exam.status === "pending" ? "share-disabled" : ""}
-                        disabled={exam.status === "pending"}
-                        onClick={() => setShareExam(exam)}
-                      >
-                        Share
-                      </button>
+                    <div className="professor-exam-actions">
+                      <ExamActionsMenu
+                        actions={getExamActions(exam)}
+                        exam={exam}
+                        loading={loadingActionId === exam.id}
+                        menuId={`exam-${exam.id}`}
+                        openMenuId={openMenuId}
+                        setOpenMenuId={setOpenMenuId}
+                      />
                     </div>
                   </td>
                 </tr>
