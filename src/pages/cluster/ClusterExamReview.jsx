@@ -44,7 +44,9 @@ export default function ClusterExamReview() {
           <h2>{exam.examTitle}</h2>
           <div className="info-list">
             <span>Description <strong>{exam.description}</strong></span>
+            <span>Program <strong>{exam.programCode || "Program not assigned"}</strong></span>
             <span>Course <strong>{exam.course}</strong></span>
+            <span>Year/Section <strong>{[exam.yearLevel, exam.section].filter(Boolean).join(" - ") || exam.courseMeta || "Not assigned"}</strong></span>
             <span>Professor Name <strong>{exam.professorName}</strong></span>
             <span>Time Limit <strong>{exam.timeLimit} minutes</strong></span>
             <span>Passing Score <strong>{exam.passingScore}%</strong></span>

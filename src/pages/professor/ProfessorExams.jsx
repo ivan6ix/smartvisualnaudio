@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
+import { formatCourseMeta } from "../../lib/coursePrograms";
 import { validateExam } from "../../lib/examValidation";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -153,9 +154,9 @@ function ExamActionsMenu({ actions, exam, loading, menuId, openMenuId, setOpenMe
 }
 
 const initialSectionFilters = {
-  published: { search: "", course: "All Courses", type: "All Types", period: "All Periods" },
-  pending: { search: "", course: "All Courses", type: "All Types", period: "All Periods" },
-  unpublished: { search: "", course: "All Courses", type: "All Types", period: "All Periods" },
+  published: { search: "", program: "All Programs", course: "All Courses", type: "All Types", period: "All Periods" },
+  pending: { search: "", program: "All Programs", course: "All Courses", type: "All Types", period: "All Periods" },
+  unpublished: { search: "", program: "All Programs", course: "All Courses", type: "All Types", period: "All Periods" },
 };
 
 const CHOICE_TYPES = ["Multiple Choice", "Picture Choice", "Multiple Select"];
@@ -214,7 +215,11 @@ function mapExam(row, reviewByExam = {}) {
     archived: Boolean(row.exam_settings?.archived),
     courseId: row.course_id,
     courseCode: course?.course_code || "",
+    programCode: course?.programs?.program_code || "",
+    programName: course?.programs?.program_name || "",
+    yearLevel: course?.year_level || "",
     section: course?.section || "",
+    courseMeta: formatCourseMeta(course || {}),
     title: row.exam_title || row.title || "Untitled exam",
     course: course?.course_code && course?.section ? `${course.course_code} - ${course.section}` : row.course || course?.course_name || "Unassigned course",
     type: row.exam_type || "Exam",
@@ -287,11 +292,12 @@ export default function ProfessorExams() {
   function filterSectionRows(rows, sectionKey) {
     const filters = sectionFilters[sectionKey];
     return rows.filter((exam) => {
-      const matchesSearch = `${exam.title} ${exam.course} ${exam.type} ${exam.period} ${exam.duration}`.toLowerCase().includes(filters.search.toLowerCase());
+      const matchesSearch = `${exam.title} ${exam.course} ${exam.programCode} ${exam.courseMeta} ${exam.type} ${exam.period} ${exam.duration}`.toLowerCase().includes(filters.search.toLowerCase());
+      const matchesProgram = filters.program === "All Programs" || exam.programCode === filters.program;
       const matchesCourse = filters.course === "All Courses" || exam.course === filters.course;
       const matchesType = filters.type === "All Types" || exam.type === filters.type;
       const matchesPeriod = filters.period === "All Periods" || exam.period === filters.period;
-      return matchesSearch && matchesCourse && matchesType && matchesPeriod;
+      return matchesSearch && matchesProgram && matchesCourse && matchesType && matchesPeriod;
     });
   }
 
@@ -305,7 +311,7 @@ export default function ProfessorExams() {
 
     const { data, error } = await supabase
       .from("exams")
-      .select("id, title, exam_title, course_id, description, course, exam_type, duration, time_limit, questions_count, status, exam_settings, submitted_at, approved_at, rejected_at, created_at, courses(course_name, course_code, section)")
+      .select("id, title, exam_title, course_id, description, course, exam_type, duration, time_limit, questions_count, status, exam_settings, submitted_at, approved_at, rejected_at, created_at, courses(course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active))")
       .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
       .order("created_at", { ascending: false })
       .limit(250);
@@ -949,6 +955,7 @@ export default function ProfessorExams() {
   function renderExamSection(sectionKey, title, description, rows) {
     const filteredRows = filterSectionRows(rows, sectionKey);
     const filters = sectionFilters[sectionKey];
+    const programOptions = getFilterOptions(rows, "programCode");
     const courseOptions = getFilterOptions(rows, "course");
     const typeOptions = getFilterOptions(rows, "type");
     const periodOptions = getFilterOptions(rows, "period");
@@ -973,6 +980,10 @@ export default function ProfessorExams() {
           <select aria-label={`${title} course filter`} onChange={(event) => updateSectionFilter(sectionKey, "course", event.target.value)} value={filters.course}>
             <option>All Courses</option>
             {courseOptions.map((course) => <option key={course}>{course}</option>)}
+          </select>
+          <select aria-label={`${title} program filter`} onChange={(event) => updateSectionFilter(sectionKey, "program", event.target.value)} value={filters.program}>
+            <option>All Programs</option>
+            {programOptions.map((program) => <option key={program}>{program}</option>)}
           </select>
           <select aria-label={`${title} type filter`} onChange={(event) => updateSectionFilter(sectionKey, "type", event.target.value)} value={filters.type}>
             <option>All Types</option>
@@ -1006,7 +1017,10 @@ export default function ProfessorExams() {
                       <small className="professor-rejection-note">Reason: {exam.rejectionReason}</small>
                     ) : null}
                   </td>
-                  <td>{exam.course}</td>
+                  <td>
+                    {exam.course}
+                    <small>{exam.courseMeta}</small>
+                  </td>
                   <td>{exam.type}</td>
                   <td>{exam.period}</td>
                   <td>{exam.duration}</td>

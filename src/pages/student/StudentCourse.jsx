@@ -8,6 +8,7 @@ import { Badge } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { studentCourses, studentGrades, studentMembers } from "../../data/studentData";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
+import { formatCourseMeta, formatCourseTerm } from "../../lib/coursePrograms";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function mapLiveCourse(course) {
@@ -17,6 +18,12 @@ function mapLiveCourse(course) {
     name: course.course_code || course.name || "Course",
     section: course.course_code && course.section ? `${course.course_code} - ${course.section}` : course.section || "No section",
     courseName: course.course_name || course.courseName || course.name || "Course",
+    programCode: course.programs?.program_code || course.programCode || "",
+    programName: course.programs?.program_name || course.programName || "",
+    yearLevel: course.year_level || course.yearLevel || "",
+    rawSection: course.section || "",
+    semester: course.semester || "",
+    academicYear: course.academic_year || course.academicYear || "",
   };
 }
 
@@ -385,7 +392,7 @@ export default function StudentCourse() {
       const [{ data: enrollmentRows, error: enrollmentError }, { data: attemptRows, error: attemptError }, { data: assessmentRows, error: assessmentError }, { data: memberRows, error: memberError }, { data: moduleRows, error: moduleError }, { data: periodRows, error: periodError }, { data: permitRequestRows, error: permitRequestError }, { data: permitFileRows, error: permitFileError }] = await Promise.all([
         supabase
           .from("course_enrollments")
-          .select("course_id, courses(id, course_name, course_code, section)")
+          .select("course_id, courses(id, course_name, course_code, program_id, year_level, section, semester, academic_year, programs(program_code, program_name, is_active))")
           .eq("student_id", user.id)
           .eq("course_id", courseId)
           .maybeSingle(),
@@ -633,6 +640,7 @@ export default function StudentCourse() {
       <div className="student-course-heading">
         <h1>{course.name}</h1>
         <p>{course.section}</p>
+        <p>{formatCourseMeta({ ...course, section: course.rawSection || course.section })}{formatCourseTerm(course) ? ` - ${formatCourseTerm(course)}` : ""}</p>
       </div>
 
       <div className="student-course-layout">

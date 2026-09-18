@@ -7,6 +7,7 @@ import { Badge, Card, PageHeader } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { studentCourses } from "../../data/studentData";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
+import { formatCourseMeta } from "../../lib/coursePrograms";
 import { countUsedExamAttemptsByExam, getExamAttemptEligibility, getAttemptLimit } from "../../lib/examAttempts";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -35,6 +36,10 @@ export default function StudentDashboard() {
       name: course.course_code,
       section: `${course.course_code} - ${course.section}`,
       courseName: course.course_name,
+      programCode: course.programs?.program_code || "",
+      programName: course.programs?.program_name || "",
+      yearLevel: course.year_level || "",
+      rawSection: course.section || "",
       joiningCode: course.joining_code,
     };
   }
@@ -46,6 +51,7 @@ export default function StudentDashboard() {
       title: exam.exam_title || exam.title || "Untitled exam",
       course: course?.course_name || exam.course || "Unassigned course",
       section: course?.course_code && course?.section ? `${course.course_code} - ${course.section}` : course?.course_code || "",
+      programCode: course?.programs?.program_code || "",
       duration: exam.time_limit || exam.duration || 0,
       status: exam.status || "Published",
       attemptLimit: getAttemptLimit(exam.exam_settings),
@@ -59,7 +65,7 @@ export default function StudentDashboard() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("course_enrollments")
-        .select("course_id, courses(id, course_name, course_code, section, joining_code)")
+        .select("course_id, courses(id, course_name, course_code, program_id, year_level, section, semester, academic_year, joining_code, programs(program_code, program_name, is_active))")
         .eq("student_id", user.id)
         .order("joined_at", { ascending: false });
 
@@ -75,7 +81,7 @@ export default function StudentDashboard() {
 
       const { data: examRows, error: examsError } = await supabase
         .from("exams")
-        .select("id, title, exam_title, course_id, course, duration, time_limit, status, exam_settings, courses(course_name, course_code, section)")
+        .select("id, title, exam_title, course_id, course, duration, time_limit, status, exam_settings, courses(course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active))")
         .in("course_id", courseIds)
         .in("status", ["Published", "Active", "Scheduled"])
         .order("created_at", { ascending: false });
@@ -133,7 +139,7 @@ export default function StudentDashboard() {
     if (hasSupabaseConfig && user?.id) {
       const { data: course, error: courseError } = await supabase
         .from("courses")
-        .select("id, course_name, course_code, section, joining_code, archived")
+        .select("id, course_name, course_code, program_id, year_level, section, joining_code, archived, programs(program_code, program_name, is_active)")
         .eq("joining_code", normalizedCode)
         .eq("archived", false)
         .maybeSingle();
@@ -198,6 +204,7 @@ export default function StudentDashboard() {
                 <div>
                   <strong>{course.name}</strong>
                   <span>{course.section}</span>
+                  <small>{formatCourseMeta({ ...course, section: course.rawSection || course.section })}</small>
                 </div>
                 <i><FiArrowRight /></i>
               </button>
@@ -217,7 +224,7 @@ export default function StudentDashboard() {
               <article key={exam.id}>
                 <div>
                   <strong>{exam.title}</strong>
-                  <small>{exam.course}{exam.section ? ` - ${exam.section}` : ""}</small>
+                  <small>{exam.course}{exam.section ? ` - ${exam.section}` : ""}{exam.programCode ? ` - ${exam.programCode}` : ""}</small>
                 </div>
                 <div>
                   <span>{formatDurationLabel(exam.duration)}</span>

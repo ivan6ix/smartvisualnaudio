@@ -1,5 +1,5 @@
-import { useRef, useState } from "react";
-import { FiUpload } from "react-icons/fi";
+import { useEffect, useRef, useState } from "react";
+import { FiTrash2, FiUpload } from "react-icons/fi";
 import { toast } from "sonner";
 import ProfileAvatar from "../components/ProfileAvatar";
 import SettingsSections from "../components/SettingsSections";
@@ -73,6 +73,12 @@ export default function ProfileSettings() {
   const [cropImageMeta, setCropImageMeta] = useState(null);
   const [crop, setCrop] = useState({ zoom: 1, x: 0, y: 0 });
   const [savingAvatar, setSavingAvatar] = useState(false);
+  const [removeConfirmOpen, setRemoveConfirmOpen] = useState(false);
+  const [removingAvatar, setRemovingAvatar] = useState(false);
+
+  useEffect(() => {
+    setAvatarUrl(user?.avatarUrl || "");
+  }, [user?.avatarUrl]);
 
   async function chooseAvatar(event) {
     const file = event.target.files?.[0];
@@ -132,6 +138,36 @@ export default function ProfileSettings() {
     }
   }
 
+  async function removeAvatar() {
+    if (!user?.id || removingAvatar) return;
+    setRemovingAvatar(true);
+
+    try {
+      if (hasSupabaseConfig) {
+        const { error: profileError } = await supabase
+          .from("profiles")
+          .update({ avatar_url: null })
+          .eq("id", user.id);
+        if (profileError) throw profileError;
+
+        const { error: storageError } = await supabase.storage
+          .from("profile-pictures")
+          .remove([`${user.id}/avatar.png`]);
+        if (storageError && import.meta.env.DEV) window.console.warn("Profile photo storage delete failed", storageError);
+      }
+
+      setAvatarUrl("");
+      updateCachedUser?.({ avatarUrl: "" });
+      setRemoveConfirmOpen(false);
+      toast.success("Profile photo removed successfully.");
+    } catch (error) {
+      if (import.meta.env.DEV) window.console.error("Profile photo removal failed", error);
+      toast.error("Unable to remove profile photo. Please try again.");
+    } finally {
+      setRemovingAvatar(false);
+    }
+  }
+
   return (
     <section className="admin-dashboard-page admin-section-page settings-page">
       <PageHeader title="Profile Settings" subtitle="Manage profile information, appearance, and notification preferences." />
@@ -142,9 +178,16 @@ export default function ProfileSettings() {
             <div>
               <h2>Profile Picture</h2>
               <p>Upload a photo and crop it inside the circle.</p>
-              <button className="profile-picture-upload" onClick={() => fileInputRef.current?.click()} type="button">
-                <FiUpload /> Upload Picture
-              </button>
+              <div className="profile-picture-actions">
+                <button className="profile-picture-upload" onClick={() => fileInputRef.current?.click()} type="button">
+                  <FiUpload /> Upload Picture
+                </button>
+                {avatarUrl ? (
+                  <button className="profile-picture-remove" disabled={savingAvatar || removingAvatar} onClick={() => setRemoveConfirmOpen(true)} type="button">
+                    <FiTrash2 /> Remove Photo
+                  </button>
+                ) : null}
+              </div>
               <input accept="image/*" hidden onChange={chooseAvatar} ref={fileInputRef} type="file" />
             </div>
           </div>
@@ -201,6 +244,25 @@ export default function ProfileSettings() {
               </label>
             </div>
             <Button disabled={savingAvatar} onClick={saveAvatar}>{savingAvatar ? "Saving..." : "Save Picture"}</Button>
+          </section>
+        </div>
+      ) : null}
+
+      {removeConfirmOpen ? (
+        <div className="avatar-crop-backdrop" onClick={() => removingAvatar ? null : setRemoveConfirmOpen(false)} role="presentation">
+          <section className="avatar-crop-modal profile-remove-modal" onClick={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="remove-profile-photo-title">
+            <header>
+              <div>
+                <h2 id="remove-profile-photo-title">Remove Profile Photo?</h2>
+                <p>Are you sure you want to remove your current profile photo? Your account will use the default profile avatar instead.</p>
+              </div>
+            </header>
+            <div className="profile-remove-actions">
+              <button disabled={removingAvatar} onClick={() => setRemoveConfirmOpen(false)} type="button">Cancel</button>
+              <button className="danger" disabled={removingAvatar} onClick={removeAvatar} type="button">
+                <FiTrash2 /> {removingAvatar ? "Removing..." : "Remove Photo"}
+              </button>
+            </div>
           </section>
         </div>
       ) : null}

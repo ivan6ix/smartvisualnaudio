@@ -59,16 +59,52 @@ create table if not exists public.cluster_professors (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.programs (
+  id uuid primary key default gen_random_uuid(),
+  program_code text not null,
+  program_name text not null,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  constraint programs_code_not_blank check (length(trim(program_code)) between 2 and 24),
+  constraint programs_name_not_blank check (length(trim(program_name)) between 3 and 160)
+);
+
+create unique index if not exists programs_program_code_unique_idx
+  on public.programs (upper(trim(program_code)));
+
 create table if not exists public.courses (
   id uuid primary key default gen_random_uuid(),
   course_name text not null,
   course_code text not null,
+  program_id uuid,
+  year_level text,
   section text not null,
+  semester text,
+  academic_year text,
   joining_code text not null unique,
   professor_id uuid references public.profiles(id),
   archived boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+alter table public.courses add column if not exists program_id uuid;
+alter table public.courses add column if not exists year_level text;
+alter table public.courses add column if not exists semester text;
+alter table public.courses add column if not exists academic_year text;
+do $$
+begin
+  if not exists (
+    select 1 from pg_constraint where conname = 'courses_program_id_fkey'
+  ) then
+    alter table public.courses
+      add constraint courses_program_id_fkey
+      foreign key (program_id)
+      references public.programs(id)
+      on delete set null;
+  end if;
+end $$;
+create index if not exists courses_program_id_idx on public.courses(program_id);
+create index if not exists programs_active_code_idx on public.programs(is_active, upper(program_code));
 
 create table if not exists public.messages (
   id uuid primary key default gen_random_uuid(),
@@ -341,6 +377,7 @@ alter table public.course_modules add column if not exists period text not null 
 
 alter table public.profiles enable row level security;
 alter table public.cluster_professors enable row level security;
+alter table public.programs enable row level security;
 alter table public.courses enable row level security;
 alter table public.messages enable row level security;
 alter table public.notifications enable row level security;
@@ -364,6 +401,8 @@ alter table public.student_resource_files enable row level security;
 drop policy if exists "profiles_read_authenticated" on public.profiles;
 drop policy if exists "profiles_self_update" on public.profiles;
 drop policy if exists "cluster_professors_self" on public.cluster_professors;
+drop policy if exists "programs_read_authenticated" on public.programs;
+drop policy if exists "programs_admin_manage" on public.programs;
 drop policy if exists "courses_read_authenticated" on public.courses;
 drop policy if exists "messages_participants" on public.messages;
 drop policy if exists "messages_send" on public.messages;
@@ -388,6 +427,23 @@ drop policy if exists "attempt_answers_owner_read" on public.exam_attempt_answer
 create policy "profiles_read_authenticated" on public.profiles for select to authenticated using (true);
 create policy "profiles_self_update" on public.profiles for update to authenticated using (auth.uid() = id);
 create policy "cluster_professors_self" on public.cluster_professors for select to authenticated using (auth.uid() = id);
+create policy "programs_read_authenticated" on public.programs for select to authenticated using (true);
+create policy "programs_admin_manage" on public.programs
+for all to authenticated
+using (
+  exists (
+    select 1 from public.profiles
+    where profiles.id = auth.uid()
+    and profiles.role = 'Admin'
+  )
+)
+with check (
+  exists (
+    select 1 from public.profiles
+    where profiles.id = auth.uid()
+    and profiles.role = 'Admin'
+  )
+);
 create policy "courses_read_authenticated" on public.courses for select to authenticated using (true);
 create policy "messages_participants" on public.messages for select to authenticated using (auth.uid() = sender_id or auth.uid() = receiver_id);
 create policy "messages_send" on public.messages for insert to authenticated with check (auth.uid() = sender_id);

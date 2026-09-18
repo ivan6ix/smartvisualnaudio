@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { useAuth } from "./AuthContext";
 import { clusterExams, clusterMessages, clusterNotifications } from "../data/clusterData";
 import useLocalStorageState from "../hooks/useLocalStorageState";
+import { formatCourseMeta } from "../lib/coursePrograms";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const ClusterContext = createContext(null);
@@ -121,6 +122,12 @@ function mapLiveExam(exam, profileMap, questionMap, reviewMap) {
     examTitle: exam.exam_title || exam.title || "Untitled exam",
     description: exam.description || exam.course || "",
     course: course?.course_name || exam.course || `${course?.course_code || "Course"} ${course?.section || ""}`.trim(),
+    courseCode: course?.course_code || "",
+    programCode: course?.programs?.program_code || "",
+    programName: course?.programs?.program_name || "",
+    yearLevel: course?.year_level || "",
+    section: course?.section || "",
+    courseMeta: formatCourseMeta(course || {}),
     professorName: professor?.full_name || professor?.email || "Professor",
     professorId: exam.professor_id || exam.created_by,
     timeLimit: exam.time_limit || exam.duration || 0,
@@ -175,7 +182,7 @@ export function ClusterProvider({ children }) {
 
     const { data: examRows, error: examError } = await supabase
       .from("exams")
-      .select("id, title, exam_title, description, course, course_id, professor_id, created_by, time_limit, passing_score, exam_type, questions_count, duration, status, submitted_at, approved_at, rejected_at, created_at, courses(course_name, course_code, section)")
+      .select("id, title, exam_title, description, course, course_id, professor_id, created_by, time_limit, passing_score, exam_type, questions_count, duration, status, submitted_at, approved_at, rejected_at, created_at, courses(course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active))")
       .order("created_at", { ascending: false })
       .limit(1000);
 
@@ -201,7 +208,7 @@ export function ClusterProvider({ children }) {
         ? supabase.from("exam_reviews").select("id, exam_id, decision, remarks, review_date, cluster_professor_id").in("exam_id", examIds).order("review_date", { ascending: false })
         : Promise.resolve({ data: [], error: null }),
       supabase.from("messages").select("id, sender_id, receiver_id, message, is_read, created_at").eq("receiver_id", user.id).eq("is_read", false),
-      supabase.from("courses").select("id, course_name, course_code, section").eq("archived", false).order("created_at", { ascending: false }),
+      supabase.from("courses").select("id, course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active)").eq("archived", false).order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, full_name, email").eq("role", "Professor").eq("status", "Active").order("full_name", { ascending: true }),
     ]);
 

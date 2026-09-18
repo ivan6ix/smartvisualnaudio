@@ -92,7 +92,7 @@ export default function Reports() {
 
       const [profilesResponse, coursesResponse, examsResponse, violationsResponse, attemptsResponse, logsResponse] = await Promise.all([
         supabase.from("profiles").select("id, role, full_name, email, employee_number, student_number, status, created_at").order("created_at", { ascending: false }).limit(1000),
-        supabase.from("courses").select("id, course_name, course_code, section, joining_code, professor_id, archived, created_at").order("created_at", { ascending: false }).limit(1000),
+        supabase.from("courses").select("id, course_name, course_code, program_id, year_level, section, joining_code, professor_id, archived, created_at, programs(program_code, program_name, is_active)").order("created_at", { ascending: false }).limit(1000),
         supabase.from("exams").select("id, title, exam_title, course_id, course, duration, time_limit, status, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("violations").select("id, student_id, exam_id, violation_type, description, severity, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("exam_attempts").select("id, exam_id, student_id, score, submitted_at").order("submitted_at", { ascending: false }).limit(1000),
@@ -147,6 +147,7 @@ export default function Reports() {
         id: course.id,
         course: course.course_name || "-",
         code: course.course_code || "-",
+        program: course.programs?.program_code || "Program not assigned",
         section: course.section || "-",
         professor: professor?.full_name || "Unassigned",
         joiningCode: course.joining_code || "-",
@@ -160,6 +161,7 @@ export default function Reports() {
         id: exam.id,
         exam: exam.exam_title || exam.title || "Untitled exam",
         course: course?.course_name || exam.course || "Unassigned course",
+        program: course?.programs?.program_code || "Program not assigned",
         duration: `${exam.time_limit || exam.duration || 0} minutes`,
         status: exam.status || "-",
         createdAt: formatDate(exam.created_at),
@@ -263,6 +265,7 @@ export default function Reports() {
     Courses: [
       { key: "course", label: "Course" },
       { key: "code", label: "Code" },
+      { key: "program", label: "Program" },
       { key: "section", label: "Section" },
       { key: "professor", label: "Professor" },
       { key: "joiningCode", label: "Joining Code" },
@@ -271,6 +274,7 @@ export default function Reports() {
     Exams: [
       { key: "exam", label: "Exam" },
       { key: "course", label: "Course" },
+      { key: "program", label: "Program" },
       { key: "duration", label: "Duration" },
       { key: "status", label: "Status" },
       { key: "createdAt", label: "Created" },

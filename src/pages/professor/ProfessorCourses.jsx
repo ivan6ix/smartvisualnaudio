@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Badge, Card, PageHeader, StatCard } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { professorCourses, professorExams } from "../../data/professorData";
+import { formatCourseMeta, formatCourseTerm } from "../../lib/coursePrograms";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function statusTone(status) {
@@ -21,7 +22,12 @@ function mapCourse(course, enrollmentCounts = {}) {
     id: course.id,
     courseName: course.course_name || course.courseName,
     courseCode: course.course_code || course.courseCode,
+    programCode: course.programs?.program_code || course.programCode || "",
+    programName: course.programs?.program_name || course.programName || "",
+    yearLevel: course.year_level || course.yearLevel || "",
     section: course.section,
+    semester: course.semester || "",
+    academicYear: course.academic_year || course.academicYear || "",
     joiningCode: course.joining_code || course.joiningCode,
     students: enrollmentCounts[course.id] || course.students || 0,
   };
@@ -55,7 +61,7 @@ export default function ProfessorCourses() {
     queryFn: async () => {
       const { data: courseRows, error: coursesError } = await supabase
         .from("courses")
-        .select("id, course_name, course_code, section, joining_code, archived")
+        .select("id, course_name, course_code, program_id, year_level, section, semester, academic_year, joining_code, archived, programs(program_code, program_name, is_active)")
         .eq("professor_id", user.id)
         .eq("archived", false)
         .order("created_at", { ascending: false });
@@ -166,7 +172,9 @@ export default function ProfessorCourses() {
               <div>
                 <strong className="professor-course-code">{course.courseCode}</strong>
                 <span>{course.courseName}</span>
-                <small>{course.section} • {course.students} students</small>
+                <small>{formatCourseMeta(course)}</small>
+                <small>{formatCourseTerm(course) || `${course.students} students`}</small>
+                {formatCourseTerm(course) ? <small>{course.students} students</small> : null}
               </div>
               <i>{course.joiningCode || "No code"}</i>
             </button>

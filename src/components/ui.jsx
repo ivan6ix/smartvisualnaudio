@@ -101,10 +101,16 @@ export function PageSkeleton({ cards = 4, rows = 5 }) {
   );
 }
 
-export function Table({ columns, rows, renderActions, emptyTitle, emptyDescription }) {
+export function Table({ columns, rows, renderActions, emptyTitle, emptyDescription, className = "" }) {
   return (
-    <div className="table-wrap">
+    <div className={`table-wrap ${className}`}>
       <table>
+        {columns.some((column) => column.width) || renderActions?.width ? (
+          <colgroup>
+            {columns.map((column) => <col key={column.key} style={column.width ? { width: column.width } : undefined} />)}
+            {renderActions ? <col style={renderActions.width ? { width: renderActions.width } : undefined} /> : null}
+          </colgroup>
+        ) : null}
         <thead>
           <tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}{renderActions ? <th className="actions-heading">Actions</th> : null}</tr>
         </thead>
