@@ -200,13 +200,19 @@ begin
   config := config - 'correctAnswer' - 'correctAnswers' - 'acceptedAnswers' - 'answerKey';
 
   if p_question.question_type = 'Matching Type' then
-    select coalesce(jsonb_agg(jsonb_build_object('left', pair->>'left') order by pair->>'left'), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('left', left_text) order by left_text), '[]'::jsonb)
     into pairs
-    from jsonb_array_elements(coalesce(p_question.question_config->'pairs', '[]'::jsonb)) as pair;
+    from (
+      select pair_item.value->>'left' as left_text
+      from jsonb_array_elements(coalesce(p_question.question_config->'pairs', '[]'::jsonb)) as pair_item(value)
+    ) items;
 
-    select coalesce(jsonb_agg(to_jsonb(pair->>'right') order by md5(p_seed || ':right:' || pair->>'right')), '[]'::jsonb)
+    select coalesce(jsonb_agg(to_jsonb(right_text) order by md5(p_seed || ':right:' || right_text)), '[]'::jsonb)
     into order_items
-    from jsonb_array_elements(coalesce(p_question.question_config->'pairs', '[]'::jsonb)) as pair;
+    from (
+      select pair_item.value->>'right' as right_text
+      from jsonb_array_elements(coalesce(p_question.question_config->'pairs', '[]'::jsonb)) as pair_item(value)
+    ) items;
 
     return (config - 'pairs') || jsonb_build_object('pairs', pairs, 'matchChoices', order_items);
   end if;
