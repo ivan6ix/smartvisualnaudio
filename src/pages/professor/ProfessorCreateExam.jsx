@@ -810,7 +810,15 @@ export default function ProfessorCreateExam() {
         }));
 
         if (notificationRows.length) {
-          const { error: notificationError } = await supabase.from("notifications").insert(notificationRows);
+          const notificationResults = await Promise.all(notificationRows.map((notification) => supabase.rpc("create_notification", {
+            p_workflow: "exam_review_request",
+            p_recipient_id: notification.user_id,
+            p_title: notification.title,
+            p_message: notification.message,
+            p_type: notification.type,
+            p_context_id: savedId || draftExamId || editId,
+          })));
+          const notificationError = notificationResults.find((result) => result.error)?.error;
           if (notificationError) toast.error(`Exam saved, but the review notification failed: ${notificationError.message}`);
         }
       }

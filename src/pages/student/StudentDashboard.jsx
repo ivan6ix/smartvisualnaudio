@@ -137,28 +137,16 @@ export default function StudentDashboard() {
     const normalizedCode = code.toUpperCase();
 
     if (hasSupabaseConfig && user?.id) {
-      const { data: course, error: courseError } = await supabase
-        .from("courses")
-        .select("id, course_name, course_code, program_id, year_level, section, joining_code, archived, programs(program_code, program_name, is_active)")
-        .eq("joining_code", normalizedCode)
-        .eq("archived", false)
-        .maybeSingle();
+      const { data: joinedCourses, error: courseError } = await supabase
+        .rpc("join_course_by_code", { p_joining_code: normalizedCode });
 
       if (courseError) {
         toast.error(courseError.message);
         return;
       }
+      const course = Array.isArray(joinedCourses) ? joinedCourses[0] : joinedCourses;
       if (!course) {
         toast.error("Course code not found");
-        return;
-      }
-
-      const { error: joinError } = await supabase
-        .from("course_enrollments")
-        .insert({ course_id: course.id, student_id: user.id });
-
-      if (joinError && joinError.code !== "23505") {
-        toast.error(joinError.message);
         return;
       }
 

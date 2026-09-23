@@ -8,13 +8,9 @@ import { Button, Card, PageHeader } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useLiveAudioMonitoring } from "../../hooks/useLiveAudioMonitoring";
 import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
-import { computeAttemptScore, FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig } from "../../lib/examQuestionTypes";
+import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import { createIncidentTracker, EXAM_VIOLATION_LIMIT, hasProvidedAnswer, mergeAttemptViolations, violationWarning } from "../../lib/examViolationLimit";
-
-function toJsonAnswer(value) {
-  return value === undefined ? null : value;
-}
 
 function moveItemToIndex(items, fromIndex, toIndex) {
   const next = [...items];
@@ -505,10 +501,7 @@ export default function StudentExamTake() {
       }
 
       const { data: questionRows, error: questionsError } = await supabase
-        .from("exam_questions")
-        .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
-        .eq("exam_id", examId)
-        .order("id", { ascending: true });
+        .rpc("get_student_exam_questions", { p_exam_id: examId });
 
       if (examError) {
         toast.error(examError.message);
@@ -2470,84 +2463,22 @@ export default function StudentExamTake() {
         }
       }
 
-      // Empty responses receive zero; answered manual types retain manual grading.
+      // Empty responses receive zero; answered manual types retain manual grading on the server.
       for (const question of questions) {
         if (!hasProvidedAnswer(submissionAnswers[question.id])) submissionAnswers[question.id] = null;
       }
-      const grading = computeAttemptScore(questions, submissionAnswers);
-      for (const result of grading.results) {
-        if (!hasProvidedAnswer(submissionAnswers[result.questionId])) {
-          result.earnedPoints = 0;
-          result.manual = false;
-          result.isCorrect = false;
-        }
-      }
-      grading.hasManual = grading.results.some((result) => result.manual);
-      grading.earned = grading.results.reduce((sum, result) => sum + Number(result.earnedPoints || 0), 0);
-      grading.percentage = grading.max ? grading.earned / grading.max * 100 : 0;
-      const attemptPayload = {
-        exam_id: exam.id,
-        student_id: user.id,
-        score: grading.hasManual ? null : Number(grading.percentage.toFixed(2)),
-        violations: violationsRef.current.map((violation, index) => violationLimitReachedRef.current && index === EXAM_VIOLATION_LIMIT - 1
+
+      const submissionViolations = violationsRef.current.map((violation, index) => violationLimitReachedRef.current && index === EXAM_VIOLATION_LIMIT - 1
           ? { ...violation, submissionReason: "violation_limit", submissionMessage: "Exam submission initiated after reaching 5 violations." }
-          : violation),
-        status: grading.hasManual ? "Pending Manual Grading" : "Submitted",
-        started_at: startedAtRef.current || new Date().toISOString(),
-        submitted_at: new Date().toISOString(),
-      };
+          : violation);
 
-      let attemptResult = await supabase
-        .from("exam_attempts")
-        .insert(attemptPayload)
-        .select("id")
-        .single();
-
-      if (attemptResult.error?.message?.includes("started_at")) {
-        const fallbackPayload = { ...attemptPayload };
-        delete fallbackPayload.started_at;
-        delete fallbackPayload.submitted_at;
-        attemptResult = await supabase
-          .from("exam_attempts")
-          .insert(fallbackPayload)
-          .select("id")
-          .single();
-      }
-
-      const attempt = attemptResult.data;
-      const attemptError = attemptResult.error;
-
-      if (attemptError) throw attemptError;
-
-      const answerRows = questions.map((question) => {
-        const result = grading.results.find((item) => item.questionId === question.id);
-        return {
-          attempt_id: attempt.id,
-          question_id: question.id,
-          answer: toJsonAnswer(submissionAnswers[question.id]),
-          file_url: uploadedPaths[question.id] || null,
-          earned_points: result?.earnedPoints ?? null,
-          max_points: result?.maxPoints ?? Number(question.points || 0),
-          is_correct: result?.isCorrect || false,
-          needs_manual_grading: result?.manual || false,
-        };
+      const { error: submitError } = await supabase.rpc("submit_exam_attempt", {
+        p_exam_id: exam.id,
+        p_answers: submissionAnswers,
+        p_violations: submissionViolations,
       });
 
-      let answersResult = await supabase.from("exam_attempt_answers").insert(answerRows);
-      if (answersResult.error?.message?.includes("earned_points") || answersResult.error?.message?.includes("max_points")) {
-        const fallbackAnswerRows = answerRows.map((row) => {
-          const next = { ...row };
-          delete next.earned_points;
-          delete next.max_points;
-          return next;
-        });
-        answersResult = await supabase.from("exam_attempt_answers").insert(fallbackAnswerRows);
-      }
-
-      if (answersResult.error) {
-        await supabase.from("exam_attempts").delete().eq("id", attempt.id);
-        throw answersResult.error;
-      }
+      if (submitError) throw submitError;
 
       const limitViolation = violationsRef.current[EXAM_VIOLATION_LIMIT - 1];
       if (violationLimitReachedRef.current && limitViolation?.id) {
@@ -2557,7 +2488,7 @@ export default function StudentExamTake() {
         if (logError) window.console.warn("Automatic submission reason is saved on the attempt; violation description update failed.", logError);
       }
 
-      toast.success(grading.hasManual ? "Exam submitted for manual grading" : "Exam submitted and graded");
+      toast.success("Exam submitted");
       examSubmittedRef.current = true;
       clearSavedExamProgress(user.id, examId);
       await Promise.all([
@@ -2585,7 +2516,7 @@ export default function StudentExamTake() {
     const choices = question.choices || config.choices || [];
     const pairs = config.pairs || [];
     const orderItems = answers[question.id] || config.orderItems || [];
-    const rightOptions = pairs.map((pair) => pair.right).sort();
+    const rightOptions = config.matchChoices || pairs.map((pair) => pair.right).filter(Boolean).sort();
     const matchingAnswers = answers[question.id] || {};
     const selectedLeft = selectedMatchingLeft[question.id] || "";
     const matchingRowCount = Math.max(pairs.length, rightOptions.length, 1);

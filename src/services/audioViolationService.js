@@ -31,6 +31,8 @@ export async function uploadAudioViolation({
   const corePayload = {
     student_id: studentId,
     exam_id: exam.id,
+    professor_id: professorId || exam.professor_id || exam.created_by || null,
+    course_id: courseId || exam.course_id || null,
     violation_type: AUDIO_VIOLATION_TYPE,
     description: initialDescription,
     severity: "Medium",
@@ -42,6 +44,8 @@ export async function uploadAudioViolation({
   const minimalPayload = {
     student_id: studentId,
     exam_id: exam.id,
+    professor_id: professorId || exam.professor_id || exam.created_by || null,
+    course_id: courseId || exam.course_id || null,
     severity: "Medium",
     created_at: timestamp,
   };
@@ -94,8 +98,6 @@ export async function uploadAudioViolation({
   if (limitReached) description = "Audio violation recorded. Recording stopped at the violation limit; any captured audio was retained. The exam reached 5 violations and automatic submission was triggered.";
 
   const evidencePayload = {
-    professor_id: professorId || exam.professor_id || exam.created_by || null,
-    course_id: courseId || exam.course_id || null,
     description,
     screenshot_url: evidenceUrl,
     evidence_url: evidenceUrl,

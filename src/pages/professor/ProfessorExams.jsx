@@ -494,7 +494,15 @@ export default function ProfessorExams() {
     }));
 
     if (rows.length) {
-      const { error } = await supabase.from("notifications").insert(rows);
+      const results = await Promise.all(rows.map((notification) => supabase.rpc("create_notification", {
+        p_workflow: "exam_review_request",
+        p_recipient_id: notification.user_id,
+        p_title: notification.title,
+        p_message: notification.message,
+        p_type: notification.type,
+        p_context_id: exam.id,
+      })));
+      const error = results.find((result) => result.error)?.error;
       if (error) throw error;
     }
   }
@@ -886,12 +894,13 @@ export default function ProfessorExams() {
     setSharingTargetId(enrollment.student_id);
 
     try {
-      const { error } = await supabase.from("notifications").insert({
-        user_id: enrollment.student_id,
-        title: "Exam Shared",
-        message: `${shareExam.title} was shared with you for ${shareExam.course}.`,
-        type: "Exam",
-        is_read: false,
+      const { error } = await supabase.rpc("create_notification", {
+        p_workflow: "exam_shared",
+        p_recipient_id: enrollment.student_id,
+        p_title: "Exam Shared",
+        p_message: `${shareExam.title} was shared with you for ${shareExam.course}.`,
+        p_type: "Exam",
+        p_context_id: shareExam.id,
       });
 
       if (error) throw error;

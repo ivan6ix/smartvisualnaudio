@@ -321,7 +321,15 @@ export function ClusterProvider({ children }) {
     }));
 
     if (!rows.length) return;
-    const { error } = await supabase.from("notifications").insert(rows);
+    const results = await Promise.all(rows.map((notification) => supabase.rpc("create_notification", {
+      p_workflow: "cluster_broadcast",
+      p_recipient_id: notification.user_id,
+      p_title: notification.title,
+      p_message: notification.message,
+      p_type: notification.type,
+      p_context_id: null,
+    })));
+    const error = results.find((result) => result.error)?.error;
     if (error) toast.error(error.message);
   }
 

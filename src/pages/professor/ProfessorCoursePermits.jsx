@@ -201,7 +201,15 @@ export default function ProfessorCoursePermits() {
           message: `${course.courseCode} requires permit submission until ${formatDate(data.deadline)}.`,
           type: "permit_request",
         }));
-        const { error: notificationError } = await supabase.from("notifications").insert(notifications);
+        const notificationResults = await Promise.all(notifications.map((notification) => supabase.rpc("create_notification", {
+          p_workflow: "permit_request",
+          p_recipient_id: notification.user_id,
+          p_title: notification.title,
+          p_message: notification.message,
+          p_type: notification.type,
+          p_context_id: courseId,
+        })));
+        const notificationError = notificationResults.find((result) => result.error)?.error;
         if (notificationError) toast.error(`Permit request saved, but notification failed: ${notificationError.message}`);
       }
 
