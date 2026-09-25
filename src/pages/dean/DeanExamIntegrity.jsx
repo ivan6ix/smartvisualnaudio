@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { FiActivity, FiAlertTriangle, FiCamera, FiShield } from "react-icons/fi";
 import { toast } from "sonner";
 import { Badge, Card, PageHeader, SearchBox, SelectField, StatCard, Table } from "../../components/ui";
@@ -39,21 +39,35 @@ function EvidenceCell({ row }) {
   const [signedUrl, setSignedUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
+  const signingRef = useRef(false);
 
   if (!row.evidencePath || !row.evidenceBucket) return "-";
 
   async function loadEvidence() {
-    if (signedUrl || loading) return;
+    if (signedUrl || loading || signingRef.current) return;
+    const pendingWindow = row.evidenceKind === "audio" ? null : window.open("", "_blank");
+    if (pendingWindow) pendingWindow.opener = null;
+    signingRef.current = true;
     setLoading(true);
     setErrorMessage("");
     const { data, error } = await supabase.storage.from(row.evidenceBucket).createSignedUrl(row.evidencePath, 60 * 60);
+    signingRef.current = false;
     setLoading(false);
     if (error) {
+      pendingWindow?.close();
       setErrorMessage(error.message);
       toast.error(error.message);
       return;
     }
-    setSignedUrl(data?.signedUrl || "");
+    const nextUrl = data?.signedUrl || "";
+    if (!nextUrl) {
+      pendingWindow?.close();
+      setErrorMessage("Evidence URL could not be generated.");
+      toast.error("Evidence URL could not be generated.");
+      return;
+    }
+    setSignedUrl(nextUrl);
+    if (pendingWindow) pendingWindow.location.href = nextUrl;
   }
 
   if (signedUrl && row.evidenceKind === "audio") {
@@ -65,7 +79,7 @@ function EvidenceCell({ row }) {
   }
 
   return (
-    <button className="dean-integrity-link" onClick={loadEvidence} type="button">
+    <button className="dean-integrity-link" disabled={loading} onClick={loadEvidence} type="button">
       {loading ? "Loading..." : errorMessage ? "Retry" : row.evidenceKind === "audio" ? "Load audio" : "View"}
     </button>
   );
