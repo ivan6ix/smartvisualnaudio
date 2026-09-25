@@ -316,6 +316,8 @@ export default function Reports() {
 
   const currentRows = rowsByTab[tab] || [];
   const filteredRows = currentRows.filter((row) => Object.values(row).join(" ").toLowerCase().includes(search.toLowerCase()));
+  const generatedAt = new Date().toLocaleString();
+  const reportTitle = tab === "Overview" ? "Violation Report" : `${tab} Report`;
   const reportStats = [
     ["Students", stats.students, FiUsers],
     ["Professors", stats.professors, FiUsers],
@@ -355,6 +357,17 @@ export default function Reports() {
       </div>
       <div className="tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
       <Card className={`admin-panel admin-activity-panel ${tab === "Overview" || tab === "Violations" ? "admin-violations-report-panel" : ""}`}>
+        <div className="reports-print-header" aria-hidden="true">
+          <h1>Smart Proctoring System</h1>
+          <h2>{reportTitle}</h2>
+          <dl>
+            <div><dt>Generated</dt><dd>{generatedAt}</dd></div>
+            <div><dt>Report</dt><dd>{tab === "Overview" ? "Violations" : tab}</dd></div>
+            <div><dt>Violation Filter</dt><dd>{violationFilter}</dd></div>
+            <div><dt>Search</dt><dd>{search.trim() || "All"}</dd></div>
+            <div><dt>Records</dt><dd>{filteredRows.length.toLocaleString()}</dd></div>
+          </dl>
+        </div>
         <div className="reports-panel-header">
           <h2>{tab === "Overview" ? "Violations Report" : tab}</h2>
           <div className="header-actions">
