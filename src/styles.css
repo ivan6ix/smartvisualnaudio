@@ -1062,6 +1062,7 @@ th { color: var(--app-text-muted); font-size: 0.82rem; text-transform: uppercase
 .active-exams-card .scroll-list { max-height: 220px; }
 .active-exams-card .text-button { align-self: flex-start; margin-top: auto; padding-top: 18px; }
 .dean-integrity-link { color: #2563eb; font-weight: 400; text-decoration: none; }
+button.dean-integrity-link { border: 0; background: transparent; padding: 0; cursor: pointer; font: inherit; }
 .dean-integrity-link:hover { text-decoration: underline; }
 .dean-integrity-audio { width: min(220px, 100%); height: 34px; }
 .dean-integrity-table-scroll {

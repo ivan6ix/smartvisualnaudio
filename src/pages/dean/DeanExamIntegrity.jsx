@@ -35,6 +35,42 @@ function formatDateTime(value) {
   };
 }
 
+function EvidenceCell({ row }) {
+  const [signedUrl, setSignedUrl] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+
+  if (!row.evidencePath || !row.evidenceBucket) return "-";
+
+  async function loadEvidence() {
+    if (signedUrl || loading) return;
+    setLoading(true);
+    setErrorMessage("");
+    const { data, error } = await supabase.storage.from(row.evidenceBucket).createSignedUrl(row.evidencePath, 60 * 60);
+    setLoading(false);
+    if (error) {
+      setErrorMessage(error.message);
+      toast.error(error.message);
+      return;
+    }
+    setSignedUrl(data?.signedUrl || "");
+  }
+
+  if (signedUrl && row.evidenceKind === "audio") {
+    return <audio className="dean-integrity-audio" controls src={signedUrl}>Audio evidence</audio>;
+  }
+
+  if (signedUrl) {
+    return <a className="dean-integrity-link" href={signedUrl} rel="noreferrer" target="_blank">View</a>;
+  }
+
+  return (
+    <button className="dean-integrity-link" onClick={loadEvidence} type="button">
+      {loading ? "Loading..." : errorMessage ? "Retry" : row.evidenceKind === "audio" ? "Load audio" : "View"}
+    </button>
+  );
+}
+
 export default function DeanExamIntegrity() {
   const [violations, setViolations] = useState([]);
   const [search, setSearch] = useState("");
@@ -43,12 +79,6 @@ export default function DeanExamIntegrity() {
 
   useEffect(() => {
     if (!hasSupabaseConfig) return undefined;
-
-    async function signedUrl(bucket, path) {
-      if (!path) return null;
-      const { data } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 60);
-      return data?.signedUrl || null;
-    }
 
     async function loadViolations() {
       const { data, error } = await supabase
@@ -77,14 +107,12 @@ export default function DeanExamIntegrity() {
       const profilesById = new Map((profilesResponse.data || []).map((profile) => [profile.id, profile]));
       const examsById = new Map((examsResponse.data || []).map((exam) => [exam.id, exam]));
 
-      const rows = await Promise.all((data || []).map(async (violation) => {
+      const rows = (data || []).map((violation) => {
         const { date, time } = formatDateTime(violation.created_at);
         const profile = profilesById.get(violation.student_id);
         const exam = examsById.get(violation.exam_id);
         const evidencePath = violation.evidence_url || violation.screenshot_url;
         const isAudio = violation.evidence_type === "audio" || /\.(webm|mp3|wav|m4a|ogg)$/i.test(evidencePath || "");
-        const screenshotUrl = isAudio ? null : await signedUrl("proctor-snapshots", evidencePath);
-        const audioUrl = isAudio ? await signedUrl("audio-violations", evidencePath) : null;
 
         return {
           id: violation.id,
@@ -96,10 +124,12 @@ export default function DeanExamIntegrity() {
           severity: violation.severity || "Low",
           date,
           time,
-          screenshotUrl,
-          audioUrl,
+          evidencePath,
+          evidenceBucket: evidencePath ? (isAudio ? "audio-violations" : "proctor-snapshots") : "",
+          evidenceKind: isAudio ? "audio" : "snapshot",
+          hasEvidence: Boolean(evidencePath),
         };
-      }));
+      });
 
       setViolations(rows);
     }
@@ -125,7 +155,7 @@ export default function DeanExamIntegrity() {
   }), [search, severity, violations, typeFilter]);
 
   const highCount = violations.filter((violation) => violation.severity === "High").length;
-  const snapshotCount = violations.filter((violation) => violation.screenshotUrl || violation.audioUrl).length;
+  const snapshotCount = violations.filter((violation) => violation.hasEvidence).length;
   const examCount = new Set(violations.map((violation) => violation.exam)).size;
 
   const columns = [
@@ -139,11 +169,7 @@ export default function DeanExamIntegrity() {
     {
       key: "snapshot",
       label: "Evidence",
-      render: (row) => {
-        if (row.audioUrl) return <audio className="dean-integrity-audio" controls src={row.audioUrl}>Audio evidence</audio>;
-        if (row.screenshotUrl) return <a className="dean-integrity-link" href={row.screenshotUrl} rel="noreferrer" target="_blank">View</a>;
-        return "-";
-      },
+      render: (row) => <EvidenceCell row={row} />,
     },
   ];
 
