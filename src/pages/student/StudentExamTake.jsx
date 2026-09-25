@@ -452,7 +452,8 @@ export default function StudentExamTake() {
     || import.meta.env.VITE_ROBOFLOW_PROXY_URL
     || import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT,
   );
-  const liveCameraMonitoringEnabled = examSettings.liveCameraMonitoring || roboflowConfigured;
+  const liveCameraMonitoringEnabled = examSettings.liveCameraMonitoring;
+  const roboflowMonitoringEnabled = liveCameraMonitoringEnabled && roboflowConfigured;
   const proctoringEnabled = liveCameraMonitoringEnabled || examSettings.liveAudioMonitoring;
   const secureModeRequired = proctoringEnabled;
   const audioMonitoring = useLiveAudioMonitoring({
@@ -2341,7 +2342,8 @@ export default function StudentExamTake() {
       if (proctorVideoRef.current) proctorVideoRef.current.srcObject = stream;
       void startFaceMonitoring();
       startObjectMonitoring();
-      void startRoboflowMonitoring(stream);
+      if (roboflowMonitoringEnabled) void startRoboflowMonitoring(stream);
+      else setRoboflowStatus("Roboflow detector off");
     } else {
       setFaceStatus("Live camera monitoring disabled");
       setRoboflowStatus("Roboflow detector off");
@@ -2857,7 +2859,7 @@ export default function StudentExamTake() {
               {liveCameraMonitoringEnabled ? <FiCamera /> : <FiMic />}
               <div>
                 <strong>{liveCameraMonitoringEnabled ? "Live Camera" : "Live Audio"}</strong>
-                <span>{liveCameraMonitoringEnabled ? "Roboflow detection active" : "Audio monitoring only"}</span>
+                <span>{liveCameraMonitoringEnabled ? (roboflowMonitoringEnabled ? "Roboflow detection active" : "Camera monitoring active") : "Audio monitoring only"}</span>
               </div>
             </div>
             {liveCameraMonitoringEnabled ? (
