@@ -379,6 +379,9 @@ export default function StudentExamTake() {
   const mountedRef = useRef(true);
   const progressMetaRef = useRef({});
   const activeExamRef = useRef(examId);
+  const authorizedFilePickerRef = useRef({ active: false, questionId: null });
+  const filePickerFullscreenRestoreRef = useRef(false);
+  const filePickerFinalizeTimerRef = useRef(null);
   activeExamRef.current = examId;
   const videoRef = useRef(null);
   const proctorVideoRef = useRef(null);
@@ -593,6 +596,8 @@ export default function StudentExamTake() {
       mountedRef.current = false;
       examModeReadyRef.current = false;
       scanCancelledRef.current = true;
+      authorizedFilePickerRef.current = { active: false, questionId: null };
+      if (filePickerFinalizeTimerRef.current) window.clearTimeout(filePickerFinalizeTimerRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       stopProctoring();
       void exitFullscreen();
@@ -740,6 +745,10 @@ export default function StudentExamTake() {
     function handleFullscreenChange() {
       if (examSubmittingRef.current || examSubmittedRef.current) return;
       if (!getFullscreenElement()) {
+        if (authorizedFilePickerRef.current.active) {
+          filePickerFullscreenRestoreRef.current = true;
+          return;
+        }
         setExamLocked(true);
         recordGuardViolation("FULLSCREEN_EXIT", "Fullscreen mode was exited. Return to fullscreen to continue.", "High");
       } else incidentTrackerRef.current.clear("FULLSCREEN_EXIT");
@@ -748,17 +757,23 @@ export default function StudentExamTake() {
     function handleVisibilityChange() {
       if (examSubmittingRef.current || examSubmittedRef.current) return;
       if (window.document.hidden) {
+        if (authorizedFilePickerRef.current.active) return;
         setExamLocked(true);
         recordGuardViolation("TAB_SWITCH", "Tab switch or hidden exam tab detected.", "High");
       } else if (window.document.hasFocus()) incidentTrackerRef.current.clear("TAB_SWITCH");
     }
 
     function clearTabIncident() {
+      if (authorizedFilePickerRef.current.active) {
+        finalizeAuthorizedFilePicker();
+        return;
+      }
       if (!window.document.hidden && window.document.hasFocus()) incidentTrackerRef.current.clear("TAB_SWITCH");
     }
 
     function handleWindowBlur() {
       if (examSubmittingRef.current || examSubmittedRef.current) return;
+      if (authorizedFilePickerRef.current.active) return;
       setExamLocked(true);
       recordGuardViolation("TAB_SWITCH", "Exam window lost focus.", "Medium");
     }
@@ -904,6 +919,48 @@ export default function StudentExamTake() {
     touchedAnswersRef.current.add(questionId);
     filesRef.current = { ...filesRef.current, [questionId]: file };
     setFiles(filesRef.current);
+  }
+
+  function beginAuthorizedFilePicker(questionId) {
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    authorizedFilePickerRef.current = { active: true, questionId };
+    filePickerFullscreenRestoreRef.current = false;
+    if (filePickerFinalizeTimerRef.current) {
+      window.clearTimeout(filePickerFinalizeTimerRef.current);
+      filePickerFinalizeTimerRef.current = null;
+    }
+  }
+
+  function finalizeAuthorizedFilePicker() {
+    if (!authorizedFilePickerRef.current.active) return;
+    authorizedFilePickerRef.current = { active: false, questionId: null };
+    if (filePickerFinalizeTimerRef.current) {
+      window.clearTimeout(filePickerFinalizeTimerRef.current);
+      filePickerFinalizeTimerRef.current = null;
+    }
+    if (!window.document.hidden && window.document.hasFocus()) incidentTrackerRef.current.clear("TAB_SWITCH");
+    if (filePickerFullscreenRestoreRef.current) {
+      filePickerFullscreenRestoreRef.current = false;
+      if (!getFullscreenElement() && examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current) {
+        void restoreExamLock();
+      }
+    }
+  }
+
+  function scheduleAuthorizedFilePickerFinalize() {
+    if (filePickerFinalizeTimerRef.current) window.clearTimeout(filePickerFinalizeTimerRef.current);
+    filePickerFinalizeTimerRef.current = window.setTimeout(() => {
+      filePickerFinalizeTimerRef.current = null;
+      finalizeAuthorizedFilePicker();
+    }, 0);
+  }
+
+  function handleFilePickerChange(questionId, file) {
+    try {
+      if (file) setFileAnswer(questionId, file);
+    } finally {
+      scheduleAuthorizedFilePickerFinalize();
+    }
   }
 
   function setAnswer(questionId, value) {
@@ -2637,7 +2694,16 @@ export default function StudentExamTake() {
           <label className="student-file-answer">
             <FiUpload />
             <span>{files[question.id]?.name || "Upload PDF, DOCX, DOC, JPG, or PNG up to 10MB"}</span>
-            <input accept={FILE_UPLOAD_ACCEPT} onChange={(event) => setFileAnswer(question.id, event.target.files?.[0])} type="file" />
+            <input
+              accept={FILE_UPLOAD_ACCEPT}
+              onChange={(event) => handleFilePickerChange(question.id, event.target.files?.[0])}
+              onClick={() => beginAuthorizedFilePicker(question.id)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") beginAuthorizedFilePicker(question.id);
+              }}
+              onPointerDown={() => beginAuthorizedFilePicker(question.id)}
+              type="file"
+            />
           </label>
         ) : null}
       </Card>
