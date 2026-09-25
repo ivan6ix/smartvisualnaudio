@@ -1363,6 +1363,9 @@ button.dean-integrity-link { border: 0; background: transparent; padding: 0; cur
 .reports-print-header {
   display: none;
 }
+.reports-print-table-wrap {
+  display: none;
+}
 .reports-panel-header h2 {
   margin: 0;
 }
@@ -10954,8 +10957,8 @@ html[data-theme] .badge-blue {
 
 @media print {
   @page {
-    size: landscape;
-    margin: 10mm;
+    size: portrait;
+    margin: 14mm 12mm 16mm;
   }
   html,
   body,
@@ -11057,7 +11060,7 @@ html[data-theme] .badge-blue {
     border-collapse: collapse;
     color: #111827 !important;
     page-break-inside: auto;
-    font-size: 8pt;
+    font-size: 7.6pt;
     line-height: 1.25;
   }
   .reports-page thead {
@@ -11078,45 +11081,45 @@ html[data-theme] .badge-blue {
   .reports-page td {
     border-bottom-color: #d1d5db !important;
     color: #111827 !important;
-    padding: 5px 6px !important;
+    padding: 4px 4px !important;
     vertical-align: top;
     overflow-wrap: normal;
     word-break: normal;
     white-space: normal;
   }
-  .reports-page .admin-violations-report-panel col:nth-child(1) { width: 13%; }
-  .reports-page .admin-violations-report-panel col:nth-child(2) { width: 10%; }
-  .reports-page .admin-violations-report-panel col:nth-child(3) { width: 16%; }
-  .reports-page .admin-violations-report-panel col:nth-child(4) { width: 14%; }
-  .reports-page .admin-violations-report-panel col:nth-child(5) { width: 25%; }
-  .reports-page .admin-violations-report-panel col:nth-child(6) { width: 8%; }
-  .reports-page .admin-violations-report-panel col:nth-child(7) { width: 7%; }
-  .reports-page .admin-violations-report-panel col:nth-child(8) { width: 7%; }
-  .reports-page .admin-violations-report-panel th:nth-child(1),
-  .reports-page .admin-violations-report-panel td:nth-child(1) { width: 13%; }
-  .reports-page .admin-violations-report-panel th:nth-child(2),
-  .reports-page .admin-violations-report-panel td:nth-child(2) { width: 10%; }
-  .reports-page .admin-violations-report-panel th:nth-child(3),
-  .reports-page .admin-violations-report-panel td:nth-child(3) { width: 16%; }
-  .reports-page .admin-violations-report-panel th:nth-child(4),
-  .reports-page .admin-violations-report-panel td:nth-child(4) { width: 14%; }
-  .reports-page .admin-violations-report-panel th:nth-child(5),
-  .reports-page .admin-violations-report-panel td:nth-child(5) { width: 25%; }
-  .reports-page .admin-violations-report-panel th:nth-child(6),
-  .reports-page .admin-violations-report-panel td:nth-child(6) { width: 8%; }
-  .reports-page .admin-violations-report-panel th:nth-child(7),
-  .reports-page .admin-violations-report-panel td:nth-child(7) { width: 7%; }
-  .reports-page .admin-violations-report-panel th:nth-child(8),
-  .reports-page .admin-violations-report-panel td:nth-child(8) { width: 7%; }
-  .reports-page .admin-violations-report-panel th:nth-child(2),
-  .reports-page .admin-violations-report-panel td:nth-child(2),
-  .reports-page .admin-violations-report-panel th:nth-child(6),
-  .reports-page .admin-violations-report-panel td:nth-child(6),
-  .reports-page .admin-violations-report-panel th:nth-child(7),
-  .reports-page .admin-violations-report-panel td:nth-child(7),
-  .reports-page .admin-violations-report-panel th:nth-child(8),
-  .reports-page .admin-violations-report-panel td:nth-child(8) {
+  .reports-page .admin-violations-report-panel > .table-wrap {
+    display: none !important;
+  }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap {
+    display: block !important;
+    height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(1),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(1) { width: 14%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(2),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(2) { width: 9%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(3),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(3) { width: 15%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(4),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(4) { width: 13%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(5),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(5) { width: 27%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(6),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(6) { width: 12%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(7),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(7) { width: 10%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(2),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(2),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(6),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(6),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(7),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(7) {
     white-space: nowrap;
+  }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(6) span {
+    display: block;
   }
   .reports-page .badge {
     border: 0 !important;

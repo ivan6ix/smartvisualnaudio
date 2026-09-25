@@ -318,6 +318,7 @@ export default function Reports() {
   const filteredRows = currentRows.filter((row) => Object.values(row).join(" ").toLowerCase().includes(search.toLowerCase()));
   const generatedAt = new Date().toLocaleString();
   const reportTitle = tab === "Overview" ? "Violation Report" : `${tab} Report`;
+  const isViolationReport = tab === "Overview" || tab === "Violations";
   const reportStats = [
     ["Students", stats.students, FiUsers],
     ["Professors", stats.professors, FiUsers],
@@ -374,6 +375,36 @@ export default function Reports() {
             <Button variant="light" onClick={() => window.print()}><FiPrinter /> Print / Save as PDF</Button>
           </div>
         </div>
+        {isViolationReport ? (
+          <div className="reports-print-table-wrap" aria-hidden="true">
+            <table>
+              <thead>
+                <tr>
+                  <th>Student</th>
+                  <th>Course</th>
+                  <th>Exam</th>
+                  <th>Violation</th>
+                  <th>Details</th>
+                  <th>Date/Time</th>
+                  <th>Severity</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredRows.map((row) => (
+                  <tr key={`print-${row.id}`}>
+                    <td>{row.student}</td>
+                    <td>{row.course}</td>
+                    <td>{row.exam}</td>
+                    <td>{row.violationType}</td>
+                    <td>{row.details}</td>
+                    <td><span>{row.date}</span><span>{row.time}</span></td>
+                    <td>{row.severity}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
         <Table columns={columnsByTab[tab] || columnsByTab.Overview} rows={filteredRows} />
       </Card>
     </section>
