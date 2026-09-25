@@ -59,6 +59,7 @@ const BASIC_FACE_SAMPLE_HEIGHT = 100;
 const OBJECT_SCAN_INTERVAL_MS = 1000;
 const ENV_SCAN_OBJECT_CONFIDENCE = 0.62;
 const ENV_SCAN_PHONE_CONFIDENCE = 0.25;
+const FILE_PICKER_SETTLE_MS = 350;
 const ROBOFLOW_OBJECT_CONFIDENCE = Number(import.meta.env.VITE_ROBOFLOW_OBJECT_CONFIDENCE || 0.35);
 const ROBOFLOW_MODEL_ID = import.meta.env.VITE_ROBOFLOW_MODEL || "spare-gadget-detection";
 const ROBOFLOW_MODEL_VERSION = import.meta.env.VITE_ROBOFLOW_MODEL_VERSION || "16";
@@ -381,6 +382,7 @@ export default function StudentExamTake() {
   const activeExamRef = useRef(examId);
   const authorizedFilePickerRef = useRef({ active: false, questionId: null });
   const filePickerFullscreenRestoreRef = useRef(false);
+  const authorizedFullscreenRecoveryRef = useRef(false);
   const filePickerFinalizeTimerRef = useRef(null);
   activeExamRef.current = examId;
   const videoRef = useRef(null);
@@ -418,6 +420,7 @@ export default function StudentExamTake() {
   const [cameraError, setCameraError] = useState("");
   const [examModeReady, setExamModeReady] = useState(false);
   const [examLocked, setExamLocked] = useState(false);
+  const [examLockMessage, setExamLockMessage] = useState("Fullscreen was exited or the exam window lost focus. Return to secure exam mode to continue.");
   const [isMicrophoneBlocked, setIsMicrophoneBlocked] = useState(false);
   const [microphoneBlockReason, setMicrophoneBlockReason] = useState("");
   const [existingAttemptCount, setExistingAttemptCount] = useState(0);
@@ -597,6 +600,7 @@ export default function StudentExamTake() {
       examModeReadyRef.current = false;
       scanCancelledRef.current = true;
       authorizedFilePickerRef.current = { active: false, questionId: null };
+      authorizedFullscreenRecoveryRef.current = false;
       if (filePickerFinalizeTimerRef.current) window.clearTimeout(filePickerFinalizeTimerRef.current);
       streamRef.current?.getTracks().forEach((track) => track.stop());
       stopProctoring();
@@ -749,6 +753,8 @@ export default function StudentExamTake() {
           filePickerFullscreenRestoreRef.current = true;
           return;
         }
+        authorizedFullscreenRecoveryRef.current = false;
+        setExamLockMessage("Fullscreen was exited. Return to secure exam mode to continue.");
         setExamLocked(true);
         recordGuardViolation("FULLSCREEN_EXIT", "Fullscreen mode was exited. Return to fullscreen to continue.", "High");
       } else incidentTrackerRef.current.clear("FULLSCREEN_EXIT");
@@ -765,7 +771,7 @@ export default function StudentExamTake() {
 
     function clearTabIncident() {
       if (authorizedFilePickerRef.current.active) {
-        finalizeAuthorizedFilePicker();
+        scheduleAuthorizedFilePickerFinalize();
         return;
       }
       if (!window.document.hidden && window.document.hasFocus()) incidentTrackerRef.current.clear("TAB_SWITCH");
@@ -774,6 +780,8 @@ export default function StudentExamTake() {
     function handleWindowBlur() {
       if (examSubmittingRef.current || examSubmittedRef.current) return;
       if (authorizedFilePickerRef.current.active) return;
+      authorizedFullscreenRecoveryRef.current = false;
+      setExamLockMessage("The exam window lost focus. Return to secure exam mode to continue.");
       setExamLocked(true);
       recordGuardViolation("TAB_SWITCH", "Exam window lost focus.", "Medium");
     }
@@ -942,7 +950,9 @@ export default function StudentExamTake() {
     if (filePickerFullscreenRestoreRef.current) {
       filePickerFullscreenRestoreRef.current = false;
       if (!getFullscreenElement() && examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current) {
-        void restoreExamLock();
+        authorizedFullscreenRecoveryRef.current = true;
+        setExamLockMessage("The file picker temporarily exited fullscreen. Return to fullscreen to continue your exam.");
+        setExamLocked(true);
       }
     }
   }
@@ -952,7 +962,7 @@ export default function StudentExamTake() {
     filePickerFinalizeTimerRef.current = window.setTimeout(() => {
       filePickerFinalizeTimerRef.current = null;
       finalizeAuthorizedFilePicker();
-    }, 0);
+    }, FILE_PICKER_SETTLE_MS);
   }
 
   function handleFilePickerChange(questionId, file) {
@@ -2474,9 +2484,12 @@ export default function StudentExamTake() {
     if (violationLimitReachedRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
     try {
       await requestExamLock();
+      authorizedFullscreenRecoveryRef.current = false;
       setExamLocked(false);
     } catch (error) {
-      recordManualViolation("FULLSCREEN_EXIT", error instanceof Error ? error.message : "Unable to restore fullscreen.", "High");
+      if (!authorizedFullscreenRecoveryRef.current) {
+        recordManualViolation("FULLSCREEN_EXIT", error instanceof Error ? error.message : "Unable to restore fullscreen.", "High");
+      }
       toast.error("Return to fullscreen to continue the exam.");
     }
   }
@@ -2988,7 +3001,7 @@ export default function StudentExamTake() {
           <Card>
             <FiShield />
             <h2>Exam Paused</h2>
-            <p>Fullscreen was exited or the exam window lost focus. Return to secure exam mode to continue.</p>
+            <p>{examLockMessage}</p>
             <Button onClick={restoreExamLock}>Return to Fullscreen</Button>
           </Card>
         </div>
