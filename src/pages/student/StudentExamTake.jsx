@@ -3116,9 +3116,19 @@ export default function StudentExamTake() {
     <section className={`student-exam-take-page ${proctoringEnabled ? "with-proctor-dock" : ""}`}>
       <PageHeader
         title={exam.exam_title || exam.title}
-        subtitle={`${exam.courses?.course_code || ""} ${exam.courses?.section || ""} - ${formatDurationLabel(exam.time_limit || exam.duration)} - ${totalPoints} points`}
+        subtitle={`${exam.courses?.course_code || ""} ${exam.courses?.section || ""} - Duration: ${formatDurationLabel(exam.time_limit || exam.duration)} - ${totalPoints} points`}
         actions={<Button disabled={submitting || !scanPassed || examLocked || isMicrophoneBlocked || attemptsExhausted || interruptionLimitExceededRef.current} onClick={() => handleSubmit("manual")}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
       />
+
+      {hasTimer ? (
+        <div className={`student-exam-timer ${remainingMs !== null && remainingMs <= 60000 ? "urgent" : ""}`} role="timer" aria-live="polite">
+          <FiClock />
+          <div>
+            <span>Time Remaining</span>
+            <strong>{formatRemainingTime(remainingMs ?? (timerEndsAt ? new Date(timerEndsAt).getTime() - Date.now() : durationMinutes * 60 * 1000))}</strong>
+          </div>
+        </div>
+      ) : null}
 
       <div className={`student-exam-timer ${interruptionState.count >= interruptionState.limit ? "urgent" : ""}`} role="status" aria-live="polite">
         <FiRefreshCw />
