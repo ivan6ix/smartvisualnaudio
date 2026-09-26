@@ -463,6 +463,7 @@ export default function StudentExamTake() {
   const microphoneRecoveryRef = useRef({ inFlight: false, lastAttemptAt: 0 });
   const microphoneSignalBlockedRef = useRef(false);
   const microphonePermissionDeniedRef = useRef(false);
+  const interruptionStateRequestRef = useRef(0);
   const [faceStatus, setFaceStatus] = useState("Checking face position");
   const [roboflowStatus, setRoboflowStatus] = useState("Roboflow detector off");
   const totalPoints = useMemo(() => questions.reduce((total, question) => total + Number(question.points || 0), 0), [questions]);
@@ -1703,6 +1704,19 @@ export default function StudentExamTake() {
     return progress;
   }
 
+  async function refreshAuthorizedInterruptionState(requestId) {
+    const { data, error } = await supabase
+      .from("exam_start_sessions")
+      .select("interruption_count, interruption_limit")
+      .eq("exam_id", examId)
+      .eq("student_id", user.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (mountedRef.current && interruptionStateRequestRef.current === requestId) {
+      setInterruptionState(normalizeInterruptionState(data || {}));
+    }
+  }
+
   async function recordInterruptionRecovery(_reason, eventKey, options = {}) {
     if (!hasSupabaseConfig || !user?.id || !exam?.id || examSubmittedRef.current) return normalizeInterruptionState(interruptionState);
     const key = String(eventKey || "").slice(0, 120);
@@ -2562,10 +2576,18 @@ export default function StudentExamTake() {
 
   async function enterExamMode() {
     if (!progressReady || violationLimitReachedRef.current || interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
+    const interruptionStateRequestId = interruptionStateRequestRef.current + 1;
+    interruptionStateRequestRef.current = interruptionStateRequestId;
     if (hasSupabaseConfig) {
       const { data: serverStart, error } = await supabase.rpc("authorize_exam_start", { p_exam_id: examId });
       if (error) { toast.error(error.message); return; }
       if (!startedAtRef.current) startedAtRef.current = serverStart;
+      try {
+        await refreshAuthorizedInterruptionState(interruptionStateRequestId);
+      } catch (stateError) {
+        toast.error(`Unable to refresh interruption state: ${stateError.message}`);
+        return;
+      }
     }
     function startTimerIfNeeded() {
       const start = startedAtRef.current || new Date().toISOString();
