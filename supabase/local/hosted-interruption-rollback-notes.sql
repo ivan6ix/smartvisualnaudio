@@ -1,0 +1,16 @@
+-- Rollback/backup considerations for the targeted interruption release.
+-- Prefer restoring the previous authorize_exam_start definition from hosted backup capture.
+-- The new interruption columns are additive and should normally be retained for audit.
+-- If emergency removal is required after backing up data:
+--
+-- begin;
+-- revoke all on function public.record_exam_interruption_recovery(uuid, text) from public;
+-- drop function if exists public.record_exam_interruption_recovery(uuid, text);
+-- alter table public.exam_start_sessions
+--   drop column if exists interruption_count,
+--   drop column if exists interruption_limit,
+--   drop column if exists recovery_event_keys,
+--   drop column if exists last_recovery_event_key,
+--   drop column if exists last_recovery_at;
+-- notify pgrst, 'reload schema';
+-- commit;

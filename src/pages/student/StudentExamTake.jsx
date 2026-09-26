@@ -60,6 +60,7 @@ const OBJECT_SCAN_INTERVAL_MS = 1000;
 const ENV_SCAN_OBJECT_CONFIDENCE = 0.62;
 const ENV_SCAN_PHONE_CONFIDENCE = 0.25;
 const FILE_PICKER_SETTLE_MS = 350;
+const EXAM_INTERRUPTION_LIMIT = 3;
 const ROBOFLOW_OBJECT_CONFIDENCE = Number(import.meta.env.VITE_ROBOFLOW_OBJECT_CONFIDENCE || 0.35);
 const ROBOFLOW_MODEL_ID = import.meta.env.VITE_ROBOFLOW_MODEL || "spare-gadget-detection";
 const ROBOFLOW_MODEL_VERSION = import.meta.env.VITE_ROBOFLOW_MODEL_VERSION || "16";
@@ -245,6 +246,27 @@ function clearSavedExamProgress(studentId, examId) {
   if (key) window.localStorage.removeItem(key);
 }
 
+function normalizeInterruptionState(value = {}) {
+  const count = Math.max(0, Number(value.interruption_count ?? value.interruptionCount ?? 0) || 0);
+  const limit = Math.max(1, Number(value.interruption_limit ?? value.interruptionLimit ?? EXAM_INTERRUPTION_LIMIT) || EXAM_INTERRUPTION_LIMIT);
+  return {
+    count,
+    limit,
+    resumeAllowed: value.resume_allowed ?? value.resumeAllowed ?? count <= limit,
+    shouldAutoSubmit: value.should_auto_submit ?? value.shouldAutoSubmit ?? count > limit,
+  };
+}
+
+function interruptionWarning(state) {
+  if (state.count >= state.limit) return "You have used all recoverable interruptions. Another interruption will automatically submit your exam.";
+  if (state.count > 0) return `Exam recovered from ${state.count} of ${state.limit} recoverable interruptions.`;
+  return "Recoverable technical interruptions are tracked separately from violations.";
+}
+
+function buildRecoveryEventKey(reason, startedAt, savedAt = "") {
+  return `${reason}:${new Date(startedAt || 0).getTime() || "pending"}:${new Date(savedAt || Date.now()).getTime() || Date.now()}`;
+}
+
 function getEnvironmentScanError(error) {
   const message = error instanceof Error ? error.message : String(error || "");
   if (/permission|notallowed|denied/i.test(message)) return "Camera permission denied. Please allow camera access.";
@@ -366,6 +388,8 @@ export default function StudentExamTake() {
   const [remainingMs, setRemainingMs] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [autoSubmitRequired, setAutoSubmitRequired] = useState(false);
+  const [interruptionAutoSubmitRequired, setInterruptionAutoSubmitRequired] = useState(false);
+  const [interruptionState, setInterruptionState] = useState(() => normalizeInterruptionState());
   const [submissionError, setSubmissionError] = useState("");
   const [progressReady, setProgressReady] = useState(false);
   const answersRef = useRef({});
@@ -375,6 +399,8 @@ export default function StudentExamTake() {
   const startedAtRef = useRef(null);
   const incidentTrackerRef = useRef(createIncidentTracker());
   const violationLimitReachedRef = useRef(false);
+  const interruptionLimitExceededRef = useRef(false);
+  const interruptionRecoveryRef = useRef({ inFlight: false, handledKeys: new Set(), offlineEventKey: null });
   const submissionSnapshotRef = useRef(null);
   const submitLatestRef = useRef(null);
   const mountedRef = useRef(true);
@@ -466,7 +492,7 @@ export default function StudentExamTake() {
     enabled: examSettings.liveAudioMonitoring,
     exam,
     student: user,
-    canRecordViolation: () => examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current && !violationLimitReachedRef.current,
+    canRecordViolation: () => examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current && !violationLimitReachedRef.current && !interruptionLimitExceededRef.current,
     onViolation: acceptRecordedViolation,
     onMicrophoneIssue: handleMicrophoneIssue,
     onMicrophoneRestored: handleMicrophoneSignalRestored,
@@ -477,12 +503,16 @@ export default function StudentExamTake() {
     let cancelled = false;
     setProgressReady(false);
     setAutoSubmitRequired(false);
+    setInterruptionAutoSubmitRequired(false);
+    setInterruptionState(normalizeInterruptionState());
     setSubmissionError("");
     setExamModeReady(false);
     examModeReadyRef.current = false;
     examSubmittingRef.current = false;
     examSubmittedRef.current = false;
     violationLimitReachedRef.current = false;
+    interruptionLimitExceededRef.current = false;
+    interruptionRecoveryRef.current = { inFlight: false, handledKeys: new Set(), offlineEventKey: null };
     timerExpiredRef.current = false;
     submissionSnapshotRef.current = null;
     incidentTrackerRef.current = createIncidentTracker();
@@ -531,6 +561,17 @@ export default function StudentExamTake() {
       }
 
       const saved = readSavedExamProgress(user.id, examId);
+      const { data: startSession, error: startSessionError } = await supabase
+        .from("exam_start_sessions")
+        .select("interruption_count, interruption_limit")
+        .eq("exam_id", examId)
+        .eq("student_id", user.id)
+        .maybeSingle();
+      if (startSessionError) {
+        toast.error(`Unable to load interruption state: ${startSessionError.message}`);
+        return;
+      }
+      setInterruptionState(normalizeInterruptionState(startSession || {}));
       const settings = normalizeExamSettings(examRow?.exam_settings);
       const prepared = prepareQuestionsForAttempt(questionRows || [], settings, saved?.questionOrder, user.id, examId);
       if (cancelled) return;
@@ -620,7 +661,7 @@ export default function StudentExamTake() {
   }, [exam, examSettings.requireEnvironmentScan, secureModeRequired]);
 
   useEffect(() => {
-    if (!examModeReady || examSubmittedRef.current || violationLimitReachedRef.current || !user?.id || !examId) return;
+    if (!examModeReady || examSubmittedRef.current || violationLimitReachedRef.current || interruptionLimitExceededRef.current || !user?.id || !examId) return;
     writeSavedExamProgress(user.id, examId, {
       answers,
       violations,
@@ -639,6 +680,19 @@ export default function StudentExamTake() {
   useEffect(() => {
     if (progressReady && autoSubmitRequired && !attemptsExhausted) void submitLatestRef.current("violation_limit");
   }, [progressReady, autoSubmitRequired, attemptsExhausted]);
+
+  useEffect(() => {
+    if (progressReady && interruptionAutoSubmitRequired && !attemptsExhausted) void submitLatestRef.current("interruption_limit");
+  }, [progressReady, interruptionAutoSubmitRequired, attemptsExhausted]);
+
+  useEffect(() => {
+    if (!interruptionAutoSubmitRequired || examSubmittedRef.current) return undefined;
+    function retryInterruptionSubmit() {
+      if (!examSubmittingRef.current && !examSubmittedRef.current) void submitLatestRef.current("interruption_limit");
+    }
+    window.addEventListener("online", retryInterruptionSubmit);
+    return () => window.removeEventListener("online", retryInterruptionSubmit);
+  }, [interruptionAutoSubmitRequired]);
 
   useEffect(() => {
     if (!examModeReady || examSubmittedRef.current) return undefined;
@@ -664,6 +718,41 @@ export default function StudentExamTake() {
       window.removeEventListener("beforeunload", handleBeforeUnload);
     };
   }, [examModeReady]);
+
+  useEffect(() => {
+    if (!examModeReady || !exam?.id || examSubmittedRef.current) return undefined;
+
+    function handleOffline() {
+      if (examSubmittingRef.current || examSubmittedRef.current || authorizedFilePickerRef.current.active) return;
+      if (!interruptionRecoveryRef.current.offlineEventKey) {
+        interruptionRecoveryRef.current.offlineEventKey = buildRecoveryEventKey("offline", startedAtRef.current, new Date().toISOString());
+        setExamLocked(true);
+        setExamLockMessage("Connection lost. Your exam is paused until recovery is confirmed.");
+        try { saveCurrentProgress(); } catch (error) { window.console.warn("Unable to save progress before offline recovery.", error); }
+      }
+    }
+
+    function handleOnline() {
+      const eventKey = interruptionRecoveryRef.current.offlineEventKey;
+      if (!eventKey || examSubmittingRef.current || examSubmittedRef.current) return;
+      interruptionRecoveryRef.current.offlineEventKey = null;
+      void recordInterruptionRecovery("offline", eventKey, { lockOnFailure: true }).then((recovery) => {
+        if (!recovery?.shouldAutoSubmit && recovery?.resumeAllowed) setExamLocked(false);
+      }).catch(() => {
+        interruptionRecoveryRef.current.offlineEventKey = eventKey;
+      });
+    }
+
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("online", handleOnline);
+    if (window.navigator && window.navigator.onLine === false) handleOffline();
+    return () => {
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("online", handleOnline);
+    };
+  // The handlers intentionally read current refs for the active session.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [examModeReady, exam?.id]);
 
   useEffect(() => {
     if (!["scanning", "analyzing"].includes(scanStatus)) return undefined;
@@ -1596,7 +1685,7 @@ export default function StudentExamTake() {
   }
 
   function recordManualViolation(type, message, severity = "Medium") {
-    if (!examModeReadyRef.current || examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (!examModeReadyRef.current || examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current || interruptionLimitExceededRef.current) return;
     if (!incidentTrackerRef.current.claim(type)) return;
     const timestamp = new Date().toISOString();
     if (hasSupabaseConfig && user?.id && exam?.id) {
@@ -1614,8 +1703,51 @@ export default function StudentExamTake() {
     return progress;
   }
 
+  async function recordInterruptionRecovery(_reason, eventKey, options = {}) {
+    if (!hasSupabaseConfig || !user?.id || !exam?.id || examSubmittedRef.current) return normalizeInterruptionState(interruptionState);
+    const key = String(eventKey || "").slice(0, 120);
+    if (!key || interruptionRecoveryRef.current.inFlight) return normalizeInterruptionState(interruptionState);
+    if (interruptionRecoveryRef.current.handledKeys.has(key)) return normalizeInterruptionState(interruptionState);
+    interruptionRecoveryRef.current.inFlight = true;
+    try {
+      const { data, error } = await supabase.rpc("record_exam_interruption_recovery", {
+        p_exam_id: exam.id,
+        p_recovery_event_key: key,
+      });
+      if (error) throw error;
+      const nextState = normalizeInterruptionState(data || {});
+      interruptionRecoveryRef.current.handledKeys.add(key);
+      setInterruptionState(nextState);
+      if (nextState.shouldAutoSubmit || !nextState.resumeAllowed) {
+        interruptionLimitExceededRef.current = true;
+        setInterruptionAutoSubmitRequired(true);
+        submissionSnapshotRef.current = { answers: { ...answersRef.current }, files: { ...filesRef.current }, touched: new Set(touchedAnswersRef.current) };
+        examModeReadyRef.current = false;
+        setExamModeReady(false);
+        setExamLocked(true);
+        setExamLockMessage("Recoverable interruption limit exceeded. Your exam is locked while submission is finalized.");
+        stopProctoring();
+        streamRef.current?.getTracks().forEach((track) => track.stop());
+        void submitLatestRef.current("interruption_limit");
+      } else if (!options.silent) {
+        toast.success(`Exam resumed. Interruption ${nextState.count} of ${nextState.limit}.`);
+        if (nextState.count >= nextState.limit) toast.warning(interruptionWarning(nextState));
+      }
+      return nextState;
+    } catch (error) {
+      toast.error(`Unable to confirm exam recovery: ${error.message}`);
+      if (options.lockOnFailure) {
+        setExamLocked(true);
+        setExamLockMessage("Exam recovery is pending. Reconnect and retry before continuing.");
+      }
+      throw error;
+    } finally {
+      interruptionRecoveryRef.current.inFlight = false;
+    }
+  }
+
   function acceptRecordedViolation(violation) {
-    if (!mountedRef.current || examSubmittedRef.current || !startedAtRef.current || (violation.examId && violation.examId !== activeExamRef.current)) return;
+    if (!mountedRef.current || examSubmittedRef.current || interruptionLimitExceededRef.current || !startedAtRef.current || (violation.examId && violation.examId !== activeExamRef.current)) return;
     const next = mergeAttemptViolations([...violationsRef.current, violation], startedAtRef.current);
     if (next.length === violationsRef.current.length) return;
     violationsRef.current = next;
@@ -2429,7 +2561,7 @@ export default function StudentExamTake() {
   }
 
   async function enterExamMode() {
-    if (!progressReady || violationLimitReachedRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
+    if (!progressReady || violationLimitReachedRef.current || interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
     if (hasSupabaseConfig) {
       const { data: serverStart, error } = await supabase.rpc("authorize_exam_start", { p_exam_id: examId });
       if (error) { toast.error(error.message); return; }
@@ -2477,11 +2609,20 @@ export default function StudentExamTake() {
       setScanStatus("passed");
       setScanOpen(false);
     }
-    await enterExamMode();
+    try {
+      if (savedProgress?.startedAt) {
+        const eventKey = buildRecoveryEventKey("saved-progress", savedProgress.startedAt, savedProgress.savedAt);
+        const recovery = await recordInterruptionRecovery("saved-progress", eventKey, { lockOnFailure: true });
+        if (recovery?.shouldAutoSubmit || !recovery?.resumeAllowed) return;
+      }
+      await enterExamMode();
+    } catch {
+      // recordInterruptionRecovery already displayed the recovery problem and left the exam locked.
+    }
   }
 
   async function restoreExamLock() {
-    if (violationLimitReachedRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
+    if (violationLimitReachedRef.current || interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
     try {
       await requestExamLock();
       authorizedFullscreenRecoveryRef.current = false;
@@ -2496,7 +2637,8 @@ export default function StudentExamTake() {
 
   async function handleSubmit(reason = "manual") {
     if (examSubmittingRef.current || examSubmittedRef.current) return;
-    if (!scanPassed && reason !== "violation_limit") {
+    const systemSubmission = reason === "violation_limit" || reason === "interruption_limit";
+    if (!scanPassed && !systemSubmission) {
       toast.error("Complete and pass the environment scan before submitting the exam.");
       setScanOpen(true);
       return;
@@ -2506,7 +2648,7 @@ export default function StudentExamTake() {
     setSubmitting(true);
     setSubmissionError("");
     const snapshot = submissionSnapshotRef.current || { answers: { ...answersRef.current }, files: { ...filesRef.current }, touched: new Set(touchedAnswersRef.current) };
-    if (reason === "violation_limit") submissionSnapshotRef.current = snapshot;
+    if (systemSubmission) submissionSnapshotRef.current = snapshot;
 
     try {
       const { count, error: attemptCountError } = await supabase
@@ -2543,6 +2685,15 @@ export default function StudentExamTake() {
       const submissionViolations = violationsRef.current.map((violation, index) => violationLimitReachedRef.current && index === EXAM_VIOLATION_LIMIT - 1
           ? { ...violation, submissionReason: "violation_limit", submissionMessage: "Exam submission initiated after reaching 5 violations." }
           : violation);
+      if (reason === "interruption_limit") {
+        submissionViolations.push({
+          type: "AUTO_SUBMISSION",
+          message: "Exam submission initiated after exceeding the recoverable interruption limit.",
+          severity: "High",
+          timestamp: new Date().toISOString(),
+          submissionReason: "interruption_limit",
+        });
+      }
 
       const { error: submitError } = await supabase.rpc("submit_exam_attempt", {
         p_exam_id: exam.id,
@@ -2562,6 +2713,7 @@ export default function StudentExamTake() {
 
       toast.success("Exam submitted");
       examSubmittedRef.current = true;
+      interruptionLimitExceededRef.current = false;
       clearSavedExamProgress(user.id, examId);
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: ["student-dashboard", user.id] }),
@@ -2576,6 +2728,12 @@ export default function StudentExamTake() {
     } catch (error) {
       setSubmissionError(error.message || "Submission failed. Please retry.");
       toast.error(error.message);
+      if (reason === "interruption_limit") {
+        interruptionLimitExceededRef.current = true;
+        setInterruptionAutoSubmitRequired(true);
+        setExamLocked(true);
+        setExamLockMessage("Interruption limit exceeded. Submission is pending and the exam cannot continue.");
+      }
     } finally {
       if (!examSubmittedRef.current) examSubmittingRef.current = false;
       if (!examSubmittedRef.current && reason === "timer") timerExpiredRef.current = false;
@@ -2782,6 +2940,23 @@ export default function StudentExamTake() {
     );
   }
 
+  if (interruptionAutoSubmitRequired) {
+    return (
+      <section className="student-exam-take-page" role="alert" aria-live="assertive" aria-busy={submitting}>
+        <PageHeader title={exam.exam_title || exam.title} subtitle={`Interruptions: ${interruptionState.count} / ${interruptionState.limit}`} />
+        <Card>
+          <FiRefreshCw />
+          <h2>Interruption limit exceeded</h2>
+          <p>Your exam is locked while automatic submission is finalized.</p>
+          {submissionError ? <>
+            <p>Your answers are preserved locally. Submission failed: {submissionError}</p>
+            <Button disabled={submitting} onClick={() => handleSubmit("interruption_limit")}>Retry Submission</Button>
+          </> : <p>Saving your current answers. Please keep this page open.</p>}
+        </Card>
+      </section>
+    );
+  }
+
   if (!scanPassed || scanOpen) {
     const currentStep = scanCheckpoints[scanStepIndex] || scanCheckpoints[0];
     const currentStepProgress = Math.min(100, scanProgress.surroundings || 0);
@@ -2920,8 +3095,16 @@ export default function StudentExamTake() {
       <PageHeader
         title={exam.exam_title || exam.title}
         subtitle={`${exam.courses?.course_code || ""} ${exam.courses?.section || ""} - ${formatDurationLabel(exam.time_limit || exam.duration)} - ${totalPoints} points`}
-        actions={<Button disabled={submitting || !scanPassed || examLocked || isMicrophoneBlocked || attemptsExhausted} onClick={() => handleSubmit("manual")}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
+        actions={<Button disabled={submitting || !scanPassed || examLocked || isMicrophoneBlocked || attemptsExhausted || interruptionLimitExceededRef.current} onClick={() => handleSubmit("manual")}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
       />
+
+      <div className={`student-exam-timer ${interruptionState.count >= interruptionState.limit ? "urgent" : ""}`} role="status" aria-live="polite">
+        <FiRefreshCw />
+        <div>
+          <strong>Interruptions: {interruptionState.count} / {interruptionState.limit}</strong>
+          <span>{interruptionWarning(interruptionState)}</span>
+        </div>
+      </div>
 
       <div className={`student-exam-timer ${violations.length >= 3 ? "urgent" : ""}`} role="status" aria-live="polite">
         <FiShield />
@@ -3002,7 +3185,7 @@ export default function StudentExamTake() {
             <FiShield />
             <h2>Exam Paused</h2>
             <p>{examLockMessage}</p>
-            <Button onClick={restoreExamLock}>Return to Fullscreen</Button>
+            {interruptionLimitExceededRef.current ? null : <Button onClick={restoreExamLock}>Return to Fullscreen</Button>}
           </Card>
         </div>
       ) : null}

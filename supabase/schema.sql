@@ -248,6 +248,24 @@ alter table public.exam_attempts add column if not exists submitted_at timestamp
 alter table public.exam_attempts add column if not exists earned_points numeric(8,2);
 alter table public.exam_attempts add column if not exists max_points numeric(8,2);
 
+create table if not exists public.exam_start_sessions (
+  exam_id uuid not null references public.exams(id),
+  student_id uuid not null references public.profiles(id),
+  started_at timestamptz not null default now(),
+  interruption_count integer not null default 0,
+  interruption_limit integer not null default 3,
+  recovery_event_keys jsonb not null default '[]'::jsonb,
+  last_recovery_event_key text,
+  last_recovery_at timestamptz,
+  primary key (exam_id, student_id)
+);
+
+alter table public.exam_start_sessions add column if not exists interruption_count integer not null default 0;
+alter table public.exam_start_sessions add column if not exists interruption_limit integer not null default 3;
+alter table public.exam_start_sessions add column if not exists recovery_event_keys jsonb not null default '[]'::jsonb;
+alter table public.exam_start_sessions add column if not exists last_recovery_event_key text;
+alter table public.exam_start_sessions add column if not exists last_recovery_at timestamptz;
+
 create table if not exists public.exam_attempt_answers (
   id uuid primary key default gen_random_uuid(),
   attempt_id uuid not null references public.exam_attempts(id) on delete cascade,
@@ -389,6 +407,7 @@ alter table public.exam_approval_logs enable row level security;
 alter table public.exam_rejection_logs enable row level security;
 alter table public.violations enable row level security;
 alter table public.exam_attempts enable row level security;
+alter table public.exam_start_sessions enable row level security;
 alter table public.exam_attempt_answers enable row level security;
 alter table public.course_enrollments enable row level security;
 alter table public.course_periods enable row level security;
@@ -422,6 +441,7 @@ drop policy if exists "violations_student_read_own" on public.violations;
 drop policy if exists "violations_professor_read_own" on public.violations;
 drop policy if exists "violations_audit_read" on public.violations;
 drop policy if exists "attempts_owner" on public.exam_attempts;
+drop policy if exists "exam_start_sessions_self" on public.exam_start_sessions;
 drop policy if exists "attempt_answers_owner_read" on public.exam_attempt_answers;
 
 create policy "profiles_read_authenticated" on public.profiles for select to authenticated using (true);
@@ -551,6 +571,7 @@ using (
   )
 );
 create policy "attempts_owner" on public.exam_attempts for select to authenticated using (auth.uid() = student_id);
+create policy "exam_start_sessions_self" on public.exam_start_sessions for select to authenticated using (auth.uid() = student_id);
 create policy "attempt_answers_owner_read" on public.exam_attempt_answers
 for select to authenticated
 using (
