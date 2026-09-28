@@ -62,12 +62,13 @@ function mapAttempt(attempt, gradeOverrides = {}) {
   const override = gradeOverrides[attempt.id] || {};
   const hasOverride = Object.prototype.hasOwnProperty.call(gradeOverrides, attempt.id);
   const attemptPendingManual = String(attempt.status || "").toLowerCase().includes("pending manual");
+  const attemptReopened = String(attempt.status || "").toLowerCase() === "reopened";
   const score = override.score === null || override.score === undefined
     ? clampScore(attempt.score)
     : clampScore(override.score);
   const maxPoints = override.max ?? attempt.max_points ?? null;
   const earnedPoints = override.earned ?? attempt.earned_points ?? null;
-  const isPending = hasOverride ? override.pending : attemptPendingManual || (attempt.score === null && maxPoints);
+  const isPending = attemptReopened || (hasOverride ? override.pending : attemptPendingManual || (attempt.score === null && maxPoints));
 
   return {
     id: attempt.id,
@@ -76,7 +77,7 @@ function mapAttempt(attempt, gradeOverrides = {}) {
     title: `${exam.exam_title || exam.title || "Untitled assessment"} - ${exam.exam_type || "Exam"}`,
     score,
     scoreLabel: isPending && maxPoints
-      ? `Pending / ${formatPoints(maxPoints)}`
+      ? attemptReopened ? "Reopened" : `Pending / ${formatPoints(maxPoints)}`
       : earnedPoints !== null && earnedPoints !== undefined && maxPoints
         ? `${formatPoints(earnedPoints)} / ${formatPoints(maxPoints)} (${score.toFixed(2)}%)`
         : `${score.toFixed(1)}%`,

@@ -3719,6 +3719,48 @@ html[data-theme="light"] .profile-remove-actions button.danger {
   padding-inline: 10px;
   white-space: nowrap;
 }
+.professor-reopen-actions {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 8px;
+  margin-left: 10px !important;
+  flex-wrap: wrap;
+}
+.professor-reopen-actions button,
+.professor-reopen-expired {
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 6px 10px;
+}
+.professor-reopen-actions button:first-child {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.professor-reopen-review {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border-color);
+}
+.professor-reopen-review span,
+.professor-reopen-review p,
+.professor-reopen-review small,
+.student-reopen-counter {
+  color: var(--app-text-muted);
+}
+.student-reopen-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
 .professor-file-answer {
   display: inline-flex !important;
   align-items: center;

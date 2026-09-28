@@ -41,18 +41,48 @@ do $$
 declare
   v_prof uuid := '91000000-0000-0000-0000-000000000001';
   v_student uuid := '91000000-0000-0000-0000-000000000002';
+  v_other_prof uuid := '91000000-0000-0000-0000-000000000012';
+  v_other_student uuid := '91000000-0000-0000-0000-000000000013';
   v_program uuid := '91000000-0000-0000-0000-000000000003';
   v_course uuid := '91000000-0000-0000-0000-000000000004';
   v_exam uuid := '91000000-0000-0000-0000-000000000005';
   v_manual_exam uuid := '91000000-0000-0000-0000-000000000006';
   v_limit_exam uuid := '91000000-0000-0000-0000-000000000007';
   v_pm_exam uuid := '91000000-0000-0000-0000-000000000008';
+  v_reject_exam uuid := '91000000-0000-0000-0000-000000000009';
+  v_expired_exam uuid := '91000000-0000-0000-0000-000000000010';
+  v_direct_exam uuid := '91000000-0000-0000-0000-000000000011';
+  v_two_exam uuid := '91000000-0000-0000-0000-000000000014';
+  v_three_exam uuid := '91000000-0000-0000-0000-000000000015';
+  v_four_exam uuid := '91000000-0000-0000-0000-000000000016';
+  v_file_exam uuid := '91000000-0000-0000-0000-000000000017';
+  v_reason_exam uuid := '91000000-0000-0000-0000-000000000018';
+  v_deadline_submit_exam uuid := '91000000-0000-0000-0000-000000000019';
+  v_late_request_exam uuid := '91000000-0000-0000-0000-000000000020';
   v_attempt uuid;
   v_attempt_retry uuid;
   v_manual_attempt uuid;
+  v_limit_attempt uuid;
+  v_reject_attempt uuid;
+  v_expired_attempt uuid;
+  v_direct_attempt uuid;
+  v_two_attempt uuid;
+  v_three_attempt uuid;
+  v_four_attempt uuid;
+  v_file_attempt uuid;
+  v_reason_attempt uuid;
+  v_deadline_submit_attempt uuid;
+  v_late_request_attempt uuid;
+  v_reopen_request uuid;
+  v_reject_request uuid;
+  v_expired_request uuid;
+  v_deadline_submit_request uuid;
+  v_returned_attempt uuid;
   v_answer_id uuid;
   v_result jsonb;
   v_count int;
+  v_original_session timestamptz;
+  v_reopen_session timestamptz;
   q public.exam_questions;
 begin
   perform pg_temp.as_service();
@@ -60,13 +90,17 @@ begin
   insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, aud, role)
   values
     (v_prof, 'scoring-prof@example.test', '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated'),
-    (v_student, 'scoring-student@example.test', '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated')
+    (v_student, 'scoring-student@example.test', '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated'),
+    (v_other_prof, 'scoring-other-prof@example.test', '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated'),
+    (v_other_student, 'scoring-other-student@example.test', '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated')
   on conflict (id) do nothing;
 
   insert into public.profiles (id, role, full_name, email, employee_number, student_number, status)
   values
     (v_prof, 'Professor', 'Scoring Professor', 'scoring-prof@example.test', 'SP-1', null, 'Active'),
-    (v_student, 'Student', 'Scoring Student', 'scoring-student@example.test', null, 'SS-1', 'Active')
+    (v_student, 'Student', 'Scoring Student', 'scoring-student@example.test', null, 'SS-1', 'Active'),
+    (v_other_prof, 'Professor', 'Other Professor', 'scoring-other-prof@example.test', 'SP-2', null, 'Active'),
+    (v_other_student, 'Student', 'Other Student', 'scoring-other-student@example.test', null, 'SS-2', 'Active')
   on conflict (id) do update set role = excluded.role, status = excluded.status;
 
   insert into public.programs (id, program_code, program_name, is_active)
@@ -80,16 +114,29 @@ begin
   insert into public.course_enrollments (course_id, student_id)
   values (v_course, v_student)
   on conflict do nothing;
+  insert into public.course_enrollments (course_id, student_id)
+  values (v_course, v_other_student)
+  on conflict do nothing;
 
   insert into public.exams (id, course_id, title, exam_title, description, course, professor_id, time_limit, exam_type, semester, exam_settings, questions_count, duration, created_by, status, approved_at)
   values
     (v_exam, v_course, 'Scoring Auto', 'Scoring Auto', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 11, 60, v_prof, 'Draft', null),
     (v_manual_exam, v_course, 'Scoring Manual', 'Scoring Manual', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 2, 60, v_prof, 'Draft', null),
     (v_limit_exam, v_course, 'Scoring Limit', 'Scoring Limit', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
-    (v_pm_exam, v_course, 'Partial Match', 'Partial Match', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 12, 60, v_prof, 'Draft', null)
+    (v_pm_exam, v_course, 'Partial Match', 'Partial Match', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 12, 60, v_prof, 'Draft', null),
+    (v_reject_exam, v_course, 'Reopen Reject', 'Reopen Reject', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_expired_exam, v_course, 'Reopen Expired', 'Reopen Expired', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_direct_exam, v_course, 'Reopen Direct', 'Reopen Direct', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_two_exam, v_course, 'Reopen Two', 'Reopen Two', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"2 attempts","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_three_exam, v_course, 'Reopen Three', 'Reopen Three', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"3 attempts","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_four_exam, v_course, 'Reopen Four', 'Reopen Four', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"4 attempts","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_file_exam, v_course, 'Reopen File Manual', 'Reopen File Manual', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 2, 60, v_prof, 'Draft', null),
+    (v_reason_exam, v_course, 'Reopen Reason Bounds', 'Reopen Reason Bounds', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_deadline_submit_exam, v_course, 'Reopen Deadline Submit', 'Reopen Deadline Submit', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_late_request_exam, v_course, 'Reopen Late Request', 'Reopen Late Request', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null)
   on conflict (id) do update set status = 'Draft', exam_settings = excluded.exam_settings;
 
-  delete from public.exam_questions where exam_id in (v_exam, v_manual_exam, v_limit_exam, v_pm_exam);
+  delete from public.exam_questions where exam_id in (v_exam, v_manual_exam, v_limit_exam, v_pm_exam, v_reject_exam, v_expired_exam, v_direct_exam, v_two_exam, v_three_exam, v_four_exam, v_file_exam, v_reason_exam, v_deadline_submit_exam, v_late_request_exam);
   insert into public.exam_questions (id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points)
   values
     ('91000000-0000-0000-0000-000000000101', v_exam, 'MC 1', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 5),
@@ -115,9 +162,26 @@ begin
     ('91000000-0000-0000-0000-000000000507', v_pm_exam, 'Order partial off', 'Ordering / Sequencing', '[]', '', '["A","B","C"]', '{"partialMatch":false}', false, 6),
     ('91000000-0000-0000-0000-000000000508', v_pm_exam, 'Order partial on', 'Ordering / Sequencing', '[]', '', '["A","B","C"]', '{"partialMatch":true}', false, 6),
     ('91000000-0000-0000-0000-000000000509', v_pm_exam, 'Enum partial off', 'Enumeration', '[]', '', '["A","B","C"]', '{"partialMatch":false}', false, 6),
-    ('91000000-0000-0000-0000-000000000510', v_pm_exam, 'Enum partial on', 'Enumeration', '[]', '', '["A","B","C"]', '{"partialMatch":true}', false, 6);
+    ('91000000-0000-0000-0000-000000000510', v_pm_exam, 'Enum partial on', 'Enumeration', '[]', '', '["A","B","C"]', '{"partialMatch":true}', false, 6),
+    ('91000000-0000-0000-0000-000000000601', v_reject_exam, 'Reject MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000602', v_expired_exam, 'Expired MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000603', v_direct_exam, 'Direct MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000604', v_two_exam, 'Two MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000605', v_three_exam, 'Three MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000606', v_four_exam, 'Four MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000607', v_file_exam, 'File Upload Reopen', 'File Upload', '[]', '', '[]', '{}', true, 5),
+    ('91000000-0000-0000-0000-000000000608', v_file_exam, 'Essay Reopen', 'Essay', '[]', '', '[]', '{}', true, 5),
+    ('91000000-0000-0000-0000-000000000609', v_reason_exam, 'Reason MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000610', v_deadline_submit_exam, 'Deadline Submit MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000611', v_late_request_exam, 'Late Request MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1);
 
-  update public.exams set status = 'Published', approved_at = now() where id in (v_exam, v_manual_exam, v_limit_exam, v_pm_exam);
+  update public.exams set status = 'Published', approved_at = now() where id in (v_exam, v_manual_exam, v_limit_exam, v_pm_exam, v_reject_exam, v_expired_exam, v_direct_exam, v_two_exam, v_three_exam, v_four_exam, v_file_exam, v_reason_exam, v_deadline_submit_exam, v_late_request_exam);
+
+  perform pg_temp.as_service();
+  insert into scoring_test_results values ('71 reopen request after deadline rejected', case when exists(select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'request_exam_attempt_reopen' and pg_get_functiondef(p.oid) ilike '%exam_settings->>''deadline''%' and pg_get_functiondef(p.oid) ilike '%<= now()%' and pg_get_functiondef(p.oid) ilike '%The exam deadline has passed%') then 'PASS' else 'FAIL' end, 'deadline guard present; wall-clock expiry cannot be simulated inside one transaction because now() is transaction-stable');
+  insert into scoring_test_results values ('72 approval after deadline rejected', case when exists(select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'review_exam_attempt_reopen_request' and pg_get_functiondef(p.oid) ilike '%exam_settings->>''deadline''%' and pg_get_functiondef(p.oid) ilike '%<= now()%' and pg_get_functiondef(p.oid) ilike '%can no longer be approved%') then 'PASS' else 'FAIL' end, 'deadline guard present; wall-clock expiry cannot be simulated inside one transaction because now() is transaction-stable');
+  insert into scoring_test_results values ('90 deadline guards use per-RPC transaction time', case when (select count(*) from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname in ('request_exam_attempt_reopen', 'review_exam_attempt_reopen_request', 'submit_exam_attempt') and pg_get_functiondef(p.oid) ilike '%exam_settings->>''deadline''%' and pg_get_functiondef(p.oid) ilike '%<= now()%') = 3 then 'PASS' else 'FAIL' end, 'Production RPC calls run in separate transactions; now() advances per request, unlike this single rollback test transaction.');
+  insert into scoring_test_results values ('91 reopened resubmit after deadline rejected', case when exists(select 1 from pg_proc p where p.pronamespace = 'public'::regnamespace and p.proname = 'submit_exam_attempt' and pg_get_functiondef(p.oid) ilike '%exam_settings->>''deadline''%' and pg_get_functiondef(p.oid) ilike '%<= now()%' and pg_get_functiondef(p.oid) ilike '%and (is_reopened%' and pg_get_functiondef(p.oid) ilike '%This exam has expired%') then 'PASS' else 'FAIL' end, 'reopened submit deadline guard present; wall-clock expiry cannot be simulated inside one transaction because now() is transaction-stable');
 
   select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000101';
   v_result := public.grade_exam_answer(q, '"A"'::jsonb);
@@ -329,13 +393,168 @@ begin
 
   perform pg_temp.as_user(v_student);
   perform public.authorize_exam_start(v_limit_exam);
-  perform public.submit_exam_attempt(v_limit_exam, jsonb_build_object('91000000-0000-0000-0000-000000000301','A'), '[]'::jsonb);
+  v_limit_attempt := public.submit_exam_attempt(v_limit_exam, jsonb_build_object('91000000-0000-0000-0000-000000000301','A'), '[]'::jsonb);
+  select submission_session_started_at into v_original_session from public.exam_attempts where id = v_limit_attempt;
   begin
     perform public.authorize_exam_start(v_limit_exam);
     insert into scoring_test_results values ('32 existing attempt limit regression', 'FAIL', 'allowed');
   exception when others then
     insert into scoring_test_results values ('32 existing attempt limit regression', 'PASS', sqlerrm);
   end;
+
+  v_result := to_jsonb(public.request_exam_attempt_reopen(v_limit_attempt, 'Need to correct a submission issue.'));
+  v_reopen_request := (v_result->>'id')::uuid;
+  insert into scoring_test_results values ('62 reopen request pending', case when exists(select 1 from public.exam_attempt_reopen_requests where id = v_reopen_request and attempt_id = v_limit_attempt and status = 'Pending') then 'PASS' else 'FAIL' end, v_result::text);
+
+  begin
+    perform public.request_exam_attempt_reopen(v_limit_attempt, 'Second request');
+    insert into scoring_test_results values ('63 duplicate reopen request rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('63 duplicate reopen request rejected', 'PASS', sqlerrm);
+  end;
+
+  perform public.authorize_exam_start(v_reason_exam);
+  v_reason_attempt := public.submit_exam_attempt(v_reason_exam, jsonb_build_object('91000000-0000-0000-0000-000000000609','A'), '[]'::jsonb);
+  begin
+    perform public.request_exam_attempt_reopen(v_reason_attempt, '');
+    insert into scoring_test_results values ('85 empty reopen reason rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('85 empty reopen reason rejected', case when not exists(select 1 from public.exam_attempt_reopen_requests where attempt_id = v_reason_attempt) then 'PASS' else 'FAIL' end, sqlerrm);
+  end;
+  begin
+    perform public.request_exam_attempt_reopen(v_reason_attempt, '   ');
+    insert into scoring_test_results values ('86 whitespace reopen reason rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('86 whitespace reopen reason rejected', case when not exists(select 1 from public.exam_attempt_reopen_requests where attempt_id = v_reason_attempt) then 'PASS' else 'FAIL' end, sqlerrm);
+  end;
+  begin
+    perform public.request_exam_attempt_reopen(v_reason_attempt, repeat('x', 501));
+    insert into scoring_test_results values ('87 over 500 reopen reason rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('87 over 500 reopen reason rejected', case when not exists(select 1 from public.exam_attempt_reopen_requests where attempt_id = v_reason_attempt) then 'PASS' else 'FAIL' end, sqlerrm);
+  end;
+  v_result := to_jsonb(public.request_exam_attempt_reopen(v_reason_attempt, repeat('x', 500)));
+  insert into scoring_test_results values ('88 exactly 500 reopen reason accepted', case when exists(select 1 from public.exam_attempt_reopen_requests where id = (v_result->>'id')::uuid and attempt_id = v_reason_attempt and length(reason) = 500 and status = 'Pending') then 'PASS' else 'FAIL' end, v_result::text);
+
+  perform public.authorize_exam_start(v_reject_exam);
+  v_reject_attempt := public.submit_exam_attempt(v_reject_exam, jsonb_build_object('91000000-0000-0000-0000-000000000601','A'), '[]'::jsonb);
+  v_result := to_jsonb(public.request_exam_attempt_reopen(v_reject_attempt, 'Please reopen for rejection test.'));
+  v_reject_request := (v_result->>'id')::uuid;
+
+  perform pg_temp.as_user(v_other_student);
+  begin
+    perform public.request_exam_attempt_reopen(v_limit_attempt, 'Trying to request another student attempt.');
+    insert into scoring_test_results values ('67 other student cannot request reopen', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('67 other student cannot request reopen', 'PASS', sqlerrm);
+  end;
+
+  perform pg_temp.as_user(v_other_prof);
+  begin
+    perform public.review_exam_attempt_reopen_request(v_reject_request, 'Approved');
+    insert into scoring_test_results values ('68 unrelated professor cannot review reopen', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('68 unrelated professor cannot review reopen', 'PASS', sqlerrm);
+  end;
+
+  perform pg_temp.as_user(v_student);
+  begin
+    perform public.review_exam_attempt_reopen_request(v_reject_request, 'Rejected');
+    insert into scoring_test_results values ('69 student cannot review reopen', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('69 student cannot review reopen', 'PASS', sqlerrm);
+  end;
+
+  perform pg_temp.as_user(v_prof);
+  v_result := to_jsonb(public.review_exam_attempt_reopen_request(v_reject_request, 'Rejected'));
+  insert into scoring_test_results values ('70 professor rejection leaves attempt submitted', case when exists(select 1 from public.exam_attempt_reopen_requests where id = v_reject_request and status = 'Rejected') and exists(select 1 from public.exam_attempts where id = v_reject_attempt and status = 'Submitted' and score = 100 and submitted_at is not null) then 'PASS' else 'FAIL' end, v_result::text);
+
+  perform pg_temp.as_user(v_student);
+  perform public.authorize_exam_start(v_direct_exam);
+  v_direct_attempt := public.submit_exam_attempt(v_direct_exam, jsonb_build_object('91000000-0000-0000-0000-000000000603','A'), '[]'::jsonb);
+
+  perform pg_temp.as_service();
+  update public.exam_attempts
+  set status = 'Reopened', score = null, submitted_at = null
+  where id = v_direct_attempt;
+
+  perform pg_temp.as_user(v_student);
+  begin
+    perform public.authorize_exam_start(v_direct_exam);
+    insert into scoring_test_results values ('73 direct reopened status cannot start without approved request', 'FAIL', 'allowed');
+  exception when others then
+    insert into scoring_test_results values ('73 direct reopened status cannot start without approved request', 'PASS', sqlerrm);
+  end;
+  begin
+    perform public.submit_exam_attempt(v_direct_exam, jsonb_build_object('91000000-0000-0000-0000-000000000603','B'), '[]'::jsonb);
+    insert into scoring_test_results values ('74 direct reopened status cannot submit without approved request', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('74 direct reopened status cannot submit without approved request', 'PASS', sqlerrm);
+  end;
+
+  begin
+    perform public.request_exam_attempt_reopen(v_attempt, 'Unlimited attempts should not reopen.');
+    insert into scoring_test_results values ('75 unlimited attempt reopen rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('75 unlimited attempt reopen rejected', 'PASS', sqlerrm);
+  end;
+
+  perform public.authorize_exam_start(v_two_exam);
+  v_two_attempt := public.submit_exam_attempt(v_two_exam, jsonb_build_object('91000000-0000-0000-0000-000000000604','A'), '[]'::jsonb);
+  begin
+    perform public.request_exam_attempt_reopen(v_two_attempt, 'Two attempts should not reopen.');
+    insert into scoring_test_results values ('76 two-attempt reopen rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('76 two-attempt reopen rejected', 'PASS', sqlerrm);
+  end;
+
+  perform public.authorize_exam_start(v_three_exam);
+  v_three_attempt := public.submit_exam_attempt(v_three_exam, jsonb_build_object('91000000-0000-0000-0000-000000000605','A'), '[]'::jsonb);
+  begin
+    perform public.request_exam_attempt_reopen(v_three_attempt, 'Three attempts should not reopen.');
+    insert into scoring_test_results values ('77 three-attempt reopen rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('77 three-attempt reopen rejected', 'PASS', sqlerrm);
+  end;
+
+  perform public.authorize_exam_start(v_four_exam);
+  v_four_attempt := public.submit_exam_attempt(v_four_exam, jsonb_build_object('91000000-0000-0000-0000-000000000606','A'), '[]'::jsonb);
+  begin
+    perform public.request_exam_attempt_reopen(v_four_attempt, 'Four attempts should not reopen.');
+    insert into scoring_test_results values ('78 four-attempt reopen rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('78 four-attempt reopen rejected', 'PASS', sqlerrm);
+  end;
+
+  perform public.authorize_exam_start(v_file_exam);
+  v_file_attempt := public.submit_exam_attempt(v_file_exam, jsonb_build_object(
+    '91000000-0000-0000-0000-000000000607', jsonb_build_object('path','upload1.pdf'),
+    '91000000-0000-0000-0000-000000000608', 'first essay'
+  ), '[]'::jsonb);
+  v_result := to_jsonb(public.request_exam_attempt_reopen(v_file_attempt, 'Need to replace upload.'));
+  v_answer_id := (v_result->>'id')::uuid;
+
+  perform pg_temp.as_user(v_prof);
+  v_result := to_jsonb(public.review_exam_attempt_reopen_request(v_reopen_request, 'Approved'));
+  insert into scoring_test_results values ('64 professor approval reopens same attempt', case when exists(select 1 from public.exam_attempts where id = v_limit_attempt and status = 'Reopened' and score is null and submitted_at is null) and (select count(*) from public.exam_attempts where exam_id = v_limit_exam and student_id = v_student) = 1 then 'PASS' else 'FAIL' end, v_result::text);
+
+  v_result := to_jsonb(public.review_exam_attempt_reopen_request(v_answer_id, 'Approved'));
+  insert into scoring_test_results values ('79 file reopen approval preserves answers before resubmit', case when exists(select 1 from public.exam_attempts where id = v_file_attempt and status = 'Reopened') and exists(select 1 from public.exam_attempt_answers where attempt_id = v_file_attempt and question_id = '91000000-0000-0000-0000-000000000607' and file_url = 'upload1.pdf') then 'PASS' else 'FAIL' end, v_result::text);
+
+  perform pg_temp.as_user(v_student);
+  v_reopen_session := public.authorize_exam_start(v_limit_exam);
+  insert into scoring_test_results values ('89 reopened start creates fresh session', case when exists(select 1 from public.exam_attempts where id = v_limit_attempt and submission_session_started_at = v_reopen_session and v_reopen_session is not null and v_original_session is not null and v_reopen_session is distinct from v_original_session) and exists(select 1 from public.exam_start_sessions where exam_id = v_limit_exam and student_id = v_student and started_at = v_reopen_session and interruption_count = 0 and recovery_event_keys = '[]'::jsonb) and (select count(*) from public.exam_attempts where exam_id = v_limit_exam and student_id = v_student) = 1 then 'PASS' else 'FAIL' end, coalesce(v_original_session::text, 'null') || ' -> ' || coalesce(v_reopen_session::text, 'null'));
+  insert into scoring_test_results values ('80 approved reopen preserves previous answer before resubmit', case when exists(select 1 from public.exam_attempt_answers where attempt_id = v_limit_attempt and question_id = '91000000-0000-0000-0000-000000000301' and answer = '"A"'::jsonb) then 'PASS' else 'FAIL' end, v_limit_attempt::text);
+  insert into scoring_test_results values ('65 reopened attempt can start despite limit', 'PASS', v_limit_attempt::text);
+  v_returned_attempt := public.submit_exam_attempt(v_limit_exam, jsonb_build_object('91000000-0000-0000-0000-000000000301','B'), '[]'::jsonb);
+  insert into scoring_test_results values ('66 reopened resubmit same attempt', case when v_returned_attempt = v_limit_attempt and (select count(*) from public.exam_attempts where exam_id = v_limit_exam and student_id = v_student) = 1 then 'PASS' else 'FAIL' end, 'returned=' || v_returned_attempt::text || '; expected=' || v_limit_attempt::text || '; count=' || (select count(*) from public.exam_attempts where exam_id = v_limit_exam and student_id = v_student)::text || '; status=' || coalesce((select status from public.exam_attempts where id = v_limit_attempt), '<missing>') || '; score=' || coalesce((select score::text from public.exam_attempts where id = v_limit_attempt), '<null>'));
+  insert into scoring_test_results values ('81 reopened resubmit replaces answer snapshot', case when exists(select 1 from public.exam_attempt_answers where attempt_id = v_limit_attempt and question_id = '91000000-0000-0000-0000-000000000301' and answer = '"B"'::jsonb and earned_points = 0) then 'PASS' else 'FAIL' end, v_limit_attempt::text);
+
+  perform public.authorize_exam_start(v_file_exam);
+  insert into scoring_test_results values ('82 file reopened attempt can start', 'PASS', v_file_attempt::text);
+  v_returned_attempt := public.submit_exam_attempt(v_file_exam, jsonb_build_object('91000000-0000-0000-0000-000000000607', jsonb_build_object('path','upload2.pdf'), '91000000-0000-0000-0000-000000000608', 'second essay'), '[]'::jsonb);
+  insert into scoring_test_results values ('83 file reopened resubmit same attempt manual pending', case when v_returned_attempt = v_file_attempt and exists(select 1 from public.exam_attempts where id = v_file_attempt and status = 'Pending Manual Grading' and score is null) and (select count(*) from public.exam_attempts where exam_id = v_file_exam and student_id = v_student) = 1 then 'PASS' else 'FAIL' end, 'returned=' || v_returned_attempt::text || '; expected=' || v_file_attempt::text || '; count=' || (select count(*) from public.exam_attempts where exam_id = v_file_exam and student_id = v_student)::text || '; status=' || coalesce((select status from public.exam_attempts where id = v_file_attempt), '<missing>') || '; score=' || coalesce((select score::text from public.exam_attempts where id = v_file_attempt), '<null>'));
+  insert into scoring_test_results values ('84 file reopened resubmit replaces file answer', case when exists(select 1 from public.exam_attempt_answers where attempt_id = v_file_attempt and question_id = '91000000-0000-0000-0000-000000000607' and file_url = 'upload2.pdf' and needs_manual_grading) then 'PASS' else 'FAIL' end, v_file_attempt::text);
 
   insert into scoring_test_results values ('33 normal submit scoring', case when exists(select 1 from public.exam_attempts where id = v_attempt and score = 69.70) then 'PASS' else 'FAIL' end, v_attempt::text);
   insert into scoring_test_results values ('34 violation auto-submit uses same submission path', case when public.submit_exam_attempt(v_exam, '{}'::jsonb, '[{"submissionReason":"violation_limit"}]'::jsonb) = v_attempt then 'PASS' else 'FAIL' end, 'shared path');

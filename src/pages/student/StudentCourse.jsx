@@ -1,10 +1,10 @@
-import { countUsedExamAttemptsByExam, getExamAttemptEligibility } from "../../lib/examAttempts";
+import { countUsedExamAttemptsByExam, getAttemptLimit, getExamAttemptEligibility } from "../../lib/examAttempts";
 import { examAvailability } from "../../lib/examValidation";
 import { useEffect, useMemo, useState } from "react";
 import { FiBookOpen, FiChevronDown, FiDownload, FiEye, FiFileText, FiFolder, FiUpload, FiUsers, FiX } from "react-icons/fi";
 import { NavLink, Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Badge } from "../../components/ui";
+import { Badge, Button, TextArea } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { studentCourses, studentGrades, studentMembers } from "../../data/studentData";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
@@ -43,6 +43,12 @@ function isPastDeadline(value) {
   return !Number.isNaN(deadline.getTime()) && deadline.getTime() < Date.now();
 }
 
+function isDeadlineActive(settings = {}) {
+  if (!settings?.deadline) return true;
+  const deadline = new Date(settings.deadline);
+  return Number.isNaN(deadline.getTime()) || deadline.getTime() > Date.now();
+}
+
 function mapAttempt(attempt) {
   const exam = attempt.exams || {};
   const rawType = exam.exam_type || "Exam";
@@ -56,6 +62,7 @@ function mapAttempt(attempt) {
     label: rawType,
     period: exam.description || "No period",
     score: attempt.score,
+    status: attempt.status || "Submitted",
     submittedAt: attempt.submitted_at || attempt.created_at || new Date().toISOString(),
     duration: exam.time_limit || exam.duration || 0,
     completed: true,
@@ -63,13 +70,16 @@ function mapAttempt(attempt) {
   };
 }
 
-function mapAssessment(exam, attemptByExam = {}, attemptCountsByExam = {}) {
+function mapAssessment(exam, attemptByExam = {}, attemptCountsByExam = {}, reopenByAttempt = {}) {
   const rawType = exam.exam_type || "Exam";
   const normalizedType = rawType.toLowerCase();
   const type = normalizedType.includes("activity") ? "activity" : normalizedType.includes("quiz") ? "quiz" : "exam";
   const attempt = attemptByExam[exam.id];
   const attemptsTaken = attemptCountsByExam[exam.id] || 0;
   const eligibility = getExamAttemptEligibility({ ...exam, examSettings: exam.exam_settings }, attemptsTaken);
+  const reopenRequest = attempt ? reopenByAttempt[attempt.id] : null;
+  const oneAttempt = getAttemptLimit(exam.exam_settings) === 1;
+  const reopened = attempt?.status === "Reopened";
   return {
     id: exam.id,
     examId: exam.id,
@@ -83,6 +93,14 @@ function mapAssessment(exam, attemptByExam = {}, attemptCountsByExam = {}) {
     submittedAt: attempt?.submittedAt || exam.created_at,
     duration: exam.time_limit || exam.duration || 0,
     completed: Boolean(attempt),
+    attemptId: attempt?.id || "",
+    attemptStatus: attempt?.status || "",
+    reopenRequest,
+    reopenEligible: Boolean(attempt?.id && oneAttempt && !reopenRequest && !reopened && !eligibility.allowed && isDeadlineActive(exam.exam_settings)),
+    reopenApproved: reopened || reopenRequest?.status === "Approved",
+    reopenPending: reopenRequest?.status === "Pending",
+    reopenRejected: reopenRequest?.status === "Rejected",
+    reopenExpired: Boolean(attempt?.id && oneAttempt && !isDeadlineActive(exam.exam_settings)),
     attemptsTaken,
     attemptEligibility: eligibility,
     source: "assessment",
@@ -165,6 +183,7 @@ function StudentMaterialFolder({
   isOpen,
   latestPermitRequest,
   onPreview,
+  onRequestReopen,
   onStart,
   onToggle,
   onUploadPermit,
@@ -255,9 +274,21 @@ function StudentMaterialFolder({
                     <a href={item.fileUrl} rel="noreferrer" target="_blank"><FiDownload /> Open</a>
                   ) : null}
                   {item.source === "assessment" ? (
-                    <button disabled={!item.attemptEligibility?.allowed} onClick={() => onStart(item)} type="button">
-                      {item.attemptEligibility?.allowed ? item.completed ? "Retake" : "Start" : item.attemptEligibility?.reason || examAvailability(item.examSettings)}
-                    </button>
+                    item.reopenApproved ? (
+                      <button onClick={() => onStart(item)} type="button">Open Reopened Attempt</button>
+                    ) : item.reopenPending ? (
+                      <button disabled type="button">Pending Reopen Request</button>
+                    ) : item.reopenRejected ? (
+                      <button disabled type="button">Reopen Rejected</button>
+                    ) : item.reopenEligible ? (
+                      <button onClick={() => onRequestReopen(item)} type="button">Request to Reopen Attempt</button>
+                    ) : item.reopenExpired && !item.attemptEligibility?.allowed ? (
+                      <button disabled type="button">Reopen Unavailable</button>
+                    ) : (
+                      <button disabled={!item.attemptEligibility?.allowed} onClick={() => onStart(item)} type="button">
+                        {item.attemptEligibility?.allowed ? item.completed ? "Retake" : "Start" : item.attemptEligibility?.reason || examAvailability(item.examSettings)}
+                      </button>
+                    )
                   ) : null}
                 </div>
               </section>
@@ -334,13 +365,16 @@ export default function StudentCourse() {
   const [permitRequests, setPermitRequests] = useState([]);
   const [permitFiles, setPermitFiles] = useState([]);
   const [uploadingPermit, setUploadingPermit] = useState(false);
+  const [reopenTarget, setReopenTarget] = useState(null);
+  const [reopenReason, setReopenReason] = useState("");
+  const [sendingReopenRequest, setSendingReopenRequest] = useState(false);
   const [loadingCourse, setLoadingCourse] = useState(() => hasSupabaseConfig);
   const [courseAccessError, setCourseAccessError] = useState("");
   const [openPeriods, setOpenPeriods] = useState({});
   const [openFolders, setOpenFolders] = useState({});
   const [previewModule, setPreviewModule] = useState(null);
   const course = liveCourse || courses.find((item) => item.id === courseId);
-  const grades = hasSupabaseConfig ? attempts.map((attempt) => ({
+  const grades = hasSupabaseConfig ? attempts.filter((attempt) => attempt.status !== "Reopened").map((attempt) => ({
     id: attempt.id,
     period: attempt.period,
     title: `${attempt.title} - ${attempt.label}`,
@@ -398,7 +432,7 @@ export default function StudentCourse() {
           .maybeSingle(),
         supabase
           .from("exam_attempts")
-          .select("id, score, submitted_at, exams!inner(id, title, exam_title, exam_type, description, duration, time_limit, course_id)")
+          .select("id, score, status, submitted_at, exams!inner(id, title, exam_title, exam_type, description, duration, time_limit, course_id)")
           .eq("student_id", user.id)
           .eq("exams.course_id", courseId)
           .order("submitted_at", { ascending: false }),
@@ -467,7 +501,7 @@ export default function StudentCourse() {
       if (attemptError?.message?.includes("submitted_at")) {
         const { data: fallbackAttemptRows, error: fallbackAttemptError } = await supabase
           .from("exam_attempts")
-          .select("id, score, exams!inner(id, title, exam_title, exam_type, description, duration, time_limit, course_id)")
+          .select("id, score, status, exams!inner(id, title, exam_title, exam_type, description, duration, time_limit, course_id)")
           .eq("student_id", user.id)
           .eq("exams.course_id", courseId);
 
@@ -475,19 +509,30 @@ export default function StudentCourse() {
           toast.error(fallbackAttemptError.message);
         } else {
           const mappedAttempts = (fallbackAttemptRows || []).map(mapAttempt);
+          const attemptIds = mappedAttempts.map((attempt) => attempt.id).filter(Boolean);
+          const { data: reopenRows } = attemptIds.length
+            ? await supabase.from("exam_attempt_reopen_requests").select("id, attempt_id, status, reason, created_at, reviewed_at").in("attempt_id", attemptIds)
+            : { data: [] };
+          const reopenByAttempt = (reopenRows || []).reduce((items, request) => ({ ...items, [request.attempt_id]: request }), {});
           setAttempts(mappedAttempts);
           const attemptByExam = mappedAttempts.reduce((items, attempt) => ({ ...items, [attempt.examId]: items[attempt.examId] || attempt }), {});
           const attemptCountsByExam = countUsedExamAttemptsByExam((fallbackAttemptRows || []).map((attempt) => ({ exam_id: attempt.exams?.id })));
-          setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam)));
+          setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam, reopenByAttempt)));
         }
       } else if (attemptError) {
         toast.error(attemptError.message);
       } else {
         const mappedAttempts = (attemptRows || []).map(mapAttempt);
+        const attemptIds = mappedAttempts.map((attempt) => attempt.id).filter(Boolean);
+        const { data: reopenRows, error: reopenError } = attemptIds.length
+          ? await supabase.from("exam_attempt_reopen_requests").select("id, attempt_id, status, reason, created_at, reviewed_at").in("attempt_id", attemptIds)
+          : { data: [], error: null };
+        if (reopenError) toast.error(reopenError.message);
+        const reopenByAttempt = (reopenRows || []).reduce((items, request) => ({ ...items, [request.attempt_id]: request }), {});
         setAttempts(mappedAttempts);
         const attemptByExam = mappedAttempts.reduce((items, attempt) => ({ ...items, [attempt.examId]: items[attempt.examId] || attempt }), {});
         const attemptCountsByExam = countUsedExamAttemptsByExam((attemptRows || []).map((attempt) => ({ exam_id: attempt.exams?.id })));
-        setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam)));
+        setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam, reopenByAttempt)));
       }
 
       if (assessmentError) {
@@ -547,6 +592,38 @@ export default function StudentCourse() {
     loadCourseDetails();
     return () => { cancelled = true; };
   }, [courseId, user?.id]);
+
+  async function sendReopenRequest(event) {
+    event.preventDefault();
+    if (!reopenTarget?.attemptId) return;
+    const reason = reopenReason.trim();
+    if (!reason) {
+      toast.error("Reason is required.");
+      return;
+    }
+    if (reason.length > 500) {
+      toast.error("Reason must be 500 characters or fewer.");
+      return;
+    }
+    setSendingReopenRequest(true);
+    try {
+      const { error } = await supabase.rpc("request_exam_attempt_reopen", {
+        p_attempt_id: reopenTarget.attemptId,
+        p_reason: reason,
+      });
+      if (error) throw error;
+      toast.success("Reopening request sent.");
+      setReopenTarget(null);
+      setReopenReason("");
+      setAssessments((current) => current.map((item) => item.attemptId === reopenTarget.attemptId
+        ? { ...item, reopenEligible: false, reopenPending: true, reopenRequest: { status: "Pending" } }
+        : item));
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setSendingReopenRequest(false);
+    }
+  }
 
   if (hasSupabaseConfig && loadingCourse && !course) {
     return (
@@ -662,6 +739,10 @@ export default function StudentCourse() {
                   key={period.id}
                   latestPermitRequest={latestPermitRequest}
                   onPreview={setPreviewModule}
+                  onRequestReopen={(item) => {
+                    setReopenTarget(item);
+                    setReopenReason("");
+                  }}
                   onStart={(item) => navigate(`/student/exams/${item.examId}`)}
                   onToggleFolder={toggleFolder}
                   onTogglePeriod={() => togglePeriod(period.id)}
@@ -740,6 +821,32 @@ export default function StudentCourse() {
               )}
             </div>
           </section>
+        </div>
+      ) : null}
+
+      {reopenTarget ? (
+        <div className="student-modal-backdrop" onClick={() => setReopenTarget(null)} role="presentation">
+          <form className="student-resource-modal student-reopen-modal" onClick={(event) => event.stopPropagation()} onSubmit={sendReopenRequest}>
+            <header>
+              <div>
+                <h2>Request to Reopen Attempt</h2>
+                <p>Send your professor a short explanation. You can only request reopening once for this attempt.</p>
+              </div>
+              <button aria-label="Close reopen request" disabled={sendingReopenRequest} onClick={() => setReopenTarget(null)} type="button"><FiX /></button>
+            </header>
+            <TextArea
+              label="Reason / Explanation"
+              maxLength={500}
+              onChange={(event) => setReopenReason(event.target.value)}
+              required
+              value={reopenReason}
+            />
+            <small className="student-reopen-counter">{reopenReason.length} / 500</small>
+            <div className="student-reopen-actions">
+              <Button disabled={sendingReopenRequest} onClick={() => setReopenTarget(null)} type="button" variant="light">Cancel</Button>
+              <Button disabled={sendingReopenRequest || !reopenReason.trim()} type="submit">{sendingReopenRequest ? "Sending..." : "Send Request"}</Button>
+            </div>
+          </form>
         </div>
       ) : null}
     </section>

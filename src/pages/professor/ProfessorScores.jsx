@@ -29,7 +29,10 @@ function scoreTone(score) {
 }
 
 function statusTone(status) {
-  return String(status || "").toLowerCase().includes("pending") || String(status || "").toLowerCase().includes("needs") ? "warn" : "success";
+  const normalized = String(status || "").toLowerCase();
+  if (normalized.includes("reject") || normalized.includes("expired")) return "danger";
+  if (normalized.includes("pending") || normalized.includes("needs") || normalized.includes("reopened")) return "warn";
+  return "success";
 }
 
 function CompactBadge({ children, tone = "neutral" }) {
@@ -154,11 +157,18 @@ function isPublishedExam(exam) {
   return exam?.status === "Published";
 }
 
+function isDeadlinePassed(exam) {
+  const deadline = exam?.exam_settings?.deadline;
+  if (!deadline) return false;
+  const time = new Date(deadline).getTime();
+  return Number.isFinite(time) && time <= Date.now();
+}
+
 export default function ProfessorScores() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { examId, attemptId, questionId } = useParams();
-  const [data, setData] = useState(() => hasSupabaseConfig ? { courses: [], exams: [], attempts: [], answers: [], questions: [] } : buildDemoData());
+  const [data, setData] = useState(() => hasSupabaseConfig ? { courses: [], exams: [], attempts: [], answers: [], questions: [], reopenRequests: [] } : { ...buildDemoData(), reopenRequests: [] });
   const [loading, setLoading] = useState(hasSupabaseConfig);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState("All Courses");
@@ -188,13 +198,13 @@ export default function ProfessorScores() {
       const courses = (courseRows || []).map((course) => ({ id: course.id, courseName: course.course_name, courseCode: course.course_code, section: course.section }));
       const courseIds = courses.map((course) => course.id);
       if (!courseIds.length) {
-        setData({ courses, exams: [], attempts: [], answers: [], questions: [] });
+        setData({ courses, exams: [], attempts: [], answers: [], questions: [], reopenRequests: [] });
         return;
       }
 
       const { data: examRows, error: examsError } = await supabase
         .from("exams")
-        .select("id, title, exam_title, course_id, description, semester, exam_type, status, questions_count, created_at")
+        .select("id, title, exam_title, course_id, description, semester, exam_type, status, exam_settings, questions_count, created_at")
         .in("course_id", courseIds)
         .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
         .order("created_at", { ascending: false });
@@ -203,7 +213,7 @@ export default function ProfessorScores() {
       const publishedExams = (examRows || []).filter(isPublishedExam);
       const examIds = publishedExams.map((exam) => exam.id);
       if (!examIds.length) {
-        setData({ courses, exams: [], attempts: [], answers: [], questions: [] });
+        setData({ courses, exams: [], attempts: [], answers: [], questions: [], reopenRequests: [] });
         return;
       }
 
@@ -225,17 +235,27 @@ export default function ProfessorScores() {
 
       const attemptIds = (attemptRows || []).map((attempt) => attempt.id);
       let answerRows = [];
+      let reopenRows = [];
       if (attemptIds.length) {
-        const { data: answers, error: answersError } = await supabase
-          .from("exam_attempt_answers")
-          .select("id, attempt_id, question_id, answer, file_url, earned_points, max_points, is_correct, needs_manual_grading, graded_at")
-          .in("attempt_id", attemptIds)
-          .limit(20000);
+        const [{ data: answers, error: answersError }, { data: requests, error: requestsError }] = await Promise.all([
+          supabase
+            .from("exam_attempt_answers")
+            .select("id, attempt_id, question_id, answer, file_url, earned_points, max_points, is_correct, needs_manual_grading, graded_at")
+            .in("attempt_id", attemptIds)
+            .limit(20000),
+          supabase
+            .from("exam_attempt_reopen_requests")
+            .select("id, attempt_id, exam_id, student_id, reason, status, reviewed_at, reopened_started_at, original_submitted_at, original_score, original_earned_points, original_max_points, original_status, created_at")
+            .in("attempt_id", attemptIds)
+            .limit(5000),
+        ]);
         if (answersError) throw answersError;
+        if (requestsError) throw requestsError;
         answerRows = answers || [];
+        reopenRows = requests || [];
       }
 
-      setData({ courses, exams: publishedExams, attempts: attemptRows || [], answers: answerRows, questions: questionRows || [] });
+      setData({ courses, exams: publishedExams, attempts: attemptRows || [], answers: answerRows, questions: questionRows || [], reopenRequests: reopenRows });
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -258,6 +278,10 @@ export default function ProfessorScores() {
     (items[answer.attempt_id] ||= []).push(answer);
     return items;
   }, {}), [data.answers]);
+  const reopenByAttempt = useMemo(() => data.reopenRequests.reduce((items, request) => {
+    items[request.attempt_id] = request;
+    return items;
+  }, {}), [data.reopenRequests]);
 
   const attempts = useMemo(() => data.attempts.map((attempt) => {
     const exam = examById.get(attempt.exam_id) || {};
@@ -273,9 +297,10 @@ export default function ProfessorScores() {
       studentNumber: attempt.profiles?.student_number || "No student ID",
       section: course.section || "No section",
       pendingManual: pending,
-      displayStatus: pending ? "Needs Grading" : attempt.status || "Submitted",
+      reopenRequest: reopenByAttempt[attempt.id] || null,
+      displayStatus: attempt.status === "Reopened" ? "Reopened" : pending ? "Needs Grading" : attempt.status || "Submitted",
     };
-  }), [answersByAttempt, courseById, examById, data.attempts]);
+  }), [answersByAttempt, courseById, examById, reopenByAttempt, data.attempts]);
 
   const examSummaries = useMemo(() => data.exams.map((exam) => {
     const course = courseById.get(exam.course_id) || {};
@@ -307,13 +332,13 @@ export default function ProfessorScores() {
     });
     return Array.from(groups.values()).map((student) => {
       const ordered = sortAttemptsByNumber(student.attempts);
-      const graded = ordered.filter((attempt) => !attempt.pendingManual && attempt.score !== null && attempt.score !== undefined);
+      const graded = ordered.filter((attempt) => attempt.status !== "Reopened" && !attempt.pendingManual && attempt.score !== null && attempt.score !== undefined);
       const finalAttempt = graded.length ? graded.reduce((best, attempt) => Number(attempt.score || 0) > Number(best.score || 0) ? attempt : best, graded[0]) : ordered[ordered.length - 1];
       return {
         ...student,
         attempts: ordered.map((attempt, index) => ({ ...attempt, attemptNumber: Number(attempt.attempt_number) || index + 1 })),
         finalAttempt,
-        status: ordered.some((attempt) => attempt.pendingManual) && !graded.length ? "Needs Grading" : "Completed",
+        status: ordered.some((attempt) => attempt.reopenRequest?.status === "Pending") ? "Reopen Requested" : ordered.some((attempt) => attempt.status === "Reopened") ? "Reopened" : ordered.some((attempt) => attempt.pendingManual) && !graded.length ? "Needs Grading" : "Completed",
       };
     });
   }, [examAttempts]);
@@ -389,6 +414,20 @@ export default function ProfessorScores() {
     await loadData();
   }
 
+  async function reviewReopenRequest(request, decision) {
+    if (!request?.id) return;
+    const { error } = await supabase.rpc("review_exam_attempt_reopen_request", {
+      p_request_id: request.id,
+      p_decision: decision,
+    });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(decision === "Approved" ? "Attempt reopened." : "Reopening request rejected.");
+    await loadData();
+  }
+
   async function openSubmittedFile(answer) {
     const file = getSubmittedFile(answer);
     if (!file?.path) {
@@ -420,6 +459,7 @@ export default function ProfessorScores() {
         onGradeInput={setGradeInputs}
         onSaveGrade={saveManualGrade}
         onOpenFile={openSubmittedFile}
+        onReviewReopen={reviewReopenRequest}
         onBack={() => navigate(`/professor/scores/${selectedAttempt?.exam_id || examId || ""}`)}
       />
     );
@@ -482,6 +522,7 @@ export default function ProfessorScores() {
                 setExpandedStudents={setExpandedStudents}
                 attemptHistoryPages={attemptHistoryPages}
                 setAttemptHistoryPages={setAttemptHistoryPages}
+                onReviewReopen={reviewReopenRequest}
               />
               <Pagination count={filteredStudents.length} page={pageData.page} onPage={setPage} />
             </>
@@ -558,7 +599,7 @@ function ExamTable({ rows }) {
   );
 }
 
-function StudentsTable({ rows, expandedStudents, setExpandedStudents, attemptHistoryPages, setAttemptHistoryPages }) {
+function StudentsTable({ rows, expandedStudents, setExpandedStudents, attemptHistoryPages, setAttemptHistoryPages, onReviewReopen }) {
   function toggleStudent(studentId) {
     const isOpening = !expandedStudents[studentId];
     if (isOpening) setAttemptHistoryPages((pages) => ({ ...pages, [studentId]: 1 }));
@@ -587,6 +628,7 @@ function StudentsTable({ rows, expandedStudents, setExpandedStudents, attemptHis
                   <AttemptHistoryRow
                     attempts={student.attempts}
                     finalAttempt={final}
+                    onReviewReopen={onReviewReopen}
                     page={attemptHistoryPages[student.studentId] || 1}
                     setPage={(nextPage) => setAttemptHistoryPages((pages) => ({ ...pages, [student.studentId]: nextPage }))}
                   />
@@ -605,7 +647,7 @@ function FragmentRows({ children }) {
   return children;
 }
 
-function AttemptHistoryRow({ attempts, finalAttempt, page, setPage }) {
+function AttemptHistoryRow({ attempts, finalAttempt, onReviewReopen, page, setPage }) {
   const totalPages = Math.max(1, Math.ceil(attempts.length / ATTEMPT_HISTORY_PAGE_SIZE));
   const safePage = Math.min(Math.max(Number(page) || 1, 1), totalPages);
   const start = (safePage - 1) * ATTEMPT_HISTORY_PAGE_SIZE;
@@ -621,8 +663,11 @@ function AttemptHistoryRow({ attempts, finalAttempt, page, setPage }) {
                 <td>Attempt {attempt.attemptNumber}</td>
                 <td>{attempt.earned_points !== null && attempt.earned_points !== undefined && attempt.max_points ? `${formatPoints(attempt.earned_points)} / ${formatPoints(attempt.max_points)}` : attempt.score === null || attempt.score === undefined ? "Pending" : `${Number(attempt.score).toFixed(2)}%`}</td>
                 <td>{attempt.displayStatus}</td>
-                <td>{attempt.id === finalAttempt?.id ? <CompactBadge tone="blue">Highest</CompactBadge> : null}</td>
-                <td><Link className="professor-score-action" to={`/professor/scores/${attempt.exam_id}/attempt/${attempt.id}`}>View</Link></td>
+                <td>{attempt.id === finalAttempt?.id && attempt.status !== "Reopened" ? <CompactBadge tone="blue">Highest</CompactBadge> : attempt.reopenRequest ? <CompactBadge tone={statusTone(attempt.reopenRequest.status)}>{attempt.reopenRequest.status} Reopen</CompactBadge> : null}</td>
+                <td>
+                  <Link className="professor-score-action" to={`/professor/scores/${attempt.exam_id}/attempt/${attempt.id}`}>View</Link>
+                  {attempt.reopenRequest?.status === "Pending" ? <ReopenRequestActions attempt={attempt} onReviewReopen={onReviewReopen} /> : null}
+                </td>
               </tr>
             ))}
           </tbody>
@@ -637,6 +682,18 @@ function AttemptHistoryRow({ attempts, finalAttempt, page, setPage }) {
         ) : null}
       </td>
     </tr>
+  );
+}
+
+function ReopenRequestActions({ attempt, onReviewReopen }) {
+  const expired = isDeadlinePassed(attempt.exam);
+  if (!attempt.reopenRequest) return null;
+  if (expired) return <span className="professor-reopen-expired">Deadline passed</span>;
+  return (
+    <span className="professor-reopen-actions">
+      <button onClick={() => onReviewReopen(attempt.reopenRequest, "Approved")} type="button">Approve & Reopen</button>
+      <button onClick={() => onReviewReopen(attempt.reopenRequest, "Rejected")} type="button">Reject</button>
+    </span>
   );
 }
 
@@ -679,7 +736,7 @@ function FileAnswerCell({ answer, limit = 80, onOpenFile }) {
   return <span title={label}>{shortText(label, limit)}</span>;
 }
 
-function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeInput, onSaveGrade, onOpenFile, onBack }) {
+function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeInput, onSaveGrade, onOpenFile, onReviewReopen, onBack }) {
   if (!attempt) return <section className="professor-scores-page"><PageHeader title="Attempt Not Found" actions={<Button variant="light" onClick={onBack}>Back</Button>} /></section>;
   const answersByQuestion = new Map(answers.map((answer) => [answer.question_id, answer]));
   return (
@@ -693,6 +750,17 @@ function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeIn
           <Badge tone={statusTone(attempt.displayStatus)}>{attempt.displayStatus}</Badge>
           <Badge tone="blue">{formatPoints(attempt.earned_points)} / {formatPoints(attempt.max_points)} pts</Badge>
         </div>
+        {attempt.reopenRequest ? (
+          <div className="professor-reopen-review">
+            <div>
+              <strong>Reopen Request</strong>
+              <span>{attempt.reopenRequest.status} - Requested {formatDateTime(attempt.reopenRequest.created_at)}</span>
+              <p>{attempt.reopenRequest.reason}</p>
+              {isDeadlinePassed(exam) && attempt.reopenRequest.status === "Pending" ? <small>The deadline has passed. This request can no longer be approved.</small> : null}
+            </div>
+            {attempt.reopenRequest.status === "Pending" ? <ReopenRequestActions attempt={attempt} onReviewReopen={onReviewReopen} /> : null}
+          </div>
+        ) : null}
       </Card>
       <Card>
         <div className="professor-score-table-wrap">

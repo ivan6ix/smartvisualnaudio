@@ -450,6 +450,7 @@ export default function StudentExamTake() {
   const [isMicrophoneBlocked, setIsMicrophoneBlocked] = useState(false);
   const [microphoneBlockReason, setMicrophoneBlockReason] = useState("");
   const [existingAttemptCount, setExistingAttemptCount] = useState(0);
+  const [reopenedAttempt, setReopenedAttempt] = useState(null);
   const [violations, setViolations] = useState([]);
   const [savedProgress, setSavedProgress] = useState(null);
   const examSubmittingRef = useRef(false);
@@ -479,7 +480,7 @@ export default function StudentExamTake() {
   const attemptEligibility = useMemo(() => getExamAttemptEligibility(exam, existingAttemptCount), [exam, existingAttemptCount]);
   const durationMinutes = getDurationMinutes(exam);
   const hasTimer = durationMinutes > 0;
-  const attemptsExhausted = attemptEligibility.reason === "Attempts Exhausted";
+  const attemptsExhausted = attemptEligibility.reason === "Attempts Exhausted" && !reopenedAttempt;
   const roboflowConfigured = Boolean(
     import.meta.env.VITE_ROBOFLOW_API_KEY
     || import.meta.env.VITE_ROBOFLOW_PROXY_URL
@@ -507,6 +508,7 @@ export default function StudentExamTake() {
     setInterruptionAutoSubmitRequired(false);
     setInterruptionState(normalizeInterruptionState());
     setSubmissionError("");
+    setReopenedAttempt(null);
     setExamModeReady(false);
     examModeReadyRef.current = false;
     examSubmittingRef.current = false;
@@ -561,7 +563,20 @@ export default function StudentExamTake() {
         return;
       }
 
-      const saved = readSavedExamProgress(user.id, examId);
+      const { data: reopenedRows, error: reopenedError } = await supabase
+        .from("exam_attempts")
+        .select("id, status, started_at, submission_session_started_at, exam_attempt_answers(question_id, answer, file_url)")
+        .eq("exam_id", examId)
+        .eq("student_id", user.id)
+        .eq("status", "Reopened")
+        .limit(1);
+      if (reopenedError) {
+        toast.error(reopenedError.message);
+        return;
+      }
+      const reopened = reopenedRows?.[0] || null;
+
+      const saved = reopened ? null : readSavedExamProgress(user.id, examId);
       const { data: startSession, error: startSessionError } = await supabase
         .from("exam_start_sessions")
         .select("interruption_count, interruption_limit")
@@ -588,13 +603,25 @@ export default function StudentExamTake() {
         return items;
       }, {});
       const restoredAnswers = { ...defaultAnswers, ...(saved?.answers || {}) };
+      if (reopened?.exam_attempt_answers?.length) {
+        reopened.exam_attempt_answers.forEach((answer) => {
+          restoredAnswers[answer.question_id] = answer.answer;
+          if (answer.file_url && answer.answer && typeof answer.answer === "object") {
+            restoredAnswers[answer.question_id] = { ...answer.answer, path: answer.file_url };
+          }
+        });
+      }
       answersRef.current = restoredAnswers;
       setAnswers(restoredAnswers);
+      if (reopened) {
+        clearSavedExamProgress(user.id, examId);
+        setReopenedAttempt(reopened);
+      }
       touchedAnswersRef.current = new Set(saved?.touchedAnswers || Object.keys(saved?.answers || {}).filter((id) => {
         const question = (questionRows || []).find((item) => String(item.id) === id);
         return question?.question_type !== "Ordering / Sequencing";
       }));
-      startedAtRef.current = saved?.startedAt || null;
+      startedAtRef.current = reopened ? null : saved?.startedAt || null;
       let restoredViolations = saved?.startedAt ? saved.violations || [] : [];
       if (saved?.startedAt && !(count > 0)) {
         const { data: recorded, error: violationError } = await supabase.from("violations")
@@ -616,10 +643,10 @@ export default function StudentExamTake() {
         violationLimitReachedRef.current = true;
         setAutoSubmitRequired(true);
       }
-      setSavedProgress(saved);
+      setSavedProgress(reopened ? null : saved);
       progressMetaRef.current = { ...progressMetaRef.current, questionOrder: prepared.order };
-      setStartedAt(saved?.startedAt || null);
-      setTimerEndsAt(saved?.timerEndsAt || null);
+      setStartedAt(reopened ? null : saved?.startedAt || null);
+      setTimerEndsAt(reopened ? null : saved?.timerEndsAt || null);
       if (saved?.scanStatus === "passed") {
         setScanStatus("passed");
         setScanOpen(false);
@@ -2594,7 +2621,10 @@ export default function StudentExamTake() {
       startedAtRef.current = start;
       setStartedAt(start);
       if (hasTimer && !timerEndsAt) {
-        setTimerEndsAt(new Date(new Date(start).getTime() + durationMinutes * 60 * 1000).toISOString());
+        const durationEnd = new Date(start).getTime() + durationMinutes * 60 * 1000;
+        const deadline = exam?.exam_settings?.deadline ? new Date(exam.exam_settings.deadline).getTime() : null;
+        const boundedEnd = deadline && Number.isFinite(deadline) ? Math.min(durationEnd, deadline) : durationEnd;
+        setTimerEndsAt(new Date(boundedEnd).toISOString());
       }
       if (!hasTimer) setRemainingMs(null);
     }
@@ -2682,9 +2712,11 @@ export default function StudentExamTake() {
       if (attemptCountError) throw attemptCountError;
       const latestEligibility = getExamAttemptEligibility(exam, count || 0);
       if (!latestEligibility.allowed) {
-        setExistingAttemptCount(count || 0);
-        toast.error(latestEligibility.reason === "Attempts Exhausted" ? "You have used all available attempts for this exam." : `This exam is ${String(latestEligibility.reason).toLowerCase()}.`);
-        return;
+        if (!(reopenedAttempt && latestEligibility.reason === "Attempts Exhausted")) {
+          setExistingAttemptCount(count || 0);
+          toast.error(latestEligibility.reason === "Attempts Exhausted" ? "You have used all available attempts for this exam." : `This exam is ${String(latestEligibility.reason).toLowerCase()}.`);
+          return;
+        }
       }
 
       const uploadedPaths = {};
@@ -2906,7 +2938,7 @@ export default function StudentExamTake() {
   if (!hasSupabaseConfig) return <PageHeader title="Exam" subtitle="Live Supabase exam taking is required." />;
   if (!exam || !progressReady) return <main className="center-screen">Loading exam and saved progress...</main>;
 
-  if (!attemptEligibility.allowed) {
+  if (!attemptEligibility.allowed && !reopenedAttempt) {
     const courseLabel = exam.courses?.course_code && exam.courses?.section ? `${exam.courses.course_code} - ${exam.courses.section}` : exam.courses?.course_code || "Course";
     const typeLabel = exam.exam_type || "Exam";
     const periodLabel = exam.description || "No period";
