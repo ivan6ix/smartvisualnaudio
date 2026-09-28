@@ -95,6 +95,7 @@ function getPageImportForPath(pathname) {
   if (/^\/student\/courses\//.test(pathname)) return pageImports.StudentCourse;
   if (/^\/professor\/courses\/[^/]+\/permits/.test(pathname)) return pageImports.ProfessorCoursePermits;
   if (/^\/professor\/courses\//.test(pathname)) return pageImports.ProfessorCourseDetail;
+  if (/^\/professor\/scores(\/|$)/.test(pathname)) return pageImports.ProfessorScores;
   if (/^\/cluster\/exams\//.test(pathname)) return pageImports.ClusterExamReview;
   const routeImports = {
     "/": pageImports.Dashboard,
@@ -186,6 +187,9 @@ export default function App() {
           <Route path="exams/create" element={<ProfessorCreateExam />} />
           <Route path="monitoring" element={<ProfessorMonitoring />} />
           <Route path="scores" element={<ProfessorScores />} />
+          <Route path="scores/:examId" element={<ProfessorScores />} />
+          <Route path="scores/:examId/attempt/:attemptId" element={<ProfessorScores />} />
+          <Route path="scores/:examId/questions/:questionId" element={<ProfessorScores />} />
           <Route path="messages" element={<ProfessorMessages />} />
           <Route path="profile" element={<ProfileSettings />} />
           <Route path="security" element={<SecurityPrivacy />} />

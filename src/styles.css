@@ -3558,11 +3558,72 @@ html[data-theme="light"] .profile-remove-actions button.danger {
   align-items: end;
   margin-bottom: 16px;
 }
+.professor-score-filters.compact {
+  grid-template-columns: minmax(240px, 1fr) repeat(3, minmax(150px, 220px));
+}
 .professor-score-summary {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   justify-content: flex-end;
+}
+.professor-score-summary.left {
+  justify-content: flex-start;
+}
+.professor-attempt-summary {
+  gap: 12px 14px;
+  align-items: center;
+}
+.professor-attempt-summary .badge {
+  width: fit-content;
+  max-width: max-content;
+  flex: 0 0 auto;
+}
+.professor-score-tabs {
+  display: inline-flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 4px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 10px;
+  background: var(--app-input);
+}
+.professor-score-tabs button,
+.professor-score-pagination button,
+.professor-score-link-button,
+.professor-score-action {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  padding: 7px 11px;
+  font-size: 0.82rem;
+  font-weight: 800;
+  text-decoration: none;
+  cursor: pointer;
+}
+.professor-score-tabs button.active,
+.professor-score-pagination button.active,
+.professor-score-action {
+  border-color: rgba(37, 99, 235, 0.42);
+  background: rgba(37, 99, 235, 0.18);
+  color: var(--app-text);
+}
+.professor-score-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+  font-weight: 800;
 }
 .professor-score-header-actions {
   display: flex;
@@ -3621,6 +3682,9 @@ html[data-theme="light"] .profile-remove-actions button.danger {
   width: 100%;
   border-collapse: collapse;
 }
+.professor-score-table.compact {
+  min-width: 900px;
+}
 .professor-score-table th,
 .professor-score-table td {
   padding: 15px 16px;
@@ -3640,14 +3704,94 @@ html[data-theme="light"] .profile-remove-actions button.danger {
 .professor-score-table strong {
   font-weight: 400;
 }
+.professor-score-table td span {
+  display: block;
+  margin-top: 4px;
+  color: var(--app-text-muted);
+  font-size: 0.8rem;
+}
+.professor-score-table .professor-score-status-badge {
+  width: fit-content;
+  max-width: max-content;
+  display: inline-flex;
+  vertical-align: middle;
+  margin-top: 0;
+  padding-inline: 10px;
+  white-space: nowrap;
+}
+.professor-file-answer {
+  display: inline-flex !important;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  margin-top: 0 !important;
+}
+.professor-file-answer > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.professor-file-answer button {
+  min-height: 30px;
+  flex: 0 0 auto;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 8px;
+  background: rgba(37, 99, 235, 0.18);
+  color: var(--app-text);
+  padding: 5px 9px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
 .professor-score-table td:nth-child(6) {
   display: table-cell;
   vertical-align: middle;
+}
+.professor-attempt-history-row > td {
+  padding: 0 !important;
+  background: rgba(6, 182, 212, 0.06);
+}
+.professor-attempt-history-row table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.professor-attempt-history-row td {
+  padding: 10px 16px;
+}
+.professor-attempt-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 12px 16px;
+  color: var(--app-text-muted);
+  font-size: 0.84rem;
+  font-weight: 800;
+}
+.professor-attempt-pagination button {
+  min-height: 30px;
+  border: 1px solid rgba(125, 211, 252, 0.2);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  padding: 5px 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+.professor-attempt-pagination button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
 }
 .professor-manual-grade {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+.professor-manual-grade.inline {
+  min-width: 170px;
 }
 .professor-manual-grade input {
   width: 86px;
