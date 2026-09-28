@@ -1,192 +1,101 @@
-import LegalLinks from "../components/LegalLinks";
-import { useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
-import { AudioWaveform, BrainCircuit, Eye, EyeOff, GraduationCap, IdCard, LockKeyhole, Mail, ScanFace, ShieldCheck, UserRoundPlus } from "lucide-react";
+import { ArrowLeft, ArrowUpRight, BookOpen, Check, Eye, EyeOff, GraduationCap, MailCheck, Moon, ShieldCheck, Sun } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
+import { useTheme } from "../context/ThemeContext";
+import Brand from "../components/landing/Brand";
+import styles from "../components/landing/Landing.module.css";
 
-const particles = Array.from({ length: 22 }, (_, index) => ({
-  id: index,
-  left: `${(index * 31) % 100}%`,
-  top: `${(index * 29) % 100}%`,
-  delay: `${(index % 8) * 0.42}s`,
-  size: `${4 + (index % 4) * 2}px`,
-}));
+const RobotScene = lazy(() => import("../components/landing/RobotScene"));
 
 export default function Register() {
   const { register: createStudent } = useAuth();
-  const { register, handleSubmit, watch, reset, formState: { errors, isSubmitting } } = useForm();
+  const { theme, toggleTheme } = useTheme();
+  const { register, handleSubmit, getValues, reset, formState: { errors, isSubmitting } } = useForm();
+  const registerVisualRef = useRef(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [submitError, setSubmitError] = useState("");
+  const [created, setCreated] = useState(false);
+
+  useEffect(() => {
+    const previousTitle = document.title;
+    document.title = "Create account — Smart Proctoring";
+    return () => { document.title = previousTitle; };
+  }, []);
 
   async function onSubmit(values) {
-    if (values.password !== values.confirmPassword) {
-      toast.error("Passwords do not match");
-      return;
-    }
+    if (values.password !== values.confirmPassword) { toast.error("Passwords do not match"); return; }
+    setSubmitError("");
+    setCreated(false);
     try {
       await createStudent(values);
       reset();
-    } catch (error) {
-      toast.error(error.message);
-    }
+      setShowPassword(false);
+      setShowConfirmPassword(false);
+      setCreated(true);
+    } catch (error) { setSubmitError(error.message); toast.error(error.message); }
+  }
+
+  function fieldError(name) {
+    return errors[name] ? <small id={`register-${name}-error`} className={styles.formError}>{errors[name].message}</small> : null;
+  }
+
+  function fieldA11y(name) {
+    return { "aria-invalid": Boolean(errors[name]), "aria-describedby": errors[name] ? `register-${name}-error` : undefined };
   }
 
   return (
-    <main className="ai-login-page relative min-h-screen overflow-hidden bg-canvas px-4 py-8 text-primary sm:px-6 lg:px-10">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_18%_18%,rgba(6,182,212,0.22),transparent_28%),radial-gradient(circle_at_82%_28%,rgba(37,99,235,0.26),transparent_30%),linear-gradient(135deg,var(--app-bg),var(--app-bg-secondary))]" />
-      <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(rgba(148,163,184,0.05)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.05)_1px,transparent_1px)] bg-[size:44px_44px]" />
-      {particles.map((particle) => (
-        <span className="ai-login-particle absolute rounded-full bg-cyan-300/70 shadow-[0_0_18px_rgba(34,211,238,0.75)]" key={particle.id} style={{ left: particle.left, top: particle.top, width: particle.size, height: particle.size, animationDelay: particle.delay }} />
-      ))}
-
-      <section className="relative z-10 mx-auto grid min-h-[calc(100vh-4rem)] w-full max-w-7xl items-center gap-8 lg:grid-cols-[minmax(0,0.82fr)_minmax(520px,1fr)]">
-        <div className="glass-panel relative overflow-hidden rounded-[28px] border border-cyan-300/20 bg-surface p-7 shadow-[0_30px_90px_rgba(2,6,23,0.38)] backdrop-blur-2xl">
-          <div className="mb-7 flex items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="grid h-12 w-12 place-items-center rounded-2xl bg-cyan-400/15 text-accent shadow-[0_0_30px_rgba(6,182,212,0.25)]">
-                <GraduationCap size={26} />
-              </div>
-              <div>
-                <p className="m-0 text-sm font-semibold text-accent">Student Enrollment Monitor</p>
-                <span className="text-xs font-medium text-secondary">AI-assisted identity onboarding</span>
-              </div>
+    <div className={`${styles.page} ${styles.registerPage}`} data-theme={theme}>
+      <a className={styles.skipLink} href="#registration-form">Skip to registration</a>
+      <header className={styles.header}>
+        <Link to="/landing" aria-label="Smart Proctoring landing page"><Brand /></Link>
+        <div className={styles.headerActions}><button className={styles.iconButton} type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>{theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}</button><Link className={styles.textLink} to="/login?signin=1">Sign in <ArrowUpRight size={16} /></Link></div>
+      </header>
+      <main className={styles.registerLayout}>
+        <section className={styles.registerIntro} aria-labelledby="register-intro-heading">
+          <Link className={styles.backLink} to="/landing"><ArrowLeft size={15} /> Back to home</Link>
+          <p className={styles.eyebrow}>YOUR NEXT CHAPTER STARTS HERE</p>
+          <h1 id="register-intro-heading">A little preparation.<br /><span>A lot of possibility.</span></h1>
+          <p>Join your academic community. Your courses, examinations, and progress—all in one considered workspace.</p>
+          <div className={styles.registerRobot} ref={registerVisualRef}>
+            <div className={styles.registerHalo} />
+            <div className={`${styles.sceneFrame} ${styles.registerSceneFrame}`}>
+              <img className={styles.robotPoster} src="/landing/robot-poster.png" alt="Your friendly Smart Proctoring robot companion" width="900" height="1000" />
+              <Suspense fallback={null}><RobotScene heroRef={registerVisualRef} theme={theme} paused={false} /></Suspense>
             </div>
-            <div className="rounded-full border border-cyan-300/30 bg-cyan-400/10 px-3 py-1 text-xs font-bold text-accent">NEW USER</div>
+            <span><ShieldCheck size={16} /> Built for your learning journey.</span>
           </div>
-
-          <div className="relative min-h-[460px] overflow-hidden rounded-3xl border border-line bg-control p-5">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(14,165,233,0.24),transparent_34%),linear-gradient(180deg,var(--app-bg-secondary),var(--app-bg-secondary))]" />
-            <div className="relative z-10 grid gap-5">
-              <div className="grid gap-4 sm:grid-cols-[minmax(0,1fr)_180px]">
-                <div className="rounded-3xl border border-line bg-control p-5">
-                  <div className="mb-5 flex items-center gap-2 text-sm font-semibold text-accent"><ScanFace size={18} /> Identity Face Frame</div>
-                  <div className="relative mx-auto h-60 w-52">
-                    <div className="absolute left-1/2 top-5 h-28 w-28 -translate-x-1/2 rounded-full bg-gradient-to-br from-slate-200 to-slate-500" />
-                    <div className="absolute left-1/2 top-36 h-28 w-44 -translate-x-1/2 rounded-t-[70px] bg-gradient-to-br from-blue-950 to-slate-700" />
-                    <div className="ai-face-frame absolute left-1/2 top-3 h-36 w-40 -translate-x-1/2 rounded-3xl border-[3px] border-cyan-300/90 shadow-[0_0_28px_rgba(34,211,238,0.55)]">
-                      <span className="absolute -left-2 -top-2 h-8 w-8 rounded-tl-xl border-l-[5px] border-t-[5px] border-blue-400" />
-                      <span className="absolute -right-2 -top-2 h-8 w-8 rounded-tr-xl border-r-[5px] border-t-[5px] border-blue-400" />
-                      <span className="absolute -bottom-2 -right-2 h-8 w-8 rounded-br-xl border-b-[5px] border-r-[5px] border-blue-400" />
-                      <span className="absolute -bottom-2 -left-2 h-8 w-8 rounded-bl-xl border-b-[5px] border-l-[5px] border-blue-400" />
-                    </div>
-                  </div>
-                </div>
-                <div className="grid gap-4">
-                  <div className="rounded-3xl border border-line bg-control p-4">
-                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-accent"><AudioWaveform size={17} /> Voice Baseline</div>
-                    <div className="flex h-24 items-end gap-2">
-                      {[42, 80, 55, 92, 46, 76, 62, 88].map((height, index) => (
-                        <span className="ai-wave-bar flex-1 rounded-full bg-gradient-to-t from-blue-600 to-cyan-300" key={index} style={{ height: `${height}%`, animationDelay: `${index * 0.08}s` }} />
-                      ))}
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-line bg-control p-4">
-                    <div className="mb-4 flex items-center gap-2 text-sm font-semibold text-accent"><BrainCircuit size={17} /> Enrollment Checks</div>
-                    {["Profile", "Student ID", "Email", "Password"].map((item) => (
-                      <div className="mb-3 flex items-center justify-between text-sm text-primary" key={item}>
-                        <span>{item}</span>
-                        <span className="h-2.5 w-2.5 rounded-full bg-cyan-300 shadow-[0_0_12px_rgba(103,232,249,0.75)]" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-              <div className="rounded-3xl border border-line bg-control p-5 text-sm text-primary">
-                <strong className="mb-2 block text-accent">University-ready account creation</strong>
-                Confirmation links are sent before login access is activated, keeping student entry aligned with monitored examination workflows.
-              </div>
+          <div className={styles.registerBenefits}><span><BookOpen size={16} /> Connect with your courses</span><span><GraduationCap size={16} /> Take your next assessment</span><span><Check size={16} /> Follow your progress</span></div>
+        </section>
+        <section className={styles.registerCard} aria-labelledby="register-heading">
+          <span className={styles.dialogEmblem}><GraduationCap size={25} /></span>
+          <p className={styles.eyebrow}>A PLACE IN YOUR ACADEMIC COMMUNITY</p>
+          <h2 id="register-heading">Create your account.</h2>
+          <p className={styles.muted}>A few details, and you’re one step closer.</p>
+          {created && <div className={styles.registerSuccess} role="status"><MailCheck size={23} /><div><strong>Check your inbox.</strong><p>Registration created. Please confirm your email before signing in.</p><Link to="/login?signin=1">Continue to sign in <ArrowUpRight size={14} /></Link></div></div>}
+          <form id="registration-form" className={styles.registerForm} onSubmit={handleSubmit(onSubmit)} noValidate tabIndex={-1}>
+            <div className={styles.registerFields}>
+              <div className={styles.fullWidth}><label htmlFor="register-full-name">Full name</label><input id="register-full-name" autoComplete="name" placeholder="Juan Dela Cruz" {...fieldA11y("fullName")} {...register("fullName", { required: "Full name is required" })} />{fieldError("fullName")}</div>
+              <div><label htmlFor="register-student-number">Student number</label><input id="register-student-number" placeholder="2026-0001" {...fieldA11y("studentNumber")} {...register("studentNumber", { required: "Student number is required" })} />{fieldError("studentNumber")}</div>
+              <div><label htmlFor="register-email">School email</label><input id="register-email" type="email" autoComplete="email" placeholder="you@university.edu" {...fieldA11y("email")} {...register("email", { required: "Email is required", pattern: { value: /^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Enter a valid email address" } })} />{fieldError("email")}</div>
+              <div><label htmlFor="register-password">Password</label><div className={styles.passwordInput}><input id="register-password" type={showPassword ? "text" : "password"} autoComplete="new-password" placeholder="At least 6 characters" {...fieldA11y("password")} {...register("password", { required: "Password is required", minLength: { value: 6, message: "Password must be at least 6 characters" } })} /><button type="button" className={styles.iconButton} aria-label={showPassword ? "Hide password" : "Show password"} onClick={() => setShowPassword(!showPassword)}>{showPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>{fieldError("password")}</div>
+              <div><label htmlFor="register-confirm-password">Confirm password</label><div className={styles.passwordInput}><input id="register-confirm-password" type={showConfirmPassword ? "text" : "password"} autoComplete="new-password" placeholder="One more time" {...fieldA11y("confirmPassword")} {...register("confirmPassword", { required: "Confirm password is required", validate: (value) => value === getValues("password") || "Passwords must match" })} /><button type="button" className={styles.iconButton} aria-label={showConfirmPassword ? "Hide confirm password" : "Show confirm password"} onClick={() => setShowConfirmPassword(!showConfirmPassword)}>{showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}</button></div>{fieldError("confirmPassword")}</div>
             </div>
-          </div>
-        </div>
-
-        <form className="ai-login-frame relative overflow-hidden rounded-[30px] border border-cyan-300/30 bg-surface p-6 shadow-[0_35px_100px_rgba(2,6,23,0.45),0_0_45px_rgba(6,182,212,0.16)] backdrop-blur-2xl sm:p-8" onSubmit={handleSubmit(onSubmit)}>
-          <span className="ai-frame-corner left-0 top-0 rounded-tl-[30px] border-l-[5px] border-t-[5px]" />
-          <span className="ai-frame-corner right-0 top-0 rounded-tr-[30px] border-r-[5px] border-t-[5px]" />
-          <span className="ai-frame-corner bottom-0 right-0 rounded-br-[30px] border-b-[5px] border-r-[5px]" />
-          <span className="ai-frame-corner bottom-0 left-0 rounded-bl-[30px] border-b-[5px] border-l-[5px]" />
-          <span className="ai-scan-line" />
-
-          <div className="relative z-10">
-            <div className="mb-8 grid justify-items-center text-center">
-              <div className="mb-4 grid h-16 w-16 place-items-center rounded-3xl border border-cyan-200/25 bg-cyan-400/10 text-accent shadow-[0_0_32px_rgba(34,211,238,0.3)]">
-                <UserRoundPlus size={33} />
-              </div>
-              <h1 className="m-0 text-3xl font-bold text-primary sm:text-4xl">Create Account</h1>
-              <p className="mt-3 text-sm font-medium text-accent/80">Student Registration for Audio and Visual Monitoring</p>
+            <div className={styles.agreements}>
+              <label><input type="checkbox" {...fieldA11y("termsAccepted")} {...register("termsAccepted", { required: "Please agree to the Terms of Use." })} /><span>I agree to the <Link to="/terms" target="_blank" rel="noopener">Terms of Use</Link>.</span></label>{fieldError("termsAccepted")}
+              <label><input type="checkbox" {...fieldA11y("privacyAccepted")} {...register("privacyAccepted", { required: "Please acknowledge the Privacy Policy." })} /><span>I acknowledge the <Link to="/privacy" target="_blank" rel="noopener">Privacy Policy</Link>.</span></label>{fieldError("privacyAccepted")}
             </div>
-
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="grid gap-2 md:col-span-2">
-                <span className="text-sm font-semibold text-primary">Full Name</span>
-                <div className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-cyan-200/20 bg-control px-4 text-primary shadow-[inset_0_0_24px_rgba(15,23,42,0.6)] transition focus-within:border-cyan-300/70">
-                  <UserRoundPlus className="text-accent" size={20} />
-                  <input className="w-full border-0 bg-transparent outline-none placeholder:text-secondary" placeholder="Juan Dela Cruz" {...register("fullName", { required: "Full name is required" })} />
-                </div>
-                {errors.fullName?.message ? <small className="text-sm font-semibold text-red-300">{errors.fullName.message}</small> : null}
-              </label>
-
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-primary">Student Number</span>
-                <div className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-cyan-200/20 bg-control px-4 text-primary shadow-[inset_0_0_24px_rgba(15,23,42,0.6)] transition focus-within:border-cyan-300/70">
-                  <IdCard className="text-accent" size={20} />
-                  <input className="w-full border-0 bg-transparent outline-none placeholder:text-secondary" placeholder="2026-0001" {...register("studentNumber", { required: "Student number is required" })} />
-                </div>
-                {errors.studentNumber?.message ? <small className="text-sm font-semibold text-red-300">{errors.studentNumber.message}</small> : null}
-              </label>
-
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-primary">Email</span>
-                <div className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-cyan-200/20 bg-control px-4 text-primary shadow-[inset_0_0_24px_rgba(15,23,42,0.6)] transition focus-within:border-cyan-300/70">
-                  <Mail className="text-accent" size={20} />
-                  <input className="w-full border-0 bg-transparent outline-none placeholder:text-secondary" placeholder="student@university.edu" type="email" {...register("email", { required: "Email is required" })} />
-                </div>
-                {errors.email?.message ? <small className="text-sm font-semibold text-red-300">{errors.email.message}</small> : null}
-              </label>
-
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-primary">Password</span>
-                <div className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-cyan-200/20 bg-control px-4 text-primary shadow-[inset_0_0_24px_rgba(15,23,42,0.6)] transition focus-within:border-cyan-300/70">
-                  <LockKeyhole className="text-accent" size={20} />
-                  <input className="w-full border-0 bg-transparent outline-none placeholder:text-secondary" placeholder="Create password" type={showPassword ? "text" : "password"} {...register("password", { required: "Password is required", minLength: { value: 6, message: "Password must be at least 6 characters" } })} />
-                  <button className="grid h-9 w-9 place-items-center rounded-full text-primary transition hover:bg-white/10 hover:text-accent" onClick={() => setShowPassword((current) => !current)} type="button" aria-label={showPassword ? "Hide password" : "Show password"}>
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {errors.password?.message ? <small className="text-sm font-semibold text-red-300">{errors.password.message}</small> : null}
-              </label>
-
-              <label className="grid gap-2">
-                <span className="text-sm font-semibold text-primary">Confirm Password</span>
-                <div className="flex min-h-[56px] items-center gap-3 rounded-2xl border border-cyan-200/20 bg-control px-4 text-primary shadow-[inset_0_0_24px_rgba(15,23,42,0.6)] transition focus-within:border-cyan-300/70">
-                  <ShieldCheck className="text-accent" size={20} />
-                  <input className="w-full border-0 bg-transparent outline-none placeholder:text-secondary" placeholder="Confirm password" type={showConfirmPassword ? "text" : "password"} {...register("confirmPassword", { required: "Confirm password is required" })} />
-                  <button className="grid h-9 w-9 place-items-center rounded-full text-primary transition hover:bg-white/10 hover:text-accent" onClick={() => setShowConfirmPassword((current) => !current)} type="button" aria-label={showConfirmPassword ? "Hide password" : "Show password"}>
-                    {showConfirmPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </div>
-                {watch("password") !== watch("confirmPassword") ? <small className="text-sm font-semibold text-red-300">Passwords must match</small> : errors.confirmPassword?.message ? <small className="text-sm font-semibold text-red-300">{errors.confirmPassword.message}</small> : null}
-              </label>
-            </div>
-
-            <div className="agreement-fields">
-              <label><input type="checkbox" {...register("termsAccepted", { required: "Please agree to the Terms of Use." })} /> I agree to the <Link to="/terms" target="_blank" rel="noopener">Terms of Use</Link></label>
-              {errors.termsAccepted && <p role="alert">{errors.termsAccepted.message}</p>}
-              <label><input type="checkbox" {...register("privacyAccepted", { required: "Please acknowledge the Privacy Policy." })} /> I acknowledge the <Link to="/privacy" target="_blank" rel="noopener">Privacy Policy</Link></label>
-              {errors.privacyAccepted && <p role="alert">{errors.privacyAccepted.message}</p>}
-            </div>
-            <button className="ai-login-submit mt-7 flex min-h-[58px] w-full items-center justify-center gap-3 rounded-full bg-gradient-to-r from-[#2563EB] to-[#06B6D4] px-6 text-base font-extrabold text-white shadow-[0_18px_42px_rgba(37,99,235,0.36)] transition hover:shadow-[0_0_36px_rgba(6,182,212,0.48)] disabled:cursor-not-allowed disabled:opacity-70" disabled={isSubmitting} type="submit">
-              <ShieldCheck size={21} />
-              {isSubmitting ? "Creating Account..." : "Create Student Account"}
-            </button>
-
-            <div className="mt-6 flex justify-center text-sm text-secondary">
-              <Link className="font-semibold text-accent hover:text-primary" to="/login">Back to Login</Link>
-            </div>
-          </div>
-        <LegalLinks /></form>
-      </section>
-    </main>
+            {submitError && <p className={styles.formError} role="alert">{submitError}</p>}
+            <button className={styles.primaryButton} disabled={isSubmitting} type="submit">{isSubmitting ? "Creating account…" : "Create student account"}<ArrowUpRight size={18} /></button>
+            <p className={styles.registerPrompt}>Already part of the community? <Link to="/login?signin=1">Sign in <ArrowUpRight size={14} /></Link></p>
+          </form>
+          <div className={styles.dialogLegal}><Link to="/privacy" target="_blank" rel="noopener">Privacy Policy</Link><Link to="/terms" target="_blank" rel="noopener">Terms of Use</Link><Link to="/storage" target="_blank" rel="noopener">Cookies & Storage</Link></div>
+        </section>
+      </main>
+      <footer className={`${styles.footer} ${styles.registerFooter}`}><p>Smart Proctoring Through Audio & Visual Monitoring</p><p>Built for learning. Designed for confidence.</p></footer>
+    </div>
   );
 }
