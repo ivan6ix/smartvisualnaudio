@@ -1,0 +1,266 @@
+set client_min_messages = warning;
+
+begin;
+
+create temp table scoring_test_results (
+  test text not null,
+  status text not null,
+  observed text not null
+) on commit drop;
+
+grant select, insert on scoring_test_results to authenticated, anon;
+
+create or replace function pg_temp.as_user(p_user_id uuid)
+returns void language plpgsql as $$
+begin
+  execute 'set local role authenticated';
+  perform set_config('request.jwt.claim.sub', p_user_id::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+end;
+$$;
+
+create or replace function pg_temp.as_anon()
+returns void language plpgsql as $$
+begin
+  execute 'set local role anon';
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claim.role', 'anon', true);
+end;
+$$;
+
+create or replace function pg_temp.as_service()
+returns void language plpgsql as $$
+begin
+  execute 'reset role';
+  perform set_config('request.jwt.claim.sub', '', true);
+  perform set_config('request.jwt.claim.role', 'service_role', true);
+end;
+$$;
+
+do $$
+declare
+  v_prof uuid := '91000000-0000-0000-0000-000000000001';
+  v_student uuid := '91000000-0000-0000-0000-000000000002';
+  v_program uuid := '91000000-0000-0000-0000-000000000003';
+  v_course uuid := '91000000-0000-0000-0000-000000000004';
+  v_exam uuid := '91000000-0000-0000-0000-000000000005';
+  v_manual_exam uuid := '91000000-0000-0000-0000-000000000006';
+  v_limit_exam uuid := '91000000-0000-0000-0000-000000000007';
+  v_attempt uuid;
+  v_attempt_retry uuid;
+  v_manual_attempt uuid;
+  v_answer_id uuid;
+  v_result jsonb;
+  v_count int;
+  q public.exam_questions;
+begin
+  perform pg_temp.as_service();
+
+  insert into auth.users (id, email, encrypted_password, email_confirmed_at, created_at, updated_at, raw_app_meta_data, raw_user_meta_data, aud, role)
+  values
+    (v_prof, 'scoring-prof@example.test', '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated'),
+    (v_student, 'scoring-student@example.test', '', now(), now(), now(), '{"provider":"email","providers":["email"]}', '{}', 'authenticated', 'authenticated')
+  on conflict (id) do nothing;
+
+  insert into public.profiles (id, role, full_name, email, employee_number, student_number, status)
+  values
+    (v_prof, 'Professor', 'Scoring Professor', 'scoring-prof@example.test', 'SP-1', null, 'Active'),
+    (v_student, 'Student', 'Scoring Student', 'scoring-student@example.test', null, 'SS-1', 'Active')
+  on conflict (id) do update set role = excluded.role, status = excluded.status;
+
+  insert into public.programs (id, program_code, program_name, is_active)
+  values (v_program, 'SCR', 'Scoring Runtime', true)
+  on conflict (id) do nothing;
+
+  insert into public.courses (id, course_name, course_code, section, professor_id, program_id, joining_code, archived)
+  values (v_course, 'Scoring Course', 'SCR101', 'A', v_prof, v_program, 'SCR-JOIN', false)
+  on conflict (id) do update set archived = false;
+
+  insert into public.course_enrollments (course_id, student_id)
+  values (v_course, v_student)
+  on conflict do nothing;
+
+  insert into public.exams (id, course_id, title, exam_title, description, course, professor_id, time_limit, exam_type, semester, exam_settings, questions_count, duration, created_by, status, approved_at)
+  values
+    (v_exam, v_course, 'Scoring Auto', 'Scoring Auto', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 11, 60, v_prof, 'Draft', null),
+    (v_manual_exam, v_course, 'Scoring Manual', 'Scoring Manual', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 2, 60, v_prof, 'Draft', null),
+    (v_limit_exam, v_course, 'Scoring Limit', 'Scoring Limit', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null)
+  on conflict (id) do update set status = 'Draft', exam_settings = excluded.exam_settings;
+
+  delete from public.exam_questions where exam_id in (v_exam, v_manual_exam, v_limit_exam);
+  insert into public.exam_questions (id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points)
+  values
+    ('91000000-0000-0000-0000-000000000101', v_exam, 'MC 1', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 5),
+    ('91000000-0000-0000-0000-000000000102', v_exam, 'MC 2', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 5),
+    ('91000000-0000-0000-0000-000000000103', v_exam, 'Decimal', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 2.50),
+    ('91000000-0000-0000-0000-000000000104', v_exam, 'Picture', 'Picture Choice', '["A","B"]', 'A', '["A"]', '{}', false, 3),
+    ('91000000-0000-0000-0000-000000000105', v_exam, 'TF', 'True or False', '["True","False"]', 'True', '["True"]', '{}', false, 4),
+    ('91000000-0000-0000-0000-000000000106', v_exam, 'ID', 'Identification', '[]', 'Alpha', '["Alpha"]', '{}', false, 3),
+    ('91000000-0000-0000-0000-000000000107', v_exam, 'Blank', 'Fill in the Blank', '[]', 'Beta', '["Beta"]', '{}', false, 3),
+    ('91000000-0000-0000-0000-000000000108', v_exam, 'MS', 'Multiple Select', '["A","B","C"]', 'A, B', '["A","B"]', '{}', false, 4),
+    ('91000000-0000-0000-0000-000000000109', v_exam, 'Match', 'Matching Type', '[]', '', '[{"left":"l1","right":"r1"},{"left":"l2","right":"r2"},{"left":"l3","right":"r3"},{"left":"l4","right":"r4"}]', '{"pairs":[{"left":"l1","right":"r1"},{"left":"l2","right":"r2"},{"left":"l3","right":"r3"},{"left":"l4","right":"r4"}]}', false, 8),
+    ('91000000-0000-0000-0000-000000000110', v_exam, 'Order', 'Ordering / Sequencing', '[]', '', '["A","B","C"]', '{}', false, 6),
+    ('91000000-0000-0000-0000-000000000111', v_exam, 'Enum', 'Enumeration', '[]', '', '["A","B","C"]', '{}', false, 6),
+    ('91000000-0000-0000-0000-000000000201', v_manual_exam, 'Essay', 'Essay', '[]', '', '[]', '{}', true, 10),
+    ('91000000-0000-0000-0000-000000000202', v_manual_exam, 'Upload', 'File Upload', '[]', '', '[]', '{}', true, 5),
+    ('91000000-0000-0000-0000-000000000301', v_limit_exam, 'Limit MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1);
+
+  update public.exams set status = 'Published', approved_at = now() where id in (v_exam, v_manual_exam, v_limit_exam);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000101';
+  v_result := public.grade_exam_answer(q, '"A"'::jsonb);
+  insert into scoring_test_results values ('01 MC correct full points', case when (v_result->>'earnedPoints')::numeric = 5 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '"B"'::jsonb);
+  insert into scoring_test_results values ('02 MC incorrect zero', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000103';
+  v_result := public.grade_exam_answer(q, '"A"'::jsonb);
+  insert into scoring_test_results values ('03 decimal configured points', case when (v_result->>'earnedPoints')::numeric = 2.50 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000104';
+  v_result := public.grade_exam_answer(q, '"A"'::jsonb);
+  insert into scoring_test_results values ('04 Picture Choice', case when (v_result->>'earnedPoints')::numeric = 3 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000105';
+  v_result := public.grade_exam_answer(q, '"true"'::jsonb);
+  insert into scoring_test_results values ('05 True False', case when (v_result->>'earnedPoints')::numeric = 4 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000106';
+  v_result := public.grade_exam_answer(q, '" alpha "'::jsonb);
+  insert into scoring_test_results values ('06 Identification normalization', case when (v_result->>'earnedPoints')::numeric = 3 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000107';
+  v_result := public.grade_exam_answer(q, '" beta "'::jsonb);
+  insert into scoring_test_results values ('07 Fill Blank normalization', case when (v_result->>'earnedPoints')::numeric = 3 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000108';
+  v_result := public.grade_exam_answer(q, '["A"]'::jsonb);
+  insert into scoring_test_results values ('08 Multiple Select all-or-nothing', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000109';
+  v_result := public.grade_exam_answer(q, '{"l1":"r1","l2":"r2","l3":"r3","l4":"x"}'::jsonb);
+  insert into scoring_test_results values ('09 Matching partial scoring', case when (v_result->>'earnedPoints')::numeric = 6 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000110';
+  v_result := public.grade_exam_answer(q, '["A","X","C"]'::jsonb);
+  insert into scoring_test_results values ('10 Ordering partial scoring', case when (v_result->>'earnedPoints')::numeric = 4 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000111';
+  v_result := public.grade_exam_answer(q, '["A","A","B","X"]'::jsonb);
+  insert into scoring_test_results values ('11 Enumeration partial scoring', case when (v_result->>'earnedPoints')::numeric = 4 then 'PASS' else 'FAIL' end, v_result::text);
+
+  perform pg_temp.as_user(v_student);
+  perform public.authorize_exam_start(v_manual_exam);
+  v_manual_attempt := public.submit_exam_attempt(v_manual_exam, jsonb_build_object('91000000-0000-0000-0000-000000000201', 'essay', '91000000-0000-0000-0000-000000000202', jsonb_build_object('path','upload.pdf')), '[]'::jsonb);
+  insert into scoring_test_results values ('12 Essay pending manual', case when exists(select 1 from public.exam_attempt_answers where attempt_id = v_manual_attempt and question_id = '91000000-0000-0000-0000-000000000201' and needs_manual_grading and earned_points is null and max_points = 10) then 'PASS' else 'FAIL' end, v_manual_attempt::text);
+  insert into scoring_test_results values ('13 File Upload pending manual', case when exists(select 1 from public.exam_attempt_answers where attempt_id = v_manual_attempt and question_id = '91000000-0000-0000-0000-000000000202' and needs_manual_grading and earned_points is null and max_points = 5) then 'PASS' else 'FAIL' end, v_manual_attempt::text);
+  insert into scoring_test_results values ('21 pending manual score NULL', case when exists(select 1 from public.exam_attempts where id = v_manual_attempt and score is null and earned_points = 0 and max_points = 15) then 'PASS' else 'FAIL' end, v_manual_attempt::text);
+
+  perform pg_temp.as_user(v_prof);
+  select id into v_answer_id from public.exam_attempt_answers where attempt_id = v_manual_attempt and question_id = '91000000-0000-0000-0000-000000000201';
+  v_result := public.grade_exam_attempt_answer(v_answer_id, 8.555);
+  insert into scoring_test_results values ('14 manual grade valid', case when (v_result->>'earned_points')::numeric = 8.56 then 'PASS' else 'FAIL' end, v_result::text);
+  insert into scoring_test_results values ('15 manual grade decimal', case when exists(select 1 from public.exam_attempt_answers where id = v_answer_id and earned_points = 8.56) then 'PASS' else 'FAIL' end, v_answer_id::text);
+
+  begin
+    perform public.grade_exam_attempt_answer(v_answer_id, 99);
+    insert into scoring_test_results values ('16 manual grade > max rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('16 manual grade > max rejected', 'PASS', sqlerrm);
+  end;
+  begin
+    perform public.grade_exam_attempt_answer(v_answer_id, -1);
+    insert into scoring_test_results values ('17 negative manual grade rejected', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('17 negative manual grade rejected', 'PASS', sqlerrm);
+  end;
+
+  select id into v_answer_id from public.exam_attempt_answers where attempt_id = v_manual_attempt and question_id = '91000000-0000-0000-0000-000000000202';
+  v_result := public.grade_exam_attempt_answer(v_answer_id, 5);
+  insert into scoring_test_results values ('22 final score after manual grading', case when exists(select 1 from public.exam_attempts where id = v_manual_attempt and earned_points = 13.56 and max_points = 15 and score = 90.40) then 'PASS' else 'FAIL' end, v_result::text);
+
+  perform pg_temp.as_user(v_student);
+  perform public.authorize_exam_start(v_exam);
+  v_attempt := public.submit_exam_attempt(v_exam, jsonb_build_object(
+    '91000000-0000-0000-0000-000000000101','A',
+    '91000000-0000-0000-0000-000000000102','B',
+    '91000000-0000-0000-0000-000000000103','A',
+    '91000000-0000-0000-0000-000000000104','A',
+    '91000000-0000-0000-0000-000000000105','true',
+    '91000000-0000-0000-0000-000000000106',' alpha ',
+    '91000000-0000-0000-0000-000000000107',' beta ',
+    '91000000-0000-0000-0000-000000000108',jsonb_build_array('A'),
+    '91000000-0000-0000-0000-000000000109',jsonb_build_object('l1','r1','l2','r2','l3','r3','l4','x'),
+    '91000000-0000-0000-0000-000000000110',jsonb_build_array('A','X','C'),
+    '91000000-0000-0000-0000-000000000111',jsonb_build_array('A','A','B','X')
+  ), '[]'::jsonb);
+
+  insert into scoring_test_results values ('18 attempt earned_points stored', case when exists(select 1 from public.exam_attempts where id = v_attempt and earned_points = 34.50) then 'PASS' else 'FAIL' end, v_attempt::text);
+  insert into scoring_test_results values ('19 attempt max_points stored', case when exists(select 1 from public.exam_attempts where id = v_attempt and max_points = 49.50) then 'PASS' else 'FAIL' end, v_attempt::text);
+  insert into scoring_test_results values ('20 completed percentage correct', case when exists(select 1 from public.exam_attempts where id = v_attempt and score = 69.70) then 'PASS' else 'FAIL' end, v_attempt::text);
+  insert into scoring_test_results values ('23 2-decimal rounding', case when exists(select 1 from public.exam_attempt_answers where attempt_id = v_attempt and question_id = '91000000-0000-0000-0000-000000000103' and earned_points = 2.50) then 'PASS' else 'FAIL' end, v_attempt::text);
+
+  v_attempt_retry := public.submit_exam_attempt(v_exam, '{}'::jsonb, '[]'::jsonb);
+  insert into scoring_test_results values ('31 duplicate submission idempotent', case when v_attempt_retry = v_attempt and (select count(*) from public.exam_attempt_answers where attempt_id = v_attempt) = 11 then 'PASS' else 'FAIL' end, v_attempt_retry::text);
+
+  perform pg_temp.as_service();
+  insert into public.exam_attempts (id, exam_id, student_id, score, submitted_at)
+  values ('91000000-0000-0000-0000-000000000401', v_exam, v_student, 50, now());
+  insert into public.exam_attempt_answers (attempt_id, question_id, answer, earned_points, max_points, is_correct, needs_manual_grading)
+  values ('91000000-0000-0000-0000-000000000401', '91000000-0000-0000-0000-000000000101', '"A"', 5, 5, true, false);
+  perform public.recalculate_exam_attempt_score('91000000-0000-0000-0000-000000000401');
+  insert into scoring_test_results values ('24 safe historical backfill', case when exists(select 1 from public.exam_attempts where id = '91000000-0000-0000-0000-000000000401' and earned_points = 5 and max_points = 5 and score = 100) then 'PASS' else 'FAIL' end, 'safe');
+
+  insert into public.exam_attempts (id, exam_id, student_id, score, submitted_at)
+  values ('91000000-0000-0000-0000-000000000402', v_exam, v_student, 75, now());
+  insert into public.exam_attempt_answers (attempt_id, question_id, answer, earned_points, max_points, is_correct, needs_manual_grading)
+  values ('91000000-0000-0000-0000-000000000402', '91000000-0000-0000-0000-000000000102', '"A"', null, null, true, false);
+  perform public.recalculate_exam_attempt_score('91000000-0000-0000-0000-000000000402');
+  insert into scoring_test_results values ('25 unsafe historical data not fabricated', case when exists(select 1 from public.exam_attempts where id = '91000000-0000-0000-0000-000000000402' and earned_points is null and max_points is null and score = 75) then 'PASS' else 'FAIL' end, 'unsafe');
+
+  perform pg_temp.as_user(v_student);
+  begin
+    update public.exam_attempts set score = 100 where id = v_attempt;
+    get diagnostics v_count = row_count;
+    insert into scoring_test_results values ('26 student direct score tampering blocked', case when v_count = 0 then 'PASS' else 'FAIL' end, v_count::text);
+  exception when others then
+    insert into scoring_test_results values ('26 student direct score tampering blocked', 'PASS', sqlerrm);
+  end;
+  begin
+    perform public.grade_exam_attempt_answer(v_answer_id, 1);
+    insert into scoring_test_results values ('27 student cannot grade answer', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('27 student cannot grade answer', 'PASS', sqlerrm);
+  end;
+
+  perform pg_temp.as_anon();
+  begin
+    perform public.grade_exam_attempt_answer(v_answer_id, 1);
+    insert into scoring_test_results values ('28 anon cannot execute grading RPC', 'FAIL', 'accepted');
+  exception when others then
+    insert into scoring_test_results values ('28 anon cannot execute grading RPC', 'PASS', sqlerrm);
+  end;
+
+  perform pg_temp.as_service();
+  insert into scoring_test_results values ('29 PUBLIC cannot provide unintended EXECUTE', case when not has_function_privilege('public', 'public.grade_exam_attempt_answer(uuid,numeric)', 'execute') then 'PASS' else 'FAIL' end, 'public execute');
+  insert into scoring_test_results values ('30 internal helper not executable by authenticated', case when not has_function_privilege('authenticated', 'public.recalculate_exam_attempt_score(uuid)', 'execute') then 'PASS' else 'FAIL' end, 'authenticated execute');
+
+  perform pg_temp.as_user(v_student);
+  perform public.authorize_exam_start(v_limit_exam);
+  perform public.submit_exam_attempt(v_limit_exam, jsonb_build_object('91000000-0000-0000-0000-000000000301','A'), '[]'::jsonb);
+  begin
+    perform public.authorize_exam_start(v_limit_exam);
+    insert into scoring_test_results values ('32 existing attempt limit regression', 'FAIL', 'allowed');
+  exception when others then
+    insert into scoring_test_results values ('32 existing attempt limit regression', 'PASS', sqlerrm);
+  end;
+
+  insert into scoring_test_results values ('33 normal submit scoring', case when exists(select 1 from public.exam_attempts where id = v_attempt and score = 69.70) then 'PASS' else 'FAIL' end, v_attempt::text);
+  insert into scoring_test_results values ('34 violation auto-submit uses same submission path', case when public.submit_exam_attempt(v_exam, '{}'::jsonb, '[{"submissionReason":"violation_limit"}]'::jsonb) = v_attempt then 'PASS' else 'FAIL' end, 'shared path');
+  insert into scoring_test_results values ('35 interruption auto-submit uses same submission path', case when public.submit_exam_attempt(v_exam, '{}'::jsonb, '[{"submissionReason":"interruption_limit"}]'::jsonb) = v_attempt then 'PASS' else 'FAIL' end, 'shared path');
+  insert into scoring_test_results values ('36 timer auto-submit uses same submission path', case when public.submit_exam_attempt(v_exam, '{}'::jsonb, '[{"submissionReason":"timer"}]'::jsonb) = v_attempt then 'PASS' else 'FAIL' end, 'shared path');
+end $$;
+
+select * from scoring_test_results order by test;
+
+rollback;

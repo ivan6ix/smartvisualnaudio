@@ -1,6 +1,6 @@
 import { validateExam, toLocalDateTime } from "../../lib/examValidation";
 import { queryClient } from "../../lib/queryClient";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiEdit2, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
@@ -208,6 +208,10 @@ export default function ProfessorCreateExam() {
   const finalPublishRef = useRef(false);
   const latestSnapshotRef = useRef(null);
   const lastSyncedJsonRef = useRef("");
+  const totalPossiblePoints = useMemo(
+    () => questions.reduce((total, question) => total + (Number(question.points) || 0), 0),
+    [questions],
+  );
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return;
@@ -643,7 +647,7 @@ export default function ProfessorCreateExam() {
     const fieldError = validateExam({ title: "Question validation" }, [questionDraft]);
     if (fieldError) return fieldError;
     const title = questionDraft.title.trim();
-    if (!title || !questionDraft.type || Number(questionDraft.points) <= 0) return "Question title, type, and points are required.";
+    if (!title || !questionDraft.type || Number(questionDraft.points) < 0.01) return "Question title, type, and maximum points are required.";
 
     if (CHOICE_TYPES.includes(questionDraft.type)) {
       if (!hasFilledValues(questionDraft.choices.map((choice) => choice.value))) return "Complete choices A, B, C, and D.";
@@ -1077,7 +1081,7 @@ export default function ProfessorCreateExam() {
               <option value="" disabled>Question Type</option>
               {QUESTION_TYPES.map((type) => <option key={type}>{type}</option>)}
             </SelectInput>
-            <TextInput min="1" onChange={(event) => setQuestionValue("points", event.target.value)} placeholder="Points" type="number" value={questionDraft.points} />
+            <TextInput min="0.01" max="1000" step="0.01" onChange={(event) => setQuestionValue("points", event.target.value)} placeholder="Maximum Points" type="number" value={questionDraft.points} />
           </div>
 
           {renderQuestionTypeFields()}
@@ -1086,6 +1090,7 @@ export default function ProfessorCreateExam() {
 
         <aside className="professor-create-card professor-added-questions">
           <h2>Added Questions</h2>
+          <p>Total Possible Points: {totalPossiblePoints.toFixed(2)}</p>
           {questions.length ? (
             <div className="professor-added-list">
               {questions.map((question, index) => (

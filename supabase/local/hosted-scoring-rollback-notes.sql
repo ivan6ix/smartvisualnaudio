@@ -1,0 +1,16 @@
+-- Feature #1 scoring rollback notes.
+-- Prefer restoring pre-deployment function bodies from backup capture.
+-- Non-destructive rollback outline:
+-- 1. Restore previous public.submit_exam_attempt and public.grade_exam_answer bodies if required.
+-- 2. Drop public.grade_exam_attempt_answer(uuid, numeric) only after confirming frontend no longer calls it.
+-- 3. Drop public.recalculate_exam_attempt_score(uuid) if no longer needed.
+-- 4. Drop scoring constraints only if they block an urgent restore:
+--    exam_questions_points_range
+--    exam_attempt_answers_max_points_nonnegative
+--    exam_attempt_answers_earned_points_nonnegative
+--    exam_attempt_answers_earned_points_lte_max
+--    exam_attempts_earned_points_nonnegative
+--    exam_attempts_max_points_nonnegative
+--    exam_attempts_earned_points_lte_max
+--    exam_attempts_score_percent_range
+-- 5. Do not rewrite or delete historical earned_points/max_points values as part of rollback.

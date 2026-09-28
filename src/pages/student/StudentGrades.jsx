@@ -23,7 +23,9 @@ function clampScore(score) {
 function computeAttemptGradeFromAnswers(rows = []) {
   const hasSavedPoints = rows.some((row) => row.earned_points !== null && row.earned_points !== undefined);
   const hasGradedAnswers = rows.some((row) => row.needs_manual_grading === false || row.is_correct === true);
-  const max = rows.reduce((total, row) => total + Number(row.max_points || row.questionPoints || row.exam_questions?.points || 0), 0);
+  const hasCompleteSnapshots = rows.length > 0 && rows.every((row) => row.max_points !== null && row.max_points !== undefined);
+  if (!hasCompleteSnapshots) return null;
+  const max = rows.reduce((total, row) => total + Number(row.max_points || 0), 0);
 
   if (!hasSavedPoints && !hasGradedAnswers) {
     return max ? { score: null, earned: null, max, pending: true } : null;
@@ -31,11 +33,16 @@ function computeAttemptGradeFromAnswers(rows = []) {
 
   const earned = rows.reduce((total, row) => {
     if (row.earned_points !== null && row.earned_points !== undefined) return total + Number(row.earned_points || 0);
-    const maxPoints = Number(row.max_points || row.questionPoints || row.exam_questions?.points || 0);
+    const maxPoints = Number(row.max_points || 0);
     return total + (row.is_correct ? maxPoints : 0);
   }, 0);
   const pending = rows.some((row) => row.needs_manual_grading);
   return max ? { score: (earned / max) * 100, earned, max, pending } : null;
+}
+
+function formatPoints(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number.toFixed(2) : "0.00";
 }
 
 function mapCourse(course) {
@@ -68,7 +75,11 @@ function mapAttempt(attempt, gradeOverrides = {}) {
     period: exam.exam_type || "Prelim",
     title: `${exam.exam_title || exam.title || "Untitled assessment"} - ${exam.exam_type || "Exam"}`,
     score,
-    scoreLabel: isPending && maxPoints ? `--/${maxPoints}` : earnedPoints !== null && earnedPoints !== undefined && maxPoints ? `${earnedPoints}/${maxPoints}` : `${score.toFixed(1)}%`,
+    scoreLabel: isPending && maxPoints
+      ? `Pending / ${formatPoints(maxPoints)}`
+      : earnedPoints !== null && earnedPoints !== undefined && maxPoints
+        ? `${formatPoints(earnedPoints)} / ${formatPoints(maxPoints)} (${score.toFixed(2)}%)`
+        : `${score.toFixed(1)}%`,
     pendingManual: Boolean(isPending),
     academicYear: getAcademicYear(submittedAt),
     submittedAt,
@@ -143,7 +154,6 @@ export default function StudentGrades() {
     }
 
     const attemptIds = (attemptRows || []).map((attempt) => attempt.id);
-    const examIds = [...new Set((attemptRows || []).map((attempt) => attempt.exams?.id).filter(Boolean))];
     let gradeOverrides = {};
     if (attemptIds.length) {
       let answerRows = [];
@@ -170,25 +180,7 @@ export default function StudentGrades() {
         return;
       }
 
-      let questionPointsById = new Map();
-      if (examIds.length) {
-        const { data: questionRows, error: questionError } = await supabase
-          .from("exam_questions")
-          .select("id, points")
-          .in("exam_id", examIds);
-        if (questionError) {
-          toast.error(questionError.message);
-          return;
-        }
-        questionPointsById = new Map((questionRows || []).map((question) => [question.id, question.points]));
-      }
-
-      const answerRowsWithPoints = answerRows.map((answer) => ({
-        ...answer,
-        questionPoints: questionPointsById.get(answer.question_id),
-      }));
-
-      const answersByAttempt = answerRowsWithPoints.reduce((items, row) => {
+      const answersByAttempt = answerRows.reduce((items, row) => {
         (items[row.attempt_id] ||= []).push(row);
         return items;
       }, {});

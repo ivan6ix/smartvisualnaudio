@@ -38,16 +38,9 @@ function formatAnswer(value) {
   return String(value);
 }
 
-function computeManualAttemptTotals(rows = []) {
-  const earned = rows.reduce((total, item) => {
-    if (item.earned_points !== null && item.earned_points !== undefined) return total + Number(item.earned_points || 0);
-    return total + (item.is_correct ? Number(item.exam_questions?.points || item.max_points || 0) : 0);
-  }, 0);
-  const max = rows.reduce((total, item) => total + Number(item.max_points || item.exam_questions?.points || 0), 0);
-  const remainingManual = rows.some((item) => item.needs_manual_grading);
-  const score = max ? Number(((earned / max) * 100).toFixed(2)) : 0;
-
-  return { earned, max, remainingManual, score };
+function formatPoints(value) {
+  const number = Number(value || 0);
+  return Number.isFinite(number) ? number.toFixed(2) : "0.00";
 }
 
 function buildDemoScores() {
@@ -389,35 +382,8 @@ export default function ProfessorScores() {
     }));
   }
 
-  async function ensureAttemptAnswer(answerRow, value, maxPoints) {
-    if (!answerRow.missingAnswerRow) return answerRow.id;
-
-    const { data, error } = await supabase
-      .from("exam_attempt_answers")
-      .insert({
-        attempt_id: answerRow.attempt_id,
-        question_id: answerRow.question_id,
-        answer: "No submitted answer",
-        earned_points: value,
-        max_points: maxPoints,
-        is_correct: value >= maxPoints,
-        needs_manual_grading: false,
-        graded_at: new Date().toISOString(),
-        graded_by: user.id,
-      })
-      .select("id")
-      .single();
-
-    if (error) {
-      toast.error(error.message);
-      return null;
-    }
-
-    return data.id;
-  }
-
   async function saveManualAnswer(answerRow) {
-    const maxPoints = Number(answerRow.exam_questions?.points || answerRow.max_points || 0);
+    const maxPoints = Number(answerRow.max_points ?? answerRow.exam_questions?.points ?? 0);
     const rawValue = manualScores[answerRow.id] ?? answerRow.earned_points;
     const value = Number(rawValue);
     if (Number.isNaN(value) || value < 0 || value > maxPoints) {
@@ -430,133 +396,38 @@ export default function ProfessorScores() {
       return;
     }
 
-    const answerId = await ensureAttemptAnswer(answerRow, value, maxPoints);
-    if (!answerId) return;
-
-    let savedAnswerResult = await supabase
-      .from("exam_attempt_answers")
-      .update({
-        earned_points: value,
-        max_points: maxPoints,
-        is_correct: value >= maxPoints,
-        needs_manual_grading: false,
-        graded_at: new Date().toISOString(),
-        graded_by: user.id,
-      })
-      .eq("id", answerId)
-      .select("id, earned_points, max_points, is_correct, needs_manual_grading")
-      .maybeSingle();
-
-    if (savedAnswerResult.error?.message?.includes("earned_points") || savedAnswerResult.error?.message?.includes("max_points")) {
-      savedAnswerResult = await supabase
-        .from("exam_attempt_answers")
-        .update({
-          is_correct: value >= maxPoints,
-          needs_manual_grading: false,
-          graded_at: new Date().toISOString(),
-          graded_by: user.id,
-        })
-        .eq("id", answerId)
-        .select("id, is_correct, needs_manual_grading")
-        .maybeSingle();
-    }
-
-    if (savedAnswerResult.error) {
-      toast.error(savedAnswerResult.error.message);
+    if (answerRow.missingAnswerRow) {
+      toast.error("This answer has no saved scoring snapshot and cannot be safely graded.");
       return;
     }
 
-    if (!savedAnswerResult.data) {
-      toast.error("Grade was not saved. Check the exam_attempt_answers update policy in Supabase.");
+    const { data: gradedResult, error: gradeError } = await supabase.rpc("grade_exam_attempt_answer", {
+      p_answer_id: answerRow.id,
+      p_earned_points: value,
+    });
+    if (gradeError) {
+      toast.error(gradeError.message);
       return;
     }
 
-    const savedAnswer = savedAnswerResult.data;
     const nextManualAnswers = manualAnswers.map((item) => item.id === answerRow.id ? {
       ...item,
-      id: answerId,
-      earned_points: savedAnswer.earned_points ?? value,
-      max_points: savedAnswer.max_points ?? maxPoints,
+      earned_points: value,
+      max_points: maxPoints,
       is_correct: value >= maxPoints,
       needs_manual_grading: false,
       missingAnswerRow: false,
     } : item);
 
-    let savedAnswerRows = [];
-    let savedAnswersError = null;
-    const savedAnswersResult = await supabase
-      .from("exam_attempt_answers")
-      .select("earned_points, max_points, is_correct, needs_manual_grading, exam_questions(points)")
-      .eq("attempt_id", manualAttempt.id);
-    savedAnswerRows = savedAnswersResult.data || [];
-    savedAnswersError = savedAnswersResult.error;
-
-    if (savedAnswersError?.message?.includes("earned_points") || savedAnswersError?.message?.includes("max_points")) {
-      const fallbackSavedAnswersResult = await supabase
-        .from("exam_attempt_answers")
-        .select("is_correct, needs_manual_grading, exam_questions(points)")
-        .eq("attempt_id", manualAttempt.id);
-      savedAnswerRows = fallbackSavedAnswersResult.data || [];
-      savedAnswersError = fallbackSavedAnswersResult.error;
-    }
-
-    if (savedAnswersError) {
-      toast.error(savedAnswersError.message);
-      return;
-    }
-
-    const totals = computeManualAttemptTotals(savedAnswerRows.length ? savedAnswerRows : nextManualAnswers);
-
-    const attemptPayload = {
-      score: totals.score,
-      earned_points: totals.earned,
-      max_points: totals.max,
-      status: totals.remainingManual ? "Pending Manual Grading" : "Manually Graded",
-    };
-
-    let attemptUpdateResult = await supabase
-      .from("exam_attempts")
-      .update(attemptPayload)
-      .eq("id", manualAttempt.id)
-      .select("id, score, earned_points, max_points, status")
-      .maybeSingle();
-
-    if (attemptUpdateResult.error?.message?.includes("status") || attemptUpdateResult.error?.message?.includes("earned_points") || attemptUpdateResult.error?.message?.includes("max_points")) {
-      const fallbackPayload = { ...attemptPayload };
-      if (attemptUpdateResult.error.message.includes("status")) delete fallbackPayload.status;
-      if (attemptUpdateResult.error.message.includes("earned_points")) delete fallbackPayload.earned_points;
-      if (attemptUpdateResult.error.message.includes("max_points")) delete fallbackPayload.max_points;
-      attemptUpdateResult = await supabase
-        .from("exam_attempts")
-        .update(fallbackPayload)
-        .eq("id", manualAttempt.id)
-        .select("id, score")
-        .maybeSingle();
-    }
-
-    if (attemptUpdateResult.error?.message?.includes("status") || attemptUpdateResult.error?.message?.includes("earned_points") || attemptUpdateResult.error?.message?.includes("max_points")) {
-      attemptUpdateResult = await supabase
-        .from("exam_attempts")
-        .update({ score: totals.score })
-        .eq("id", manualAttempt.id)
-        .select("id, score")
-        .maybeSingle();
-    }
-
-    if (attemptUpdateResult.error) {
-      toast.error(attemptUpdateResult.error.message);
-      return;
-    }
-
     setManualAnswers(nextManualAnswers);
-    setManualEditMode((current) => ({ ...current, [answerRow.id]: false, [answerId]: false }));
+    setManualEditMode((current) => ({ ...current, [answerRow.id]: false }));
     setScores((current) => current.map((item) => item.id === manualAttempt.id || (item.studentId === manualAttempt.studentId && item.examId === manualAttempt.examId) ? {
       ...item,
-      score: totals.score,
-      earnedPoints: totals.earned,
-      maxPoints: totals.max,
-      points: `${totals.earned}/${totals.max}`,
-      status: totals.remainingManual ? "Pending Manual Grading" : "Manually Graded",
+      score: gradedResult?.score,
+      earnedPoints: gradedResult?.earned_points,
+      maxPoints: gradedResult?.max_points,
+      points: `${formatPoints(gradedResult?.earned_points)}/${formatPoints(gradedResult?.max_points)}`,
+      status: gradedResult?.pending_manual ? "Pending Manual Grading" : "Manually Graded",
     } : item));
     toast.success("Manual answer graded");
   }
@@ -691,7 +562,7 @@ export default function ProfessorScores() {
                 </div>
                 {manualAnswers.map((answer) => {
                   const question = answer.exam_questions || {};
-                  const maxPoints = Number(question.points || answer.max_points || 0);
+                  const maxPoints = Number(answer.max_points ?? question.points ?? 0);
                   const currentPoints = answer.earned_points ?? "";
                   const canEditScore = answer.needs_manual_grading || answer.missingAnswerRow || manualEditMode[answer.id];
                   return (
@@ -707,7 +578,7 @@ export default function ProfessorScores() {
                         {answer.file_url ? <a href={answer.file_url} rel="noreferrer" target="_blank">Open uploaded file</a> : null}
                       </div>
                       <div className="professor-manual-grade">
-                        <input disabled={!canEditScore} min="0" max={maxPoints} onChange={(event) => setManualScores((current) => ({ ...current, [answer.id]: event.target.value }))} placeholder={`0-${maxPoints}`} type="number" value={manualScores[answer.id] ?? currentPoints} />
+                        <input disabled={!canEditScore} min="0" max={maxPoints} step="0.01" onChange={(event) => setManualScores((current) => ({ ...current, [answer.id]: event.target.value }))} placeholder={`0-${maxPoints}`} type="number" value={manualScores[answer.id] ?? currentPoints} />
                         <button disabled={!canEditScore} onClick={() => saveManualAnswer(answer)} type="button">Save</button>
                         <button className="secondary" onClick={() => setManualEditMode((current) => ({ ...current, [answer.id]: true }))} type="button">Edit</button>
                       </div>

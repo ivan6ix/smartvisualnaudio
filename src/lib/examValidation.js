@@ -15,7 +15,7 @@ export function validateExam(form, questions) {
  if (questions.length > 500) return "Use 500 questions or fewer.";
  for (const q of questions) {
   if (!q.title?.trim() || q.title.length>5000) return "Question text is required and must be 5000 characters or fewer.";
-  if (!Number.isFinite(Number(q.points)) || Number(q.points)<=0 || Number(q.points)>1000) return "Question points must be greater than zero and at most 1000.";
+  if (!Number.isFinite(Number(q.points)) || Number(q.points)<0.01 || Number(q.points)>1000) return "Question maximum points must be from 0.01 to 1000.";
   if ((q.correctAnswer || "").length>2000) return "Correct answers must be 2000 characters or fewer.";
   if ((q.choices || []).some(c=>String(c.value ?? c).length>2000)) return "Answer choices must be 2000 characters or fewer.";
  }

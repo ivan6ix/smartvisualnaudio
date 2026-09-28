@@ -95,7 +95,7 @@ export default function Reports() {
         supabase.from("courses").select("id, course_name, course_code, program_id, year_level, section, joining_code, professor_id, archived, created_at, programs(program_code, program_name, is_active)").order("created_at", { ascending: false }).limit(1000),
         supabase.from("exams").select("id, title, exam_title, course_id, course, duration, time_limit, status, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("violations").select("id, student_id, exam_id, violation_type, description, severity, created_at").order("created_at", { ascending: false }).limit(1000),
-        supabase.from("exam_attempts").select("id, exam_id, student_id, score, submitted_at").order("submitted_at", { ascending: false }).limit(1000),
+        supabase.from("exam_attempts").select("id, exam_id, student_id, score, earned_points, max_points, submitted_at").order("submitted_at", { ascending: false }).limit(1000),
         supabase.from("logs").select("id, action, description, created_at").order("created_at", { ascending: false }).limit(1000),
       ]);
 
@@ -199,7 +199,9 @@ export default function Reports() {
         student: student?.full_name || "Unknown student",
         course: course?.course_code || course?.course_name || exam?.course || "-",
         exam: exam?.exam_title || exam?.title || "Unknown exam",
-        score: attempt.score === null || attempt.score === undefined ? "Pending" : `${attempt.score}%`,
+        score: attempt.earned_points !== null && attempt.earned_points !== undefined && attempt.max_points
+          ? `${Number(attempt.earned_points).toFixed(2)} / ${Number(attempt.max_points).toFixed(2)} (${Number(attempt.score || 0).toFixed(2)}%)`
+          : attempt.score === null || attempt.score === undefined ? "Pending" : `${attempt.score}%`,
         submittedAt: formatDate(attempt.submitted_at),
       };
     });
