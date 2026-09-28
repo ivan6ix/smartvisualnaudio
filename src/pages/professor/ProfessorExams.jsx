@@ -220,6 +220,7 @@ function mapExam(row, reviewByExam = {}) {
     yearLevel: course?.year_level || "",
     section: course?.section || "",
     courseMeta: formatCourseMeta(course || {}),
+    assignmentMode: row.assignment_mode || "entire_course",
     title: row.exam_title || row.title || "Untitled exam",
     course: course?.course_code && course?.section ? `${course.course_code} - ${course.section}` : row.course || course?.course_name || "Unassigned course",
     type: row.exam_type || "Exam",
@@ -311,7 +312,7 @@ export default function ProfessorExams() {
 
     const { data, error } = await supabase
       .from("exams")
-      .select("id, title, exam_title, course_id, description, course, exam_type, duration, time_limit, questions_count, status, exam_settings, submitted_at, approved_at, rejected_at, created_at, courses(course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active))")
+      .select("id, title, exam_title, course_id, description, course, exam_type, duration, time_limit, questions_count, status, exam_settings, assignment_mode, submitted_at, approved_at, rejected_at, created_at, courses(course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active))")
       .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
       .order("created_at", { ascending: false })
       .limit(250);
@@ -557,10 +558,7 @@ export default function ProfessorExams() {
     if (!publishTarget || !hasSupabaseConfig) return;
     setPublishingId(publishTarget.id);
     try {
-      const { error } = await supabase
-        .from("exams")
-        .update({ status: "Published" })
-        .eq("id", publishTarget.id);
+      const { error } = await supabase.rpc("publish_exam", { p_exam_id: publishTarget.id });
       if (error) throw error;
       toast.success("Exam published for students");
       setPublishTarget(null);
@@ -831,7 +829,7 @@ export default function ProfessorExams() {
     try {
       const { data: sourceExam, error: examError } = await supabase
         .from("exams")
-        .select("title, exam_title, description, semester, exam_type, duration, time_limit, exam_settings, questions_count")
+        .select("title, exam_title, description, semester, exam_type, duration, time_limit, exam_settings, assignment_mode, questions_count")
         .eq("id", shareExam.id)
         .maybeSingle();
 
@@ -862,6 +860,7 @@ export default function ProfessorExams() {
           duration,
           time_limit: duration,
           exam_settings: sourceExam.exam_settings || {},
+          assignment_mode: "entire_course",
           questions_count: questionRows?.length || sourceExam.questions_count || 0,
           status: "Published",
           approved_at: null,
@@ -894,13 +893,11 @@ export default function ProfessorExams() {
     setSharingTargetId(enrollment.student_id);
 
     try {
-      const { error } = await supabase.rpc("create_notification", {
-        p_workflow: "exam_shared",
-        p_recipient_id: enrollment.student_id,
-        p_title: "Exam Shared",
-        p_message: `${shareExam.title} was shared with you for ${shareExam.course}.`,
-        p_type: "Exam",
-        p_context_id: shareExam.id,
+      const { error } = await supabase.rpc("grant_exam_student_exception", {
+        p_exam_id: shareExam.id,
+        p_student_id: enrollment.student_id,
+        p_allow_after_deadline: true,
+        p_reason: "Shared from professor exam list",
       });
 
       if (error) throw error;

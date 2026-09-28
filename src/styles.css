@@ -5121,6 +5121,80 @@ html[data-theme="light"] .profile-remove-actions button.danger {
   font-size: 1.02rem;
   line-height: 1.2;
 }
+.professor-assignment-card {
+  grid-column: 1 / -1;
+}
+.professor-assignment-heading,
+.professor-assignment-tools,
+.professor-assignment-pagination {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+.professor-assignment-heading p {
+  color: var(--app-muted);
+  margin: -10px 0 0;
+}
+.professor-assignment-mode {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+}
+.professor-assignment-mode label,
+.professor-assignment-select-all {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+.professor-assignment-table-panel {
+  margin-top: 16px;
+}
+.professor-assignment-tools {
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  margin-bottom: 12px;
+}
+.professor-assignment-tools .professor-create-input {
+  max-width: 300px;
+}
+.professor-assignment-table-wrap {
+  overflow-x: auto;
+}
+.professor-assignment-table {
+  border-collapse: collapse;
+  min-width: 640px;
+  width: 100%;
+}
+.professor-assignment-table th,
+.professor-assignment-table td {
+  border-bottom: 1px solid var(--app-line);
+  padding: 12px;
+  text-align: left;
+  vertical-align: middle;
+}
+.professor-assignment-table td strong,
+.professor-assignment-table td span,
+.professor-assignment-table td small {
+  display: block;
+}
+.professor-assignment-table td span,
+.professor-assignment-table td small,
+.professor-score-muted {
+  color: var(--app-muted);
+  font-size: 0.85rem;
+}
+.professor-assignment-pagination {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.professor-assignment-pagination button {
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  color: var(--app-text);
+  padding: 8px 12px;
+}
 .professor-details-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

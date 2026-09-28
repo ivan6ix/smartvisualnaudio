@@ -81,7 +81,7 @@ export default function StudentDashboard() {
 
       const { data: examRows, error: examsError } = await supabase
         .from("exams")
-        .select("id, title, exam_title, course_id, course, duration, time_limit, status, exam_settings, courses(course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active))")
+        .select("id, title, exam_title, course_id, course, duration, time_limit, status, exam_settings, assignment_mode, courses(course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active))")
         .in("course_id", courseIds)
         .in("status", ["Published", "Active", "Scheduled"])
         .order("created_at", { ascending: false });
@@ -94,17 +94,31 @@ export default function StudentDashboard() {
       let attemptsByExam = {};
 
       if (examIds.length) {
-        const { data: attemptRows, error: attemptsError } = await supabase
-          .from("exam_attempts")
-          .select("id, exam_id, status, submitted_at")
-          .eq("student_id", user.id)
-          .in("exam_id", examIds);
+        const [{ data: attemptRows, error: attemptsError }, { data: exceptionRows, error: exceptionsError }] = await Promise.all([
+          supabase
+            .from("exam_attempts")
+            .select("id, exam_id, status, submitted_at")
+            .eq("student_id", user.id)
+            .in("exam_id", examIds),
+          supabase
+            .from("exam_student_access_exceptions")
+            .select("exam_id, allow_after_deadline")
+            .eq("student_id", user.id)
+            .in("exam_id", examIds),
+        ]);
 
         if (attemptsError) {
           throw attemptsError;
         }
+        if (exceptionsError && !["42P01", "PGRST205"].includes(exceptionsError.code)) {
+          throw exceptionsError;
+        }
 
         attemptsByExam = countUsedExamAttemptsByExam(attemptRows || []);
+        const deadlineExceptionExamIds = new Set((exceptionRows || []).filter((row) => row.allow_after_deadline).map((row) => row.exam_id));
+        examRows.forEach((exam) => {
+          if (deadlineExceptionExamIds.has(exam.id)) exam.exam_settings = { ...(exam.exam_settings || {}), deadline: null };
+        });
       }
 
       const visibleExams = (examRows || [])

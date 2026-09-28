@@ -438,7 +438,7 @@ export default function StudentCourse() {
           .order("submitted_at", { ascending: false }),
         supabase
           .from("exams")
-          .select("id, title, exam_title, exam_type, description, duration, time_limit, status, exam_settings, created_at")
+          .select("id, title, exam_title, exam_type, description, duration, time_limit, status, exam_settings, assignment_mode, created_at")
           .eq("course_id", courseId)
           .in("status", ["Published", "published", "Active", "active"])
           .order("created_at", { ascending: false }),
@@ -499,6 +499,14 @@ export default function StudentCourse() {
       }
 
       if (attemptError?.message?.includes("submitted_at")) {
+        const assessmentIds = (assessmentRows || []).map((assessment) => assessment.id);
+        const { data: exceptionRows } = assessmentIds.length
+          ? await supabase.from("exam_student_access_exceptions").select("exam_id, allow_after_deadline").eq("student_id", user.id).in("exam_id", assessmentIds)
+          : { data: [] };
+        const deadlineExceptionExamIds = new Set((exceptionRows || []).filter((row) => row.allow_after_deadline).map((row) => row.exam_id));
+        const assessmentsWithExceptions = (assessmentRows || []).map((assessment) => deadlineExceptionExamIds.has(assessment.id)
+          ? { ...assessment, exam_settings: { ...(assessment.exam_settings || {}), deadline: null } }
+          : assessment);
         const { data: fallbackAttemptRows, error: fallbackAttemptError } = await supabase
           .from("exam_attempts")
           .select("id, score, status, exams!inner(id, title, exam_title, exam_type, description, duration, time_limit, course_id)")
@@ -517,11 +525,19 @@ export default function StudentCourse() {
           setAttempts(mappedAttempts);
           const attemptByExam = mappedAttempts.reduce((items, attempt) => ({ ...items, [attempt.examId]: items[attempt.examId] || attempt }), {});
           const attemptCountsByExam = countUsedExamAttemptsByExam((fallbackAttemptRows || []).map((attempt) => ({ exam_id: attempt.exams?.id })));
-          setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam, reopenByAttempt)));
+          setAssessments(assessmentsWithExceptions.map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam, reopenByAttempt)));
         }
       } else if (attemptError) {
         toast.error(attemptError.message);
       } else {
+        const assessmentIds = (assessmentRows || []).map((assessment) => assessment.id);
+        const { data: exceptionRows } = assessmentIds.length
+          ? await supabase.from("exam_student_access_exceptions").select("exam_id, allow_after_deadline").eq("student_id", user.id).in("exam_id", assessmentIds)
+          : { data: [] };
+        const deadlineExceptionExamIds = new Set((exceptionRows || []).filter((row) => row.allow_after_deadline).map((row) => row.exam_id));
+        const assessmentsWithExceptions = (assessmentRows || []).map((assessment) => deadlineExceptionExamIds.has(assessment.id)
+          ? { ...assessment, exam_settings: { ...(assessment.exam_settings || {}), deadline: null } }
+          : assessment);
         const mappedAttempts = (attemptRows || []).map(mapAttempt);
         const attemptIds = mappedAttempts.map((attempt) => attempt.id).filter(Boolean);
         const { data: reopenRows, error: reopenError } = attemptIds.length
@@ -532,7 +548,7 @@ export default function StudentCourse() {
         setAttempts(mappedAttempts);
         const attemptByExam = mappedAttempts.reduce((items, attempt) => ({ ...items, [attempt.examId]: items[attempt.examId] || attempt }), {});
         const attemptCountsByExam = countUsedExamAttemptsByExam((attemptRows || []).map((attempt) => ({ exam_id: attempt.exams?.id })));
-        setAssessments((assessmentRows || []).map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam, reopenByAttempt)));
+        setAssessments(assessmentsWithExceptions.map((assessment) => mapAssessment(assessment, attemptByExam, attemptCountsByExam, reopenByAttempt)));
       }
 
       if (assessmentError) {

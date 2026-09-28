@@ -528,7 +528,7 @@ export default function StudentExamTake() {
       let examError = null;
       const examResult = await supabase
         .from("exams")
-        .select("id, title, exam_title, description, duration, time_limit, exam_type, course_id, professor_id, created_by, status, exam_settings, courses(course_name, course_code, section)")
+        .select("id, title, exam_title, description, duration, time_limit, exam_type, course_id, professor_id, created_by, status, exam_settings, assignment_mode, courses(course_name, course_code, section)")
         .eq("id", examId)
         .maybeSingle();
 
@@ -550,6 +550,22 @@ export default function StudentExamTake() {
       if (questionsError) {
         toast.error(questionsError.message);
         return;
+      }
+
+      const { data: exceptionRows } = await supabase
+        .from("exam_student_access_exceptions")
+        .select("allow_after_deadline")
+        .eq("exam_id", examId)
+        .eq("student_id", user.id)
+        .limit(1);
+      if (exceptionRows?.some((row) => row.allow_after_deadline)) {
+        examRow = {
+          ...examRow,
+          exam_settings: {
+            ...(examRow.exam_settings || {}),
+            deadline: null,
+          },
+        };
       }
 
       const { count, error: attemptsError } = await supabase

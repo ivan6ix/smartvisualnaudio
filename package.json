@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "roboflow-proxy": "node server/roboflow-proxy.js",
+    "test": "node scripts/check-exam-assignment-helpers.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint ."

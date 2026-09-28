@@ -6,6 +6,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "../../context/AuthContext";
 import { professorCourses } from "../../data/professorData";
+import { ASSIGNMENT_MODES, filterAssignmentStudents, normalizeAssignmentMode, toggleFilteredStudentSelection } from "../../lib/examAssignments";
 import { AUTO_GRADED_TYPES, QUESTION_TYPES } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -42,6 +43,7 @@ const CHOICE_TYPES = ["Multiple Choice", PICTURE_CHOICE_TYPE, "Multiple Select"]
 const PARTIAL_MATCH_TYPES = new Set(["Multiple Select", "Matching Type", "Ordering / Sequencing", "Enumeration"]);
 const MAX_QUESTION_IMAGE_BYTES = 2 * 1024 * 1024;
 const AUTOSAVE_DELAY_MS = 1600;
+const ASSIGNMENT_PAGE_SIZE = 20;
 
 function SelectInput({ children, ...props }) {
   return (
@@ -178,6 +180,7 @@ function defaultExamForm({ presetCourseId = "", presetType = "", presetPeriod = 
     status: "Draft",
     instructions: "",
     description: "",
+    assignmentMode: ASSIGNMENT_MODES.ENTIRE_COURSE,
     settings: {
       randomizeQuestions: false,
       randomizeChoices: false,
@@ -208,6 +211,12 @@ export default function ProfessorCreateExam() {
   const [saving, setSaving] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [draftExamId, setDraftExamId] = useState(editId);
+  const [courseStudents, setCourseStudents] = useState([]);
+  const [selectedStudentIds, setSelectedStudentIds] = useState(() => new Set());
+  const [lockedStudentIds, setLockedStudentIds] = useState(() => new Set());
+  const [studentSearch, setStudentSearch] = useState("");
+  const [studentSectionFilter, setStudentSectionFilter] = useState("All Sections");
+  const [studentPage, setStudentPage] = useState(1);
   const [autosaveStatus, setAutosaveStatus] = useState("Saved locally");
   const savingRef = useRef(false);
   const hydratedRef = useRef(false);
@@ -317,7 +326,7 @@ export default function ProfessorCreateExam() {
     async function loadExamForEdit() {
       const { data: exam, error: examError } = await supabase
         .from("exams")
-        .select("id, course_id, title, exam_title, description, semester, exam_type, duration, time_limit, status, exam_settings, professor_id, created_by")
+        .select("id, course_id, title, exam_title, description, semester, exam_type, duration, time_limit, status, exam_settings, assignment_mode, professor_id, created_by")
         .eq("id", editId)
         .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
         .maybeSingle();
@@ -333,12 +342,23 @@ export default function ProfessorCreateExam() {
         return;
       }
 
-      const { count: attemptCount, error: attemptsError } = await supabase.from("exam_attempts").select("id", { count: "exact", head: true }).eq("exam_id", editId);
-      if (attemptsError || attemptCount > 0) {
-        toast.error(attemptsError?.message || "This exam already has attempts. Create a new exam to preserve answers and grades.");
-        navigate("/professor/exams");
+      const { data: lockedRows, error: lockedError } = await supabase
+        .from("exam_start_sessions")
+        .select("student_id")
+        .eq("exam_id", editId);
+      if (lockedError) {
+        toast.error(lockedError.message);
         return;
       }
+      const { data: lockedAttemptRows, error: lockedAttemptError } = await supabase
+        .from("exam_attempts")
+        .select("student_id")
+        .eq("exam_id", editId);
+      if (lockedAttemptError) {
+        toast.error(lockedAttemptError.message);
+        return;
+      }
+      setLockedStudentIds(new Set([...(lockedRows || []), ...(lockedAttemptRows || [])].map((row) => row.student_id)));
       const { data: questionRows, error: questionError } = await supabase
         .from("exam_questions")
         .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
@@ -366,6 +386,7 @@ export default function ProfessorCreateExam() {
         startsAt: toLocalDateTime(exam.exam_settings?.startsAt),
         instructions: exam.exam_settings?.instructions || "",
         description: exam.exam_settings?.description || "",
+        assignmentMode: normalizeAssignmentMode(exam.assignment_mode),
         status: "Draft",
         settings: {
           ...current.settings,
@@ -402,8 +423,77 @@ export default function ProfessorCreateExam() {
     loadExamForEdit();
   }, [editId, navigate, user?.id]);
 
+  useEffect(() => {
+    if (!hasSupabaseConfig || !user?.id || !examForm.courseId) {
+      setCourseStudents([]);
+      return;
+    }
+
+    let cancelled = false;
+    async function loadCourseStudents() {
+      const { data, error } = await supabase
+        .from("course_enrollments")
+        .select("student_id, profiles:student_id(full_name, student_number, email), courses:course_id(section)")
+        .eq("course_id", examForm.courseId)
+        .order("joined_at", { ascending: true });
+
+      if (cancelled) return;
+      if (error) {
+        toast.error(error.message);
+        setCourseStudents([]);
+        return;
+      }
+
+      const fallbackSection = courses.find((course) => course.id === examForm.courseId)?.section || "No section";
+      setCourseStudents((data || []).map((enrollment) => ({
+        id: enrollment.student_id,
+        name: enrollment.profiles?.full_name || enrollment.profiles?.email || "Unnamed student",
+        studentNumber: enrollment.profiles?.student_number || "No student ID",
+        email: enrollment.profiles?.email || "",
+        section: enrollment.courses?.section || fallbackSection,
+        locked: lockedStudentIds.has(enrollment.student_id),
+      })));
+    }
+
+    loadCourseStudents();
+    return () => { cancelled = true; };
+  }, [courses, examForm.courseId, lockedStudentIds, user?.id]);
+
+  useEffect(() => {
+    if (!hasSupabaseConfig || !editId) return;
+    let cancelled = false;
+    async function loadAssignments() {
+      const { data, error } = await supabase
+        .from("exam_student_assignments")
+        .select("student_id")
+        .eq("exam_id", editId);
+      if (cancelled) return;
+      if (error) {
+        if (!["42P01", "PGRST205"].includes(error.code)) toast.error(error.message);
+        return;
+      }
+      setSelectedStudentIds(new Set((data || []).map((row) => row.student_id)));
+    }
+    loadAssignments();
+    return () => { cancelled = true; };
+  }, [editId]);
+
   const selectedCourse = courses.find((course) => course.id === examForm.courseId);
   const isAutoGraded = questionDraft.type ? AUTO_GRADED_TYPES.has(questionDraft.type) : true;
+  const selectedStudentCount = selectedStudentIds.size;
+  const filteredStudents = useMemo(
+    () => filterAssignmentStudents(courseStudents, studentSearch, studentSectionFilter),
+    [courseStudents, studentSearch, studentSectionFilter],
+  );
+  const studentSectionOptions = useMemo(
+    () => ["All Sections", ...new Set(courseStudents.map((student) => student.section).filter(Boolean))],
+    [courseStudents],
+  );
+  const assignmentTotalPages = Math.max(1, Math.ceil(filteredStudents.length / ASSIGNMENT_PAGE_SIZE));
+  const safeStudentPage = Math.min(studentPage, assignmentTotalPages);
+  const visibleStudents = filteredStudents.slice((safeStudentPage - 1) * ASSIGNMENT_PAGE_SIZE, safeStudentPage * ASSIGNMENT_PAGE_SIZE);
+  const selectableFiltered = filteredStudents.filter((student) => !student.locked);
+  const filteredAllSelected = selectableFiltered.length > 0 && selectableFiltered.every((student) => selectedStudentIds.has(student.id));
   const buildSavePayload = useCallback((statusOverride = null) => {
     const status = statusOverride || (examForm.status === "Submit for Review" ? "Pending Review" : "Draft");
     const durationValue = examForm.duration ? Number(examForm.duration) : null;
@@ -418,6 +508,7 @@ export default function ProfessorCreateExam() {
       professor_id: user?.id,
       created_by: user?.id,
       exam_type: examForm.examType,
+      assignment_mode: normalizeAssignmentMode(examForm.assignmentMode),
       exam_settings: {
         ...examForm.settings,
         description: examForm.description,
@@ -478,6 +569,17 @@ export default function ProfessorCreateExam() {
     window.sessionStorage.removeItem(activeCreateDraftKey(user.id));
   }
 
+  const saveAssignmentsForExam = useCallback(async (examId, mode = examForm.assignmentMode, ids = selectedStudentIds) => {
+    if (!hasSupabaseConfig || !examId) return;
+    const selectedIds = [...new Set([...ids, ...lockedStudentIds])];
+    const { error } = await supabase.rpc("save_exam_assignments", {
+      p_exam_id: examId,
+      p_assignment_mode: normalizeAssignmentMode(mode),
+      p_student_ids: selectedIds,
+    });
+    if (error) throw error;
+  }, [examForm.assignmentMode, lockedStudentIds, selectedStudentIds]);
+
   const syncDraftNow = useCallback(async (manual = false) => {
     if (!hasSupabaseConfig || !user?.id) return false;
     if (finalPublishRef.current) return false;
@@ -516,6 +618,7 @@ export default function ProfessorCreateExam() {
           const sessionId = createSessionIdRef.current;
           if (sessionId) window.localStorage.removeItem(recoveryKey(user.id, createSessionRecoveryId(sessionId)));
         }
+        if (nextId) await saveAssignmentsForExam(nextId, latestPayload.examPayload.assignment_mode);
         if (nextId) persistLocalSnapshot(latest, nextId);
         lastSyncedJsonRef.current = JSON.stringify(latest);
         setAutosaveStatus("Saved");
@@ -528,7 +631,7 @@ export default function ProfessorCreateExam() {
       autosaveInFlightRef.current = false;
     }
     return true;
-  }, [buildSavePayload, draftExamId, examForm, getRecoveryTargetId, persistLocalSnapshot, questionDraft, questions, user?.id]);
+  }, [buildSavePayload, draftExamId, examForm, getRecoveryTargetId, persistLocalSnapshot, questionDraft, questions, saveAssignmentsForExam, user?.id]);
 
   useEffect(() => {
     if (!user?.id || !hydratedRef.current) return;
@@ -555,6 +658,30 @@ export default function ProfessorCreateExam() {
 
   function setExamValue(key, value) {
     setExamForm((current) => ({ ...current, [key]: value }));
+    if (key === "courseId") {
+      setSelectedStudentIds((current) => new Set([...current].filter((id) => lockedStudentIds.has(id))));
+      setStudentSearch("");
+      setStudentSectionFilter("All Sections");
+      setStudentPage(1);
+    }
+  }
+
+  function toggleStudent(studentId, checked) {
+    if (lockedStudentIds.has(studentId) && !checked) return;
+    setSelectedStudentIds((current) => {
+      const next = new Set(current);
+      if (checked) next.add(studentId);
+      else next.delete(studentId);
+      return next;
+    });
+  }
+
+  function toggleFilteredStudents(checked) {
+    setSelectedStudentIds((current) => toggleFilteredStudentSelection({
+      selectedIds: current,
+      filteredStudents,
+      checked,
+    }));
   }
 
   function toggleExamSetting(key) {
@@ -809,6 +936,7 @@ export default function ProfessorCreateExam() {
 
       const { data: savedId, error: saveError } = await supabase.rpc("save_exam", { p_id: draftExamId || editId || null, p_exam: examPayload, p_questions: questionRows });
       if (saveError) throw saveError;
+      await saveAssignmentsForExam(savedId || draftExamId || editId, examPayload.assignment_mode);
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
       clearActiveCreateRecovery(savedId || draftExamId || editId);
       if (status === "Pending Review") {
@@ -858,6 +986,10 @@ export default function ProfessorCreateExam() {
       toast.error(validationError);
       return;
     }
+    if (normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS && selectedStudentIds.size === 0) {
+      toast.error("Select at least one student before publishing this exam.");
+      return;
+    }
     setPublishConfirmOpen(true);
   }
 
@@ -872,6 +1004,11 @@ export default function ProfessorCreateExam() {
 
     if (!examForm.courseId || !examForm.title.trim() || !examForm.examType || !examForm.period || !questions.length) {
       toast.error("Complete exam details and add at least one question.");
+      return;
+    }
+    if (normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS && selectedStudentIds.size === 0) {
+      toast.error("Select at least one student before publishing this exam.");
+      setPublishConfirmOpen(false);
       return;
     }
 
@@ -900,11 +1037,9 @@ export default function ProfessorCreateExam() {
       if (saveError) throw saveError;
       const examId = savedId || draftExamId || editId;
       if (!examId) throw new Error("Exam was saved, but its record could not be identified for publishing.");
+      await saveAssignmentsForExam(examId, examPayload.assignment_mode);
 
-      const { error: publishError } = await supabase
-        .from("exams")
-        .update({ status: "Published" })
-        .eq("id", examId);
+      const { error: publishError } = await supabase.rpc("publish_exam", { p_exam_id: examId });
       if (publishError) throw publishError;
 
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
@@ -1063,6 +1198,102 @@ export default function ProfessorCreateExam() {
             </div>
             <label>Description<textarea className="professor-create-textarea" maxLength={1000} value={examForm.description} onChange={event => setExamValue("description", event.target.value)} /><small>{examForm.description.length} / 1000</small></label>
             <textarea className="professor-create-textarea" onChange={(event) => setExamValue("instructions", event.target.value)} maxLength={5000} placeholder="Exam instructions" value={examForm.instructions} /><small>{examForm.instructions.length} / 5000</small>
+          </section>
+
+          <section className="professor-create-card professor-assignment-card">
+            <div className="professor-assignment-heading">
+              <div>
+                <h2>Who can take this exam?</h2>
+                <p>{normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS ? `${selectedStudentCount} selected` : "All enrolled students in the course"}</p>
+              </div>
+            </div>
+            <div className="professor-assignment-mode">
+              <label>
+                <input
+                  checked={normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.ENTIRE_COURSE}
+                  onChange={() => setExamValue("assignmentMode", ASSIGNMENT_MODES.ENTIRE_COURSE)}
+                  type="radio"
+                />
+                <span>Entire Course</span>
+              </label>
+              <label>
+                <input
+                  checked={normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS}
+                  onChange={() => setExamValue("assignmentMode", ASSIGNMENT_MODES.SELECTED_STUDENTS)}
+                  type="radio"
+                />
+                <span>Selected Students</span>
+              </label>
+            </div>
+
+            {normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS ? (
+              <div className="professor-assignment-table-panel">
+                <div className="professor-assignment-tools">
+                  <input
+                    aria-label="Search students"
+                    className="professor-create-input"
+                    onChange={(event) => { setStudentSearch(event.target.value); setStudentPage(1); }}
+                    placeholder="Search name, school ID, or email"
+                    value={studentSearch}
+                  />
+                  <select
+                    aria-label="Filter students by section"
+                    className="professor-create-input"
+                    onChange={(event) => { setStudentSectionFilter(event.target.value); setStudentPage(1); }}
+                    value={studentSectionFilter}
+                  >
+                    {studentSectionOptions.map((section) => <option key={section}>{section}</option>)}
+                  </select>
+                  <label className="professor-assignment-select-all">
+                    <input
+                      checked={filteredAllSelected}
+                      disabled={!selectableFiltered.length}
+                      onChange={(event) => toggleFilteredStudents(event.target.checked)}
+                      type="checkbox"
+                    />
+                    <span>Select All</span>
+                  </label>
+                </div>
+                <div className="professor-assignment-table-wrap">
+                  <table className="professor-assignment-table">
+                    <thead>
+                      <tr>
+                        <th aria-label="Select student" />
+                        <th>Student Name</th>
+                        <th>School ID</th>
+                        <th>Section</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {visibleStudents.map((student) => (
+                        <tr key={student.id}>
+                          <td>
+                            <input
+                              checked={selectedStudentIds.has(student.id) || student.locked}
+                              disabled={student.locked}
+                              onChange={(event) => toggleStudent(student.id, event.target.checked)}
+                              type="checkbox"
+                            />
+                          </td>
+                          <td><strong>{student.name}</strong>{student.email ? <span>{student.email}</span> : null}</td>
+                          <td>{student.studentNumber}</td>
+                          <td>{student.section}{student.locked ? <small>Locked after start</small> : null}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                  {!visibleStudents.length ? <div className="professor-added-empty compact">No enrolled students match your filters.</div> : null}
+                </div>
+                {filteredStudents.length > ASSIGNMENT_PAGE_SIZE ? (
+                  <div className="professor-assignment-pagination">
+                    <span>Showing {(safeStudentPage - 1) * ASSIGNMENT_PAGE_SIZE + 1}-{Math.min(filteredStudents.length, safeStudentPage * ASSIGNMENT_PAGE_SIZE)} of {filteredStudents.length}</span>
+                    <button disabled={safeStudentPage <= 1} onClick={() => setStudentPage((page) => Math.max(1, page - 1))} type="button">Previous</button>
+                    <span>Page {safeStudentPage} of {assignmentTotalPages}</span>
+                    <button disabled={safeStudentPage >= assignmentTotalPages} onClick={() => setStudentPage((page) => Math.min(assignmentTotalPages, page + 1))} type="button">Next</button>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
           </section>
 
           <section className="professor-create-card professor-settings-card">
