@@ -20,6 +20,7 @@ const pageImports = {
   DeanExamIntegrity: () => import("./pages/dean/DeanExamIntegrity"),
   DeanLayout: () => import("./pages/dean/DeanLayout"),
   ForgotPassword: () => import("./pages/ForgotPassword"),
+  LandingPage: () => import("./components/landing/LandingPage"),
   Login: () => import("./pages/Login"),
   Messages: () => import("./pages/Messages"),
   Notifications: () => import("./pages/Notifications"),
@@ -63,6 +64,7 @@ const DeanDashboard = lazy(pageImports.DeanDashboard);
 const DeanExamIntegrity = lazy(pageImports.DeanExamIntegrity);
 const DeanLayout = lazy(pageImports.DeanLayout);
 const ForgotPassword = lazy(pageImports.ForgotPassword);
+const LandingPage = lazy(pageImports.LandingPage);
 const Login = lazy(pageImports.Login);
 const Messages = lazy(pageImports.Messages);
 const Notifications = lazy(pageImports.Notifications);
@@ -99,6 +101,7 @@ function getPageImportForPath(pathname) {
   if (/^\/cluster\/exams\//.test(pathname)) return pageImports.ClusterExamReview;
   const routeImports = {
     "/": pageImports.Dashboard,
+    "/landing": pageImports.LandingPage,
     "/accounts": pageImports.Accounts,
     "/courses": pageImports.Courses,
     "/messages": pageImports.Messages,
@@ -161,6 +164,7 @@ export default function App() {
     <Suspense fallback={<PageSkeleton />}>
       <Routes>
         {["privacy", "terms", "storage"].map((path) => <Route key={path} path={`/${path}`} element={<Legal />} />)}
+        <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
