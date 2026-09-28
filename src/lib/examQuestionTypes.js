@@ -52,6 +52,16 @@ export function getQuestionConfig(question) {
   return safeJsonParse(question.question_config, question.question_config || {});
 }
 
+export function supportsPartialMatch(type) {
+  return ["Multiple Select", "Matching Type", "Ordering / Sequencing", "Enumeration"].includes(type);
+}
+
+export function allowsPartialMatch(type, config = {}) {
+  if (!supportsPartialMatch(type)) return false;
+  if (typeof config.partialMatch === "boolean") return config.partialMatch;
+  return type === "Matching Type" || type === "Ordering / Sequencing" || type === "Enumeration";
+}
+
 export function getCorrectAnswers(question) {
   const direct = safeJsonParse(question.correct_answers, null);
   if (Array.isArray(direct)) return direct;
@@ -79,10 +89,14 @@ export function gradeAnswer(question, answer) {
   }
 
   if (type === "Multiple Select") {
-    const selected = Array.isArray(answer) ? answer.map(normalizeAnswer).sort() : [];
-    const expected = correct.map(normalizeAnswer).sort();
+    const selected = Array.isArray(answer) ? [...new Set(answer.map(normalizeAnswer).filter(Boolean))].sort() : [];
+    const expected = [...new Set(correct.map(normalizeAnswer).filter(Boolean))].sort();
     const isCorrect = selected.length === expected.length && selected.every((item, index) => item === expected[index]);
-    return { earnedPoints: isCorrect ? points : 0, maxPoints: points, manual: false, isCorrect };
+    if (!allowsPartialMatch(type, config)) return { earnedPoints: isCorrect ? points : 0, maxPoints: points, manual: false, isCorrect };
+    const correctSelected = selected.filter((item) => expected.includes(item)).length;
+    const incorrectSelected = selected.filter((item) => !expected.includes(item)).length;
+    const ratio = expected.length ? Math.max(0, Math.min(1, (correctSelected - incorrectSelected) / expected.length)) : 0;
+    return { earnedPoints: Math.round(points * ratio * 100) / 100, maxPoints: points, manual: false, isCorrect };
   }
 
   if (type === "Identification" || type === "Fill in the Blank") {
@@ -95,7 +109,8 @@ export function gradeAnswer(question, answer) {
     const pairs = Array.isArray(config.pairs) ? config.pairs : [];
     const submitted = answer && typeof answer === "object" ? answer : {};
     const correctCount = pairs.filter((pair) => normalizeAnswer(submitted[pair.left]) === normalizeAnswer(pair.right)).length;
-    const earnedPoints = pairs.length ? (correctCount / pairs.length) * points : 0;
+    const isCorrect = pairs.length > 0 && correctCount === pairs.length;
+    const earnedPoints = allowsPartialMatch(type, config) && pairs.length ? (correctCount / pairs.length) * points : isCorrect ? points : 0;
     return { earnedPoints, maxPoints: points, manual: false, isCorrect: earnedPoints === points };
   }
 
@@ -103,7 +118,8 @@ export function gradeAnswer(question, answer) {
     const expected = Array.isArray(correct) ? correct.map(normalizeAnswer) : [];
     const submitted = Array.isArray(answer) ? answer.map(normalizeAnswer) : [];
     const correctCount = expected.filter((item, index) => item === submitted[index]).length;
-    const earnedPoints = expected.length ? (correctCount / expected.length) * points : 0;
+    const isCorrect = expected.length > 0 && submitted.length === expected.length && correctCount === expected.length;
+    const earnedPoints = allowsPartialMatch(type, config) && expected.length ? (correctCount / expected.length) * points : isCorrect ? points : 0;
     return { earnedPoints, maxPoints: points, manual: false, isCorrect: earnedPoints === points };
   }
 
@@ -112,7 +128,8 @@ export function gradeAnswer(question, answer) {
     const submitted = Array.isArray(answer) ? answer.map(normalizeAnswer).filter(Boolean) : [];
     const uniqueSubmitted = [...new Set(submitted)];
     const correctCount = uniqueSubmitted.filter((item) => expected.includes(item)).length;
-    const earnedPoints = expected.length ? (correctCount / expected.length) * points : 0;
+    const isCorrect = expected.length > 0 && correctCount === expected.length && uniqueSubmitted.length === expected.length;
+    const earnedPoints = allowsPartialMatch(type, config) && expected.length ? (correctCount / expected.length) * points : isCorrect ? points : 0;
     return { earnedPoints, maxPoints: points, manual: false, isCorrect: earnedPoints === points };
   }
 

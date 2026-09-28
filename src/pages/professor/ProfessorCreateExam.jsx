@@ -39,6 +39,7 @@ const defaultPairs = [
 const defaultListItems = ["", "", ""];
 const PICTURE_CHOICE_TYPE = "Picture Choice";
 const CHOICE_TYPES = ["Multiple Choice", PICTURE_CHOICE_TYPE, "Multiple Select"];
+const PARTIAL_MATCH_TYPES = new Set(["Multiple Select", "Matching Type", "Ordering / Sequencing", "Enumeration"]);
 const MAX_QUESTION_IMAGE_BYTES = 2 * 1024 * 1024;
 const AUTOSAVE_DELAY_MS = 1600;
 
@@ -76,7 +77,16 @@ function emptyQuestionDraft() {
     questionImageDataUrl: "",
     questionImageName: "",
     points: "1",
+    partialMatch: false,
   };
+}
+
+function getDefaultPartialMatch(type) {
+  return type === "Matching Type" || type === "Ordering / Sequencing" || type === "Enumeration";
+}
+
+function supportsPartialMatch(type) {
+  return PARTIAL_MATCH_TYPES.has(type);
 }
 
 function hasFilledValues(values) {
@@ -635,6 +645,7 @@ export default function ProfessorCreateExam() {
       type,
       points: questionDraft.points,
       correctAnswers: type === "Enumeration" || type === "Ordering / Sequencing" ? defaultListItems : [],
+      partialMatch: getDefaultPartialMatch(type),
     });
   }
 
@@ -690,6 +701,7 @@ export default function ProfessorCreateExam() {
       questionImage: type === PICTURE_CHOICE_TYPE ? questionDraft.questionImageDataUrl : "",
       questionImageName: type === PICTURE_CHOICE_TYPE ? questionDraft.questionImageName : "",
       manualGrading: !AUTO_GRADED_TYPES.has(type),
+      ...(supportsPartialMatch(type) ? { partialMatch: Boolean(questionDraft.partialMatch) } : {}),
     };
 
     return {
@@ -733,6 +745,9 @@ export default function ProfessorCreateExam() {
       questionImageDataUrl: question.config?.questionImage || "",
       questionImageName: question.config?.questionImageName || "",
       points: question.points,
+      partialMatch: supportsPartialMatch(question.type)
+        ? question.config?.partialMatch ?? getDefaultPartialMatch(question.type)
+        : false,
     });
   }
 
@@ -1085,6 +1100,12 @@ export default function ProfessorCreateExam() {
           </div>
 
           {renderQuestionTypeFields()}
+          {supportsPartialMatch(questionDraft.type) ? (
+            <label className="professor-partial-match-option">
+              <input checked={Boolean(questionDraft.partialMatch)} onChange={(event) => setQuestionValue("partialMatch", event.target.checked)} type="checkbox" />
+              <span>Allow Partial Match</span>
+            </label>
+          ) : null}
           {questionDraft.type && !isAutoGraded ? <p className="professor-manual-note">This question type is saved for manual grading.</p> : null}
         </section>
 

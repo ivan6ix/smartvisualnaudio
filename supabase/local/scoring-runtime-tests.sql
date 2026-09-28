@@ -46,6 +46,7 @@ declare
   v_exam uuid := '91000000-0000-0000-0000-000000000005';
   v_manual_exam uuid := '91000000-0000-0000-0000-000000000006';
   v_limit_exam uuid := '91000000-0000-0000-0000-000000000007';
+  v_pm_exam uuid := '91000000-0000-0000-0000-000000000008';
   v_attempt uuid;
   v_attempt_retry uuid;
   v_manual_attempt uuid;
@@ -84,10 +85,11 @@ begin
   values
     (v_exam, v_course, 'Scoring Auto', 'Scoring Auto', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 11, 60, v_prof, 'Draft', null),
     (v_manual_exam, v_course, 'Scoring Manual', 'Scoring Manual', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 2, 60, v_prof, 'Draft', null),
-    (v_limit_exam, v_course, 'Scoring Limit', 'Scoring Limit', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null)
+    (v_limit_exam, v_course, 'Scoring Limit', 'Scoring Limit', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"1 attempt","archived":false}'::jsonb, 1, 60, v_prof, 'Draft', null),
+    (v_pm_exam, v_course, 'Partial Match', 'Partial Match', 'Runtime', 'SCR101', v_prof, 60, 'Quiz', '1st', '{"startsAt":"2000-01-01T00:00:00Z","deadline":"2999-01-01T00:00:00Z","attemptLimit":"Unlimited Attempts","archived":false}'::jsonb, 12, 60, v_prof, 'Draft', null)
   on conflict (id) do update set status = 'Draft', exam_settings = excluded.exam_settings;
 
-  delete from public.exam_questions where exam_id in (v_exam, v_manual_exam, v_limit_exam);
+  delete from public.exam_questions where exam_id in (v_exam, v_manual_exam, v_limit_exam, v_pm_exam);
   insert into public.exam_questions (id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points)
   values
     ('91000000-0000-0000-0000-000000000101', v_exam, 'MC 1', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 5),
@@ -103,9 +105,19 @@ begin
     ('91000000-0000-0000-0000-000000000111', v_exam, 'Enum', 'Enumeration', '[]', '', '["A","B","C"]', '{}', false, 6),
     ('91000000-0000-0000-0000-000000000201', v_manual_exam, 'Essay', 'Essay', '[]', '', '[]', '{}', true, 10),
     ('91000000-0000-0000-0000-000000000202', v_manual_exam, 'Upload', 'File Upload', '[]', '', '[]', '{}', true, 5),
-    ('91000000-0000-0000-0000-000000000301', v_limit_exam, 'Limit MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1);
+    ('91000000-0000-0000-0000-000000000301', v_limit_exam, 'Limit MC', 'Multiple Choice', '["A","B"]', 'A', '["A"]', '{}', false, 1),
+    ('91000000-0000-0000-0000-000000000501', v_pm_exam, 'MS partial on', 'Multiple Select', '["A","B","C","D","X"]', 'A, B, C, D', '["A","B","C","D"]', '{"partialMatch":true}', false, 4),
+    ('91000000-0000-0000-0000-000000000502', v_pm_exam, 'MS partial off', 'Multiple Select', '["A","B","C","D","X"]', 'A, B, C, D', '["A","B","C","D"]', '{"partialMatch":false}', false, 4),
+    ('91000000-0000-0000-0000-000000000503', v_pm_exam, 'MS legacy', 'Multiple Select', '["A","B","C","D"]', 'A, B', '["A","B"]', '{}', false, 4),
+    ('91000000-0000-0000-0000-000000000504', v_pm_exam, 'MS decimal', 'Multiple Select', '["A","B","C","X"]', 'A, B, C', '["A","B","C"]', '{"partialMatch":true}', false, 3.75),
+    ('91000000-0000-0000-0000-000000000505', v_pm_exam, 'Match partial off', 'Matching Type', '[]', '', '[{"left":"l1","right":"r1"},{"left":"l2","right":"r2"},{"left":"l3","right":"r3"},{"left":"l4","right":"r4"}]', '{"partialMatch":false,"pairs":[{"left":"l1","right":"r1"},{"left":"l2","right":"r2"},{"left":"l3","right":"r3"},{"left":"l4","right":"r4"}]}', false, 8),
+    ('91000000-0000-0000-0000-000000000506', v_pm_exam, 'Match partial on', 'Matching Type', '[]', '', '[{"left":"l1","right":"r1"},{"left":"l2","right":"r2"},{"left":"l3","right":"r3"},{"left":"l4","right":"r4"}]', '{"partialMatch":true,"pairs":[{"left":"l1","right":"r1"},{"left":"l2","right":"r2"},{"left":"l3","right":"r3"},{"left":"l4","right":"r4"}]}', false, 8),
+    ('91000000-0000-0000-0000-000000000507', v_pm_exam, 'Order partial off', 'Ordering / Sequencing', '[]', '', '["A","B","C"]', '{"partialMatch":false}', false, 6),
+    ('91000000-0000-0000-0000-000000000508', v_pm_exam, 'Order partial on', 'Ordering / Sequencing', '[]', '', '["A","B","C"]', '{"partialMatch":true}', false, 6),
+    ('91000000-0000-0000-0000-000000000509', v_pm_exam, 'Enum partial off', 'Enumeration', '[]', '', '["A","B","C"]', '{"partialMatch":false}', false, 6),
+    ('91000000-0000-0000-0000-000000000510', v_pm_exam, 'Enum partial on', 'Enumeration', '[]', '', '["A","B","C"]', '{"partialMatch":true}', false, 6);
 
-  update public.exams set status = 'Published', approved_at = now() where id in (v_exam, v_manual_exam, v_limit_exam);
+  update public.exams set status = 'Published', approved_at = now() where id in (v_exam, v_manual_exam, v_limit_exam, v_pm_exam);
 
   select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000101';
   v_result := public.grade_exam_answer(q, '"A"'::jsonb);
@@ -148,6 +160,76 @@ begin
   select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000111';
   v_result := public.grade_exam_answer(q, '["A","A","B","X"]'::jsonb);
   insert into scoring_test_results values ('11 Enumeration partial scoring', case when (v_result->>'earnedPoints')::numeric = 4 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000501';
+  v_result := public.grade_exam_answer(q, '["A","B","C","D"]'::jsonb);
+  insert into scoring_test_results values ('37 MS partial on all correct', case when (v_result->>'earnedPoints')::numeric = 4 and (v_result->>'isCorrect')::boolean then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","B","C"]'::jsonb);
+  insert into scoring_test_results values ('38 MS partial on some correct', case when (v_result->>'earnedPoints')::numeric = 3 and not (v_result->>'isCorrect')::boolean then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","B","C","X"]'::jsonb);
+  insert into scoring_test_results values ('39 MS partial penalty incorrect', case when (v_result->>'earnedPoints')::numeric = 2 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","X"]'::jsonb);
+  insert into scoring_test_results values ('40 MS partial penalty zero', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["X"]'::jsonb);
+  insert into scoring_test_results values ('41 MS partial never negative', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","B","C","D","X"]'::jsonb);
+  insert into scoring_test_results values ('42 MS select all not exploit', case when (v_result->>'earnedPoints')::numeric = 3 and not (v_result->>'isCorrect')::boolean then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","A","B"]'::jsonb);
+  insert into scoring_test_results values ('43 MS duplicates no extra credit', case when (v_result->>'earnedPoints')::numeric = 2 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000504';
+  v_result := public.grade_exam_answer(q, '["A","B"]'::jsonb);
+  insert into scoring_test_results values ('44 MS partial decimal points', case when (v_result->>'earnedPoints')::numeric = 2.50 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000502';
+  v_result := public.grade_exam_answer(q, '["A","B","C","D"]'::jsonb);
+  insert into scoring_test_results values ('45 MS partial off exact full', case when (v_result->>'earnedPoints')::numeric = 4 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","B","C"]'::jsonb);
+  insert into scoring_test_results values ('46 MS partial off incomplete zero', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","B","C","D","X"]'::jsonb);
+  insert into scoring_test_results values ('47 MS partial off extra zero', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000503';
+  v_result := public.grade_exam_answer(q, '["A"]'::jsonb);
+  insert into scoring_test_results values ('48 MS legacy all-or-nothing', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000506';
+  v_result := public.grade_exam_answer(q, '{"l1":"r1","l2":"r2","l3":"r3","l4":"x"}'::jsonb);
+  insert into scoring_test_results values ('49 Matching partial on proportional', case when (v_result->>'earnedPoints')::numeric = 6 and not (v_result->>'isCorrect')::boolean then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '{"l1":"r1","l2":"r2","l3":"r3","l4":"r4"}'::jsonb);
+  insert into scoring_test_results values ('50 Matching partial on full', case when (v_result->>'earnedPoints')::numeric = 8 and (v_result->>'isCorrect')::boolean then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000505';
+  v_result := public.grade_exam_answer(q, '{"l1":"r1","l2":"r2","l3":"r3","l4":"x"}'::jsonb);
+  insert into scoring_test_results values ('51 Matching partial off zero', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '{"l1":"r1","l2":"r2","l3":"r3","l4":"r4"}'::jsonb);
+  insert into scoring_test_results values ('52 Matching partial off full', case when (v_result->>'earnedPoints')::numeric = 8 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000508';
+  v_result := public.grade_exam_answer(q, '["A","X","C"]'::jsonb);
+  insert into scoring_test_results values ('53 Ordering partial on proportional', case when (v_result->>'earnedPoints')::numeric = 4 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","B","C"]'::jsonb);
+  insert into scoring_test_results values ('54 Ordering partial on full', case when (v_result->>'earnedPoints')::numeric = 6 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000507';
+  v_result := public.grade_exam_answer(q, '["A","X","C"]'::jsonb);
+  insert into scoring_test_results values ('55 Ordering partial off zero', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","B","C"]'::jsonb);
+  insert into scoring_test_results values ('56 Ordering partial off full', case when (v_result->>'earnedPoints')::numeric = 6 then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000510';
+  v_result := public.grade_exam_answer(q, '["A","B"]'::jsonb);
+  insert into scoring_test_results values ('57 Enumeration partial on proportional', case when (v_result->>'earnedPoints')::numeric = 4 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["A","A","B"]'::jsonb);
+  insert into scoring_test_results values ('58 Enumeration duplicates no extra', case when (v_result->>'earnedPoints')::numeric = 4 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["C","B","A"]'::jsonb);
+  insert into scoring_test_results values ('59 Enumeration partial on full', case when (v_result->>'earnedPoints')::numeric = 6 and (v_result->>'isCorrect')::boolean then 'PASS' else 'FAIL' end, v_result::text);
+
+  select * into q from public.exam_questions where id = '91000000-0000-0000-0000-000000000509';
+  v_result := public.grade_exam_answer(q, '["A","B"]'::jsonb);
+  insert into scoring_test_results values ('60 Enumeration partial off incomplete zero', case when (v_result->>'earnedPoints')::numeric = 0 then 'PASS' else 'FAIL' end, v_result::text);
+  v_result := public.grade_exam_answer(q, '["C","B","A"]'::jsonb);
+  insert into scoring_test_results values ('61 Enumeration partial off complete full', case when (v_result->>'earnedPoints')::numeric = 6 then 'PASS' else 'FAIL' end, v_result::text);
 
   perform pg_temp.as_user(v_student);
   perform public.authorize_exam_start(v_manual_exam);

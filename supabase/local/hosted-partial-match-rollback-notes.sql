@@ -1,0 +1,7 @@
+-- Conservative rollback notes for Feature #2 Partial Match scoring.
+-- Do not destructively modify student attempt data as an automatic rollback.
+-- If rollback is required:
+-- 1. Restore the previous public.grade_exam_answer(public.exam_questions,jsonb) body from the Feature #1 scoring foundation migration.
+-- 2. Revoke and optionally drop public.exam_question_allows_partial_match(text,jsonb) only after verifying no deployed function references it.
+-- 3. Leave exam_questions.question_config->'partialMatch' values in place; they are inert under the Feature #1 grader.
+-- 4. Re-run hosted scoring/security postchecks after the function restore.
