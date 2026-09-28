@@ -8,6 +8,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useChartTheme } from "../../context/ThemeContext";
 import { professorAlerts, professorCourses, professorExams } from "../../data/professorData";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
+import ProfessorOngoingExams from "./ProfessorOngoingExams";
 
 const violationLabels = {
   MULTIPLE_FACE: "Multiple face detected",
@@ -223,6 +224,7 @@ export default function ProfessorDashboard() {
       <div className="professor-stats-grid">
         {statCards.map(([label, value, icon]) => <StatCard key={label} label={label} value={value} icon={icon} />)}
       </div>
+      <ProfessorOngoingExams />
       <div className="professor-dashboard-grid">
         <Card>
           <h2>Violation Analytics</h2>

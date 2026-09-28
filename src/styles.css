@@ -2895,6 +2895,182 @@ html[data-theme="light"] .profile-remove-actions button.danger {
 .professor-dashboard-grid > .card:last-child {
   min-height: 430px;
 }
+.professor-ongoing-section {
+  margin: 18px 0 24px;
+}
+.professor-ongoing-card {
+  display: grid;
+  gap: 18px;
+}
+.professor-ongoing-header,
+.professor-ongoing-exam > header,
+.professor-ongoing-live,
+.professor-ongoing-mini {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+}
+.professor-ongoing-header {
+  justify-content: space-between;
+}
+.professor-ongoing-header h2,
+.professor-ongoing-group h3,
+.professor-ongoing-exam strong {
+  color: var(--app-text);
+  margin: 0;
+}
+.professor-ongoing-header p,
+.professor-ongoing-exam span,
+.professor-ongoing-exam small,
+.professor-ongoing-note {
+  color: var(--app-text-muted);
+}
+.professor-ongoing-live span,
+.professor-ongoing-live button,
+.professor-ongoing-exam > header > button {
+  align-items: center;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  display: inline-flex;
+  gap: 6px;
+  min-height: 36px;
+  padding: 8px 10px;
+}
+.professor-ongoing-live button,
+.professor-ongoing-exam > header > button {
+  background: var(--app-surface);
+  color: var(--app-text);
+}
+.professor-ongoing-live .live { color: #10b981; }
+.professor-ongoing-live .reconnecting { color: #f59e0b; }
+.professor-ongoing-summary {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.professor-ongoing-summary div,
+.professor-ongoing-mini span {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  padding: 10px;
+}
+.professor-ongoing-summary strong {
+  color: var(--app-text);
+  display: block;
+  font-size: 1.25rem;
+}
+.professor-ongoing-summary span {
+  color: var(--app-text-muted);
+  font-size: .82rem;
+}
+.professor-ongoing-group {
+  display: grid;
+  gap: 12px;
+}
+.professor-ongoing-exam {
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.professor-ongoing-exam > header {
+  background: var(--app-surface);
+  justify-content: space-between;
+  padding: 14px;
+}
+.professor-ongoing-exam > header > div:nth-child(2) {
+  display: grid;
+  flex: 1;
+  min-width: 180px;
+}
+.professor-ongoing-mini {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.professor-ongoing-mini span {
+  font-size: .78rem;
+  padding: 6px 8px;
+}
+.professor-ongoing-expanded {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+.professor-ongoing-table-wrap {
+  overflow-x: auto;
+}
+.professor-ongoing-table {
+  min-width: 860px;
+}
+.professor-ongoing-table button:disabled {
+  cursor: default;
+  opacity: .6;
+}
+.professor-ongoing-table tr.violation-highlight td {
+  animation: professor-violation-pulse 2400ms ease-out;
+}
+.professor-ongoing-subrow td {
+  background: color-mix(in srgb, var(--app-surface) 88%, transparent);
+}
+.professor-ongoing-subrow div {
+  display: grid;
+  gap: 8px;
+}
+.professor-ongoing-subrow span {
+  border-left: 3px solid #06b6d4;
+  color: var(--app-text);
+  padding-left: 10px;
+}
+.professor-ongoing-backdrop {
+  align-items: center;
+  background: rgba(15, 23, 42, .64);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: 20px;
+  position: fixed;
+  z-index: 80;
+}
+.professor-ongoing-confirm {
+  background: var(--modal-background);
+  border: 1px solid var(--app-border);
+  border-radius: 12px;
+  box-shadow: var(--app-shadow);
+  color: var(--app-text);
+  max-width: 520px;
+  padding: 22px;
+  position: relative;
+}
+.professor-ongoing-confirm > button {
+  background: transparent;
+  border: 0;
+  color: var(--app-text-muted);
+  position: absolute;
+  right: 12px;
+  top: 12px;
+}
+.professor-ongoing-confirm div {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+@keyframes professor-violation-pulse {
+  0% { background: rgba(245, 158, 11, .3); }
+  100% { background: transparent; }
+}
+@media (max-width: 900px) {
+  .professor-ongoing-header,
+  .professor-ongoing-exam > header {
+    align-items: stretch;
+    display: grid;
+  }
+  .professor-ongoing-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .professor-ongoing-mini {
+    justify-content: flex-start;
+  }
+}
 .professor-exam-scroll {
   display: grid;
   align-content: start;
