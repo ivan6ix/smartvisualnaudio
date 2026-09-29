@@ -155,22 +155,17 @@ export default function Courses() {
 
     if (hasSupabaseConfig) {
       const professorId = isUuid(form.professorId) ? form.professorId : null;
-      const { data, error } = await supabase
-        .from("courses")
-        .insert({
-          course_name: form.courseName,
-          course_code: form.courseCode,
-          program_id: isUuid(form.programId) ? form.programId : null,
-          year_level: form.yearLevel || null,
-          section: form.section,
-          semester: form.semester || null,
-          academic_year: form.academicYear.trim() || null,
-          professor_id: professorId,
-          joining_code: form.joiningCode.toUpperCase(),
-          archived: false,
-        })
-        .select("id, course_name, course_code, program_id, year_level, section, semester, academic_year, joining_code, professor_id, archived, programs(program_code, program_name, is_active)")
-        .single();
+      const { data, error } = await supabase.rpc("admin_create_course", {
+        p_academic_year: form.academicYear.trim() || null,
+        p_course_code: form.courseCode,
+        p_course_name: form.courseName,
+        p_joining_code: form.joiningCode.toUpperCase(),
+        p_professor_id: professorId,
+        p_program_id: isUuid(form.programId) ? form.programId : null,
+        p_section: form.section,
+        p_semester: form.semester || null,
+        p_year_level: form.yearLevel || null,
+      });
 
       if (error) {
         toast.error(error.message);
@@ -200,10 +195,11 @@ export default function Courses() {
       toast.error("Program code already exists.");
       return;
     }
-    const payload = { program_code: programCode, program_name: programName };
-    const { error } = editingProgramId
-      ? await supabase.from("programs").update(payload).eq("id", editingProgramId)
-      : await supabase.from("programs").insert(payload);
+    const { error } = await supabase.rpc("admin_save_program", {
+      p_program_code: programCode,
+      p_program_id: editingProgramId || null,
+      p_program_name: programName,
+    });
     if (error) {
       toast.error(error.message);
       return;
@@ -215,7 +211,7 @@ export default function Courses() {
   }
 
   async function setProgramActive(program, isActive) {
-    const { error } = await supabase.from("programs").update({ is_active: isActive }).eq("id", program.id);
+    const { error } = await supabase.rpc("admin_set_program_active", { p_is_active: isActive, p_program_id: program.id });
     if (error) {
       toast.error(error.message);
       return;
@@ -226,7 +222,7 @@ export default function Courses() {
 
   async function setArchived(id, archivedState) {
     if (hasSupabaseConfig) {
-      const { error } = await supabase.from("courses").update({ archived: archivedState }).eq("id", id);
+      const { error } = await supabase.rpc("admin_set_course_archived", { p_archived: archivedState, p_course_id: id });
       if (error) {
         toast.error(error.message);
         return;

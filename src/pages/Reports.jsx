@@ -35,7 +35,6 @@ const emptyReportData = {
   exams: [],
   violations: [],
   attempts: [],
-  logs: [],
 };
 
 async function countRows(query) {
@@ -97,13 +96,12 @@ export default function Reports() {
 
       setStats({ students, professors, deans, courses, exams, violations });
 
-      const [profilesResponse, coursesResponse, examsResponse, violationsResponse, attemptsResponse, logsResponse] = await Promise.all([
+      const [profilesResponse, coursesResponse, examsResponse, violationsResponse, attemptsResponse] = await Promise.all([
         supabase.from("profiles").select("id, role, full_name, email, employee_number, student_number, status, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("courses").select("id, course_name, course_code, program_id, year_level, section, joining_code, professor_id, archived, created_at, programs(program_code, program_name, is_active)").order("created_at", { ascending: false }).limit(1000),
         supabase.from("exams").select("id, title, exam_title, course_id, course, duration, time_limit, status, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("violations").select("id, student_id, exam_id, violation_type, description, severity, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("exam_attempts").select("id, exam_id, student_id, score, earned_points, max_points, submitted_at").order("submitted_at", { ascending: false }).limit(1000),
-        supabase.from("logs").select("id, action, description, created_at").order("created_at", { ascending: false }).limit(1000),
       ]);
 
       setReportData({
@@ -112,7 +110,6 @@ export default function Reports() {
         exams: getRowsFromResponse(examsResponse),
         violations: getRowsFromResponse(violationsResponse),
         attempts: getRowsFromResponse(attemptsResponse),
-        logs: getRowsFromResponse(logsResponse),
       });
     }
 
@@ -125,7 +122,6 @@ export default function Reports() {
       .on("postgres_changes", { event: "*", schema: "public", table: "exams" }, () => void loadReports())
       .on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => void loadReports())
       .on("postgres_changes", { event: "*", schema: "public", table: "exam_attempts" }, () => void loadReports())
-      .on("postgres_changes", { event: "*", schema: "public", table: "logs" }, () => void loadReports())
       .subscribe();
 
     return () => {
@@ -213,13 +209,6 @@ export default function Reports() {
       };
     });
 
-    const logRows = reportData.logs.map((log) => ({
-      id: log.id,
-      action: log.action || "-",
-      description: log.description || "-",
-      createdAt: formatDate(log.created_at),
-    }));
-
     return {
       Overview: violationRows,
       "All Users": profileRows,
@@ -231,7 +220,6 @@ export default function Reports() {
       Deans: profileRows.filter((profile) => profile.role === "Dean"),
       "Exam Attempts": attemptRows,
       Grades: attemptRows,
-      "System Logs": logRows,
     };
   }, [reportData, violationFilter]);
 
@@ -315,11 +303,6 @@ export default function Reports() {
       { key: "exam", label: "Exam" },
       { key: "score", label: "Grade" },
       { key: "submittedAt", label: "Submitted" },
-    ],
-    "System Logs": [
-      { key: "action", label: "Action" },
-      { key: "description", label: "Description" },
-      { key: "createdAt", label: "Date" },
     ],
   };
 

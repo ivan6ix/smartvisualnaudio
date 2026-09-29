@@ -23,6 +23,7 @@ export default function TopNav() {
     ["Courses", "/courses"],
     ["Accounts", "/accounts"],
     ["Reports", "/reports"],
+    ["Logs", "/admin/logs"],
   ];
 
   function openMessages(conversationId = "") {

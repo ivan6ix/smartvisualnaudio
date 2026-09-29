@@ -6,6 +6,7 @@ import { PageSkeleton } from "./components/ui";
 
 const pageImports = {
   Accounts: () => import("./pages/Accounts"),
+  AdminLogs: () => import("./pages/AdminLogs"),
   ClusterDashboard: () => import("./pages/cluster/ClusterDashboard"),
   ClusterExamList: () => import("./pages/cluster/ClusterExamList"),
   ClusterExamReview: () => import("./pages/cluster/ClusterExamReview"),
@@ -50,6 +51,7 @@ const pageImports = {
 };
 
 const Accounts = lazy(pageImports.Accounts);
+const AdminLogs = lazy(pageImports.AdminLogs);
 const ClusterDashboard = lazy(pageImports.ClusterDashboard);
 const ClusterExamList = lazy(pageImports.ClusterExamList);
 const ClusterExamReview = lazy(pageImports.ClusterExamReview);
@@ -103,6 +105,7 @@ function getPageImportForPath(pathname) {
     "/": pageImports.Dashboard,
     "/landing": pageImports.LandingPage,
     "/accounts": pageImports.Accounts,
+    "/admin/logs": pageImports.AdminLogs,
     "/courses": pageImports.Courses,
     "/messages": pageImports.Messages,
     "/notifications": pageImports.Notifications,
@@ -224,6 +227,7 @@ export default function App() {
           <Route path="/cluster-professors" element={<People type="Cluster Professor" />} />
           <Route path="/courses" element={<Courses />} />
           <Route path="/accounts" element={<Accounts />} />
+          <Route path="/admin/logs" element={<AdminLogs />} />
           <Route path="/messages" element={<Messages />} />
           <Route path="/notifications" element={<Notifications />} />
           <Route path="/profile" element={<ProfileSettings />} />

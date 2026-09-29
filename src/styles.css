@@ -11963,6 +11963,69 @@ html[data-theme="light"] .legal-back-link {
 
 .settings-sections { display:grid; gap:20px; margin:20px 0; }
 
+.admin-log-filters {
+  display:grid;
+  grid-template-columns:minmax(240px, 1.4fr) repeat(7, minmax(140px, 1fr));
+  gap:12px;
+  align-items:end;
+}
+.admin-log-filters .search-box { min-height:48px; }
+.admin-logs-table-panel .reports-panel-header h2 {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.audit-log-modal {
+  width:min(760px, calc(100vw - 32px));
+  max-height:calc(100dvh - 32px);
+  overflow:auto;
+}
+.audit-log-details {
+  display:grid;
+  grid-template-columns:repeat(2, minmax(0, 1fr));
+  gap:12px;
+  margin:0 0 18px;
+}
+.audit-log-details div {
+  min-width:0;
+  padding:12px;
+  border:1px solid var(--app-line);
+  border-radius:8px;
+  background:var(--app-input);
+}
+.audit-log-details dt {
+  color:var(--app-text-muted);
+  font-size:0.78rem;
+  font-weight:800;
+  text-transform:uppercase;
+}
+.audit-log-details dd {
+  margin:4px 0 0;
+  overflow-wrap:anywhere;
+  color:var(--app-text);
+}
+.audit-log-metadata {
+  max-height:240px;
+  overflow:auto;
+  margin:0;
+  padding:14px;
+  border:1px solid var(--app-line);
+  border-radius:8px;
+  background:var(--app-bg);
+  color:var(--app-text);
+  font-size:0.86rem;
+}
+
+@media screen and (max-width:1300px) {
+  .admin-log-filters { grid-template-columns:repeat(4, minmax(0, 1fr)); }
+  .admin-log-filters .search-box { grid-column:1 / -1; }
+}
+
+@media screen and (max-width:720px) {
+  .admin-log-filters,
+  .audit-log-details { grid-template-columns:1fr; }
+}
+
 .professor-shell .professor-exams-section .professor-exam-actions-popover,
 html[data-theme] .professor-shell .professor-exams-section .professor-exam-actions-popover {
   background: var(--app-surface);

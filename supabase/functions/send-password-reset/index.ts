@@ -74,6 +74,26 @@ Deno.serve(async (req) => {
       return json({ error: message || "Brevo email sending failed." }, 500);
     }
 
+    const { data: requester } = await adminClient
+      .from("profiles")
+      .select("id, role")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+
+    if (requester?.id) {
+      await adminClient.from("logs").insert({
+        user_id: requester.id,
+        actor_role: requester.role,
+        event_type: "account.password_reset_requested",
+        action: "Password Reset Request",
+        description: "A user requested a password reset.",
+        entity_type: "account",
+        entity_id: requester.id,
+        target_user_id: requester.id,
+        metadata: {},
+      });
+    }
+
     return json({ ok: true });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Unexpected server error." }, 500);

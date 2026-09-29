@@ -12,6 +12,31 @@ function json(body: Record<string, unknown>, status = 200) {
   });
 }
 
+async function writeReviewAudit(
+  adminClient: ReturnType<typeof createClient>,
+  event: {
+    userId: string;
+    actorRole: string;
+    eventType: string;
+    action: string;
+    description: string;
+    examId: string;
+    targetUserId?: string | null;
+  },
+) {
+  await adminClient.from("logs").insert({
+    user_id: event.userId,
+    actor_role: event.actorRole,
+    event_type: event.eventType,
+    action: event.action,
+    description: event.description,
+    entity_type: "exam",
+    entity_id: event.examId,
+    target_user_id: event.targetUserId || null,
+    metadata: {},
+  });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -110,6 +135,16 @@ Deno.serve(async (req) => {
         type: "Exam Review",
       });
     }
+
+    await writeReviewAudit(adminClient, {
+      userId: caller.id,
+      actorRole: caller.role,
+      eventType: action === "approve" ? "exam.approved" : "exam.rejected",
+      action: action === "approve" ? "Exam Approved" : "Exam Rejected",
+      description: action === "approve" ? "A cluster professor approved an exam." : "A cluster professor rejected an exam.",
+      examId,
+      targetUserId: professorId,
+    });
 
     return json({ exam: updatedExam, review });
   } catch (error) {

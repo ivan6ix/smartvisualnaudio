@@ -8,6 +8,33 @@ const corsHeaders = {
 const allowedRoles = new Set(["Professor", "Dean", "Cluster Professor"]);
 const adminRoles = new Set(["Admin", "Dean"]);
 
+async function writeAudit(
+  adminClient: ReturnType<typeof createClient>,
+  event: {
+    userId: string;
+    actorRole: string;
+    eventType: string;
+    action: string;
+    description: string;
+    entityType: string;
+    entityId?: string;
+    targetUserId?: string;
+    metadata?: Record<string, unknown>;
+  },
+) {
+  await adminClient.from("logs").insert({
+    user_id: event.userId,
+    actor_role: event.actorRole,
+    event_type: event.eventType,
+    action: event.action,
+    description: event.description,
+    entity_type: event.entityType,
+    entity_id: event.entityId || null,
+    target_user_id: event.targetUserId || null,
+    metadata: event.metadata || {},
+  });
+}
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -104,6 +131,18 @@ Deno.serve(async (req) => {
         });
       }
 
+      await writeAudit(adminClient, {
+        userId: authData.user.id,
+        actorRole: caller.role,
+        eventType: "account.created",
+        action: "Account Created",
+        description: "An admin created an account.",
+        entityType: "account",
+        entityId: data.user.id,
+        targetUserId: data.user.id,
+        metadata: { role, status: "Active" },
+      });
+
       return json({ profile });
     }
 
@@ -127,6 +166,17 @@ Deno.serve(async (req) => {
         .single();
 
       if (profileError) return json({ error: profileError.message }, 400);
+      await writeAudit(adminClient, {
+        userId: authData.user.id,
+        actorRole: caller.role,
+        eventType: status === "Active" ? "account.activated" : "account.deactivated",
+        action: status === "Active" ? "Account Activated" : "Account Deactivated",
+        description: status === "Active" ? "An admin activated an account." : "An admin deactivated an account.",
+        entityType: "account",
+        entityId: userId,
+        targetUserId: userId,
+        metadata: { status },
+      });
       return json({ profile });
     }
 
@@ -138,6 +188,16 @@ Deno.serve(async (req) => {
 
       const { error } = await adminClient.auth.admin.updateUserById(userId, { password });
       if (error) return json({ error: error.message }, 400);
+      await writeAudit(adminClient, {
+        userId: authData.user.id,
+        actorRole: caller.role,
+        eventType: "account.password_reset_admin",
+        action: "Password Reset By Admin",
+        description: "An admin reset an account password.",
+        entityType: "account",
+        entityId: userId,
+        targetUserId: userId,
+      });
       return json({ ok: true });
     }
 
