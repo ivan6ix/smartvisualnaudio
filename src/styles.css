@@ -11281,6 +11281,42 @@ html[data-theme] .badge-blue {
   border-color: var(--app-line) !important;
 }
 
+html[data-theme="dark"] :is(
+  .professor-draft-row.list-exam-card,
+  .professor-monitoring-grid > article,
+  .student-dashboard-overview .student-course-card,
+  .student-exam-list article
+) {
+  border-color: color-mix(in srgb, var(--app-text) 30%, var(--app-line)) !important;
+}
+
+html[data-theme="dark"] :is(
+  .professor-draft-row.list-exam-card:hover,
+  .professor-monitoring-grid > article:hover,
+  .student-dashboard-overview .student-course-card:hover,
+  .student-exam-list article:hover
+) {
+  border-color: color-mix(in srgb, var(--app-text) 46%, var(--accent)) !important;
+}
+
+html[data-theme="light"] :is(
+  .professor-draft-row.list-exam-card,
+  .professor-monitoring-grid > article,
+  .student-dashboard-overview .student-course-card,
+  .student-exam-list article
+) {
+  border-color: color-mix(in srgb, var(--app-text) 18%, var(--app-line)) !important;
+}
+
+html[data-theme="light"] :is(
+  .professor-draft-row.list-exam-card:hover,
+  .professor-monitoring-grid > article:hover,
+  .student-dashboard-overview .student-course-card:hover,
+  .student-exam-list article:hover
+) {
+  border-color: color-mix(in srgb, var(--primary) 48%, var(--app-line)) !important;
+}
+
 @media (max-width: 900px) {
   .professor-exams-section .professor-exams-table-card,
   .professor-shell .professor-exams-section .professor-exams-table-card {
