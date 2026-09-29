@@ -6635,35 +6635,45 @@ html[data-theme="light"] .professor-course-list-card:hover {
   overflow-x: visible;
 }
 .student-available-exams-table {
+  box-sizing: border-box;
+  max-width: 100%;
   min-width: 0;
   table-layout: fixed;
   width: 100%;
 }
 .student-available-exams-table th,
 .student-available-exams-table td {
+  letter-spacing: 0;
   overflow-wrap: anywhere;
-  padding-inline: 8px;
+  padding-inline: 6px;
+  white-space: normal;
 }
 .student-available-exams-table th:nth-child(1),
 .student-available-exams-table td:nth-child(1) {
-  width: 30%;
+  width: 32%;
 }
 .student-available-exams-table th:nth-child(2),
 .student-available-exams-table td:nth-child(2) {
-  width: 28%;
+  width: 42%;
 }
 .student-available-exams-table th:nth-child(3),
 .student-available-exams-table td:nth-child(3) {
-  width: 14%;
-}
-.student-available-exams-table th:nth-child(4),
-.student-available-exams-table td:nth-child(4) {
-  width: 14%;
-}
-.student-available-exams-table th:nth-child(5),
-.student-available-exams-table td:nth-child(5) {
-  width: 14%;
+  width: 26%;
   text-align: right;
+}
+.student-available-exams-table td:nth-child(2) {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+  align-items: center;
+}
+.student-available-exams-table td:nth-child(2) span,
+.student-available-exams-table td:nth-child(2) small {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.student-available-exams-table td:nth-child(2) small {
+  color: var(--app-text-muted);
 }
 .student-available-exams-table .badge,
 .student-available-exams-table .professor-score-link-button {
@@ -6671,7 +6681,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .student-available-exams-table .professor-score-link-button {
   min-width: 0;
-  padding-inline: 8px;
+  padding-inline: 7px;
 }
 .student-course-access-state {
   width: min(520px, 100%);
@@ -6800,12 +6810,20 @@ html[data-theme="light"] .professor-course-list-card:hover {
     background: var(--app-surface);
     padding: 10px;
   }
+  .student-available-exams-table th:nth-child(n),
+  .student-available-exams-table td:nth-child(n) {
+    width: 100%;
+  }
   .student-available-exams-table td {
     border-bottom: 0;
     display: grid;
     gap: 6px;
     grid-template-columns: 86px minmax(0, 1fr);
     padding: 5px 0;
+  }
+  .student-available-exams-table td:nth-child(2) {
+    display: grid;
+    align-items: start;
   }
   .student-available-exams-table td::before {
     color: var(--app-text-muted);
@@ -6816,9 +6834,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   }
   .student-available-exams-table td:nth-child(1)::before { content: "Exam"; }
   .student-available-exams-table td:nth-child(2)::before { content: "Course"; }
-  .student-available-exams-table td:nth-child(3)::before { content: "Duration"; }
-  .student-available-exams-table td:nth-child(4)::before { content: "Status"; }
-  .student-available-exams-table td:nth-child(5)::before { content: "Action"; }
+  .student-available-exams-table td:nth-child(3)::before { content: "Action"; }
   .student-available-exams-table td:last-child {
     padding-top: 10px;
     text-align: left;

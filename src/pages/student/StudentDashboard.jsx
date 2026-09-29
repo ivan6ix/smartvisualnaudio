@@ -289,14 +289,16 @@ export default function StudentDashboard() {
           {!examsLoading && examsView.view === "table" ? (
             <ResponsiveTable density={examsView.tableDensity} className="student-available-exams-table-wrap">
               <table className="professor-score-table compact student-available-exams-table">
-                <thead><tr><th>Exam / Task</th><th>Course</th><th>Duration</th><th>Status</th><th>Action</th></tr></thead>
+                <thead><tr><th>Exam / Task</th><th>Course / Availability</th><th>Action</th></tr></thead>
                 <tbody>
                   {examPageData.rows.map((exam) => (
                     <tr key={exam.id}>
                       <td><strong>{exam.title}</strong></td>
-                      <td>{exam.course}{exam.section ? ` - ${exam.section}` : ""}</td>
-                      <td>{formatDurationLabel(exam.duration)}</td>
-                      <td><Badge tone={examTone(exam.status)}>{exam.status}</Badge></td>
+                      <td>
+                        <span>{exam.course}{exam.section ? ` - ${exam.section}` : ""}</span>
+                        <small>{formatDurationLabel(exam.duration)}</small>
+                        <Badge tone={examTone(exam.status)}>{exam.status}</Badge>
+                      </td>
                       <td><button className="professor-score-link-button" onClick={() => navigate(`/student/exams/${exam.id}`)} type="button">Start</button></td>
                     </tr>
                   ))}
