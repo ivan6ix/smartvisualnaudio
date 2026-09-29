@@ -2,11 +2,14 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FiArchive, FiEdit2, FiPlus, FiRefreshCw } from "react-icons/fi";
+import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
 import { Button, Card, Field, PageHeader, SearchBox, SelectField, Table, Badge } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
+import useListViewPreference from "../hooks/useListViewPreference";
 import { courses as seedCourses, professors } from "../data/mockData";
 import useLocalStorageState from "../hooks/useLocalStorageState";
 import { formatCourseTerm, formatProgramOption, SEMESTER_OPTIONS, YEAR_LEVEL_OPTIONS } from "../lib/coursePrograms";
+import { getListPageSlice } from "../lib/listView";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 function code() {
@@ -26,6 +29,8 @@ export default function Courses() {
   const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [page, setPage] = useState(1);
+  const listView = useListViewPreference({ role: isReadOnly ? "dean" : "admin", page: "courses", defaultView: "table" });
   const [programForm, setProgramForm] = useState({ programCode: "", programName: "" });
   const [editingProgramId, setEditingProgramId] = useState("");
   const [form, setForm] = useState({ courseName: "", courseCode: "", programId: "", yearLevel: "", section: "", semester: "", academicYear: "", professorId: hasSupabaseConfig ? "" : professors[0].id, joiningCode: code() });
@@ -242,6 +247,7 @@ export default function Courses() {
     ...(isReadOnly ? [{ key: "status", label: "Status", width: "12%", render: (row) => <Badge tone={row.archived ? "neutral" : "success"}>{row.archived ? "Archived" : "Active"}</Badge> }] : []),
     ...(!isReadOnly ? [{ key: "joiningCode", label: "Joining Code", width: "11%", render: (row) => <Badge>{row.joiningCode}</Badge> }] : []),
   ];
+  const pageData = getListPageSlice(visible, page, listView.pageSize);
 
   const programColumns = [
     { key: "program_code", label: "Program Code", width: "20%", render: (row) => <strong>{row.program_code}</strong> },
@@ -318,9 +324,30 @@ export default function Courses() {
       ) : (
         <SearchBox value={search} onChange={setSearch} placeholder="Search course, professor, section, or joining code" />
       )}
+      <ListViewToolbar
+        controls={{
+          cardDensity: listView.cardDensity,
+          onCardDensity: listView.setCardDensity,
+          onTableDensity: listView.setTableDensity,
+          onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, visible.length)),
+          tableDensity: listView.tableDensity,
+          view: listView.view,
+        }}
+      />
       <Card className="admin-panel admin-activity-panel">
-        <h2>Course Table</h2>
-        <Table className="courses-table-wrap" columns={columns} rows={visible} renderActions={!isReadOnly ? Object.assign((row) => <Button variant="light" onClick={() => setArchived(row.id, true)}><FiArchive /> Archive</Button>, { width: "17%" }) : null} />
+        <h2>Course Records</h2>
+        {listView.view === "cards" ? (
+          <RecordCardList
+            columns={columns}
+            density={listView.cardDensity}
+            rows={pageData.rows}
+            titleKey="courseName"
+            renderActions={!isReadOnly ? (row) => <Button variant="light" onClick={() => setArchived(row.id, true)}><FiArchive /> Archive</Button> : null}
+          />
+        ) : (
+          <Table className={`courses-table-wrap list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={!isReadOnly ? Object.assign((row) => <Button variant="light" onClick={() => setArchived(row.id, true)}><FiArchive /> Archive</Button>, { width: "17%" }) : null} />
+        )}
+        <ListPagination count={visible.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
       </Card>
       {showArchived && !isReadOnly ? (
         <div className="modal-backdrop" onClick={() => setShowArchived(false)}>

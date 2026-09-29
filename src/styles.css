@@ -2895,6 +2895,191 @@ html[data-theme="light"] .profile-remove-actions button.danger {
 .professor-dashboard-grid > .card:last-child {
   min-height: 430px;
 }
+.list-view-toolbar {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: flex-end;
+  margin: 10px 0 14px;
+}
+.list-view-toolbar > :not(.list-view-controls) {
+  flex: 1 1 260px;
+}
+.list-view-controls,
+.list-view-segment {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.list-view-controls {
+  justify-content: flex-end;
+}
+.list-view-segment span {
+  color: var(--app-text-muted);
+  font-size: .82rem;
+  font-weight: 700;
+}
+.list-view-segment button,
+.list-view-pagination button,
+.list-kebab-button {
+  align-items: center;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  color: var(--app-text);
+  display: inline-flex;
+  gap: 6px;
+  min-height: 34px;
+  padding: 7px 10px;
+}
+.list-view-segment button.active,
+.list-view-pagination button.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+.list-card-grid {
+  display: grid;
+  gap: var(--list-card-gap, 12px);
+  grid-template-columns: repeat(auto-fit, minmax(var(--list-card-min, 210px), 1fr));
+}
+.list-card-grid-comfortable {
+  --list-card-gap: 16px;
+  --list-card-min: min(100%, 300px);
+}
+.list-card-grid-compact {
+  --list-card-gap: 10px;
+  --list-card-min: min(100%, 190px);
+}
+.list-card-grid-dense {
+  --list-card-gap: 8px;
+  --list-card-min: min(100%, 145px);
+}
+.list-card-grid .professor-course-list-card,
+.list-card-grid .student-course-card,
+.list-card-grid .student-grade-course,
+.list-card-grid .professor-draft-row,
+.list-record-card {
+  min-width: 0;
+}
+.list-record-card {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+}
+.list-record-card header {
+  align-items: flex-start;
+  display: flex;
+  gap: 8px;
+  justify-content: space-between;
+}
+.list-record-card strong,
+.list-record-card dd {
+  color: var(--app-text);
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.list-record-card dl {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+}
+.list-record-card dt {
+  color: var(--app-text-muted);
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.list-record-card dd {
+  margin: 0;
+}
+.list-record-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+.list-card-grid-dense .list-record-card,
+.list-card-grid-dense .professor-draft-row,
+.list-card-grid-dense .student-grade-course {
+  gap: 7px;
+  padding: 9px;
+}
+.list-card-grid-comfortable .list-record-card,
+.list-card-grid-comfortable .professor-draft-row,
+.list-card-grid-comfortable .student-grade-course {
+  padding: 16px;
+}
+.list-table-wrap,
+.list-table-wrap.table-wrap,
+.table-wrap.list-table-comfortable,
+.table-wrap.list-table-compact,
+.table-wrap.list-table-dense {
+  overflow-x: auto;
+}
+.list-table-comfortable table td,
+.list-table-comfortable table th,
+table.list-table-comfortable td,
+table.list-table-comfortable th {
+  padding-block: 16px;
+}
+.list-table-compact table td,
+.list-table-compact table th,
+table.list-table-compact td,
+table.list-table-compact th {
+  padding-block: 11px;
+}
+.list-table-dense table td,
+.list-table-dense table th,
+table.list-table-dense td,
+table.list-table-dense th {
+  padding-block: 7px;
+}
+.list-table-dense .actions,
+.list-table-dense .professor-exam-actions,
+table.list-table-dense .professor-exam-actions {
+  gap: 4px;
+}
+.list-view-pagination {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+.list-view-pagination span {
+  color: var(--app-text-muted);
+  font-size: .85rem;
+}
+.list-view-detail-panel {
+  margin-top: 12px;
+}
+@media (min-width: 1200px) {
+  .list-card-grid-comfortable { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .list-card-grid-compact { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .list-card-grid-dense { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+}
+@media (min-width: 700px) and (max-width: 1199px) {
+  .list-card-grid-comfortable { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .list-card-grid-compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .list-card-grid-dense { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
+@media (max-width: 699px) {
+  .list-card-grid-comfortable { grid-template-columns: 1fr; }
+  .list-card-grid-compact { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+  .list-card-grid-dense { grid-template-columns: repeat(auto-fit, minmax(min(100%, 115px), 1fr)); }
+  .list-view-toolbar,
+  .list-view-controls {
+    justify-content: flex-start;
+  }
+}
 .professor-ongoing-section {
   margin: 18px 0 24px;
 }

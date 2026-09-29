@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
+import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
 import { Badge, Button, Card, PageHeader, SearchBox, SelectField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
+import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
+import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const PAGE_SIZE = 20;
@@ -182,6 +185,7 @@ export default function ProfessorScores() {
   const [answerFilter, setAnswerFilter] = useState("All");
   const [page, setPage] = useState(1);
   const [gradeInputs, setGradeInputs] = useState({});
+  const listView = useListViewPreference({ role: "professor", page: "scores", defaultView: "table" });
 
   const loadData = useCallback(async () => {
     if (!hasSupabaseConfig || !user?.id) return;
@@ -610,7 +614,7 @@ export default function ProfessorScores() {
     .filter((exam) => sectionFilter === "All Sections" || exam.course?.section === sectionFilter)
     .filter((exam) => typeFilter === "All Types" || exam.exam_type === typeFilter)
     .filter((exam) => !search.trim() || normalizeText(`${exam.exam_title} ${exam.title} ${exam.exam_type} ${exam.course?.courseCode} ${exam.course?.section}`).includes(normalizeText(search)));
-  const examPage = paginate(filteredExams, page);
+  const examPage = getListPageSlice(filteredExams, page, listView.pageSize);
   const courseOptions = ["All Courses", ...new Set(data.courses.map((course) => course.courseCode).filter(Boolean))];
   const sectionOptions = ["All Sections", ...new Set(data.courses.filter((course) => courseFilter === "All Courses" || course.courseCode === courseFilter).map((course) => course.section).filter(Boolean))];
   const typeOptions = ["All Types", ...new Set(data.exams.map((exam) => exam.exam_type || "Exam").filter(Boolean))];
@@ -631,17 +635,45 @@ export default function ProfessorScores() {
             {typeOptions.map((item) => <option key={item}>{item}</option>)}
           </SelectField>
         </div>
-        <ExamTable rows={examPage.rows} />
-        <Pagination count={filteredExams.length} page={examPage.page} onPage={setPage} />
+        <ListViewToolbar
+          controls={{
+            cardDensity: listView.cardDensity,
+            onCardDensity: listView.setCardDensity,
+            onTableDensity: listView.setTableDensity,
+            onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, examPage.page, filteredExams.length)),
+            tableDensity: listView.tableDensity,
+            view: listView.view,
+          }}
+        />
+        <ExamList rows={examPage.rows} view={listView.view} density={listView.viewDensity} />
+        <ListPagination count={filteredExams.length} page={examPage.page} pageSize={listView.pageSize} onPage={setPage} />
       </Card>
     </section>
   );
 }
 
-function ExamTable({ rows }) {
+function ExamList({ density, rows, view }) {
+  const columns = [
+    { key: "exam", label: "Exam / Task", render: (exam) => <Link to={`/professor/scores/${exam.id}`}><strong>{exam.exam_title || exam.title}</strong></Link> },
+    { key: "type", label: "Type", render: (exam) => exam.exam_type || "Exam" },
+    { key: "students", label: "Students" },
+    { key: "pending", label: "Pending Grading" },
+    { key: "status", label: "Status", render: (exam) => <CompactBadge tone={statusTone(exam.status)}>{exam.status || "Draft"}</CompactBadge> },
+  ];
+  if (view === "cards") {
+    return (
+      <RecordCardList
+        columns={columns}
+        density={density}
+        rows={rows}
+        titleKey="exam"
+        renderActions={(exam) => <Link className="professor-score-action" to={`/professor/scores/${exam.id}`}>View</Link>}
+      />
+    );
+  }
   return (
     <div className="professor-score-table-wrap">
-      <table className="professor-score-table compact">
+      <table className={`professor-score-table compact list-table-${density}`}>
         <thead><tr><th>Exam / Task</th><th>Type</th><th>Students</th><th>Pending Grading</th><th>Status</th><th>Action</th></tr></thead>
         <tbody>
           {rows.map((exam) => (

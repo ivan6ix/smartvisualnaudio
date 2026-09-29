@@ -3,12 +3,15 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { FiArrowRight, FiPlus, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
 import { Badge, Card, PageHeader } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
+import useListViewPreference from "../../hooks/useListViewPreference";
 import { studentCourses } from "../../data/studentData";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
 import { formatCourseMeta } from "../../lib/coursePrograms";
 import { countUsedExamAttemptsByExam, getExamAttemptEligibility, getAttemptLimit } from "../../lib/examAttempts";
+import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function examTone(status) {
@@ -28,6 +31,10 @@ export default function StudentDashboard() {
   const [courses, setCourses] = useLocalStorageState("smartproctor.student.courses", studentCourses);
   const [joinOpen, setJoinOpen] = useState(false);
   const [courseCode, setCourseCode] = useState("");
+  const [coursePage, setCoursePage] = useState(1);
+  const [examPage, setExamPage] = useState(1);
+  const coursesView = useListViewPreference({ role: "student", page: "courses", defaultView: "cards" });
+  const examsView = useListViewPreference({ role: "student", page: "available-exams", defaultView: "cards" });
 
   function mapLiveCourse(course) {
     if (!course) return null;
@@ -134,6 +141,8 @@ export default function StudentDashboard() {
 
   const availableExams = dashboardQuery.data?.availableExams || [];
   const examsLoading = hasSupabaseConfig && dashboardQuery.isFetching;
+  const coursePageData = getListPageSlice(courses, coursePage, coursesView.pageSize);
+  const examPageData = getListPageSlice(availableExams, examPage, examsView.pageSize);
 
   useEffect(() => {
     if (dashboardQuery.data?.courses) setCourses(dashboardQuery.data.courses);
@@ -200,8 +209,19 @@ export default function StudentDashboard() {
             <h2>My Courses</h2>
             <span>{courses.length} joined</span>
           </div>
-          <div className="student-course-grid">
-            {courses.map((course) => (
+          <ListViewToolbar
+            controls={{
+              cardDensity: coursesView.cardDensity,
+              onCardDensity: coursesView.setCardDensity,
+              onTableDensity: coursesView.setTableDensity,
+              onView: (nextView) => setCoursePage(coursesView.switchViewPreservingPage(nextView, coursePageData.page, courses.length)),
+              tableDensity: coursesView.tableDensity,
+              view: coursesView.view,
+            }}
+          />
+          {coursesView.view === "cards" ? (
+            <ListCardGrid density={coursesView.cardDensity}>
+            {coursePageData.rows.map((course) => (
               <button className="student-course-card" key={course.id} onClick={() => navigate(`/student/courses/${course.id}/materials`)} type="button">
                 <div>
                   <strong>{course.name}</strong>
@@ -211,8 +231,26 @@ export default function StudentDashboard() {
                 <i><FiArrowRight /></i>
               </button>
             ))}
-            {!courses.length ? <div className="student-empty-box">No joined courses yet.</div> : null}
-          </div>
+            </ListCardGrid>
+          ) : (
+            <ResponsiveTable density={coursesView.tableDensity}>
+              <table className="professor-score-table compact">
+                <thead><tr><th>Course</th><th>Section</th><th>Program</th><th>Action</th></tr></thead>
+                <tbody>
+                  {coursePageData.rows.map((course) => (
+                    <tr key={course.id}>
+                      <td><strong>{course.name}</strong><span>{course.courseName}</span></td>
+                      <td>{course.section}</td>
+                      <td>{formatCourseMeta({ ...course, section: course.rawSection || course.section }) || "-"}</td>
+                      <td><button className="professor-score-link-button" onClick={() => navigate(`/student/courses/${course.id}/materials`)} type="button">Open</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveTable>
+          )}
+          {!courses.length ? <div className="student-empty-box">No joined courses yet.</div> : null}
+          <ListPagination count={courses.length} page={coursePageData.page} pageSize={coursesView.pageSize} onPage={setCoursePage} />
         </Card>
 
         <Card className="student-dashboard-card student-exams-card">
@@ -220,9 +258,20 @@ export default function StudentDashboard() {
             <h2>Available Exams</h2>
             <span>{availableExams.length}</span>
           </div>
-          <div className="student-exam-list">
-            {examsLoading ? <div className="student-empty-box">Loading available exams...</div> : null}
-            {!examsLoading ? availableExams.map((exam) => (
+          <ListViewToolbar
+            controls={{
+              cardDensity: examsView.cardDensity,
+              onCardDensity: examsView.setCardDensity,
+              onTableDensity: examsView.setTableDensity,
+              onView: (nextView) => setExamPage(examsView.switchViewPreservingPage(nextView, examPageData.page, availableExams.length)),
+              tableDensity: examsView.tableDensity,
+              view: examsView.view,
+            }}
+          />
+          {examsLoading ? <div className="student-empty-box">Loading available exams...</div> : null}
+          {!examsLoading && examsView.view === "cards" ? (
+            <ListCardGrid density={examsView.cardDensity}>
+            {examPageData.rows.map((exam) => (
               <article key={exam.id}>
                 <div>
                   <strong>{exam.title}</strong>
@@ -234,9 +283,29 @@ export default function StudentDashboard() {
                   <button className="student-start-exam" onClick={() => navigate(`/student/exams/${exam.id}`)} type="button">Start</button>
                 </div>
               </article>
-            )) : null}
-            {!examsLoading && !availableExams.length ? <div className="student-empty-box">No available exams yet.</div> : null}
-          </div>
+            ))}
+            </ListCardGrid>
+          ) : null}
+          {!examsLoading && examsView.view === "table" ? (
+            <ResponsiveTable density={examsView.tableDensity}>
+              <table className="professor-score-table compact">
+                <thead><tr><th>Exam / Task</th><th>Course</th><th>Duration</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody>
+                  {examPageData.rows.map((exam) => (
+                    <tr key={exam.id}>
+                      <td><strong>{exam.title}</strong></td>
+                      <td>{exam.course}{exam.section ? ` - ${exam.section}` : ""}</td>
+                      <td>{formatDurationLabel(exam.duration)}</td>
+                      <td><Badge tone={examTone(exam.status)}>{exam.status}</Badge></td>
+                      <td><button className="professor-score-link-button" onClick={() => navigate(`/student/exams/${exam.id}`)} type="button">Start</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </ResponsiveTable>
+          ) : null}
+          {!examsLoading && !availableExams.length ? <div className="student-empty-box">No available exams yet.</div> : null}
+          <ListPagination count={availableExams.length} page={examPageData.page} pageSize={examsView.pageSize} onPage={setExamPage} />
         </Card>
       </div>
 

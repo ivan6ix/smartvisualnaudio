@@ -3,10 +3,13 @@ import { useQuery } from "@tanstack/react-query";
 import { FiBookOpen, FiFileText, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
+import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
 import { Badge, Card, PageHeader, StatCard } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
+import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
 import { formatCourseMeta, formatCourseTerm } from "../../lib/coursePrograms";
+import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function statusTone(status) {
@@ -54,6 +57,8 @@ export default function ProfessorCourses() {
     courseId: professorCourses.find((course) => course.courseName === exam.course && course.section === exam.section)?.id,
   })), []);
   const [selectedCourseId, setSelectedCourseId] = useState(demoCourses[0]?.id || "");
+  const [coursePage, setCoursePage] = useState(1);
+  const courseView = useListViewPreference({ role: "professor", page: "courses", defaultView: "cards" });
 
   const coursesQuery = useQuery({
     queryKey: ["professor-courses", user?.id],
@@ -136,6 +141,12 @@ export default function ProfessorCourses() {
   const selectedCourse = courses.find((course) => course.id === selectedCourseId);
   const selectedExams = useMemo(() => exams.filter((exam) => exam.courseId === selectedCourseId), [exams, selectedCourseId]);
   const totalStudents = uniqueEnrolledStudents ?? courses.reduce((total, course) => total + Number(course.students || 0), 0);
+  const coursePageData = getListPageSlice(courses, coursePage, courseView.pageSize);
+
+  function openCourse(course) {
+    setSelectedCourseId(course.id);
+    navigate(`/professor/courses/${course.id}/materials`);
+  }
 
   return (
     <>
@@ -156,16 +167,24 @@ export default function ProfessorCourses() {
           </div>
           <span>{courses.length} courses</span>
         </div>
+        <ListViewToolbar
+          controls={{
+            cardDensity: courseView.cardDensity,
+            onCardDensity: courseView.setCardDensity,
+            onTableDensity: courseView.setTableDensity,
+            onView: (nextView) => setCoursePage(courseView.switchViewPreservingPage(nextView, coursePageData.page, courses.length)),
+            tableDensity: courseView.tableDensity,
+            view: courseView.view,
+          }}
+        />
 
-        <div className="professor-course-card-grid">
-          {courses.map((course) => (
+        {courseView.view === "cards" ? (
+          <ListCardGrid density={courseView.cardDensity}>
+            {coursePageData.rows.map((course) => (
             <button
-              className={selectedCourseId === course.id ? "active" : ""}
+              className={`professor-course-list-card ${selectedCourseId === course.id ? "active" : ""}`}
               key={course.id}
-              onClick={() => {
-                setSelectedCourseId(course.id);
-                navigate(`/professor/courses/${course.id}/materials`);
-              }}
+              onClick={() => openCourse(course)}
               type="button"
             >
               <FiBookOpen />
@@ -179,8 +198,28 @@ export default function ProfessorCourses() {
               <i>{course.joiningCode || "No code"}</i>
             </button>
           ))}
-          {!courses.length ? <div className="professor-exams-empty">No assigned courses found.</div> : null}
-        </div>
+          </ListCardGrid>
+        ) : (
+          <ResponsiveTable density={courseView.tableDensity}>
+            <table className="professor-score-table compact">
+              <thead><tr><th>Course</th><th>Program</th><th>Term</th><th>Students</th><th>Code</th><th>Action</th></tr></thead>
+              <tbody>
+                {coursePageData.rows.map((course) => (
+                  <tr key={course.id}>
+                    <td><strong>{course.courseCode}</strong><span>{course.courseName}</span></td>
+                    <td>{formatCourseMeta(course) || "-"}</td>
+                    <td>{formatCourseTerm(course) || "-"}</td>
+                    <td>{course.students}</td>
+                    <td>{course.joiningCode || "No code"}</td>
+                    <td><button className="professor-score-link-button" onClick={() => openCourse(course)} type="button">Open</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </ResponsiveTable>
+        )}
+        {!courses.length ? <div className="professor-exams-empty">No assigned courses found.</div> : null}
+        <ListPagination count={courses.length} page={coursePageData.page} pageSize={courseView.pageSize} onPage={setCoursePage} />
       </Card>
 
       <Card>

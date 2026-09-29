@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiFileText, FiPrinter, FiShield, FiUsers } from "react-icons/fi";
+import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
 import { Button, Card, SearchBox, SelectField, Table } from "../components/ui";
+import { useAuth } from "../context/AuthContext";
+import useListViewPreference from "../hooks/useListViewPreference";
+import { getListPageSlice } from "../lib/listView";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const tabs = ["Overview", "All Users", "Students", "Violations", "Courses", "Exams", "Professors", "Deans"];
@@ -69,11 +73,14 @@ function getRowsFromResponse(response) {
 }
 
 export default function Reports() {
+  const { user } = useAuth();
   const [tab, setTab] = useState("Overview");
   const [search, setSearch] = useState("");
   const [violationFilter, setViolationFilter] = useState("All Violations");
   const [stats, setStats] = useState(emptyStats);
   const [reportData, setReportData] = useState(emptyReportData);
+  const [page, setPage] = useState(1);
+  const listView = useListViewPreference({ role: String(user?.role || "admin").toLowerCase().replace(/\s+/g, "-"), page: "reports", defaultView: "table" });
 
   useEffect(() => {
     if (!hasSupabaseConfig) return;
@@ -318,6 +325,7 @@ export default function Reports() {
 
   const currentRows = rowsByTab[tab] || [];
   const filteredRows = currentRows.filter((row) => Object.values(row).join(" ").toLowerCase().includes(search.toLowerCase()));
+  const pageData = getListPageSlice(filteredRows, page, listView.pageSize);
   const generatedAt = new Date().toLocaleString();
   const reportTitle = tab === "Overview" ? "Violation Report" : `${tab} Report`;
   const isViolationReport = tab === "Overview" || tab === "Violations";
@@ -359,6 +367,16 @@ export default function Reports() {
         </SelectField>
       </div>
       <div className="tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
+      <ListViewToolbar
+        controls={{
+          cardDensity: listView.cardDensity,
+          onCardDensity: listView.setCardDensity,
+          onTableDensity: listView.setTableDensity,
+          onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filteredRows.length)),
+          tableDensity: listView.tableDensity,
+          view: listView.view,
+        }}
+      />
       <Card className={`admin-panel admin-activity-panel ${tab === "Overview" || tab === "Violations" ? "admin-violations-report-panel" : ""}`}>
         <div className="reports-print-header" aria-hidden="true">
           <h1>Smart Proctoring System</h1>
@@ -407,7 +425,12 @@ export default function Reports() {
             </table>
           </div>
         ) : null}
-        <Table columns={columnsByTab[tab] || columnsByTab.Overview} rows={filteredRows} />
+        {listView.view === "cards" ? (
+          <RecordCardList columns={columnsByTab[tab] || columnsByTab.Overview} density={listView.cardDensity} rows={pageData.rows} />
+        ) : (
+          <Table className={`list-table-${listView.tableDensity}`} columns={columnsByTab[tab] || columnsByTab.Overview} rows={pageData.rows} />
+        )}
+        <ListPagination count={filteredRows.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
       </Card>
     </section>
   );

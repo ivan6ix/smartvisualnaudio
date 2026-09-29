@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiClock, FiDownload, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
+import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
 import { Button, Card, Field, PageHeader, SearchBox, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
+import useListViewPreference from "../../hooks/useListViewPreference";
+import { getListPageSlice } from "../../lib/listView";
 import { StatusBadge } from "./helpers";
 
 const titles = {
@@ -21,6 +24,8 @@ export default function ClusterExamList({ status }) {
   const [statusFilter, setStatusFilter] = useState(status);
   const [loadingActionId, setLoadingActionId] = useState("");
   const [historyExam, setHistoryExam] = useState(null);
+  const [page, setPage] = useState(1);
+  const listView = useListViewPreference({ role: "cluster", page: "exam-review", defaultView: "table" });
   const courses = useMemo(() => ["All Courses", ...new Set([...(filterOptions?.courses || []), ...exams.map((exam) => exam.course)].filter(Boolean))], [exams, filterOptions]);
   const professors = useMemo(() => ["All Professors", ...new Set([...(filterOptions?.professors || []), ...exams.map((exam) => exam.professorName)].filter(Boolean))], [exams, filterOptions]);
 
@@ -122,6 +127,31 @@ export default function ClusterExamList({ status }) {
     { key: "submittedAt", label: "Submission Date" },
     { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
   ];
+  const pageData = getListPageSlice(filtered, page, listView.pageSize);
+
+  function renderActions(row) {
+    return status === "Approved" ? (
+      <>
+        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View</Button>
+        <Button variant="light">Download Review</Button>
+        <Button variant="light">Generate Report</Button>
+      </>
+    ) : status === "Rejected" ? (
+      <>
+        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View</Button>
+        <Button variant="light" onClick={() => downloadFeedback(row)}><FiDownload /> Download Feedback</Button>
+        <Button variant="light" onClick={() => setHistoryExam(row)}><FiClock /> Resubmission History</Button>
+      </>
+    ) : (
+      <>
+        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View Exam</Button>
+        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Review Exam</Button>
+        <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleApprove(row.id)}>{loadingActionId === row.id ? "Saving..." : "Approve"}</Button>
+        <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleReject(row.id)}>Reject</Button>
+        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Send Feedback</Button>
+      </>
+    );
+  }
 
   return (
     <>
@@ -142,27 +172,22 @@ export default function ClusterExamList({ status }) {
         </SelectField>
       </div>
       <Card>
-        <Table columns={columns} rows={filtered} renderActions={(row) => status === "Approved" ? (
-          <>
-            <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View</Button>
-            <Button variant="light">Download Review</Button>
-            <Button variant="light">Generate Report</Button>
-          </>
-        ) : status === "Rejected" ? (
-          <>
-            <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View</Button>
-            <Button variant="light" onClick={() => downloadFeedback(row)}><FiDownload /> Download Feedback</Button>
-            <Button variant="light" onClick={() => setHistoryExam(row)}><FiClock /> Resubmission History</Button>
-          </>
+        <ListViewToolbar
+          controls={{
+            cardDensity: listView.cardDensity,
+            onCardDensity: listView.setCardDensity,
+            onTableDensity: listView.setTableDensity,
+            onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filtered.length)),
+            tableDensity: listView.tableDensity,
+            view: listView.view,
+          }}
+        />
+        {listView.view === "cards" ? (
+          <RecordCardList columns={columns} density={listView.cardDensity} rows={pageData.rows} titleKey="examTitle" renderActions={renderActions} />
         ) : (
-          <>
-            <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View Exam</Button>
-            <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Review Exam</Button>
-            <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleApprove(row.id)}>{loadingActionId === row.id ? "Saving..." : "Approve"}</Button>
-            <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleReject(row.id)}>Reject</Button>
-            <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Send Feedback</Button>
-          </>
-        )} />
+          <Table className={`list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderActions} />
+        )}
+        <ListPagination count={filtered.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
       </Card>
       {historyExam ? (
         <div className="cluster-history-backdrop" onClick={() => setHistoryExam(null)} role="presentation">

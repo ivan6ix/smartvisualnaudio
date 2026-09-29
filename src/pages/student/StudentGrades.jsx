@@ -2,9 +2,12 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FiChevronUp } from "react-icons/fi";
 import { toast } from "sonner";
+import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
 import { useAuth } from "../../context/AuthContext";
 import { studentCourses, studentGrades } from "../../data/studentData";
+import useListViewPreference from "../../hooks/useListViewPreference";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
+import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function getAcademicYear(value = new Date()) {
@@ -102,6 +105,8 @@ export default function StudentGrades() {
   const [courses, setCourses] = useState(() => joinedCourses.map(mapCourse).filter(Boolean));
   const [grades, setGrades] = useState(() => studentGrades.map((grade) => ({ ...grade, academicYear: "2025-2026" })));
   const [openCourseId, setOpenCourseId] = useState(null);
+  const [page, setPage] = useState(1);
+  const listView = useListViewPreference({ role: "student", page: "grades", defaultView: "cards" });
 
   const loadGrades = useCallback(async (force = false) => {
     if (!hasSupabaseConfig || !user?.id) return;
@@ -228,6 +233,7 @@ export default function StudentGrades() {
       };
     });
   }, [courses, grades]);
+  const pageData = getListPageSlice(visibleCourses, page, listView.pageSize);
 
   return (
     <section className="student-page student-grades-page">
@@ -238,8 +244,20 @@ export default function StudentGrades() {
         </div>
       </div>
 
-      <div className="student-grade-course-list">
-        {visibleCourses.map((course) => {
+      <ListViewToolbar
+        controls={{
+          cardDensity: listView.cardDensity,
+          onCardDensity: listView.setCardDensity,
+          onTableDensity: listView.setTableDensity,
+          onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, visibleCourses.length)),
+          tableDensity: listView.tableDensity,
+          view: listView.view,
+        }}
+      />
+
+      {listView.view === "cards" ? (
+        <ListCardGrid density={listView.cardDensity}>
+        {pageData.rows.map((course) => {
           const isOpen = openCourseId === course.id;
 
           return (
@@ -282,8 +300,41 @@ export default function StudentGrades() {
             </section>
           );
         })}
-        {!visibleCourses.length ? <div className="student-empty-box">No joined courses found.</div> : null}
-      </div>
+        </ListCardGrid>
+      ) : (
+        <ResponsiveTable density={listView.tableDensity}>
+          <table className="professor-score-table compact">
+            <thead><tr><th>Course</th><th>Section</th><th>Records</th><th>Average</th><th>Action</th></tr></thead>
+            <tbody>
+              {pageData.rows.map((course) => (
+                <tr key={course.id}>
+                  <td><strong>{course.name}</strong><span>{course.courseName}</span></td>
+                  <td>{course.section}</td>
+                  <td>{course.grades.length}</td>
+                  <td>{course.average.toFixed(1)}%</td>
+                  <td><button className="professor-score-link-button" onClick={() => setOpenCourseId((current) => current === course.id ? null : course.id)} type="button">{openCourseId === course.id ? "Hide" : "View"}</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {openCourseId ? (
+            <div className="student-grade-body list-view-detail-panel">
+              {(visibleCourses.find((course) => course.id === openCourseId)?.grades || []).map((grade) => (
+                <article className="student-grade-row" key={grade.id}>
+                  <div>
+                    <strong>{grade.period}</strong>
+                    <span>{grade.title}</span>
+                  </div>
+                  <b>{grade.scoreLabel}</b>
+                  <div className="student-progress"><span style={{ width: `${grade.score}%` }} /></div>
+                </article>
+              ))}
+            </div>
+          ) : null}
+        </ResponsiveTable>
+      )}
+      {!visibleCourses.length ? <div className="student-empty-box">No joined courses found.</div> : null}
+      <ListPagination count={visibleCourses.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
     </section>
   );
 }

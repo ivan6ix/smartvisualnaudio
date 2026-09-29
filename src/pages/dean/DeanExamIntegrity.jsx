@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiActivity, FiAlertTriangle, FiCamera, FiShield } from "react-icons/fi";
 import { toast } from "sonner";
+import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
 import { Badge, Card, PageHeader, SearchBox, SelectField, StatCard, Table } from "../../components/ui";
+import useListViewPreference from "../../hooks/useListViewPreference";
+import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const violationLabels = {
@@ -90,6 +93,8 @@ export default function DeanExamIntegrity() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [severity, setSeverity] = useState("All Severities");
+  const [page, setPage] = useState(1);
+  const listView = useListViewPreference({ role: "dean", page: "exam-integrity", defaultView: "table" });
 
   useEffect(() => {
     if (!hasSupabaseConfig) return undefined;
@@ -186,6 +191,7 @@ export default function DeanExamIntegrity() {
       render: (row) => <EvidenceCell row={row} />,
     },
   ];
+  const pageData = getListPageSlice(filteredViolations, page, listView.pageSize);
 
   return (
     <>
@@ -206,9 +212,24 @@ export default function DeanExamIntegrity() {
             <option>Low</option>
           </SelectField><SelectField label="Violation Type" value={typeFilter} onChange={event => setTypeFilter(event.target.value)}><option>All</option>{[...new Set(violations.map(item => item.violationType))].filter(Boolean).map(type => <option key={type}>{type}</option>)}</SelectField>
         </div>
+        <ListViewToolbar
+          controls={{
+            cardDensity: listView.cardDensity,
+            onCardDensity: listView.setCardDensity,
+            onTableDensity: listView.setTableDensity,
+            onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filteredViolations.length)),
+            tableDensity: listView.tableDensity,
+            view: listView.view,
+          }}
+        />
         <div className="dean-integrity-table-scroll">
-          <Table columns={columns} rows={filteredViolations} />
+          {listView.view === "cards" ? (
+            <RecordCardList columns={columns} density={listView.cardDensity} rows={pageData.rows} titleKey="student" />
+          ) : (
+            <Table className={`list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} />
+          )}
         </div>
+        <ListPagination count={filteredViolations.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
       </Card>
     </>
   );

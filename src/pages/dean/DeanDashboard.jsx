@@ -2,9 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiFileText, FiUsers, FiX } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
 import { Badge, Button, Card, EmptyState, PageHeader, SearchBox, SelectField, StatCard, Table } from "../../components/ui";
 import { useChartTheme } from "../../context/ThemeContext";
+import useListViewPreference from "../../hooks/useListViewPreference";
 import { violationChart } from "../../data/mockData";
+import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const defaultStats = {
@@ -71,6 +74,8 @@ export default function DeanDashboard() {
   const [examFilter, setExamFilter] = useState("All Exams");
   const [typeFilter, setTypeFilter] = useState("All Violations");
   const [severityFilter, setSeverityFilter] = useState("All Severities");
+  const [page, setPage] = useState(1);
+  const listView = useListViewPreference({ role: "dean", page: "dashboard-violations", defaultView: "table" });
   const dashboardQuery = useQuery({
     queryKey: ["dean-dashboard"],
     enabled: hasSupabaseConfig,
@@ -205,6 +210,7 @@ export default function DeanDashboard() {
     { key: "date", label: "Date" },
     { key: "time", label: "Time" },
   ];
+  const pageData = getListPageSlice(filteredViolations, page, listView.pageSize);
 
   return (
     <>
@@ -258,7 +264,26 @@ export default function DeanDashboard() {
             </ResponsiveContainer>
           ) : <EmptyState title="No matching records found." description="Adjust the search or filters to show analytics." />}
         </div>
-        {hasSupabaseConfig ? <Table columns={violationColumns} rows={filteredViolations} emptyTitle="No matching records found." emptyDescription="Adjust the search or filters to show violation records." /> : null}
+        {hasSupabaseConfig ? (
+          <>
+            <ListViewToolbar
+              controls={{
+                cardDensity: listView.cardDensity,
+                onCardDensity: listView.setCardDensity,
+                onTableDensity: listView.setTableDensity,
+                onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filteredViolations.length)),
+                tableDensity: listView.tableDensity,
+                view: listView.view,
+              }}
+            />
+            {listView.view === "cards" ? (
+              <RecordCardList columns={violationColumns} density={listView.cardDensity} rows={pageData.rows} titleKey="student" />
+            ) : (
+              <Table className={`list-table-${listView.tableDensity}`} columns={violationColumns} rows={pageData.rows} emptyTitle="No matching records found." emptyDescription="Adjust the search or filters to show violation records." />
+            )}
+            <ListPagination count={filteredViolations.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
+          </>
+        ) : null}
       </Card>
     </>
   );

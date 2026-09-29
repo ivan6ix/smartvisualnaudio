@@ -5,9 +5,12 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button } from "../../components/ui";
+import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
+import useListViewPreference from "../../hooks/useListViewPreference";
 import { formatCourseMeta } from "../../lib/coursePrograms";
+import { getListPageSlice, getPageSizeForView, toNextListPage } from "../../lib/listView";
 import { validateExam } from "../../lib/examValidation";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -255,6 +258,8 @@ export default function ProfessorExams() {
   const [publishTarget, setPublishTarget] = useState(null);
   const [publishingId, setPublishingId] = useState("");
   const [openMenuId, setOpenMenuId] = useState("");
+  const [sectionPages, setSectionPages] = useState({});
+  const listView = useListViewPreference({ role: "professor", page: "exams", defaultView: "table" });
   const sourceExams = hasSupabaseConfig ? liveExams : professorExams;
   const allExams = useMemo(() => Array.isArray(sourceExams) ? sourceExams : [], [sourceExams]);
   const activeExams = useMemo(() => allExams.filter((exam) => !exam.archived), [allExams]);
@@ -650,7 +655,98 @@ export default function ProfessorExams() {
     return actions;
   }
 
+  function updateSectionPage(sectionKey, nextPage) {
+    setSectionPages((current) => ({ ...current, [sectionKey]: nextPage }));
+  }
+
+  function renderExamCards(rows, actionFactory, prefix = "exam") {
+    return (
+      <ListCardGrid density={listView.cardDensity}>
+        {rows.map((exam) => (
+          <article className="professor-draft-row list-exam-card" key={exam.id}>
+            <div>
+              <strong>{exam.title || "Untitled Exam"}</strong>
+              <span>{exam.course} - {exam.type} - {exam.period}</span>
+              <small>{exam.duration} - {exam.questionCount || 0} question{exam.questionCount === 1 ? "" : "s"}</small>
+              {exam.clusterStatus === "rejected" && exam.rejectionReason ? <small className="professor-rejection-note">Reason: {exam.rejectionReason}</small> : null}
+            </div>
+            <div className="professor-exam-actions">
+              <ExamActionsMenu
+                actions={actionFactory(exam)}
+                exam={exam}
+                loading={loadingActionId === exam.id}
+                menuId={`${prefix}-${exam.id}`}
+                openMenuId={openMenuId}
+                setOpenMenuId={setOpenMenuId}
+              />
+            </div>
+          </article>
+        ))}
+      </ListCardGrid>
+    );
+  }
+
+  function renderExamTable(rows, actionFactory, prefix = "exam") {
+    return (
+      <ResponsiveTable density={listView.tableDensity} className="professor-exams-table-card">
+        <table className="professor-exams-table">
+          <thead>
+            <tr>
+              <th>Title</th>
+              <th>Course</th>
+              <th>Type</th>
+              <th>Period</th>
+              <th>Duration</th>
+              <th>Status</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((exam) => (
+              <tr key={exam.id}>
+                <td>
+                  <strong>{exam.title}</strong>
+                  {exam.clusterStatus === "rejected" && exam.rejectionReason ? (
+                    <small className="professor-rejection-note">Reason: {exam.rejectionReason}</small>
+                  ) : null}
+                </td>
+                <td>
+                  {exam.course}
+                  <small>{exam.courseMeta}</small>
+                </td>
+                <td>{exam.type}</td>
+                <td>{exam.period}</td>
+                <td>{exam.duration}</td>
+                <td>
+                  <div className="professor-status-stack">
+                    <span className={`professor-status-pill ${exam.status} ${exam.clusterStatus.replaceAll(" ", "-")}`}>
+                      {getStatusLabel(exam)}
+                    </span>
+                  </div>
+                </td>
+                <td>
+                  <div className="professor-exam-actions">
+                    <ExamActionsMenu
+                      actions={actionFactory(exam)}
+                      exam={exam}
+                      loading={loadingActionId === exam.id}
+                      menuId={`${prefix}-${exam.id}`}
+                      openMenuId={openMenuId}
+                      setOpenMenuId={setOpenMenuId}
+                    />
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </ResponsiveTable>
+    );
+  }
+
   function renderDraftsSection() {
+    const page = sectionPages.drafts || 1;
+    const pageData = getListPageSlice(draftExams, page, listView.pageSize);
     return (
       <section className="professor-exams-section professor-drafts-section">
         <div className="professor-exams-section-header">
@@ -660,28 +756,9 @@ export default function ProfessorExams() {
           </div>
           <span>{draftExams.length}</span>
         </div>
-        <div className="professor-draft-list">
-          {draftExams.map((exam) => (
-            <article className="professor-draft-row" key={exam.id}>
-              <div>
-                <strong>{exam.title || "Untitled Draft"}</strong>
-                <span>{exam.course} - {exam.type} - {exam.period}</span>
-                <small>Last modified {formatLastModified(exam.updatedAt)} - {exam.questionCount} question{exam.questionCount === 1 ? "" : "s"}</small>
-              </div>
-              <div className="professor-exam-actions">
-                <ExamActionsMenu
-                  actions={getDraftActions(exam)}
-                  exam={exam}
-                  loading={loadingActionId === exam.id}
-                  menuId={`draft-${exam.id}`}
-                  openMenuId={openMenuId}
-                  setOpenMenuId={setOpenMenuId}
-                />
-              </div>
-            </article>
-          ))}
-          {!draftExams.length ? <div className="professor-exams-empty">No draft exams.</div> : null}
-        </div>
+        {listView.view === "cards" ? renderExamCards(pageData.rows, getDraftActions, "draft") : renderExamTable(pageData.rows, getDraftActions, "draft")}
+        {!draftExams.length ? <div className="professor-exams-empty">No draft exams.</div> : null}
+        <ListPagination count={draftExams.length} page={pageData.page} pageSize={listView.pageSize} onPage={(nextPage) => updateSectionPage("drafts", nextPage)} />
       </section>
     );
   }
@@ -960,6 +1037,8 @@ export default function ProfessorExams() {
 
   function renderExamSection(sectionKey, title, description, rows) {
     const filteredRows = filterSectionRows(rows, sectionKey);
+    const page = sectionPages[sectionKey] || 1;
+    const pageData = getListPageSlice(filteredRows, page, listView.pageSize);
     const filters = sectionFilters[sectionKey];
     const programOptions = getFilterOptions(rows, "programCode");
     const courseOptions = getFilterOptions(rows, "course");
@@ -1001,60 +1080,9 @@ export default function ProfessorExams() {
           </select>
         </div>
 
-        <div className="professor-exams-table-card">
-          <table className="professor-exams-table">
-            <thead>
-              <tr>
-                <th>Title</th>
-                <th>Course</th>
-                <th>Type</th>
-                <th>Period</th>
-                <th>Duration</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredRows.map((exam) => (
-                <tr key={exam.id}>
-                  <td>
-                    <strong>{exam.title}</strong>
-                    {exam.clusterStatus === "rejected" && exam.rejectionReason ? (
-                      <small className="professor-rejection-note">Reason: {exam.rejectionReason}</small>
-                    ) : null}
-                  </td>
-                  <td>
-                    {exam.course}
-                    <small>{exam.courseMeta}</small>
-                  </td>
-                  <td>{exam.type}</td>
-                  <td>{exam.period}</td>
-                  <td>{exam.duration}</td>
-                  <td>
-                    <div className="professor-status-stack">
-                      <span className={`professor-status-pill ${exam.status} ${exam.clusterStatus.replaceAll(" ", "-")}`}>
-                        {getStatusLabel(exam)}
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="professor-exam-actions">
-                      <ExamActionsMenu
-                        actions={getExamActions(exam)}
-                        exam={exam}
-                        loading={loadingActionId === exam.id}
-                        menuId={`exam-${exam.id}`}
-                        openMenuId={openMenuId}
-                        setOpenMenuId={setOpenMenuId}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          {!filteredRows.length ? <div className="professor-exams-empty">{rows.length ? "No exams match your filters." : "No exams in this section."}</div> : null}
-        </div>
+        {listView.view === "cards" ? renderExamCards(pageData.rows, getExamActions, sectionKey) : renderExamTable(pageData.rows, getExamActions, sectionKey)}
+        {!filteredRows.length ? <div className="professor-exams-empty">{rows.length ? "No exams match your filters." : "No exams in this section."}</div> : null}
+        <ListPagination count={filteredRows.length} page={pageData.page} pageSize={listView.pageSize} onPage={(nextPage) => updateSectionPage(sectionKey, nextPage)} />
       </section>
     );
   }
@@ -1073,6 +1101,25 @@ export default function ProfessorExams() {
           <Button className="professor-create-exam" onClick={() => navigate("/professor/exams/create", { state: { freshCreateSession: crypto.randomUUID() } })}><FiPlus /> Create Exam</Button>
         </div>
       </div>
+      <ListViewToolbar
+        controls={{
+          cardDensity: listView.cardDensity,
+          onCardDensity: listView.setCardDensity,
+          onTableDensity: listView.setTableDensity,
+          onView: (nextView) => {
+            const nextPageSize = getPageSizeForView(nextView);
+            setSectionPages((current) => ({
+              drafts: toNextListPage({ currentPage: current.drafts || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: draftExams.length }),
+              published: toNextListPage({ currentPage: current.published || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: publishedExams.length }),
+              pending: toNextListPage({ currentPage: current.pending || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: pendingExams.length }),
+              unpublished: toNextListPage({ currentPage: current.unpublished || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: unpublishedExams.length }),
+            }));
+            listView.setView(nextView);
+          },
+          tableDensity: listView.tableDensity,
+          view: listView.view,
+        }}
+      />
 
       {renderDraftsSection()}
       {renderExamSection("published", "Published Exams", "Exams currently available to students.", publishedExams)}

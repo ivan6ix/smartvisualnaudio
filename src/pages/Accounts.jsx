@@ -2,10 +2,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FiUsers } from "react-icons/fi";
+import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
 import { Button, Card, PageHeader, SearchBox, SelectField, Table, Badge } from "../components/ui";
 import { accounts as seedAccounts, roles } from "../data/mockData";
 import { useAuth } from "../context/AuthContext";
+import useListViewPreference from "../hooks/useListViewPreference";
 import useLocalStorageState from "../hooks/useLocalStorageState";
+import { getListPageSlice } from "../lib/listView";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 function mapProfile(profile) {
@@ -26,6 +29,9 @@ export default function Accounts() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("All");
   const [role, setRole] = useState("All Roles");
+  const [activePage, setActivePage] = useState(1);
+  const [deactivatedPage, setDeactivatedPage] = useState(1);
+  const listView = useListViewPreference({ role: "admin", page: "accounts", defaultView: "table" });
   const accountsQuery = useQuery({
     queryKey: ["admin-accounts"],
     enabled: hasSupabaseConfig,
@@ -102,6 +108,23 @@ export default function Accounts() {
     { key: "role", label: "Role" },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
   ];
+  const activeRows = filtered.filter((account) => account.status !== "Deactivated");
+  const deactivatedRows = filtered.filter((account) => account.status === "Deactivated");
+  const activePageData = getListPageSlice(activeRows, activePage, listView.pageSize);
+  const deactivatedPageData = getListPageSlice(deactivatedRows, deactivatedPage, listView.pageSize);
+
+  function renderAccounts(rows, action, pageData, setPage) {
+    return (
+      <>
+        {listView.view === "cards" ? (
+          <RecordCardList columns={columns} density={listView.cardDensity} rows={pageData.rows} titleKey="name" renderActions={action} />
+        ) : (
+          <Table className={`list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={action} />
+        )}
+        <ListPagination count={rows.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
+      </>
+    );
+  }
 
   return (
     <section className="admin-dashboard-page admin-section-page">
@@ -121,14 +144,27 @@ export default function Accounts() {
           {roles.map((item) => <option key={item}>{item}</option>)}
         </SelectField><SelectField label="Status" value={statusFilter} onChange={event => setStatusFilter(event.target.value)}>{["All", "Active", "Pending", "Deactivated"].map(status => <option key={status}>{status}</option>)}</SelectField>
       </div>
+      <ListViewToolbar
+        controls={{
+          cardDensity: listView.cardDensity,
+          onCardDensity: listView.setCardDensity,
+          onTableDensity: listView.setTableDensity,
+          onView: (nextView) => {
+            setActivePage(listView.switchViewPreservingPage(nextView, activePageData.page, activeRows.length));
+            setDeactivatedPage(1);
+          },
+          tableDensity: listView.tableDensity,
+          view: listView.view,
+        }}
+      />
       <Card className="admin-panel admin-activity-panel">
         <h2>Active Accounts</h2>
         {accountsQuery.isPending && !accounts.length ? <p className="muted">Loading live accounts...</p> : null}
-        <Table columns={columns} rows={filtered.filter((account) => account.status !== "Deactivated")} renderActions={(row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>} />
+        {renderAccounts(activeRows, (row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>, activePageData, setActivePage)}
       </Card>
       <Card className="admin-panel admin-activity-panel">
         <h2>Deactivated Accounts</h2>
-        <Table columns={columns} rows={filtered.filter((account) => account.status === "Deactivated")} renderActions={(row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>} />
+        {renderAccounts(deactivatedRows, (row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, deactivatedPageData, setDeactivatedPage)}
       </Card>
     </section>
   );
