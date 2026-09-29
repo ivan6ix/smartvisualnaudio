@@ -3938,6 +3938,16 @@ table.list-table-dense .professor-exam-actions {
 .professor-monitoring-table {
   min-width: 760px;
 }
+.professor-monitoring-table .badge {
+  display: inline-flex;
+  width: fit-content;
+  max-width: max-content;
+  min-width: 0;
+  margin-top: 0;
+  padding-inline: 10px;
+  white-space: nowrap;
+  vertical-align: middle;
+}
 .professor-monitoring-table td:first-child span {
   color: var(--app-text-muted);
   display: block;
@@ -10476,26 +10486,44 @@ html[data-theme="dark"] .student-archive-list .folder-delete > svg {
 }
 
 html[data-theme="dark"] .professor-exams-table .professor-status-pill {
+  border: 1px solid var(--app-line);
+  background: var(--app-surface-muted) !important;
+  color: var(--app-text) !important;
+}
+
+html[data-theme="dark"] .professor-exams-table .professor-status-pill.draft {
+  border-color: var(--app-line);
+  background: color-mix(in srgb, var(--app-text) 10%, var(--app-surface)) !important;
   color: var(--app-text) !important;
 }
 
 html[data-theme="dark"] .professor-exams-table .professor-status-pill.published {
+  border-color: color-mix(in srgb, var(--app-success) 42%, transparent);
+  background: color-mix(in srgb, var(--app-success) 18%, var(--app-surface)) !important;
   color: #86efac !important;
 }
 
 html[data-theme="dark"] .professor-exams-table .professor-status-pill.pending {
+  border-color: color-mix(in srgb, var(--app-warning) 42%, transparent);
+  background: color-mix(in srgb, var(--app-warning) 18%, var(--app-surface)) !important;
   color: #fde68a !important;
 }
 
 html[data-theme="dark"] .professor-exams-table .professor-status-pill.unpublished {
+  border-color: var(--app-line);
+  background: color-mix(in srgb, var(--app-text) 10%, var(--app-surface)) !important;
   color: var(--app-text) !important;
 }
 
 html[data-theme="dark"] .professor-exams-table .professor-status-pill.unpublished.approved {
+  border-color: color-mix(in srgb, var(--accent) 42%, transparent);
+  background: color-mix(in srgb, var(--accent) 18%, var(--app-surface)) !important;
   color: #bfdbfe !important;
 }
 
 html[data-theme="dark"] .professor-exams-table .professor-status-pill.unpublished.rejected {
+  border-color: color-mix(in srgb, var(--app-error) 42%, transparent);
+  background: color-mix(in srgb, var(--app-error) 18%, var(--app-surface)) !important;
   color: #fecaca !important;
 }
 
