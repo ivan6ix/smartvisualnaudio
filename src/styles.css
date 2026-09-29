@@ -3100,15 +3100,15 @@ table.list-table-dense .professor-exam-actions {
 }
 .professor-ongoing-header h2,
 .professor-ongoing-detail strong,
-.professor-ongoing-exam-card strong {
+.professor-ongoing-exam-row strong {
   color: var(--app-text);
   margin: 0;
 }
 .professor-ongoing-header p,
 .professor-ongoing-detail span,
 .professor-ongoing-detail small,
-.professor-ongoing-exam-card span,
-.professor-ongoing-exam-card small,
+.professor-ongoing-exam-row span,
+.professor-ongoing-exam-row small,
 .professor-ongoing-note {
   color: var(--app-text-muted);
 }
@@ -3149,57 +3149,95 @@ table.list-table-dense .professor-exam-actions {
   color: var(--app-text-muted);
   font-size: .82rem;
 }
-.professor-ongoing-list {
+.professor-ongoing-exam-list {
   display: grid;
-  gap: 14px;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
-.professor-ongoing-exam-card,
 .professor-ongoing-detail {
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
   box-shadow: 0 10px 26px rgba(15, 23, 42, .06);
 }
-.professor-ongoing-exam-card {
+.professor-ongoing-exam-head,
+.professor-ongoing-exam-row {
   align-items: center;
   display: grid;
-  gap: 16px;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(260px, 1fr) auto;
-  padding: 16px;
+  gap: 10px;
+  grid-template-columns: minmax(190px, 1.25fr) minmax(140px, .9fr) minmax(90px, .55fr) minmax(190px, 1fr) repeat(4, minmax(72px, .45fr)) minmax(76px, .45fr);
+  min-width: 1040px;
+}
+.professor-ongoing-exam-head {
+  color: var(--app-text-muted);
+  font-size: .72rem;
+  font-weight: 900;
+  padding: 0 12px 2px;
+  text-transform: uppercase;
+}
+.professor-ongoing-exam-row {
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, .05);
+  color: var(--app-text);
+  padding: 10px 12px;
 }
 .professor-ongoing-exam-main {
   display: grid;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
 }
 .professor-ongoing-exam-main strong {
-  font-size: 1rem;
+  font-size: .95rem;
+  overflow-wrap: anywhere;
 }
-.professor-ongoing-card-meta {
+.professor-ongoing-course-cell {
   display: grid;
-  gap: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px;
+  min-width: 0;
 }
-.professor-ongoing-card-meta span {
-  background: color-mix(in srgb, var(--app-background) 68%, transparent);
-  border: 1px solid var(--app-border);
+.professor-ongoing-view-button,
+.professor-ongoing-back-button {
+  min-height: 32px;
+  padding: 6px 10px;
+  width: fit-content;
+}
+.professor-ongoing-view-button {
+  justify-self: end;
+}
+.professor-ongoing-detail-title {
+  justify-self: center;
+  max-width: min(520px, 100%);
+  text-align: center;
+}
+.professor-ongoing-detail-title strong {
+  background: color-mix(in srgb, var(--primary) 14%, var(--app-surface));
+  border: 1px solid color-mix(in srgb, var(--primary) 36%, var(--app-border));
   border-radius: 8px;
-  padding: 8px 10px;
-}
-.professor-ongoing-card-meta strong {
+  color: var(--app-text);
   display: block;
+  font-size: 1rem;
+  font-weight: 900;
+  line-height: 1.3;
+  margin: 0 auto 6px;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  padding: 8px 14px;
 }
 .professor-ongoing-detail {
   overflow: hidden;
 }
 .professor-ongoing-detail > header {
-  justify-content: space-between;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(88px, 1fr) minmax(220px, 2fr) minmax(88px, 1fr);
+  justify-content: initial;
   padding: 14px;
 }
-.professor-ongoing-detail > header > div:nth-child(2) {
-  display: grid;
-  flex: 1;
-  min-width: 180px;
+.professor-ongoing-detail > header > .badge {
+  justify-self: end;
 }
 .professor-ongoing-mini {
   flex-wrap: wrap;
@@ -3245,11 +3283,17 @@ table.list-table-dense .professor-exam-actions {
 }
 @media (max-width: 900px) {
   .professor-ongoing-header,
-  .professor-ongoing-detail > header,
-  .professor-ongoing-exam-card {
+  .professor-ongoing-detail > header {
     align-items: stretch;
     display: grid;
     grid-template-columns: 1fr;
+  }
+  .professor-ongoing-detail-title {
+    justify-self: stretch;
+  }
+  .professor-ongoing-detail > header > .badge,
+  .professor-ongoing-view-button {
+    justify-self: start;
   }
   .professor-ongoing-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));

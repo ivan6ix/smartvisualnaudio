@@ -1,7 +1,9 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiArrowLeft, FiEye, FiVolume2, FiVolumeX, FiWifi, FiWifiOff } from "react-icons/fi";
 import { toast } from "sonner";
+import { ListPagination } from "../../components/ListViewControls";
 import { Badge, Button, Card, SearchBox } from "../../components/ui";
+import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import {
   classifyOngoingStudent,
@@ -21,6 +23,7 @@ const SORT_COLUMNS = [
   ["progress", "Live Progress"],
   ["violations", "Violations"],
 ];
+const EXAM_LIST_PAGE_SIZE = 20;
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -80,6 +83,7 @@ export default function ProfessorOngoingExams() {
   const [activeExams, setActiveExams] = useState([]);
   const [upcomingExams, setUpcomingExams] = useState([]);
   const [loading, setLoading] = useState(false);
+  const [examPage, setExamPage] = useState(1);
   const [connectionState, setConnectionState] = useState("Live");
   const [soundMuted, setSoundMuted] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState(null);
@@ -123,6 +127,7 @@ export default function ProfessorOngoingExams() {
         }
       }
       setActiveExams(nextActive);
+      setExamPage((current) => Math.min(Math.max(1, current), Math.max(1, Math.ceil(nextActive.length / EXAM_LIST_PAGE_SIZE))));
       setUpcomingExams(nextUpcoming);
       if (initial) setSelectedExamId(null);
       setSelectedExamId((current) => current && nextActive.some((exam) => exam.id === current) ? current : null);
@@ -217,7 +222,7 @@ export default function ProfessorOngoingExams() {
         </div>
 
         {!selectedExam ? (
-          <ActiveExamList exams={activeExams} loading={loading} onView={openExam} />
+          <ActiveExamList exams={activeExams} loading={loading} page={examPage} onPage={setExamPage} onView={openExam} />
         ) : (
           <ExamDetail
             exam={selectedExam}
@@ -238,10 +243,24 @@ export default function ProfessorOngoingExams() {
   );
 }
 
-function ActiveExamList({ exams, loading, onView }) {
+function formatScheduleRange(exam) {
+  const start = exam.startsAt ? new Date(exam.startsAt) : null;
+  const deadline = exam.deadline ? new Date(exam.deadline) : null;
+  if ((!start || Number.isNaN(start.getTime())) && (!deadline || Number.isNaN(deadline.getTime()))) return "-";
+  if (!start || Number.isNaN(start.getTime())) return `Ends ${formatDateTime(exam.deadline)}`;
+  if (!deadline || Number.isNaN(deadline.getTime())) return `Starts ${formatDateTime(exam.startsAt)}`;
+  const sameDay = start.toDateString() === deadline.toDateString();
+  const date = start.toLocaleDateString([], { month: "short", day: "numeric" });
+  const startTime = start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const endTime = deadline.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  return sameDay ? `${date} · ${startTime} - ${endTime}` : `${formatDateTime(exam.startsAt)} - ${formatDateTime(exam.deadline)}`;
+}
+
+function ActiveExamList({ exams, loading, page, onPage, onView }) {
   const sortedExams = useMemo(() => [...exams].sort((first, second) => (
     new Date(first.deadline || 8640000000000000) - new Date(second.deadline || 8640000000000000)
   )), [exams]);
+  const pageData = getListPageSlice(sortedExams, page, EXAM_LIST_PAGE_SIZE);
 
   if (!loading && !sortedExams.length) {
     return (
@@ -253,28 +272,45 @@ function ActiveExamList({ exams, loading, onView }) {
   }
 
   return (
-    <div className="professor-ongoing-list">
-      {sortedExams.map((exam) => <ExamCard key={exam.id} exam={exam} onView={onView} />)}
-    </div>
+    <>
+      <div className="professor-ongoing-exam-list" role="table" aria-label="Active ongoing exams">
+        <div className="professor-ongoing-exam-head" role="row">
+          <span role="columnheader">Exam</span>
+          <span role="columnheader">Course / Section</span>
+          <span role="columnheader">Type</span>
+          <span role="columnheader">Schedule / Deadline</span>
+          <span role="columnheader">Assigned</span>
+          <span role="columnheader">In Progress</span>
+          <span role="columnheader">Submitted</span>
+          <span role="columnheader">Violations</span>
+          <span role="columnheader">Action</span>
+        </div>
+        {pageData.rows.map((exam) => <ExamRow key={exam.id} exam={exam} onView={onView} />)}
+      </div>
+      <ListPagination count={sortedExams.length} page={pageData.page} pageSize={EXAM_LIST_PAGE_SIZE} onPage={onPage} />
+    </>
   );
 }
 
-function ExamCard({ exam, onView }) {
+function ExamRow({ exam, onView }) {
   const counters = examCounters(exam);
   return (
-    <article className="professor-ongoing-exam-card">
-      <div className="professor-ongoing-exam-main">
+    <article className="professor-ongoing-exam-row" role="row">
+      <div className="professor-ongoing-exam-main" role="cell">
         <strong>{exam.title}</strong>
-        <span>{exam.courseCode || exam.courseName || "No course"}{exam.section ? ` · ${exam.section}` : ""}</span>
-        <small>{exam.examType || "Exam"} · {formatDateTime(exam.startsAt)} – {formatDateTime(exam.deadline)}</small>
+        <small>{exam.courseName || "Active exam"}</small>
       </div>
-      <div className="professor-ongoing-card-meta">
-        <span><strong>{counters.assigned}</strong> Assigned</span>
-        <span><strong>{counters.inProgress}</strong> In Progress</span>
-        <span><strong>{counters.submitted}</strong> Submitted</span>
-        <span><strong>{counters.violations}</strong> With Violations</span>
+      <div className="professor-ongoing-course-cell" role="cell">
+        <strong>{exam.courseCode || exam.courseName || "No course"}</strong>
+        <span>{exam.section ? `Section ${exam.section}` : "No section"}</span>
       </div>
-      <Button onClick={() => onView(exam.id)}><FiEye /> View</Button>
+      <span role="cell">{exam.examType || "Exam"}</span>
+      <span role="cell">{formatScheduleRange(exam)}</span>
+      <strong role="cell">{counters.assigned}</strong>
+      <strong role="cell">{counters.inProgress}</strong>
+      <strong role="cell">{counters.submitted}</strong>
+      <strong role="cell">{counters.violations}</strong>
+      <Button className="professor-ongoing-view-button" onClick={() => onView(exam.id)}><FiEye /> View</Button>
     </article>
   );
 }
@@ -296,8 +332,8 @@ function ExamDetail({ exam, expandedStudents, expandedViolations, highlightedRow
   return (
     <article className="professor-ongoing-detail">
       <header>
-        <Button variant="light" onClick={onBack}><FiArrowLeft /> Back to Ongoing Exams</Button>
-        <div>
+        <Button className="professor-ongoing-back-button" variant="light" onClick={onBack}><FiArrowLeft /> Back</Button>
+        <div className="professor-ongoing-detail-title">
           <strong>{exam.title}</strong>
           <span>{exam.courseCode || exam.courseName || "No course"} · {exam.section || "No section"} · {exam.examType || "Exam"}</span>
           <small>Start {formatDateTime(exam.startsAt)} · Deadline {formatDateTime(exam.deadline)}</small>
