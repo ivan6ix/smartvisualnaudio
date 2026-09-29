@@ -3474,6 +3474,20 @@ table.list-table-dense .professor-exam-actions {
 .professor-course-list-card:hover {
   border-color: color-mix(in srgb, var(--primary) 46%, var(--app-border));
 }
+html[data-theme="dark"] .professor-course-list-card {
+  border-color: rgba(255, 255, 255, 0.32) !important;
+}
+html[data-theme="dark"] .professor-course-list-card.active,
+html[data-theme="dark"] .professor-course-list-card:hover {
+  border-color: rgba(255, 255, 255, 0.62) !important;
+}
+html[data-theme="light"] .professor-course-list-card {
+  border-color: color-mix(in srgb, var(--app-text) 18%, var(--app-border)) !important;
+}
+html[data-theme="light"] .professor-course-list-card.active,
+html[data-theme="light"] .professor-course-list-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 52%, var(--app-border)) !important;
+}
 .professor-course-list-card svg {
   color: #2563eb;
   font-size: 1.55rem;
