@@ -3088,7 +3088,7 @@ table.list-table-dense .professor-exam-actions {
   gap: 18px;
 }
 .professor-ongoing-header,
-.professor-ongoing-exam > header,
+.professor-ongoing-detail > header,
 .professor-ongoing-live,
 .professor-ongoing-mini {
   align-items: center;
@@ -3099,20 +3099,21 @@ table.list-table-dense .professor-exam-actions {
   justify-content: space-between;
 }
 .professor-ongoing-header h2,
-.professor-ongoing-group h3,
-.professor-ongoing-exam strong {
+.professor-ongoing-detail strong,
+.professor-ongoing-exam-card strong {
   color: var(--app-text);
   margin: 0;
 }
 .professor-ongoing-header p,
-.professor-ongoing-exam span,
-.professor-ongoing-exam small,
+.professor-ongoing-detail span,
+.professor-ongoing-detail small,
+.professor-ongoing-exam-card span,
+.professor-ongoing-exam-card small,
 .professor-ongoing-note {
   color: var(--app-text-muted);
 }
 .professor-ongoing-live span,
-.professor-ongoing-live button,
-.professor-ongoing-exam > header > button {
+.professor-ongoing-live button {
   align-items: center;
   border: 1px solid var(--app-border);
   border-radius: 8px;
@@ -3121,8 +3122,7 @@ table.list-table-dense .professor-exam-actions {
   min-height: 36px;
   padding: 8px 10px;
 }
-.professor-ongoing-live button,
-.professor-ongoing-exam > header > button {
+.professor-ongoing-live button {
   background: var(--app-surface);
   color: var(--app-text);
 }
@@ -3149,21 +3149,54 @@ table.list-table-dense .professor-exam-actions {
   color: var(--app-text-muted);
   font-size: .82rem;
 }
-.professor-ongoing-group {
+.professor-ongoing-list {
   display: grid;
-  gap: 12px;
+  gap: 14px;
 }
-.professor-ongoing-exam {
+.professor-ongoing-exam-card,
+.professor-ongoing-detail {
   border: 1px solid var(--app-border);
   border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .06);
+}
+.professor-ongoing-exam-card {
+  align-items: center;
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(260px, 1fr) auto;
+  padding: 16px;
+}
+.professor-ongoing-exam-main {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.professor-ongoing-exam-main strong {
+  font-size: 1rem;
+}
+.professor-ongoing-card-meta {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.professor-ongoing-card-meta span {
+  background: color-mix(in srgb, var(--app-background) 68%, transparent);
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.professor-ongoing-card-meta strong {
+  display: block;
+}
+.professor-ongoing-detail {
   overflow: hidden;
 }
-.professor-ongoing-exam > header {
-  background: var(--app-surface);
+.professor-ongoing-detail > header {
   justify-content: space-between;
   padding: 14px;
 }
-.professor-ongoing-exam > header > div:nth-child(2) {
+.professor-ongoing-detail > header > div:nth-child(2) {
   display: grid;
   flex: 1;
   min-width: 180px;
@@ -3206,48 +3239,17 @@ table.list-table-dense .professor-exam-actions {
   color: var(--app-text);
   padding-left: 10px;
 }
-.professor-ongoing-backdrop {
-  align-items: center;
-  background: rgba(15, 23, 42, .64);
-  display: flex;
-  inset: 0;
-  justify-content: center;
-  padding: 20px;
-  position: fixed;
-  z-index: 80;
-}
-.professor-ongoing-confirm {
-  background: var(--modal-background);
-  border: 1px solid var(--app-border);
-  border-radius: 12px;
-  box-shadow: var(--app-shadow);
-  color: var(--app-text);
-  max-width: 520px;
-  padding: 22px;
-  position: relative;
-}
-.professor-ongoing-confirm > button {
-  background: transparent;
-  border: 0;
-  color: var(--app-text-muted);
-  position: absolute;
-  right: 12px;
-  top: 12px;
-}
-.professor-ongoing-confirm div {
-  display: flex;
-  gap: 10px;
-  justify-content: flex-end;
-}
 @keyframes professor-violation-pulse {
   0% { background: rgba(245, 158, 11, .3); }
   100% { background: transparent; }
 }
 @media (max-width: 900px) {
   .professor-ongoing-header,
-  .professor-ongoing-exam > header {
+  .professor-ongoing-detail > header,
+  .professor-ongoing-exam-card {
     align-items: stretch;
     display: grid;
+    grid-template-columns: 1fr;
   }
   .professor-ongoing-summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));

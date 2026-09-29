@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   classifyOngoingStudent,
+  getOngoingExamPhase,
   getNextOngoingTransitionDelay,
   paginateOngoingRows,
   sortOngoingRows,
@@ -10,6 +11,11 @@ import {
 const now = new Date("2026-09-28T10:00:00Z").getTime();
 
 const baseStudent = { studentId: "student-a", name: "Ana Cruz", attempts: [], start: null, answeredCount: 0, questionCount: 4, violationCount: 0 };
+
+assert.equal(getOngoingExamPhase({ id: "exam-active", status: "Published", exam_settings: { startsAt: "2026-09-28T09:00:00Z", deadline: "2026-09-28T11:00:00Z" } }, new Set(), now), "active");
+assert.equal(getOngoingExamPhase({ id: "exam-upcoming", status: "Published", exam_settings: { startsAt: "2026-09-28T11:00:00Z", deadline: "2026-09-28T12:00:00Z" } }, new Set(), now), "upcoming");
+assert.equal(getOngoingExamPhase({ id: "exam-finished", status: "Published", exam_settings: { startsAt: "2026-09-28T08:00:00Z", deadline: "2026-09-28T09:00:00Z" } }, new Set(), now), "finished");
+assert.equal(getOngoingExamPhase({ id: "exam-draft", status: "Draft", exam_settings: { startsAt: "2026-09-28T09:00:00Z", deadline: "2026-09-28T11:00:00Z" } }, new Set(), now), "hidden");
 
 assert.equal(classifyOngoingStudent(baseStudent).status, "Not Started");
 assert.equal(classifyOngoingStudent({ ...baseStudent, start: { started_at: "2026-09-28T09:55:00Z", interruption_count: 0 } }).status, "In Progress");
