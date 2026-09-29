@@ -1,9 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { toast } from "sonner";
+import { ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
 import { Badge, Button, Card, PageHeader, SearchBox, StatCard } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { professorAlerts } from "../../data/professorData";
+import useListViewPreference from "../../hooks/useListViewPreference";
+import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const violationLabels = {
@@ -119,11 +122,13 @@ export default function ProfessorMonitoring() {
   const [studentSearch, setStudentSearch] = useState("");
   const [studentCourseFilter, setStudentCourseFilter] = useState("All Courses");
   const [studentSectionFilter, setStudentSectionFilter] = useState("All Sections");
+  const [studentPage, setStudentPage] = useState(1);
   const [activityFilters, setActivityFilters] = useState({
     course: "All Courses",
     period: "All Periods",
     exam: "All Exams",
   });
+  const studentListView = useListViewPreference({ role: "professor", page: "monitoring-center", defaultView: "cards" });
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return;
@@ -352,6 +357,7 @@ export default function ProfessorMonitoring() {
       return matchesSearch && matchesCourse && matchesSection;
     });
   }, [studentCourseFilter, studentSearch, studentSectionFilter, studentsWithCounts]);
+  const studentPageData = getListPageSlice(filteredStudentsWithCounts, studentPage, studentListView.pageSize);
   const selectedViolations = useMemo(() => selectedStudent
     ? violations.filter((violation) => violation.studentId === selectedStudent.id)
     : [], [selectedStudent, violations]);
@@ -410,14 +416,25 @@ export default function ProfessorMonitoring() {
           </div>
           <span>{filteredStudentsWithCounts.length} students</span>
         </div>
+        <ListViewToolbar
+          controls={{
+            cardDensity: studentListView.cardDensity,
+            onCardDensity: studentListView.setCardDensity,
+            onTableDensity: studentListView.setTableDensity,
+            onView: (nextView) => setStudentPage(studentListView.switchViewPreservingPage(nextView, studentPageData.page, filteredStudentsWithCounts.length)),
+            tableDensity: studentListView.tableDensity,
+            view: studentListView.view,
+          }}
+        />
 
         <div className="professor-monitoring-student-filters">
-          <SearchBox value={studentSearch} onChange={setStudentSearch} placeholder="Search students or ID" />
+          <SearchBox value={studentSearch} onChange={(value) => { setStudentSearch(value); setStudentPage(1); }} placeholder="Search students or ID" />
           <select
             aria-label="Filter students by course"
             onChange={(event) => {
               setStudentCourseFilter(event.target.value);
               setStudentSectionFilter("All Sections");
+              setStudentPage(1);
             }}
             value={studentCourseFilter}
           >
@@ -426,7 +443,7 @@ export default function ProfessorMonitoring() {
           </select>
           <select
             aria-label="Filter students by section"
-            onChange={(event) => setStudentSectionFilter(event.target.value)}
+            onChange={(event) => { setStudentSectionFilter(event.target.value); setStudentPage(1); }}
             value={studentSectionFilter}
           >
             <option>All Sections</option>
@@ -434,20 +451,42 @@ export default function ProfessorMonitoring() {
           </select>
         </div>
 
-        <div className="professor-monitoring-grid">
-          {filteredStudentsWithCounts.map((student) => (
-            <article key={student.id}>
-              <div className="professor-monitoring-avatar">{student.name.slice(0, 1).toUpperCase()}</div>
-              <div>
-                <strong>{student.name}</strong>
-                <span>{student.studentNumber}</span>
-              </div>
-              <Badge tone={student.alertCount ? "danger" : "success"}>{student.alertCount} alerts</Badge>
-              <Button variant="light" onClick={() => openActivities(student)}>View Activities</Button>
-            </article>
-          ))}
-          {!filteredStudentsWithCounts.length ? <div className="professor-exams-empty">{students.length ? "No students match your filters." : "No enrolled students found for your courses."}</div> : null}
-        </div>
+        {studentListView.view === "cards" ? (
+          <div className="professor-monitoring-grid">
+            {studentPageData.rows.map((student) => (
+              <article key={student.id}>
+                <div className="professor-monitoring-avatar">{student.name.slice(0, 1).toUpperCase()}</div>
+                <div>
+                  <strong>{student.name}</strong>
+                  <span>{student.studentNumber}</span>
+                  <small>{(student.courses || []).map((course) => `${course.courseCode} ${course.section}`).join(" • ") || student.section}</small>
+                </div>
+                <Badge tone={student.alertCount ? "danger" : "success"}>{student.alertCount} alerts</Badge>
+                <Button variant="light" onClick={() => openActivities(student)}>View Activities</Button>
+              </article>
+            ))}
+            {!filteredStudentsWithCounts.length ? <div className="professor-exams-empty">{students.length ? "No students match your filters." : "No enrolled students found for your courses."}</div> : null}
+          </div>
+        ) : (
+          <ResponsiveTable density={studentListView.tableDensity} className="professor-monitoring-table-wrap">
+            <table className="professor-score-table compact professor-monitoring-table">
+              <thead><tr><th>Student</th><th>Course / Section</th><th>Status</th><th>Violations</th><th>Action</th></tr></thead>
+              <tbody>
+                {studentPageData.rows.map((student) => (
+                  <tr key={student.id}>
+                    <td><strong>{student.name}</strong><span>{student.studentNumber}</span></td>
+                    <td>{(student.courses || []).map((course) => `${course.courseCode} ${course.section}`).join(" • ") || student.section}</td>
+                    <td><Badge tone={student.alertCount ? "danger" : "success"}>{student.alertCount ? "Flagged" : "Clear"}</Badge></td>
+                    <td>{student.alertCount}</td>
+                    <td><button className="professor-score-link-button" onClick={() => openActivities(student)} type="button">View Activities</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {!filteredStudentsWithCounts.length ? <div className="professor-exams-empty">{students.length ? "No students match your filters." : "No enrolled students found for your courses."}</div> : null}
+          </ResponsiveTable>
+        )}
+        <ListPagination count={filteredStudentsWithCounts.length} page={studentPageData.page} pageSize={studentListView.pageSize} onPage={setStudentPage} />
       </Card>
 
       {selectedStudent ? (

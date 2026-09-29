@@ -2947,15 +2947,15 @@ html[data-theme="light"] .profile-remove-actions button.danger {
 }
 .list-card-grid-comfortable {
   --list-card-gap: 16px;
-  --list-card-min: min(100%, 300px);
+  --list-card-min: min(100%, 280px);
 }
 .list-card-grid-compact {
   --list-card-gap: 10px;
-  --list-card-min: min(100%, 190px);
+  --list-card-min: min(100%, 210px);
 }
 .list-card-grid-dense {
   --list-card-gap: 8px;
-  --list-card-min: min(100%, 145px);
+  --list-card-min: min(100%, 170px);
 }
 .list-card-grid .professor-course-list-card,
 .list-card-grid .student-course-card,
@@ -3062,19 +3062,19 @@ table.list-table-dense .professor-exam-actions {
   margin-top: 12px;
 }
 @media (min-width: 1200px) {
-  .list-card-grid-comfortable { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .list-card-grid-compact { grid-template-columns: repeat(5, minmax(0, 1fr)); }
-  .list-card-grid-dense { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+  .list-card-grid-comfortable { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .list-card-grid-compact { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .list-card-grid-dense { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 }
 @media (min-width: 700px) and (max-width: 1199px) {
-  .list-card-grid-comfortable { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .list-card-grid-compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .list-card-grid-dense { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .list-card-grid-comfortable { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .list-card-grid-compact { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); }
+  .list-card-grid-dense { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); }
 }
 @media (max-width: 699px) {
   .list-card-grid-comfortable { grid-template-columns: 1fr; }
-  .list-card-grid-compact { grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
-  .list-card-grid-dense { grid-template-columns: repeat(auto-fit, minmax(min(100%, 115px), 1fr)); }
+  .list-card-grid-compact { grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); }
+  .list-card-grid-dense { grid-template-columns: repeat(auto-fit, minmax(min(100%, 160px), 1fr)); }
   .list-view-toolbar,
   .list-view-controls {
     justify-content: flex-start;
@@ -3411,6 +3411,71 @@ table.list-table-dense .professor-exam-actions {
   font-size: 0.78rem;
   font-style: normal;
   font-weight: 900;
+}
+.professor-course-list-card {
+  min-height: 172px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: auto minmax(0, 1fr);
+  padding: 16px;
+  text-align: left;
+  width: 100%;
+  box-shadow: 0 10px 26px rgba(15, 23, 42, .06);
+}
+.professor-course-list-card.active,
+.professor-course-list-card:hover {
+  border-color: color-mix(in srgb, var(--primary) 46%, var(--app-border));
+}
+.professor-course-list-card svg {
+  color: #2563eb;
+  font-size: 1.55rem;
+  margin-top: 2px;
+}
+.professor-course-list-card > div {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.professor-course-list-card strong,
+.professor-course-list-card span,
+.professor-course-list-card small,
+.professor-course-list-card em {
+  overflow-wrap: anywhere;
+}
+.professor-course-list-card strong {
+  color: var(--app-text);
+  font-size: 1rem;
+}
+.professor-course-list-card span,
+.professor-course-list-card small {
+  color: var(--app-text-muted);
+}
+.professor-course-list-card em {
+  color: var(--app-text);
+  font-style: normal;
+  font-weight: 800;
+  margin-top: 4px;
+}
+.professor-course-list-card i {
+  align-self: end;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--app-background) 70%, transparent);
+  color: var(--app-text);
+  display: grid;
+  font-style: normal;
+  font-weight: 900;
+  grid-column: 1 / -1;
+  padding: 9px 10px;
+}
+.professor-course-list-card i span {
+  color: var(--app-text-muted);
+  font-size: .72rem;
+  font-weight: 800;
+  text-transform: uppercase;
 }
 .professor-course-exam-list {
   display: grid;
@@ -3825,6 +3890,14 @@ table.list-table-dense .professor-exam-actions {
   grid-column: 1 / -1;
   justify-self: end;
   align-self: end;
+}
+.professor-monitoring-table {
+  min-width: 760px;
+}
+.professor-monitoring-table td:first-child span {
+  color: var(--app-text-muted);
+  display: block;
+  margin-top: 4px;
 }
 .professor-monitoring-backdrop {
   position: fixed;
@@ -10359,7 +10432,27 @@ html[data-theme="dark"] .student-archive-list .folder-delete > svg {
 }
 
 html[data-theme="dark"] .professor-exams-table .professor-status-pill {
-  color: #000000 !important;
+  color: var(--app-text) !important;
+}
+
+html[data-theme="dark"] .professor-exams-table .professor-status-pill.published {
+  color: #86efac !important;
+}
+
+html[data-theme="dark"] .professor-exams-table .professor-status-pill.pending {
+  color: #fde68a !important;
+}
+
+html[data-theme="dark"] .professor-exams-table .professor-status-pill.unpublished {
+  color: var(--app-text) !important;
+}
+
+html[data-theme="dark"] .professor-exams-table .professor-status-pill.unpublished.approved {
+  color: #bfdbfe !important;
+}
+
+html[data-theme="dark"] .professor-exams-table .professor-status-pill.unpublished.rejected {
+  color: #fecaca !important;
 }
 
 html[data-theme="light"] .professor-violation-chart {

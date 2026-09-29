@@ -191,11 +191,11 @@ export default function ProfessorCourses() {
               <div>
                 <strong className="professor-course-code">{course.courseCode}</strong>
                 <span>{course.courseName}</span>
-                <small>{formatCourseMeta(course)}</small>
-                <small>{formatCourseTerm(course) || `${course.students} students`}</small>
-                {formatCourseTerm(course) ? <small>{course.students} students</small> : null}
+                <small>{formatCourseMeta(course) || "Program not assigned"}</small>
+                <small>{formatCourseTerm(course) || (course.section ? `Section ${course.section}` : "Section not assigned")}</small>
+                <em>{course.students} student{Number(course.students) === 1 ? "" : "s"}</em>
               </div>
-              <i>{course.joiningCode || "No code"}</i>
+              <i><span>Joining Code</span>{course.joiningCode || "No code"}</i>
             </button>
           ))}
           </ListCardGrid>
