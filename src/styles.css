@@ -3016,6 +3016,24 @@ html[data-theme="light"] .profile-remove-actions button.danger {
 .list-card-grid-comfortable .student-grade-course {
   padding: 16px;
 }
+.list-view-segment span,
+.list-view-segment button,
+.list-view-pagination span,
+.list-view-pagination button,
+.list-record-card dt,
+.list-record-card dd,
+.list-record-actions,
+.list-table-wrap table th,
+.list-table-wrap table td,
+.professor-score-table th,
+.professor-score-table td,
+.admin-activity-panel th,
+.admin-activity-panel td,
+.cluster-role-shell table th,
+.cluster-role-shell table td {
+  font-size: 12px;
+  line-height: 1.35;
+}
 .list-table-wrap,
 .list-table-wrap.table-wrap,
 .table-wrap.list-table-comfortable,
@@ -3939,6 +3957,14 @@ html[data-theme="light"] .professor-course-list-card:hover {
   color: var(--app-text-muted);
   margin-top: 5px;
 }
+.professor-monitoring-grid span,
+.professor-monitoring-grid small,
+.professor-monitoring-grid .badge,
+.professor-monitoring-grid .btn,
+.professor-monitoring-table .badge {
+  font-size: 12px;
+  line-height: 1.35;
+}
 .professor-monitoring-grid .badge {
   position: absolute;
   top: 16px;
@@ -4604,6 +4630,13 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .professor-draft-row span,
 .professor-draft-row small {
   color: var(--app-text-muted);
+}
+.professor-draft-row span,
+.professor-draft-row small,
+.professor-exam-actions-trigger,
+.professor-exam-actions-popover button {
+  font-size: 12px;
+  line-height: 1.35;
 }
 .professor-archive-modal {
   width: calc(100vw - 32px);
@@ -6589,6 +6622,11 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .student-dashboard-overview .student-course-card span {
   color: var(--app-text-muted);
 }
+.student-dashboard-overview .student-course-card span,
+.student-dashboard-overview .student-course-card small {
+  font-size: 12px;
+  line-height: 1.35;
+}
 .student-dashboard-overview .student-course-card i {
   background: rgba(6, 182, 212, 0.14);
   color: var(--accent);
@@ -6677,6 +6715,13 @@ html[data-theme="light"] .professor-course-list-card:hover {
   padding: 0 16px;
   font-size: 0.84rem;
   font-weight: 900;
+}
+.student-exam-list small,
+.student-exam-list article > div:last-child > span,
+.student-exam-list .badge,
+.student-start-exam {
+  font-size: 12px;
+  line-height: 1.35;
 }
 .student-empty-box {
   min-height: 84px;
