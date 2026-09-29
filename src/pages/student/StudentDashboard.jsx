@@ -287,8 +287,8 @@ export default function StudentDashboard() {
             </ListCardGrid>
           ) : null}
           {!examsLoading && examsView.view === "table" ? (
-            <ResponsiveTable density={examsView.tableDensity}>
-              <table className="professor-score-table compact">
+            <ResponsiveTable density={examsView.tableDensity} className="student-available-exams-table-wrap">
+              <table className="professor-score-table compact student-available-exams-table">
                 <thead><tr><th>Exam / Task</th><th>Course</th><th>Duration</th><th>Status</th><th>Action</th></tr></thead>
                 <tbody>
                   {examPageData.rows.map((exam) => (
