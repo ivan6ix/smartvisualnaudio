@@ -9,7 +9,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useLiveAudioMonitoring } from "../../hooks/useLiveAudioMonitoring";
 import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../../lib/examCompatibility";
 import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
-import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig } from "../../lib/examQuestionTypes";
+import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig, normalizeChoiceItems } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import { createIncidentTracker, EXAM_VIOLATION_LIMIT, hasProvidedAnswer, mergeAttemptViolations, violationWarning } from "../../lib/examViolationLimit";
 
@@ -180,12 +180,12 @@ function prepareQuestionsForAttempt(questionRows, settings, savedOrder, studentI
   const questions = orderedQuestions.map((question) => {
     const config = getQuestionConfig(question);
     const choices = question.choices || config.choices || [];
-    if (!settings.randomizeChoices || !["Multiple Choice", "Multiple Select", "Picture Choice"].includes(question.question_type) || choices.length < 2) {
+    if (!settings.randomizeChoices || !["Multiple Choice", "Multiple Select", "Picture Choice", "Drag and Drop"].includes(question.question_type) || choices.length < 2) {
       return question;
     }
     const savedChoices = applySavedOrder(choices, savedOrder?.choiceIds?.[question.id]);
     const orderedChoices = savedChoices || stableShuffle(choices, `${studentId}:${examId}:${question.id}:choices`);
-    choiceOrder[question.id] = orderedChoices.map((choice) => choice.key);
+    choiceOrder[question.id] = orderedChoices.map((choice) => choice.id || choice.key);
     return { ...question, choices: orderedChoices };
   });
 
@@ -624,7 +624,7 @@ export default function StudentExamTake() {
         if (question.question_type === "Ordering / Sequencing") items[question.id] = [...(config.orderItems || getCorrectAnswers(question))].sort(() => Math.random() - 0.5);
         if (question.question_type === "Enumeration") items[question.id] = ["", "", ""];
         if (question.question_type === "Matching Type") items[question.id] = {};
-        if (question.question_type === "Multiple Select") items[question.id] = [];
+        if (question.question_type === "Multiple Select" || question.question_type === "Drag and Drop") items[question.id] = [];
         return items;
       }, {});
       const restoredAnswers = { ...defaultAnswers, ...(saved?.answers || {}) };
@@ -1129,6 +1129,18 @@ export default function StudentExamTake() {
       return {
         ...current,
         [questionId]: selected.includes(key) ? selected.filter((item) => item !== key) : [...selected, key],
+      };
+    });
+  }
+
+  function toggleDragDropAnswer(questionId, choiceId) {
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    touchedAnswersRef.current.add(questionId);
+    updateAnswers((current) => {
+      const selected = current[questionId] || [];
+      return {
+        ...current,
+        [questionId]: selected.includes(choiceId) ? selected.filter((item) => item !== choiceId) : [...selected, choiceId],
       };
     });
   }
@@ -2830,18 +2842,27 @@ export default function StudentExamTake() {
 
   function renderQuestion(question, index) {
     const config = getQuestionConfig(question);
-    const choices = question.choices || config.choices || [];
-    const pairs = config.pairs || [];
+    const choices = normalizeChoiceItems(question.choices || config.choices || []);
+    const legacyPairs = config.pairs || [];
+    const matchingLeftItems = (config.matchingLeftItems || legacyPairs.map((pair, pairIndex) => ({ id: pair.id || pair.left || `left-${pairIndex}`, text: pair.text || pair.left }))).map((item, index) => ({
+      id: String(item.id || item.left || `left-${index}`),
+      text: item.text || item.left || "",
+    }));
+    const matchingRightItems = (config.matchingRightItems || config.matchChoices || legacyPairs.map((pair, pairIndex) => ({ id: pair.right || `right-${pairIndex}`, text: pair.right }))).map((item, index) => ({
+      id: String(item.id || item.value || item.text || `right-${index}`),
+      text: item.text || item.value || item.right || "",
+    }));
+    const pairs = matchingLeftItems;
     const orderItems = answers[question.id] || config.orderItems || [];
-    const rightOptions = config.matchChoices || pairs.map((pair) => pair.right).filter(Boolean).sort();
+    const rightOptions = matchingRightItems.length ? matchingRightItems : legacyPairs.map((pair) => ({ id: pair.right, text: pair.right })).filter((item) => item.text).sort((a, b) => a.text.localeCompare(b.text));
     const matchingAnswers = answers[question.id] || {};
     const selectedLeft = selectedMatchingLeft[question.id] || "";
     const matchingRowCount = Math.max(pairs.length, rightOptions.length, 1);
     const matchingLines = pairs.map((pair, leftIndex) => {
-      const rightIndex = rightOptions.indexOf(matchingAnswers[pair.left]);
+      const rightIndex = rightOptions.findIndex((option) => option.id === matchingAnswers[pair.id]);
       if (rightIndex < 0) return null;
       return {
-        key: `${pair.left}-${matchingAnswers[pair.left]}`,
+        key: `${pair.id}-${matchingAnswers[pair.id]}`,
         x1: 28,
         y1: ((leftIndex + 0.5) / matchingRowCount) * 100,
         x2: 72,
@@ -2865,15 +2886,15 @@ export default function StudentExamTake() {
         ) : null}
 
         {question.question_type === "Multiple Choice" || question.question_type === "Picture Choice" ? choices.map((choice) => (
-          <label className="student-answer-option" key={choice.key}>
-            <input checked={answers[question.id] === choice.key} onChange={() => setAnswer(question.id, choice.key)} type="radio" />
+          <label className="student-answer-option" key={choice.id}>
+            <input checked={answers[question.id] === choice.id || answers[question.id] === choice.key} onChange={() => setAnswer(question.id, choice.id)} type="radio" />
             <span>{choice.key}. {choice.value}</span>
           </label>
         )) : null}
 
         {question.question_type === "Multiple Select" ? choices.map((choice) => (
-          <label className="student-answer-option" key={choice.key}>
-            <input checked={(answers[question.id] || []).includes(choice.key)} onChange={() => toggleMultiAnswer(question.id, choice.key)} type="checkbox" />
+          <label className="student-answer-option" key={choice.id}>
+            <input checked={(answers[question.id] || []).includes(choice.id) || (answers[question.id] || []).includes(choice.key)} onChange={() => toggleMultiAnswer(question.id, choice.id)} type="checkbox" />
             <span>{choice.key}. {choice.value}</span>
           </label>
         )) : null}
@@ -2903,30 +2924,67 @@ export default function StudentExamTake() {
             <div className="student-matching-column">
               {pairs.map((pair) => (
                 <button
-                  className={`student-matching-choice ${selectedLeft === pair.left ? "selected" : ""} ${matchingAnswers[pair.left] ? "matched" : ""}`}
-                  key={pair.left}
-                  onClick={() => selectMatchingLeft(question.id, pair.left)}
+                  className={`student-matching-choice ${selectedLeft === pair.id ? "selected" : ""} ${matchingAnswers[pair.id] ? "matched" : ""}`}
+                  key={pair.id}
+                  onClick={() => selectMatchingLeft(question.id, pair.id)}
                   type="button"
                 >
-                  {pair.left}
+                  {pair.text}
                 </button>
               ))}
             </div>
             <div className="student-matching-column right">
               {rightOptions.map((option) => {
-                const matchedLeft = Object.entries(matchingAnswers).find(([, value]) => value === option)?.[0];
+                const matchedLeft = Object.entries(matchingAnswers).find(([, value]) => value === option.id)?.[0];
                 return (
                   <button
                     className={`student-matching-choice ${matchedLeft ? "matched" : ""}`}
                     disabled={!selectedLeft && !matchedLeft}
-                    key={option}
-                    onClick={() => connectMatchingAnswer(question.id, option)}
+                    key={option.id}
+                    onClick={() => connectMatchingAnswer(question.id, option.id)}
                     type="button"
                   >
-                    {option}
+                    {option.text}
                   </button>
                 );
               })}
+            </div>
+          </div>
+        ) : null}
+
+        {question.question_type === "Drag and Drop" ? (
+          <div className="student-dragdrop-board">
+            <div className="student-dragdrop-column">
+              <strong>Available Choices</strong>
+              {choices.filter((choice) => !(answers[question.id] || []).includes(choice.id)).map((choice) => (
+                <button
+                  className="student-dragdrop-chip"
+                  key={choice.id}
+                  onClick={() => toggleDragDropAnswer(question.id, choice.id)}
+                  onPointerDown={(event) => event.currentTarget.setPointerCapture?.(event.pointerId)}
+                  type="button"
+                >
+                  {choice.value}
+                </button>
+              ))}
+            </div>
+            <div className="student-dragdrop-column answer">
+              <strong>Answer Area</strong>
+              {(answers[question.id] || []).length ? (answers[question.id] || []).map((choiceId) => {
+                const choice = choices.find((item) => item.id === choiceId);
+                if (!choice) return null;
+                return (
+                  <button
+                    className="student-dragdrop-chip selected"
+                    key={choice.id}
+                    onClick={() => toggleDragDropAnswer(question.id, choice.id)}
+                    onPointerDown={(event) => event.currentTarget.setPointerCapture?.(event.pointerId)}
+                    type="button"
+                  >
+                    {choice.value}
+                  </button>
+                );
+              }) : <span className="student-dragdrop-empty">Drop answers here</span>}
             </div>
           </div>
         ) : null}

@@ -7,7 +7,14 @@ import { toast } from "sonner";
 import { useAuth } from "../../context/AuthContext";
 import { professorCourses } from "../../data/professorData";
 import { ASSIGNMENT_MODES, filterAssignmentStudents, normalizeAssignmentMode, toggleFilteredStudentSelection } from "../../lib/examAssignments";
-import { AUTO_GRADED_TYPES, QUESTION_TYPES } from "../../lib/examQuestionTypes";
+import {
+  AUTO_GRADED_TYPES,
+  QUESTION_TYPES,
+  buildQuestionStorage,
+  connectMatchingItems,
+  createChoiceItem,
+  normalizeQuestionForEditing,
+} from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const examTypes = ["Quiz", "Exam", "Long Exam", "Activity"];
@@ -24,18 +31,17 @@ const settings = [
   { key: "captureSnapshots", label: "Capture snapshot when violation is detected" },
 ];
 
-const defaultChoices = [
-  { key: "A", value: "" },
-  { key: "B", value: "" },
-  { key: "C", value: "" },
-  { key: "D", value: "" },
-];
+function nextChoiceKey(index) {
+  return String.fromCharCode(65 + index);
+}
 
-const defaultPairs = [
-  { left: "", right: "" },
-  { left: "", right: "" },
-  { left: "", right: "" },
-];
+function defaultChoices() {
+  return [0, 1, 2, 3].map((index) => createChoiceItem("", nextChoiceKey(index)));
+}
+
+function defaultMatchingItems(prefix) {
+  return [0, 1, 2].map((index) => ({ id: crypto.randomUUID(), text: "", key: `${prefix}-${index + 1}` }));
+}
 
 const defaultListItems = ["", "", ""];
 const PICTURE_CHOICE_TYPE = "Picture Choice";
@@ -71,10 +77,13 @@ function emptyQuestionDraft() {
     id: "",
     title: "",
     type: "",
-    choices: defaultChoices,
+    choices: defaultChoices(),
     correctAnswer: "",
     correctAnswers: [],
-    pairs: defaultPairs,
+    matchingLeftItems: defaultMatchingItems("left"),
+    matchingRightItems: defaultMatchingItems("right"),
+    matchingConnections: [],
+    pairs: [],
     listItems: defaultListItems,
     questionImageDataUrl: "",
     questionImageName: "",
@@ -162,8 +171,8 @@ function applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraf
     ...snapshot.examForm,
     settings: { ...current.settings, ...(snapshot.examForm.settings || {}) },
   }));
-  if (Array.isArray(snapshot.questions)) setQuestions(snapshot.questions);
-  if (snapshot.questionDraft) setQuestionDraft({ ...emptyQuestionDraft(), ...snapshot.questionDraft });
+  if (Array.isArray(snapshot.questions)) setQuestions(snapshot.questions.map(normalizeQuestionForEditing));
+  if (snapshot.questionDraft) setQuestionDraft(normalizeQuestionForEditing({ ...emptyQuestionDraft(), ...snapshot.questionDraft }));
 }
 
 function defaultExamForm({ presetCourseId = "", presetType = "", presetPeriod = "" } = {}) {
@@ -210,6 +219,7 @@ export default function ProfessorCreateExam() {
   const [editingQuestionId, setEditingQuestionId] = useState("");
   const [saving, setSaving] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
+  const [selectedProfessorMatchingLeft, setSelectedProfessorMatchingLeft] = useState("");
   const [draftExamId, setDraftExamId] = useState(editId);
   const [courseStudents, setCourseStudents] = useState([]);
   const [selectedStudentIds, setSelectedStudentIds] = useState(() => new Set());
@@ -393,17 +403,7 @@ export default function ProfessorCreateExam() {
           ...(exam.exam_settings || {}),
         },
       }));
-      setQuestions((questionRows || []).map((question) => ({
-        id: question.id,
-        title: question.question_text,
-        type: question.question_type,
-        choices: Array.isArray(question.choices) ? question.choices : [],
-        correctAnswer: question.correct_answer || "",
-        correctAnswers: Array.isArray(question.correct_answers) ? question.correct_answers : [],
-        config: question.question_config || {},
-        points: String(question.points || 1),
-        manualGrading: Boolean(question.manual_grading),
-      })));
+      setQuestions((questionRows || []).map(normalizeQuestionForEditing));
       if (serverSnapshot) {
         let localSnapshot = null;
         try {
@@ -529,17 +529,20 @@ export default function ProfessorCreateExam() {
 
     const questionRows = questions
       .filter((question) => question.title?.trim() && question.type && Number(question.points) > 0)
-      .map((question) => ({
-        id: question.id,
-        question_text: question.title,
-        question_type: question.type,
-        choices: question.choices || [],
-        correct_answer: question.correctAnswer || "",
-        correct_answers: question.correctAnswers || [],
-        question_config: question.config || {},
-        manual_grading: question.manualGrading,
-        points: Number(question.points),
-      }));
+      .map((question) => {
+        const stored = buildQuestionStorage(question);
+        return {
+          id: stored.id,
+          question_text: stored.title,
+          question_type: stored.type,
+          choices: stored.choices || [],
+          correct_answer: stored.correctAnswer || "",
+          correct_answers: stored.correctAnswers || [],
+          question_config: stored.config || {},
+          manual_grading: stored.manualGrading,
+          points: Number(stored.points),
+        };
+      });
 
     return { examPayload, questionRows, snapshot };
   }, [examForm, questionDraft, questions, selectedCourse, user?.id]);
@@ -698,11 +701,31 @@ export default function ProfessorCreateExam() {
     setQuestionDraft((current) => ({ ...current, [key]: value }));
   }
 
-  function updateChoice(key, value) {
+  function updateChoice(id, value) {
     setQuestionDraft((current) => ({
       ...current,
-      choices: current.choices.map((choice) => choice.key === key ? { ...choice, value } : choice),
+      choices: current.choices.map((choice) => choice.id === id ? { ...choice, value } : choice),
     }));
+  }
+
+  function addChoice() {
+    setQuestionDraft((current) => ({
+      ...current,
+      choices: [...current.choices, createChoiceItem("", nextChoiceKey(current.choices.length))],
+    }));
+  }
+
+  function removeChoice(id) {
+    setQuestionDraft((current) => {
+      const removed = current.choices.find((choice) => choice.id === id);
+      const removedIds = new Set([id, removed?.key].filter(Boolean));
+      return {
+        ...current,
+        choices: current.choices.filter((choice) => choice.id !== id).map((choice, index) => ({ ...choice, key: nextChoiceKey(index) })),
+        correctAnswer: removedIds.has(current.correctAnswer) ? "" : current.correctAnswer,
+        correctAnswers: current.correctAnswers.filter((answer) => !removedIds.has(answer)),
+      };
+    });
   }
 
   async function handleQuestionImageUpload(event) {
@@ -731,20 +754,44 @@ export default function ProfessorCreateExam() {
     }
   }
 
-  function toggleCorrectChoice(key) {
+  function toggleCorrectChoice(id) {
     setQuestionDraft((current) => ({
       ...current,
-      correctAnswers: current.correctAnswers.includes(key)
-        ? current.correctAnswers.filter((item) => item !== key)
-        : [...current.correctAnswers, key],
+      correctAnswers: current.correctAnswers.includes(id)
+        ? current.correctAnswers.filter((item) => item !== id)
+        : [...current.correctAnswers, id],
     }));
   }
 
-  function updatePair(index, key, value) {
+  function updateMatchingItem(side, id, value) {
     setQuestionDraft((current) => ({
       ...current,
-      pairs: current.pairs.map((pair, pairIndex) => pairIndex === index ? { ...pair, [key]: value } : pair),
+      [side]: current[side].map((item) => item.id === id ? { ...item, text: value } : item),
     }));
+  }
+
+  function addMatchingItem(side) {
+    const prefix = side === "matchingLeftItems" ? "left" : "right";
+    setQuestionDraft((current) => ({
+      ...current,
+      [side]: [...current[side], { id: crypto.randomUUID(), text: "", key: `${prefix}-${current[side].length + 1}` }],
+    }));
+  }
+
+  function removeMatchingItem(side, id) {
+    setQuestionDraft((current) => ({
+      ...current,
+      [side]: current[side].filter((item) => item.id !== id),
+      matchingConnections: current.matchingConnections.filter((connection) => connection.leftId !== id && connection.rightId !== id),
+    }));
+  }
+
+  function connectMatching(leftId, rightId) {
+    setQuestionDraft((current) => ({
+      ...current,
+      matchingConnections: connectMatchingItems(current.matchingConnections, leftId, rightId),
+    }));
+    setSelectedProfessorMatchingLeft("");
   }
 
   function updateListItem(index, value) {
@@ -766,6 +813,7 @@ export default function ProfessorCreateExam() {
   }
 
   function handleQuestionTypeChange(type) {
+    setSelectedProfessorMatchingLeft("");
     setQuestionDraft({
       ...emptyQuestionDraft(),
       title: questionDraft.title,
@@ -779,6 +827,7 @@ export default function ProfessorCreateExam() {
   function resetQuestionDraft() {
     setQuestionDraft(emptyQuestionDraft());
     setEditingQuestionId("");
+    setSelectedProfessorMatchingLeft("");
   }
 
   function validateQuestion() {
@@ -788,18 +837,27 @@ export default function ProfessorCreateExam() {
     if (!title || !questionDraft.type || Number(questionDraft.points) < 0.01) return "Question title, type, and maximum points are required.";
 
     if (CHOICE_TYPES.includes(questionDraft.type)) {
-      if (!hasFilledValues(questionDraft.choices.map((choice) => choice.value))) return "Complete choices A, B, C, and D.";
+      if (questionDraft.choices.length < 2) return "Add at least two answer choices.";
+      if (!hasFilledValues(questionDraft.choices.map((choice) => choice.value))) return "Complete all answer choices.";
       if ((questionDraft.type === "Multiple Choice" || questionDraft.type === PICTURE_CHOICE_TYPE) && !questionDraft.correctAnswer) return "Select the correct answer.";
       if (questionDraft.type === "Multiple Select" && !questionDraft.correctAnswers.length) return "Select at least one correct answer.";
       if (questionDraft.type === PICTURE_CHOICE_TYPE && !questionDraft.questionImageDataUrl) return "Upload a picture for this question.";
+    }
+
+    if (questionDraft.type === "Drag and Drop") {
+      if (questionDraft.choices.length < 2) return "Add at least two drag and drop choices.";
+      if (!hasFilledValues(questionDraft.choices.map((choice) => choice.value))) return "Complete all drag and drop choices.";
+      if (!questionDraft.correctAnswers.length) return "Mark at least one drag and drop choice as correct.";
     }
 
     if (["Identification", "Fill in the Blank", "True or False"].includes(questionDraft.type) && !questionDraft.correctAnswer.trim()) {
       return "Correct answer is required.";
     }
 
-    if (questionDraft.type === "Matching Type" && questionDraft.pairs.some((pair) => !pair.left.trim() || !pair.right.trim())) {
-      return "Complete all matching pairs.";
+    if (questionDraft.type === "Matching Type") {
+      if (questionDraft.matchingLeftItems.length < 2 || questionDraft.matchingRightItems.length < 2) return "Add at least two matching items per side.";
+      if (!hasFilledValues(questionDraft.matchingLeftItems.map((item) => item.text)) || !hasFilledValues(questionDraft.matchingRightItems.map((item) => item.text))) return "Complete all matching items.";
+      if (questionDraft.matchingLeftItems.some((item) => !questionDraft.matchingConnections.some((connection) => connection.leftId === item.id))) return "Connect every left matching item.";
     }
 
     if (questionDraft.type === "Ordering / Sequencing" && !hasFilledValues(questionDraft.listItems)) {
@@ -814,34 +872,7 @@ export default function ProfessorCreateExam() {
   }
 
   function buildQuestionPayload() {
-    const type = questionDraft.type;
-    const choices = CHOICE_TYPES.includes(type) ? questionDraft.choices : [];
-    const correctAnswers = type === "Multiple Choice" || type === PICTURE_CHOICE_TYPE || type === "True or False" || type === "Identification" || type === "Fill in the Blank"
-      ? [questionDraft.correctAnswer.trim()]
-      : type === "Matching Type"
-        ? questionDraft.pairs
-        : questionDraft.correctAnswers.map((answer) => String(answer).trim()).filter(Boolean);
-    const config = {
-      choices,
-      pairs: type === "Matching Type" ? questionDraft.pairs : [],
-      orderItems: type === "Ordering / Sequencing" ? questionDraft.listItems : [],
-      questionImage: type === PICTURE_CHOICE_TYPE ? questionDraft.questionImageDataUrl : "",
-      questionImageName: type === PICTURE_CHOICE_TYPE ? questionDraft.questionImageName : "",
-      manualGrading: !AUTO_GRADED_TYPES.has(type),
-      ...(supportsPartialMatch(type) ? { partialMatch: Boolean(questionDraft.partialMatch) } : {}),
-    };
-
-    return {
-      id: questionDraft.id || crypto.randomUUID(),
-      title: questionDraft.title.trim(),
-      type,
-      choices,
-      correctAnswer: type === "Matching Type" ? JSON.stringify(questionDraft.pairs) : correctAnswers.join(", "),
-      correctAnswers,
-      config,
-      points: questionDraft.points,
-      manualGrading: !AUTO_GRADED_TYPES.has(type),
-    };
+    return buildQuestionStorage(questionDraft);
   }
 
   function handleAddQuestion() {
@@ -864,10 +895,13 @@ export default function ProfessorCreateExam() {
       id: question.id,
       title: question.title,
       type: question.type,
-      choices: question.choices?.length ? question.choices : defaultChoices,
+      choices: question.choices?.length ? question.choices : defaultChoices(),
       correctAnswer: Array.isArray(question.correctAnswers) ? question.correctAnswers[0] || "" : question.correctAnswer || "",
       correctAnswers: Array.isArray(question.correctAnswers) ? question.correctAnswers : [],
-      pairs: question.config?.pairs?.length ? question.config.pairs : defaultPairs,
+      matchingLeftItems: question.matchingLeftItems || defaultMatchingItems("left"),
+      matchingRightItems: question.matchingRightItems || defaultMatchingItems("right"),
+      matchingConnections: question.matchingConnections || [],
+      pairs: question.config?.pairs || [],
       listItems: question.config?.orderItems?.length ? question.config.orderItems : defaultListItems,
       questionImageDataUrl: question.config?.questionImage || "",
       questionImageName: question.config?.questionImageName || "",
@@ -1062,7 +1096,7 @@ export default function ProfessorCreateExam() {
   function renderQuestionTypeFields() {
     if (!questionDraft.type) return null;
 
-    if (CHOICE_TYPES.includes(questionDraft.type)) {
+    if (CHOICE_TYPES.includes(questionDraft.type) || questionDraft.type === "Drag and Drop") {
       return (
         <>
           {questionDraft.type === PICTURE_CHOICE_TYPE ? (
@@ -1074,12 +1108,15 @@ export default function ProfessorCreateExam() {
           ) : null}
           <div className="professor-choice-grid">
             {questionDraft.choices.map((choice) => (
-              <label className="professor-choice-field" key={choice.key}>
+              <label className="professor-choice-field" key={choice.id}>
                 <span>{choice.key}</span>
-                <input className="professor-create-input" onChange={(event) => updateChoice(choice.key, event.target.value)} placeholder={`Choice ${choice.key}`} type="text" value={choice.value} />
-                {questionDraft.type === "Multiple Select" ? (
+                <input className="professor-create-input" onChange={(event) => updateChoice(choice.id, event.target.value)} placeholder={`Choice ${choice.key}`} type="text" value={choice.value} />
+                {questionDraft.choices.length > 2 ? (
+                  <button className="professor-choice-remove" onClick={() => removeChoice(choice.id)} type="button"><FiTrash2 /> Remove</button>
+                ) : null}
+                {questionDraft.type === "Multiple Select" || questionDraft.type === "Drag and Drop" ? (
                   <label className="professor-correct-checkbox">
-                    <input checked={questionDraft.correctAnswers.includes(choice.key)} onChange={() => toggleCorrectChoice(choice.key)} type="checkbox" />
+                    <input checked={questionDraft.correctAnswers.includes(choice.id)} onChange={() => toggleCorrectChoice(choice.id)} type="checkbox" />
                     Correct
                   </label>
                 ) : null}
@@ -1088,10 +1125,11 @@ export default function ProfessorCreateExam() {
             {questionDraft.type === "Multiple Choice" || questionDraft.type === PICTURE_CHOICE_TYPE ? (
               <SelectInput className="professor-create-input professor-correct-answer-select" onChange={(event) => setQuestionValue("correctAnswer", event.target.value)} value={questionDraft.correctAnswer}>
                 <option value="" disabled>Correct Answer</option>
-                {questionDraft.choices.map((choice) => <option key={choice.key} value={choice.key}>{choice.key}</option>)}
+                {questionDraft.choices.map((choice) => <option key={choice.id} value={choice.id}>{choice.key}</option>)}
               </SelectInput>
             ) : null}
           </div>
+          <button className="professor-add-inline" onClick={addChoice} type="button"><FiPlus /> Add Choice</button>
         </>
       );
     }
@@ -1118,13 +1156,52 @@ export default function ProfessorCreateExam() {
 
     if (questionDraft.type === "Matching Type") {
       return (
-        <div className="professor-complex-question-grid">
-          {questionDraft.pairs.map((pair, index) => (
-            <div className="professor-pair-row" key={index}>
-              <TextInput onChange={(event) => updatePair(index, "left", event.target.value)} placeholder={`Left item ${index + 1}`} value={pair.left} />
-              <TextInput onChange={(event) => updatePair(index, "right", event.target.value)} placeholder={`Matching answer ${index + 1}`} value={pair.right} />
-            </div>
-          ))}
+        <div className="professor-matching-editor">
+          <div className="professor-matching-side">
+            <strong>Left Items</strong>
+            {questionDraft.matchingLeftItems.map((item, index) => (
+              <label className="professor-match-item" key={item.id}>
+                <TextInput onChange={(event) => updateMatchingItem("matchingLeftItems", item.id, event.target.value)} placeholder={`Left item ${index + 1}`} value={item.text} />
+                <button
+                  aria-label={`Select ${item.text || `left item ${index + 1}`}`}
+                  className={`professor-match-dot ${selectedProfessorMatchingLeft === item.id ? "selected" : ""}`}
+                  onClick={() => setSelectedProfessorMatchingLeft((current) => current === item.id ? "" : item.id)}
+                  type="button"
+                >
+                  ●
+                </button>
+                {questionDraft.matchingLeftItems.length > 2 ? <button onClick={() => removeMatchingItem("matchingLeftItems", item.id)} type="button"><FiTrash2 /></button> : null}
+              </label>
+            ))}
+            <button className="professor-add-inline" onClick={() => addMatchingItem("matchingLeftItems")} type="button"><FiPlus /> Add Left</button>
+          </div>
+          <div className="professor-matching-side">
+            <strong>Right Items</strong>
+            {questionDraft.matchingRightItems.map((item, index) => (
+              <label className="professor-match-item right" key={item.id}>
+                <button
+                  aria-label={`Connect to ${item.text || `answer ${index + 1}`}`}
+                  className={`professor-match-dot ${questionDraft.matchingConnections.some((connection) => connection.rightId === item.id) ? "matched" : ""}`}
+                  disabled={!selectedProfessorMatchingLeft}
+                  onClick={() => connectMatching(selectedProfessorMatchingLeft, item.id)}
+                  type="button"
+                >
+                  ●
+                </button>
+                <TextInput onChange={(event) => updateMatchingItem("matchingRightItems", item.id, event.target.value)} placeholder={`Answer ${index + 1}`} value={item.text} />
+                {questionDraft.matchingRightItems.length > 2 ? <button onClick={() => removeMatchingItem("matchingRightItems", item.id)} type="button"><FiTrash2 /></button> : null}
+              </label>
+            ))}
+            <button className="professor-add-inline" onClick={() => addMatchingItem("matchingRightItems")} type="button"><FiPlus /> Add Right</button>
+          </div>
+          <div className="professor-matching-connections">
+            {questionDraft.matchingLeftItems.map((left) => (
+              <div className="professor-match-connection-summary" key={left.id}>
+                <span>{left.text || "Left item"}</span>
+                <span>→ {questionDraft.matchingRightItems.find((right) => right.id === questionDraft.matchingConnections.find((connection) => connection.leftId === left.id)?.rightId)?.text || "Not connected"}</span>
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
