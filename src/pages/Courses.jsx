@@ -9,15 +9,12 @@ import useListViewPreference from "../hooks/useListViewPreference";
 import { courses as seedCourses, professors } from "../data/mockData";
 import useLocalStorageState from "../hooks/useLocalStorageState";
 import { formatCourseTerm, formatProgramOption, SEMESTER_OPTIONS, YEAR_LEVEL_OPTIONS } from "../lib/coursePrograms";
+import { buildAssignedProfessorLabel, isCanonicalProfessorId } from "../lib/courseOwnership";
 import { getListPageSlice } from "../lib/listView";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 function code() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
-}
-
-function isUuid(value) {
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
 
 export default function Courses() {
@@ -111,7 +108,7 @@ export default function Courses() {
     setCourses(coursesQuery.data.courses);
     if (coursesQuery.data.professors.length) {
       setProfessorOptions(coursesQuery.data.professors);
-      setForm((current) => isUuid(current.professorId) ? current : { ...current, professorId: coursesQuery.data.professors[0].id });
+      setForm((current) => isCanonicalProfessorId(current.professorId) ? current : { ...current, professorId: coursesQuery.data.professors[0].id });
     }
     setPrograms(coursesQuery.data.programs || []);
   }, [coursesQuery.data, setCourses]);
@@ -154,14 +151,14 @@ export default function Courses() {
     };
 
     if (hasSupabaseConfig) {
-      const professorId = isUuid(form.professorId) ? form.professorId : null;
+      const professorId = isCanonicalProfessorId(form.professorId) ? form.professorId : null;
       const { data, error } = await supabase.rpc("admin_create_course", {
         p_academic_year: form.academicYear.trim() || null,
         p_course_code: form.courseCode,
         p_course_name: form.courseName,
         p_joining_code: form.joiningCode.toUpperCase(),
         p_professor_id: professorId,
-        p_program_id: isUuid(form.programId) ? form.programId : null,
+        p_program_id: isCanonicalProfessorId(form.programId) ? form.programId : null,
         p_section: form.section,
         p_semester: form.semester || null,
         p_year_level: form.yearLevel || null,
@@ -173,7 +170,11 @@ export default function Courses() {
       }
 
       setCourses((current) => [{ ...mapCourse(data), professor: selectedProfessor?.name || "Unassigned" }, ...current]);
-      await queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["admin-courses"] }),
+        professorId ? queryClient.invalidateQueries({ queryKey: ["professor-courses", professorId] }) : Promise.resolve(),
+        professorId ? queryClient.invalidateQueries({ queryKey: ["professor-dashboard", professorId] }) : Promise.resolve(),
+      ]);
     } else {
       setCourses((current) => [nextCourse, ...current]);
     }
@@ -288,7 +289,7 @@ export default function Courses() {
             </SelectField>
             <Field label="Academic Year" placeholder="2026-2027" value={form.academicYear} onChange={(event) => setForm({ ...form, academicYear: event.target.value })} />
             <SelectField label="Assign Professor" value={form.professorId} onChange={(event) => setForm({ ...form, professorId: event.target.value })}>
-              {professorOptions.map((professor) => <option key={professor.id} value={professor.id}>{professor.name}</option>)}
+              {professorOptions.map((professor) => <option key={professor.id} value={professor.id}>{buildAssignedProfessorLabel(professor)}</option>)}
             </SelectField>
             <Field label="Joining Code" value={form.joiningCode} onChange={(event) => setForm({ ...form, joiningCode: event.target.value.toUpperCase() })} required />
             <Button type="button" variant="light" onClick={() => setForm({ ...form, joiningCode: code() })}><FiRefreshCw /> Generate</Button>
