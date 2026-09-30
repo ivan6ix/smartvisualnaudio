@@ -123,7 +123,16 @@ create table if not exists public.notifications (
   message text not null,
   type text not null,
   is_read boolean not null default false,
+  entity_type text,
+  entity_id uuid,
+  action_path text,
   created_at timestamptz not null default now()
+);
+
+create table if not exists public.notification_preferences (
+  user_id uuid primary key references public.profiles(id) on delete cascade,
+  show_message_previews boolean not null default true,
+  updated_at timestamptz not null default now()
 );
 
 create table if not exists public.logs (
@@ -486,6 +495,7 @@ alter table public.programs enable row level security;
 alter table public.courses enable row level security;
 alter table public.messages enable row level security;
 alter table public.notifications enable row level security;
+alter table public.notification_preferences enable row level security;
 alter table public.logs enable row level security;
 alter table public.exams enable row level security;
 alter table public.exam_questions enable row level security;
@@ -560,10 +570,6 @@ using (auth.uid() = receiver_id)
 with check (auth.uid() = receiver_id);
 create policy "notifications_owner" on public.notifications for select to authenticated using (auth.uid() = user_id);
 drop policy if exists "notifications_owner_update" on public.notifications;
-create policy "notifications_owner_update" on public.notifications
-for update to authenticated
-using (auth.uid() = user_id)
-with check (auth.uid() = user_id);
 
 insert into storage.buckets (id, name, public)
 values ('profile-pictures', 'profile-pictures', true)
@@ -700,6 +706,9 @@ drop policy if exists "permit_files_professor_read" on public.course_permit_file
 drop policy if exists "student_resource_folders_owner_manage" on public.student_resource_folders;
 drop policy if exists "student_resource_files_owner_manage" on public.student_resource_files;
 drop policy if exists "notifications_authenticated_insert" on public.notifications;
+drop policy if exists "notification_preferences_owner_select" on public.notification_preferences;
+drop policy if exists "notification_preferences_owner_insert" on public.notification_preferences;
+drop policy if exists "notification_preferences_owner_update" on public.notification_preferences;
 drop policy if exists "violations_student_insert" on public.violations;
 
 create policy "courses_admin_manage" on public.courses
@@ -1050,9 +1059,18 @@ with check (
   )
 );
 
-create policy "notifications_authenticated_insert" on public.notifications
+create policy "notification_preferences_owner_select" on public.notification_preferences
+for select to authenticated
+using (auth.uid() = user_id);
+
+create policy "notification_preferences_owner_insert" on public.notification_preferences
 for insert to authenticated
-with check (true);
+with check (auth.uid() = user_id);
+
+create policy "notification_preferences_owner_update" on public.notification_preferences
+for update to authenticated
+using (auth.uid() = user_id)
+with check (auth.uid() = user_id);
 
 create policy "violations_student_insert" on public.violations
 for insert to authenticated

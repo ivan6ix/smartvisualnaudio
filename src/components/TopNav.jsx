@@ -1,11 +1,10 @@
-import NotificationPreview from "./NotificationPreview";
+import NotificationBell from "./NotificationBell";
 import PortalNav from "./PortalNav";
 import { useState } from "react";
-import { FiBell, FiLogOut, FiMessageCircle, FiShield, FiUserCheck } from "react-icons/fi";
+import { FiLogOut, FiMessageCircle, FiShield, FiUserCheck } from "react-icons/fi";
 import { NavLink, useNavigate } from "react-router-dom";
 import ProfileAvatar from "./ProfileAvatar";
 import { useAuth } from "../context/AuthContext";
-import useAdminNotifications from "../hooks/useAdminNotifications";
 import useMessagePreview from "../hooks/useMessagePreview";
 import MessageModal from "./MessageModal";
 
@@ -16,7 +15,6 @@ export default function TopNav() {
   const [messageTargetId, setMessageTargetId] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const { conversations, unreadCount } = useMessagePreview(user);
-  const { notifications, unreadCount: unreadNotifications, markAllRead } = useAdminNotifications(user);
   const links = [
     ["Dashboard", "/"],
     ["Create Account", "/create-account"],
@@ -58,23 +56,7 @@ export default function TopNav() {
               )) : <p className="message-menu-empty">No live messages yet.</p>}
             </div>
           </div>
-          <div className="notification-menu">
-            <button title="Notifications" type="button"><FiBell />{unreadNotifications ? <span>{unreadNotifications}</span> : null}</button>
-            <div className="notification-menu-panel">
-              <strong>Notifications</strong><button type="button" onClick={markAllRead}>Mark All as Read</button>
-              {notifications.map((notification) => (
-                <article key={notification.id}>
-                  <div>
-                    <b>{notification.title}</b>
-                    <small>{notification.type}</small>
-                  </div>
-                  <NotificationPreview>{notification.message}</NotificationPreview>
-                  {!notification.isRead ? <i aria-label="Unread notification" /> : null}
-                </article>
-              ))}
-              {!notifications.length ? <p className="message-menu-empty">No password reset requests yet.</p> : null}
-            </div>
-          </div>
+          <NotificationBell user={user} emptyText="No password reset requests yet." />
           <div className={`profile-menu ${profileOpen ? "open" : ""}`}>
             <button aria-label="Open profile menu" onClick={() => setProfileOpen((open) => !open)} type="button">
               <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />

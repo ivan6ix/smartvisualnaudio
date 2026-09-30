@@ -964,6 +964,9 @@ export default function ProfessorCreateExam() {
             p_message: notification.message,
             p_type: notification.type,
             p_context_id: savedId || draftExamId || editId,
+            p_entity_type: "exam",
+            p_entity_id: savedId || draftExamId || editId,
+            p_action_path: `/cluster/exams/${savedId || draftExamId || editId}`,
           })));
           const notificationError = notificationResults.find((result) => result.error)?.error;
           if (notificationError) toast.error(`Exam saved, but the review notification failed: ${notificationError.message}`);

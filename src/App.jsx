@@ -118,6 +118,7 @@ function getPageImportForPath(pathname) {
     "/student/resources": pageImports.StudentResources,
     "/student/grades": pageImports.StudentGrades,
     "/student/messages": pageImports.StudentMessages,
+    "/student/notifications": pageImports.Notifications,
     "/professor": pageImports.ProfessorDashboard,
     "/professor/profile": pageImports.ProfileSettings,
     "/professor/security": pageImports.SecurityPrivacy,
@@ -127,6 +128,7 @@ function getPageImportForPath(pathname) {
     "/professor/monitoring": pageImports.ProfessorMonitoring,
     "/professor/scores": pageImports.ProfessorScores,
     "/professor/messages": pageImports.ProfessorMessages,
+    "/professor/notifications": pageImports.Notifications,
     "/cluster": pageImports.ClusterDashboard,
     "/cluster/profile": pageImports.ProfileSettings,
     "/cluster/security": pageImports.SecurityPrivacy,
@@ -143,6 +145,7 @@ function getPageImportForPath(pathname) {
     "/dean/integrity": pageImports.DeanExamIntegrity,
     "/dean/courses": pageImports.Courses,
     "/dean/reports": pageImports.Reports,
+    "/dean/notifications": pageImports.Notifications,
   };
   return routeImports[pathname];
 }
@@ -198,6 +201,7 @@ export default function App() {
           <Route path="scores/:examId/attempt/:attemptId" element={<ProfessorScores />} />
           <Route path="scores/:examId/questions/:questionId" element={<ProfessorScores />} />
           <Route path="messages" element={<ProfessorMessages />} />
+          <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<ProfileSettings />} />
           <Route path="security" element={<SecurityPrivacy />} />
         </Route>
@@ -206,6 +210,7 @@ export default function App() {
           <Route path="resources" element={<StudentResources />} />
           <Route path="grades" element={<StudentGrades />} />
           <Route path="messages" element={<StudentMessages />} />
+          <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<ProfileSettings />} />
           <Route path="security" element={<SecurityPrivacy />} />
           <Route path="exams/:examId" element={<StudentExamTake />} />
@@ -216,6 +221,7 @@ export default function App() {
           <Route path="integrity" element={<DeanExamIntegrity />} />
           <Route path="courses" element={<Courses />} />
           <Route path="reports" element={<Reports />} />
+          <Route path="notifications" element={<Notifications />} />
           <Route path="profile" element={<ProfileSettings />} />
           <Route path="security" element={<SecurityPrivacy />} />
         </Route>

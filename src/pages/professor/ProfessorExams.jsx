@@ -507,6 +507,9 @@ export default function ProfessorExams() {
         p_message: notification.message,
         p_type: notification.type,
         p_context_id: exam.id,
+        p_entity_type: "exam",
+        p_entity_id: exam.id,
+        p_action_path: `/cluster/exams/${exam.id}`,
       })));
       const error = results.find((result) => result.error)?.error;
       if (error) throw error;

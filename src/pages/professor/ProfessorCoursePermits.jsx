@@ -208,6 +208,9 @@ export default function ProfessorCoursePermits() {
           p_message: notification.message,
           p_type: notification.type,
           p_context_id: courseId,
+          p_entity_type: "course",
+          p_entity_id: courseId,
+          p_action_path: `/student/courses/${courseId}/assessments`,
         })));
         const notificationError = notificationResults.find((result) => result.error)?.error;
         if (notificationError) toast.error(`Permit request saved, but notification failed: ${notificationError.message}`);

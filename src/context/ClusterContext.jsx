@@ -1,5 +1,4 @@
-import { queryClient } from "../lib/queryClient";
-import useAdminNotifications from "../hooks/useAdminNotifications";
+import useNotifications from "../hooks/useNotifications";
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "./AuthContext";
@@ -165,7 +164,7 @@ function updateExamDecisionState(exams, examId, decision, remarks = "") {
 
 export function ClusterProvider({ children }) {
   const { user } = useAuth();
-  const liveNotifications = useAdminNotifications(user?.role === "Cluster Professor" ? user : null);
+  const liveNotifications = useNotifications(user?.role === "Cluster Professor" ? user : null);
   const [exams, setExams] = useLocalStorageState("smartproctor.cluster.exams", clusterExams);
   const [professorExams, setProfessorExams] = useLocalStorageState("smartproctor.professor.exams", initialProfessorExams);
   const [reviews, setReviews] = useLocalStorageState("smartproctor.cluster.reviews", [
@@ -486,15 +485,11 @@ export function ClusterProvider({ children }) {
   }
 
   async function markNotification(id) {
-    if (hasSupabaseConfig) { const { error } = await supabase.from("notifications").update({ is_read: true }).eq("id", id).eq("user_id", user.id); if (error) { toast.error(error.message); return; } }
-    queryClient.setQueryData(["admin-notifications", user?.id], (current = []) => current.map(item => item.id === id ? { ...item, isRead: true } : item));
-    queryClient.invalidateQueries({ queryKey: ["notification-count", user?.id] });
+    if (hasSupabaseConfig) {
+      const { error } = await supabase.rpc("mark_notification_read", { p_notification_id: id });
+      if (error) { toast.error(error.message); return; }
+    }
     setNotifications((current) => current.map((item) => item.id === id ? { ...item, isRead: true } : item));
-  }
-
-  function deleteNotification(id) {
-    queryClient.setQueryData(["admin-notifications", user?.id], (current = []) => current.filter(item => item.id !== id));
-    setNotifications((current) => current.filter((item) => item.id !== id));
   }
 
   const value = {
@@ -519,7 +514,6 @@ export function ClusterProvider({ children }) {
       if (hasSupabaseConfig) return liveNotifications.markAllRead();
       setNotifications(current => current.map(item => ({ ...item, isRead: true })));
     },
-    deleteNotification,
   };
 
   return <ClusterContext.Provider value={value}>{children}</ClusterContext.Provider>;

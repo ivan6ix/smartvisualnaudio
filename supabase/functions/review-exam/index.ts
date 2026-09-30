@@ -133,6 +133,9 @@ Deno.serve(async (req) => {
           ? `${examTitle} was approved by the cluster professor. You may now publish it for students.`
           : `${examTitle} was rejected by the cluster professor. ${finalRemarks}`,
         type: "Exam Review",
+        entity_type: "exam",
+        entity_id: examId,
+        action_path: "/professor/exams",
       });
     }
 

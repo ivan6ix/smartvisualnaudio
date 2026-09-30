@@ -1,8 +1,7 @@
-import NotificationPreview from "../../components/NotificationPreview";
-import useAdminNotifications from "../../hooks/useAdminNotifications";
+import NotificationBell from "../../components/NotificationBell";
 import PortalNav from "../../components/PortalNav";
 import { useState } from "react";
-import { FiBell, FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
+import { FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import MessageModal from "../../components/MessageModal";
 import ProfileAvatar from "../../components/ProfileAvatar";
@@ -17,7 +16,6 @@ export default function DeanLayout() {
   const [messageTargetId, setMessageTargetId] = useState("");
   const [profileOpen, setProfileOpen] = useState(false);
   const { conversations, unreadCount } = useMessagePreview(user);
-  const { notifications, unreadCount: unreadNotifications, markAllRead } = useAdminNotifications(user);
 
   function openMessages(conversationId = "") {
     setMessageTargetId(conversationId);
@@ -60,23 +58,7 @@ export default function DeanLayout() {
               )) : <p className="message-menu-empty">No live messages yet.</p>}
             </div>
           </div>
-          <div className="notification-menu cluster-notification-menu">
-            <button title="Notifications" type="button"><FiBell />{unreadNotifications ? <span>{unreadNotifications}</span> : null}</button>
-            <div className="notification-menu-panel">
-              <strong>Notifications</strong><button type="button" onClick={markAllRead}>Mark All as Read</button>
-              {notifications.map((notification) => (
-                <article key={notification.id}>
-                  <div>
-                    <b>{notification.title}</b>
-                    <small>{notification.type}</small>
-                  </div>
-                  <NotificationPreview>{notification.message}</NotificationPreview>
-                  {!notification.isRead ? <i aria-label="Unread notification" /> : null}
-                </article>
-              ))}
-              {!notifications.length ? <p className="message-menu-empty">No live notifications yet.</p> : null}
-            </div>
-          </div>
+          <NotificationBell user={user} />
           <div className={`cluster-profile-menu ${profileOpen ? "open" : ""}`}>
             <button aria-label="Open profile menu" onClick={() => setProfileOpen((open) => !open)} title="Profile" type="button">
               <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
