@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { FiArchive, FiEdit2, FiPlus, FiRefreshCw } from "react-icons/fi";
+import { FiArchive, FiEdit2, FiPlus, FiRefreshCw, FiTrash2 } from "react-icons/fi";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
 import { Button, Card, Field, PageHeader, SearchBox, SelectField, Table, Badge } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
@@ -26,6 +26,12 @@ export default function Courses() {
   const [programs, setPrograms] = useState([]);
   const [search, setSearch] = useState("");
   const [showArchived, setShowArchived] = useState(false);
+  const [archiveCandidate, setArchiveCandidate] = useState(null);
+  const [restoreCandidate, setRestoreCandidate] = useState(null);
+  const [deleteCandidate, setDeleteCandidate] = useState(null);
+  const [deleteConfirmationText, setDeleteConfirmationText] = useState("");
+  const [archiveActionId, setArchiveActionId] = useState("");
+  const [deletingCourseId, setDeletingCourseId] = useState("");
   const [page, setPage] = useState(1);
   const listView = useListViewPreference({ role: isReadOnly ? "dean" : "admin", page: "courses", defaultView: "table" });
   const [programForm, setProgramForm] = useState({ programCode: "", programName: "" });
@@ -222,10 +228,12 @@ export default function Courses() {
   }
 
   async function setArchived(id, archivedState) {
+    setArchiveActionId(id);
     if (hasSupabaseConfig) {
       const { error } = await supabase.rpc("admin_set_course_archived", { p_archived: archivedState, p_course_id: id });
       if (error) {
         toast.error(error.message);
+        setArchiveActionId("");
         return;
       }
     }
@@ -233,6 +241,41 @@ export default function Courses() {
     setCourses((current) => current.map((course) => course.id === id ? { ...course, archived: archivedState } : course));
     if (hasSupabaseConfig) await queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
     toast.success(archivedState ? "Course archived" : "Course restored");
+    setArchiveCandidate(null);
+    setRestoreCandidate(null);
+    setArchiveActionId("");
+  }
+
+  async function permanentlyDeleteCourse() {
+    if (!deleteCandidate || deleteConfirmationText !== "DELETE" || deletingCourseId) return;
+    setDeletingCourseId(deleteCandidate.id);
+    try {
+      if (hasSupabaseConfig) {
+        const { data, error } = await supabase.functions.invoke("admin-delete-course", {
+          body: { courseId: deleteCandidate.id },
+        });
+        if (error) {
+          throw new Error(data?.error || error.message || "Course could not be permanently deleted.");
+        }
+        if (data?.error) throw new Error(data.error);
+        if (data?.storage_cleanup_complete === false) {
+          toast.warning(data.warning || "Course permanently deleted, but some stored files require cleanup.");
+        } else {
+          toast.success("Course permanently deleted.");
+        }
+      } else {
+        toast.success("Course permanently deleted locally.");
+      }
+
+      setCourses((current) => current.filter((course) => course.id !== deleteCandidate.id));
+      await queryClient.invalidateQueries({ queryKey: ["admin-courses"] });
+      setDeleteCandidate(null);
+      setDeleteConfirmationText("");
+    } catch (error) {
+      toast.error(error.message || "Course could not be permanently deleted.");
+    } finally {
+      setDeletingCourseId("");
+    }
   }
 
   const columns = [
@@ -245,6 +288,7 @@ export default function Courses() {
     ...(!isReadOnly ? [{ key: "joiningCode", label: "Joining Code", width: "11%", render: (row) => <Badge>{row.joiningCode}</Badge> }] : []),
   ];
   const pageData = getListPageSlice(visible, page, listView.pageSize);
+  const deleteConfirmed = deleteConfirmationText === "DELETE";
 
   const programColumns = [
     { key: "program_code", label: "Program Code", width: "20%", render: (row) => <strong>{row.program_code}</strong> },
@@ -262,13 +306,7 @@ export default function Courses() {
         </div>
         <strong>{visible.length}</strong>
       </div>
-      {!isReadOnly ? (
-        <PageHeader
-          title="Courses"
-          subtitle="Create courses, assign professors, generate joining codes, and manage archives."
-          actions={<Button variant="light" onClick={() => setShowArchived(true)}><FiArchive /> Archived Courses</Button>}
-        />
-      ) : null}
+      {!isReadOnly ? <PageHeader title="Courses" subtitle="Create courses, assign professors, generate joining codes, and manage archives." /> : null}
       {!isReadOnly ? (
         <Card className="admin-panel admin-form-panel">
           <form className="inline-form" onSubmit={createCourse}>
@@ -332,17 +370,20 @@ export default function Courses() {
         }}
       />
       <Card className="admin-panel admin-activity-panel">
-        <h2>Course Records</h2>
+        <div className="course-records-header">
+          <h2>Course Records</h2>
+          {!isReadOnly ? <Button variant="light" onClick={() => setShowArchived(true)}><FiArchive /> Archives</Button> : null}
+        </div>
         {listView.view === "cards" ? (
           <RecordCardList
             columns={columns}
             density={listView.cardDensity}
             rows={pageData.rows}
             titleKey="courseName"
-            renderActions={!isReadOnly ? (row) => <Button variant="light" onClick={() => setArchived(row.id, true)}><FiArchive /> Archive</Button> : null}
+            renderActions={!isReadOnly ? (row) => <Button disabled={archiveActionId === row.id} variant="light" onClick={() => setArchiveCandidate(row)}><FiArchive /> Archive</Button> : null}
           />
         ) : (
-          <Table className={`courses-table-wrap list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={!isReadOnly ? Object.assign((row) => <Button variant="light" onClick={() => setArchived(row.id, true)}><FiArchive /> Archive</Button>, { width: "17%" }) : null} />
+          <Table className={`courses-table-wrap list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={!isReadOnly ? Object.assign((row) => <Button disabled={archiveActionId === row.id} variant="light" onClick={() => setArchiveCandidate(row)}><FiArchive /> Archive</Button>, { width: "17%" }) : null} />
         )}
         <ListPagination count={visible.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
       </Card>
@@ -350,7 +391,51 @@ export default function Courses() {
         <div className="modal-backdrop" onClick={() => setShowArchived(false)}>
           <Card className="modal" onClick={(event) => event.stopPropagation()}>
             <PageHeader title="Archived Courses" actions={<Button variant="light" onClick={() => setShowArchived(false)}>Close</Button>} />
-            <Table columns={columns} rows={archived} renderActions={(row) => <Button variant="light" onClick={() => setArchived(row.id, false)}>Restore</Button>} />
+            <Table className="archive-management-table" columns={columns} rows={archived} renderActions={Object.assign((row) => (
+              <>
+                <Button disabled={archiveActionId === row.id || deletingCourseId === row.id} variant="light" onClick={() => setRestoreCandidate(row)}>Restore</Button>
+                <Button disabled={deletingCourseId === row.id} className="danger" variant="light" onClick={() => { setDeleteCandidate(row); setDeleteConfirmationText(""); }}><FiTrash2 /> Delete Permanently</Button>
+              </>
+            ), { width: "24%" })} />
+          </Card>
+        </div>
+      ) : null}
+      {archiveCandidate ? (
+        <div className="modal-backdrop">
+          <Card className="modal course-confirmation-modal">
+            <h2>Archive Course?</h2>
+            <p><strong>{archiveCandidate.courseName}</strong> will be moved to Archives. Its existing academic records will be preserved.</p>
+            <div className="modal-actions">
+              <Button disabled={archiveActionId === archiveCandidate.id} variant="light" onClick={() => setArchiveCandidate(null)}>Cancel</Button>
+              <Button disabled={archiveActionId === archiveCandidate.id} onClick={() => setArchived(archiveCandidate.id, true)}>{archiveActionId === archiveCandidate.id ? "Archiving..." : "Archive"}</Button>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+      {restoreCandidate ? (
+        <div className="modal-backdrop">
+          <Card className="modal course-confirmation-modal">
+            <h2>Restore Course?</h2>
+            <p><strong>{restoreCandidate.courseName}</strong> will return to active Course Records.</p>
+            <div className="modal-actions">
+              <Button disabled={archiveActionId === restoreCandidate.id} variant="light" onClick={() => setRestoreCandidate(null)}>Cancel</Button>
+              <Button disabled={archiveActionId === restoreCandidate.id} onClick={() => setArchived(restoreCandidate.id, false)}>{archiveActionId === restoreCandidate.id ? "Restoring..." : "Restore"}</Button>
+            </div>
+          </Card>
+        </div>
+      ) : null}
+      {deleteCandidate ? (
+        <div className="modal-backdrop">
+          <Card className="modal course-confirmation-modal">
+            <h2>Delete Permanently</h2>
+            <p><strong>{deleteCandidate.courseName}</strong> ({deleteCandidate.courseCode}{deleteCandidate.section ? ` - ${deleteCandidate.section}` : ""}) and related academic records will be permanently removed.</p>
+            <Field label="Type DELETE to confirm" value={deleteConfirmationText} onChange={(event) => setDeleteConfirmationText(event.target.value)} />
+            <div className="modal-actions">
+              <Button disabled={deletingCourseId === deleteCandidate.id} variant="light" onClick={() => { setDeleteCandidate(null); setDeleteConfirmationText(""); }}>Cancel</Button>
+              <Button className="danger" disabled={!deleteConfirmed || deletingCourseId === deleteCandidate.id} onClick={permanentlyDeleteCourse}>
+                {deletingCourseId === deleteCandidate.id ? "Deleting..." : "Delete Permanently"}
+              </Button>
+            </div>
           </Card>
         </div>
       ) : null}

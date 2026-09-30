@@ -34,8 +34,8 @@ export const SelectField = forwardRef(function SelectField({ label, children, ..
   );
 });
 
-export function Card({ children, className = "" }) {
-  return <section className={`card ${className}`}>{children}</section>;
+export function Card({ children, className = "", ...props }) {
+  return <section className={`card ${className}`} {...props}>{children}</section>;
 }
 
 export function PageHeader({ title, subtitle, actions }) {

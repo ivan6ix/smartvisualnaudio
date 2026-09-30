@@ -1660,6 +1660,29 @@ button.dean-integrity-link { border: 0; background: transparent; padding: 0; cur
   border-color: rgba(125, 211, 252, 0.44);
   background: rgba(6, 182, 212, 0.14);
 }
+.admin-section-page .btn.danger {
+  border-color: rgba(248, 113, 113, 0.42);
+  background: rgba(127, 29, 29, 0.18);
+  color: #fecaca;
+  box-shadow: none;
+}
+.admin-section-page .btn.danger:hover,
+.admin-section-page .btn.danger:focus-visible {
+  border-color: rgba(248, 113, 113, 0.72);
+  background: rgba(220, 38, 38, 0.24);
+}
+html[data-theme="light"] .admin-section-page .btn.danger,
+html[data-appearance="light"] .admin-section-page .btn.danger {
+  background: #fff1f2;
+  color: #991b1b;
+}
+html[data-theme="light"] .admin-section-page .btn.danger:hover,
+html[data-theme="light"] .admin-section-page .btn.danger:focus-visible,
+html[data-appearance="light"] .admin-section-page .btn.danger:hover,
+html[data-appearance="light"] .admin-section-page .btn.danger:focus-visible {
+  background: #fee2e2;
+  color: #7f1d1d;
+}
 .admin-section-page .search-box,
 .admin-section-page .toolbar {
   border: 1px solid rgba(125, 211, 252, 0.18);
@@ -1708,6 +1731,34 @@ button.dean-integrity-link { border: 0; background: transparent; padding: 0; cur
 }
 .admin-section-page .modal .page-header {
   display: flex;
+}
+.course-records-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.course-records-header h2 {
+  margin: 0;
+}
+.archive-management-table table {
+  min-width: 860px;
+}
+.course-confirmation-modal {
+  width: min(520px, calc(100vw - 24px));
+}
+.course-confirmation-modal h2 {
+  margin: 0 0 10px;
+}
+.course-confirmation-modal p {
+  margin: 0 0 18px;
+  color: var(--app-text-muted);
+}
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .modal-backdrop {
