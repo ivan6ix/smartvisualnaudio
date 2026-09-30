@@ -6603,6 +6603,12 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .student-dashboard-overview .student-exams-card {
   min-height: 360px;
+  min-width: 0;
+}
+.student-dashboard-overview .student-exams-card .list-view-toolbar,
+.student-dashboard-overview .student-exams-card .list-view-controls,
+.student-dashboard-overview .student-exams-card .list-view-segment {
+  min-width: 0;
 }
 .student-dashboard-overview .student-course-grid {
   align-content: start;
@@ -6632,9 +6638,12 @@ html[data-theme="light"] .professor-course-list-card:hover {
   color: var(--accent);
 }
 .student-available-exams-table-wrap {
+  max-width: 100%;
+  min-width: 0;
   overflow-x: visible;
+  width: 100%;
 }
-.student-available-exams-table {
+.professor-score-table.compact.student-available-exams-table {
   box-sizing: border-box;
   max-width: 100%;
   min-width: 0;
