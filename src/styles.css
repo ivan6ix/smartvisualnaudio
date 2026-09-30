@@ -12530,6 +12530,322 @@ html[data-theme="light"] .legal-back-link {
   .audit-log-details { grid-template-columns:1fr; }
 }
 
+/* Feature #11 responsive hardening: shared containment and mobile safety. */
+html,
+body,
+#root {
+  max-width: 100%;
+}
+
+img,
+video,
+canvas,
+audio,
+svg {
+  max-width: 100%;
+}
+
+:is(.app-shell, .admin-shell, .dean-shell, .cluster-shell, .professor-shell, .student-shell, main, section, article, .card, .field, .page-header, .dashboard-grid, .messages-layout, .toolbar, .inline-form, .stats-grid, .quick-grid, .list-view-toolbar, .list-view-controls, .list-card-grid, .responsive-table-wrap, .table-wrap, .reports-page, .admin-panel) {
+  min-width: 0;
+}
+
+:is(.page-header, .card, .field, .student-card, .professor-create-card, .professor-exam-card, .list-card, .notification-menu-panel, .message-menu-panel, .profile-menu > div, .cluster-profile-menu > div, .message-modal, .settings-modal, .modal, .student-resource-modal, .module-preview-modal, .module-archive-modal, .permit-request-modal, .professor-share-modal, .professor-monitoring-modal, .professor-score-modal, .professor-manual-modal, .audit-log-modal) {
+  overflow-wrap: anywhere;
+}
+
+.table-wrap,
+.responsive-table-wrap,
+.professor-ongoing-exam-list,
+.professor-ongoing-student-table,
+.reports-page .table-wrap,
+.dean-integrity-table-scroll {
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+}
+
+:is(.notification-menu-panel, .message-menu-panel, .profile-menu > div, .cluster-profile-menu > div, .professor-exam-actions-popover, .student-material-dropdown section, .professor-material-dropdown section) {
+  max-width: calc(100vw - 24px);
+  overflow-wrap: anywhere;
+}
+
+:is(.modal-backdrop, .settings-modal-backdrop, .student-modal-backdrop, .message-modal-backdrop, .professor-monitoring-backdrop, .avatar-crop-backdrop) {
+  min-width: 0;
+  overflow: auto;
+}
+
+:is(.modal, .settings-modal, .student-resource-modal, .student-join-modal, .module-preview-modal, .module-archive-modal, .permit-request-modal, .professor-period-modal, .professor-share-modal, .professor-monitoring-modal, .professor-score-modal, .professor-manual-modal, .avatar-crop-modal, .session-confirm-modal, .account-create-modal, .audit-log-modal) {
+  width: min(var(--modal-width, 980px), calc(100vw - 24px));
+  max-height: calc(100dvh - 24px);
+  overflow: auto;
+}
+
+:is(.modal-actions, .account-modal-actions, .session-confirm-actions, .student-scan-actions, .student-exam-start-actions, .student-exam-blocked-actions, .professor-create-actions, .professor-share-actions, .professor-archive-actions, .professor-delete-actions, .cluster-report-actions, .message-modal-actions) {
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.student-exam-compatibility-card {
+  align-content: start;
+}
+
+.student-exam-compatibility-list {
+  display: grid;
+  gap: 10px;
+}
+
+.student-exam-compatibility-list article {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-active);
+  padding: 12px;
+}
+
+.student-exam-compatibility-list strong {
+  color: var(--app-text);
+}
+
+.student-exam-compatibility-list span {
+  color: var(--app-text-muted);
+  font-weight: 700;
+}
+
+.student-exam-start-panel,
+.student-environment-scan,
+.student-exam-question {
+  max-width: 100%;
+}
+
+.student-scan-hero,
+.student-audio-meter > div:first-child,
+.student-proctor-alert-heading,
+.student-exam-timer,
+.student-answer-option,
+.student-file-answer {
+  min-width: 0;
+}
+
+.student-file-answer span,
+.student-answer-option span,
+.student-matching-choice,
+.student-order-row span,
+.student-exam-question p,
+.student-exam-question label {
+  overflow-wrap: anywhere;
+}
+
+.student-exam-lock-overlay {
+  overflow: auto;
+}
+
+.student-exam-lock-overlay .card {
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+}
+
+@media screen and (max-width: 900px) {
+  .student-exam-take-page {
+    min-height: 100dvh;
+    padding-inline: clamp(12px, 4vw, 28px);
+  }
+
+  .student-exam-start-page {
+    min-height: calc(100dvh - 72px);
+    place-items: start center;
+    padding-block: 18px 42px;
+  }
+
+  .student-environment-scan {
+    gap: 14px;
+  }
+
+  .student-camera-frame {
+    min-height: clamp(220px, 48dvh, 420px);
+  }
+
+  .student-camera-frame video {
+    height: clamp(220px, 48dvh, 420px);
+    min-height: 0;
+  }
+
+  .student-proctor-dock {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    top: auto;
+    width: auto;
+    max-height: min(42dvh, 340px);
+    overflow: auto;
+  }
+
+  .student-exam-take-page.with-proctor-dock {
+    padding-right: clamp(12px, 4vw, 28px);
+    padding-bottom: calc(min(42dvh, 340px) + 32px);
+  }
+
+  .student-proctor-video-frame video,
+  .student-proctor-camera-card > video {
+    max-height: 160px;
+  }
+
+  .student-matching-board {
+    gap: clamp(28px, 8vw, 72px);
+  }
+}
+
+@media screen and (max-width: 700px) {
+  :is(.app-shell, .admin-shell, .dean-shell, .cluster-shell, .professor-shell, .student-shell) {
+    padding-inline: 12px;
+  }
+
+  .page-header {
+    align-items: start;
+    gap: 10px;
+  }
+
+  :is(.top-nav, .cluster-topbar, .professor-topbar, .student-topbar) {
+    min-width: 0;
+  }
+
+  :is(.nav-tools, .cluster-tools) > button span:not(.profile-avatar),
+  .profile-menu > button span,
+  .cluster-profile-menu > button span {
+    display: none;
+  }
+
+  :is(.notification-menu-panel, .message-menu-panel) {
+    position: fixed;
+    top: 72px;
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-height: calc(100dvh - 88px);
+    overflow-y: auto;
+  }
+
+  :is(.profile-menu > div, .cluster-profile-menu > div) {
+    right: 0;
+    width: min(240px, calc(100vw - 20px));
+    max-height: calc(100dvh - 88px);
+    overflow-y: auto;
+  }
+
+  .list-card-grid,
+  .list-card-grid.compact,
+  .list-card-grid.dense {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .message-modal-backdrop {
+    padding: 8px;
+    place-items: stretch;
+  }
+
+  .message-modal {
+    width: 100%;
+    height: calc(100dvh - 16px);
+    max-height: calc(100dvh - 16px);
+    border-radius: 18px;
+  }
+
+  .message-modal .messages-layout {
+    height: calc(100% - 112px);
+  }
+
+  .message-modal .reply-box {
+    grid-template-columns: 1fr;
+  }
+
+  .message-modal .reply-box .btn,
+  .message-modal .new-message-panel .btn {
+    width: 100%;
+  }
+
+  .student-scan-hero,
+  .student-exam-blocked-heading,
+  .student-exam-blocked-meta {
+    display: grid;
+  }
+
+  .student-scan-hero span {
+    justify-self: start;
+    white-space: normal;
+  }
+
+  .student-scan-steps {
+    grid-template-columns: 1fr;
+  }
+
+  .student-matching-board {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .student-matching-lines {
+    display: none;
+  }
+
+  .student-matching-column.right .student-matching-choice {
+    text-align: left;
+  }
+
+  .student-file-answer {
+    align-items: flex-start;
+  }
+
+  .student-proctor-dock {
+    max-height: min(48dvh, 360px);
+  }
+
+  .student-exam-take-page.with-proctor-dock {
+    padding-bottom: calc(min(48dvh, 360px) + 32px);
+  }
+}
+
+@media screen and (max-width: 420px) {
+  .student-exam-start-panel,
+  .student-exam-blocked-card,
+  .student-environment-scan,
+  .student-exam-question,
+  .card {
+    padding: 16px;
+  }
+
+  .student-exam-start-panel h1 {
+    font-size: 1.7rem;
+    line-height: 1.12;
+  }
+
+  .student-exam-start-meta,
+  .student-exam-start-actions,
+  .student-exam-blocked-actions,
+  .student-scan-actions {
+    display: grid;
+    width: 100%;
+  }
+
+  .student-exam-start-actions .btn,
+  .student-exam-blocked-actions .btn,
+  .student-scan-actions .btn {
+    width: 100%;
+  }
+
+  .student-camera-frame {
+    min-height: 190px;
+  }
+
+  .student-camera-frame video {
+    height: 190px;
+  }
+
+  .student-proctor-video-frame video,
+  .student-proctor-camera-card > video {
+    max-height: 118px;
+  }
+}
+
 .professor-shell .professor-exams-section .professor-exam-actions-popover,
 html[data-theme] .professor-shell .professor-exams-section .professor-exam-actions-popover {
   background: var(--app-surface);

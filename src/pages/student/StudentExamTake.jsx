@@ -7,6 +7,7 @@ import AudioMonitoringTimeline from "../../components/exam/AudioMonitoringTimeli
 import { Button, Card, PageHeader } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useLiveAudioMonitoring } from "../../hooks/useLiveAudioMonitoring";
+import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../../lib/examCompatibility";
 import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
 import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -490,6 +491,14 @@ export default function StudentExamTake() {
   const roboflowMonitoringEnabled = liveCameraMonitoringEnabled && roboflowConfigured;
   const proctoringEnabled = liveCameraMonitoringEnabled || examSettings.liveAudioMonitoring;
   const secureModeRequired = proctoringEnabled;
+  const examCompatibility = useMemo(() => {
+    if (!exam) return { supported: true, required: [], missing: [], message: "" };
+    return buildExamCompatibilityResult({
+      settings: examSettings,
+      questions,
+      capabilities: normalizeBrowserCapabilities(window),
+    });
+  }, [exam, examSettings, questions]);
   const audioMonitoring = useLiveAudioMonitoring({
     enabled: examSettings.liveAudioMonitoring,
     exam,
@@ -2619,6 +2628,10 @@ export default function StudentExamTake() {
 
   async function enterExamMode() {
     if (!progressReady || violationLimitReachedRef.current || interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
+    if (!examCompatibility.supported) {
+      toast.error("This browser cannot meet the requirements for this exam.");
+      return;
+    }
     const interruptionStateRequestId = interruptionStateRequestRef.current + 1;
     interruptionStateRequestRef.current = interruptionStateRequestId;
     if (hasSupabaseConfig) {
@@ -2665,7 +2678,11 @@ export default function StudentExamTake() {
       setExamLocked(false);
       recordManualViolation("FULLSCREEN_EXIT", error instanceof Error ? error.message : "Secure exam mode failed to start.", "High");
       const errorMessage = error instanceof Error ? error.message : "";
-      const message = examSettings.liveAudioMonitoring && /audio|microphone|mic|notallowed|permission|device|mediarecorder/i.test(errorMessage)
+      const message = /notallowed|permission|denied|security/i.test(errorMessage)
+        ? examSettings.liveAudioMonitoring
+          ? "Microphone permission is required for this exam. Please allow microphone access and retry."
+          : "Camera permission is required for this exam. Please allow camera access and retry."
+        : examSettings.liveAudioMonitoring && /audio|microphone|mic|device|mediarecorder/i.test(errorMessage)
         ? "Microphone access is required to continue the exam."
         : "Fullscreen is required before taking the exam. Please use a browser/device that supports fullscreen mode.";
       toast.error(message);
@@ -2987,6 +3004,35 @@ export default function StudentExamTake() {
           <div className="student-exam-blocked-actions">
             <Button onClick={() => navigate(exam.course_id ? `/student/courses/${exam.course_id}/materials` : "/student")}>Back to Course</Button>
             {existingAttemptCount > 0 ? <Button onClick={() => navigate("/student/grades")}>View Grades</Button> : null}
+          </div>
+        </Card>
+      </main>
+    );
+  }
+
+  if (!examCompatibility.supported) {
+    return (
+      <main className="student-exam-blocked-page">
+        <Card className="student-exam-blocked-card student-exam-compatibility-card">
+          <div className="student-exam-blocked-heading">
+            <div>
+              <span>Compatibility Check</span>
+              <h1>{exam.exam_title || exam.title}</h1>
+              <p>{examCompatibility.message}</p>
+            </div>
+            <FiXCircle />
+          </div>
+          <div className="student-exam-compatibility-list" role="list">
+            {examCompatibility.missing.map((item) => (
+              <article key={item.id} role="listitem">
+                <strong>{item.label}</strong>
+                <span>{item.description}</span>
+              </article>
+            ))}
+          </div>
+          <p className="student-exam-blocked-message">Use a browser or device that supports the requirements enabled for this exam. Permission prompts, if shown by a supported browser, can still be retried from the normal exam flow.</p>
+          <div className="student-exam-blocked-actions">
+            <Button onClick={() => navigate(exam.course_id ? `/student/courses/${exam.course_id}/materials` : "/student")}>Back to Available Exams</Button>
           </div>
         </Card>
       </main>
