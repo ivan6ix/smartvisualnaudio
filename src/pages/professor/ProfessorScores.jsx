@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
+import { ListPagination, ListViewToolbar } from "../../components/ListViewControls";
 import { Badge, Button, Card, PageHeader, SearchBox, SelectField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
@@ -653,23 +653,8 @@ export default function ProfessorScores() {
 }
 
 function ExamList({ density, rows, view }) {
-  const columns = [
-    { key: "exam", label: "Exam / Task", render: (exam) => <Link to={`/professor/scores/${exam.id}`}><strong>{exam.exam_title || exam.title}</strong></Link> },
-    { key: "type", label: "Type", render: (exam) => exam.exam_type || "Exam" },
-    { key: "students", label: "Students" },
-    { key: "pending", label: "Pending Grading" },
-    { key: "status", label: "Status", render: (exam) => <CompactBadge tone={statusTone(exam.status)}>{exam.status || "Draft"}</CompactBadge> },
-  ];
   if (view === "cards") {
-    return (
-      <RecordCardList
-        columns={columns}
-        density={density}
-        rows={rows}
-        titleKey="exam"
-        renderActions={(exam) => <Link className="professor-score-action" to={`/professor/scores/${exam.id}`}>View</Link>}
-      />
-    );
+    return <ProfessorScoreExamCards density={density} rows={rows} />;
   }
   return (
     <div className="professor-score-table-wrap">
@@ -690,6 +675,42 @@ function ExamList({ density, rows, view }) {
       </table>
       {!rows.length ? <div className="professor-exams-empty">No exams match your filters.</div> : null}
     </div>
+  );
+}
+
+function ScoreMetric({ label, children }) {
+  return (
+    <div>
+      <dt>{label}</dt>
+      <dd>{children}</dd>
+    </div>
+  );
+}
+
+function ProfessorScoreExamCards({ density, rows }) {
+  return (
+    <>
+      <div className={`professor-score-card-grid professor-score-card-grid-${density}`}>
+        {rows.map((exam) => (
+          <article className="professor-score-exam-card" key={exam.id}>
+            <header>
+              <Link className="professor-score-card-title" to={`/professor/scores/${exam.id}`}>
+                <strong>{exam.exam_title || exam.title}</strong>
+                <span>{exam.course?.courseCode} - {exam.course?.section}</span>
+              </Link>
+              <Link className="professor-score-action" to={`/professor/scores/${exam.id}`}>View</Link>
+            </header>
+            <dl>
+              <ScoreMetric label="Type">{exam.exam_type || "Exam"}</ScoreMetric>
+              <ScoreMetric label="Students">{exam.students}</ScoreMetric>
+              <ScoreMetric label="Pending Grading">{exam.pending}</ScoreMetric>
+              <ScoreMetric label="Status"><CompactBadge tone={statusTone(exam.status)}>{exam.status || "Draft"}</CompactBadge></ScoreMetric>
+            </dl>
+          </article>
+        ))}
+      </div>
+      {!rows.length ? <div className="professor-exams-empty">No exams match your filters.</div> : null}
+    </>
   );
 }
 

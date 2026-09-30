@@ -12,14 +12,6 @@ function formatNotificationTime(value) {
   return date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-function notificationHistoryPath(role) {
-  if (role === "Professor") return "/professor/notifications";
-  if (role === "Student") return "/student/notifications";
-  if (role === "Dean") return "/dean/notifications";
-  if (role === "Cluster Professor") return "/cluster/notifications";
-  return "/notifications";
-}
-
 export default function NotificationBell({ user, emptyText = "No live notifications yet." }) {
   const navigate = useNavigate();
   const menuRef = useRef(null);
@@ -58,18 +50,19 @@ export default function NotificationBell({ user, emptyText = "No live notificati
         <header>
           <strong>Notifications</strong>
           <span>
-            {unreadCount ? <button type="button" onClick={markAllRead}>Mark all as read</button> : null}
-            <button type="button" onClick={() => { navigate(notificationHistoryPath(user?.role)); setOpen(false); }}>View all</button>
+            {unreadCount ? <button type="button" onClick={markAllRead}>Mark all read</button> : null}
           </span>
         </header>
         {visibleNotifications.map((notification) => (
           <article className={notification.isRead ? "read" : "unread"} key={notification.id}>
             <button className="notification-item-main" onClick={() => openNotification(notification)} type="button">
-              <div>
-                <b>{notification.title}</b>
-                <small>{notification.typeLabel}</small>
+              <div className="notification-item-copy">
+                <span>
+                  <b>{notification.title}</b>
+                  <small>{notification.typeLabel}</small>
+                </span>
+                <NotificationPreview>{notification.message}</NotificationPreview>
               </div>
-              <NotificationPreview>{notification.message}</NotificationPreview>
               <time>{formatNotificationTime(notification.createdAt)}</time>
             </button>
             {!notification.isRead ? <button className="notification-read-action" onClick={() => markNotificationRead(notification.id)} type="button">Mark read</button> : null}

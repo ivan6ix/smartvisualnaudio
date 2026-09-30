@@ -5,6 +5,7 @@ import { ListPagination } from "../../components/ListViewControls";
 import { Badge, Button, Card, SearchBox } from "../../components/ui";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
+import { playViolationAlertSound } from "../../lib/violationAlerts";
 import {
   classifyOngoingStudent,
   getNextOngoingTransitionDelay,
@@ -61,24 +62,6 @@ function examCounters(exam) {
   return summarizeOngoingExams([{ ...exam, phase: "active" }]);
 }
 
-function playViolationPing() {
-  const AudioContext = window.AudioContext || window.webkitAudioContext;
-  if (!AudioContext) return;
-  const context = new AudioContext();
-  const oscillator = context.createOscillator();
-  const gain = context.createGain();
-  oscillator.type = "sine";
-  oscillator.frequency.value = 880;
-  gain.gain.setValueAtTime(0.001, context.currentTime);
-  gain.gain.exponentialRampToValueAtTime(0.08, context.currentTime + 0.02);
-  gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.22);
-  oscillator.connect(gain);
-  gain.connect(context.destination);
-  oscillator.start();
-  oscillator.stop(context.currentTime + 0.24);
-  window.setTimeout(() => void context.close(), 350);
-}
-
 export default function ProfessorOngoingExams() {
   const [activeExams, setActiveExams] = useState([]);
   const [upcomingExams, setUpcomingExams] = useState([]);
@@ -122,7 +105,7 @@ export default function ProfessorOngoingExams() {
         setHighlightedRows(new Set(newlyFlagged));
         window.setTimeout(() => setHighlightedRows(new Set()), 2400);
         if (!soundMuted && shouldPlayViolationSound(lastSoundAtRef.current)) {
-          playViolationPing();
+          playViolationAlertSound();
           lastSoundAtRef.current = Date.now();
         }
       }
