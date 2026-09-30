@@ -4,7 +4,7 @@ import { FiArrowRight, FiPlus, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
-import { Badge, Card, PageHeader } from "../../components/ui";
+import { Card, PageHeader } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { studentCourses } from "../../data/studentData";
@@ -13,12 +13,6 @@ import { formatCourseMeta } from "../../lib/coursePrograms";
 import { countUsedExamAttemptsByExam, getExamAttemptEligibility, getAttemptLimit } from "../../lib/examAttempts";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
-
-function examTone(status) {
-  if (status === "Published" || status === "Active") return "success";
-  if (status === "Scheduled") return "blue";
-  return "neutral";
-}
 
 function formatDurationLabel(duration) {
   return Number(duration) > 0 ? `${duration} min` : "No timer";
@@ -272,14 +266,13 @@ export default function StudentDashboard() {
           {!examsLoading && examsView.view === "cards" ? (
             <ListCardGrid density={examsView.cardDensity}>
             {examPageData.rows.map((exam) => (
-              <article key={exam.id}>
-                <div>
+              <article className="student-available-exam-card" key={exam.id}>
+                <div className="student-available-exam-main">
                   <strong>{exam.title}</strong>
-                  <small>{exam.course}{exam.section ? ` - ${exam.section}` : ""}{exam.programCode ? ` - ${exam.programCode}` : ""}</small>
+                  <span>{exam.course}{exam.section ? ` - ${exam.section}` : ""}{exam.programCode ? ` - ${exam.programCode}` : ""}</span>
+                  <small>{formatDurationLabel(exam.duration)}</small>
                 </div>
-                <div>
-                  <span>{formatDurationLabel(exam.duration)}</span>
-                  <Badge tone={examTone(exam.status)}>{exam.status}</Badge>
+                <div className="student-available-exam-actions">
                   <button className="student-start-exam" onClick={() => navigate(`/student/exams/${exam.id}`)} type="button">Start</button>
                 </div>
               </article>
@@ -297,7 +290,6 @@ export default function StudentDashboard() {
                       <td>
                         <span>{exam.course}{exam.section ? ` - ${exam.section}` : ""}</span>
                         <small>{formatDurationLabel(exam.duration)}</small>
-                        <Badge tone={examTone(exam.status)}>{exam.status}</Badge>
                       </td>
                       <td><button className="professor-score-link-button" onClick={() => navigate(`/student/exams/${exam.id}`)} type="button">Start</button></td>
                     </tr>

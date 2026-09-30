@@ -2959,6 +2959,7 @@ html[data-theme="light"] .profile-remove-actions button.danger {
 }
 .list-card-grid .professor-course-list-card,
 .list-card-grid .student-course-card,
+.list-card-grid .student-available-exam-card,
 .list-card-grid .student-grade-course,
 .list-card-grid .professor-draft-row,
 .list-record-card {
@@ -3007,12 +3008,14 @@ html[data-theme="light"] .profile-remove-actions button.danger {
 }
 .list-card-grid-dense .list-record-card,
 .list-card-grid-dense .professor-draft-row,
+.list-card-grid-dense .student-available-exam-card,
 .list-card-grid-dense .student-grade-course {
   gap: 7px;
   padding: 9px;
 }
 .list-card-grid-comfortable .list-record-card,
 .list-card-grid-comfortable .professor-draft-row,
+.list-card-grid-comfortable .student-available-exam-card,
 .list-card-grid-comfortable .student-grade-course {
   padding: 16px;
 }
@@ -6659,15 +6662,15 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .student-available-exams-table th:nth-child(1),
 .student-available-exams-table td:nth-child(1) {
-  width: 32%;
+  width: 34%;
 }
 .student-available-exams-table th:nth-child(2),
 .student-available-exams-table td:nth-child(2) {
-  width: 42%;
+  width: 44%;
 }
 .student-available-exams-table th:nth-child(3),
 .student-available-exams-table td:nth-child(3) {
-  width: 26%;
+  width: 22%;
   text-align: right;
 }
 .student-available-exams-table td:nth-child(2) {
@@ -6684,7 +6687,6 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .student-available-exams-table td:nth-child(2) small {
   color: var(--app-text-muted);
 }
-.student-available-exams-table .badge,
 .student-available-exams-table .professor-score-link-button {
   white-space: nowrap;
 }
@@ -6720,51 +6722,41 @@ html[data-theme="light"] .professor-course-list-card:hover {
   overflow-y: auto;
   padding-right: 8px;
 }
-.student-exam-list article {
+.student-available-exam-card {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 18px;
-  align-items: center;
-  min-height: 128px;
-  padding: 20px;
+  gap: 14px;
+  align-items: stretch;
+  min-height: 142px;
+  padding: 18px;
   border-radius: 18px;
   background: var(--app-surface);
-  border: 1px solid rgba(125, 211, 252, 0.14);
+  border: 1px solid rgba(125, 211, 252, 0.22);
 }
-.student-exam-list strong {
+.student-available-exam-main {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.student-available-exam-main strong {
   display: block;
   color: var(--app-text);
   font-size: 1rem;
+  overflow-wrap: anywhere;
 }
-.student-exam-list small {
+.student-available-exam-main span,
+.student-available-exam-main small {
   display: block;
   color: var(--app-text-muted);
-  margin-top: 12px;
-  font-size: 0.9rem;
-}
-.student-exam-list article > div:last-child {
-  display: grid;
-  gap: 10px;
-  justify-items: end;
-  white-space: nowrap;
-  align-self: stretch;
-  align-content: center;
-}
-.student-exam-list article > div:last-child > span {
-  font-size: 1rem;
-  color: var(--app-text);
-}
-.student-exam-list .badge,
-.student-exam-list .badge-success,
-.student-exam-list .badge-blue,
-.student-exam-list .badge-neutral {
-  width: fit-content;
+  font-size: 12px;
+  line-height: 1.35;
   min-width: 0;
-  justify-self: end;
-  border: 1px solid rgba(34, 211, 238, 0.36);
-  background: linear-gradient(135deg, rgba(14, 165, 233, 0.28), rgba(6, 182, 212, 0.18));
-  color: #fff;
-  box-shadow: 0 10px 24px rgba(6, 182, 212, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  overflow-wrap: anywhere;
+}
+.student-available-exam-actions {
+  display: flex;
+  align-items: flex-end;
+  justify-content: flex-end;
+  min-width: 0;
 }
 .student-start-exam {
   min-height: 36px;
@@ -6777,9 +6769,6 @@ html[data-theme="light"] .professor-course-list-card:hover {
   font-size: 0.84rem;
   font-weight: 900;
 }
-.student-exam-list small,
-.student-exam-list article > div:last-child > span,
-.student-exam-list .badge,
 .student-start-exam {
   font-size: 12px;
   line-height: 1.35;
