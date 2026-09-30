@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FiChevronUp } from "react-icons/fi";
 import { toast } from "sonner";
-import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
+import { ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
 import { useAuth } from "../../context/AuthContext";
 import { studentCourses, studentGrades } from "../../data/studentData";
 import useListViewPreference from "../../hooks/useListViewPreference";
@@ -96,6 +96,33 @@ function groupByPeriod(grades) {
     items[period] = [...(items[period] || []), grade];
     return items;
   }, {});
+}
+
+function CourseGradeBody({ course, isTableDetail = false }) {
+  return (
+    <div className={`student-grade-body${isTableDetail ? " student-grade-table-detail" : ""}`}>
+      <h3>Academic Records</h3>
+      {Object.entries(course.periods).map(([period, periodGrades]) => (
+        <div className="student-grade-period" key={period}>
+          {periodGrades.map((grade) => (
+            <article className="student-grade-row" key={grade.id}>
+              <div>
+                <strong>{period}</strong>
+                <span>{grade.title}</span>
+              </div>
+              <b>{grade.scoreLabel}</b>
+              <div className="student-progress"><span style={{ width: `${grade.score}%` }} /></div>
+            </article>
+          ))}
+        </div>
+      ))}
+      {!course.grades.length ? <div className="student-empty-box">No grades recorded for this course yet.</div> : null}
+      <footer>
+        <span>Course Grade:</span>
+        <strong>{course.average.toFixed(1)}%</strong>
+      </footer>
+    </div>
+  );
 }
 
 export default function StudentGrades() {
@@ -256,7 +283,7 @@ export default function StudentGrades() {
       />
 
       {listView.view === "cards" ? (
-        <ListCardGrid density={listView.cardDensity}>
+        <div className={`list-card-grid list-card-grid-${listView.cardDensity} student-grade-course-list`}>
         {pageData.rows.map((course) => {
           const isOpen = openCourseId === course.id;
 
@@ -273,64 +300,36 @@ export default function StudentGrades() {
                 </div>
               </button>
 
-              {isOpen ? (
-                <div className="student-grade-body">
-                  <h3>Academic Records</h3>
-                  {Object.entries(course.periods).map(([period, periodGrades]) => (
-                    <div className="student-grade-period" key={period}>
-                      {periodGrades.map((grade) => (
-                        <article className="student-grade-row" key={grade.id}>
-                          <div>
-                            <strong>{period}</strong>
-                            <span>{grade.title}</span>
-                          </div>
-                          <b>{grade.scoreLabel}</b>
-                          <div className="student-progress"><span style={{ width: `${grade.score}%` }} /></div>
-                        </article>
-                      ))}
-                    </div>
-                  ))}
-                  {!course.grades.length ? <div className="student-empty-box">No grades recorded for this course yet.</div> : null}
-                  <footer>
-                    <span>Course Grade:</span>
-                    <strong>{course.average.toFixed(1)}%</strong>
-                  </footer>
-                </div>
-              ) : null}
+              {isOpen ? <CourseGradeBody course={course} /> : null}
             </section>
           );
         })}
-        </ListCardGrid>
+        </div>
       ) : (
-        <ResponsiveTable density={listView.tableDensity}>
-          <table className="professor-score-table compact">
+        <ResponsiveTable density={listView.tableDensity} className="student-grades-table-wrap">
+          <table className="professor-score-table compact student-grades-table">
             <thead><tr><th>Course</th><th>Section</th><th>Records</th><th>Average</th><th>Action</th></tr></thead>
             <tbody>
               {pageData.rows.map((course) => (
-                <tr key={course.id}>
-                  <td><strong>{course.name}</strong><span>{course.courseName}</span></td>
-                  <td>{course.section}</td>
-                  <td>{course.grades.length}</td>
-                  <td>{course.average.toFixed(1)}%</td>
-                  <td><button className="professor-score-link-button" onClick={() => setOpenCourseId((current) => current === course.id ? null : course.id)} type="button">{openCourseId === course.id ? "Hide" : "View"}</button></td>
-                </tr>
+                <Fragment key={course.id}>
+                  <tr>
+                    <td><strong>{course.name}</strong><span>{course.courseName}</span></td>
+                    <td>{course.section}</td>
+                    <td>{course.grades.length}</td>
+                    <td>{course.average.toFixed(1)}%</td>
+                    <td><button className="professor-score-link-button" onClick={() => setOpenCourseId((current) => current === course.id ? null : course.id)} type="button">{openCourseId === course.id ? "Close" : "View"}</button></td>
+                  </tr>
+                  {openCourseId === course.id ? (
+                    <tr className="student-grade-detail-row">
+                      <td colSpan={5}>
+                        <CourseGradeBody course={course} isTableDetail />
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               ))}
             </tbody>
           </table>
-          {openCourseId ? (
-            <div className="student-grade-body list-view-detail-panel">
-              {(visibleCourses.find((course) => course.id === openCourseId)?.grades || []).map((grade) => (
-                <article className="student-grade-row" key={grade.id}>
-                  <div>
-                    <strong>{grade.period}</strong>
-                    <span>{grade.title}</span>
-                  </div>
-                  <b>{grade.scoreLabel}</b>
-                  <div className="student-progress"><span style={{ width: `${grade.score}%` }} /></div>
-                </article>
-              ))}
-            </div>
-          ) : null}
         </ResponsiveTable>
       )}
       {!visibleCourses.length ? <div className="student-empty-box">No joined courses found.</div> : null}

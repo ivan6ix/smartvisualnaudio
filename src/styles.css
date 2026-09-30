@@ -8066,6 +8066,18 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .student-grades-page {
   width: min(100%, 980px);
 }
+.student-grade-course-list.list-card-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+.student-grade-course-list.list-card-grid-comfortable {
+  --list-card-gap: 16px;
+}
+.student-grade-course-list.list-card-grid-compact {
+  --list-card-gap: 12px;
+}
+.student-grade-course-list.list-card-grid-dense {
+  --list-card-gap: 8px;
+}
 .student-grade-course {
   padding: 0;
   overflow: visible;
@@ -8079,7 +8091,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .student-grade-course-toggle {
   width: 100%;
-  min-height: 96px;
+  min-height: 76px;
   border: 1px solid rgba(125, 211, 252, 0.18);
   border-radius: 18px;
   background: var(--app-surface);
@@ -8088,9 +8100,17 @@ html[data-theme="light"] .professor-course-list-card:hover {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 20px 24px;
+  padding: 16px 20px;
   text-align: left;
   box-shadow: 0 18px 48px rgba(2, 6, 23, 0.18);
+}
+.list-card-grid-comfortable .student-grade-course-toggle {
+  min-height: 84px;
+  padding: 18px 22px;
+}
+.list-card-grid-dense .student-grade-course-toggle {
+  min-height: 64px;
+  padding: 12px 16px;
 }
 .student-grade-course-toggle h2,
 .student-grade-course-toggle p {
@@ -8107,6 +8127,8 @@ html[data-theme="light"] .professor-course-list-card:hover {
   display: flex;
   align-items: center;
   gap: 12px;
+  justify-content: flex-end;
+  min-width: fit-content;
 }
 .student-grade-course-toggle > div:last-child strong,
 .student-grade-pill {
@@ -8114,8 +8136,8 @@ html[data-theme="light"] .professor-course-list-card:hover {
   background: rgba(6, 182, 212, 0.14);
   color: var(--app-text);
   border: 1px solid rgba(125, 211, 252, 0.2);
-  min-width: 84px;
-  padding: 13px 16px;
+  min-width: 72px;
+  padding: 9px 12px;
   font-weight: 900;
   text-align: center;
 }
@@ -8127,18 +8149,24 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .student-grade-course-list {
   display: grid;
-  gap: 16px;
+  gap: var(--list-card-gap, 12px);
 }
 .student-grade-body {
-  margin-top: -18px;
-  padding: 34px 34px 28px;
+  margin-top: -10px;
+  padding: 26px 24px 22px;
   background: var(--app-surface);
   border: 1px solid rgba(125, 211, 252, 0.14);
   border-top: 0;
   border-radius: 0 0 18px 18px;
 }
+.list-card-grid-comfortable .student-grade-body {
+  padding: 30px 28px 24px;
+}
+.list-card-grid-dense .student-grade-body {
+  padding: 20px 16px 16px;
+}
 .student-grade-body h3 {
-  margin: 0 0 18px;
+  margin: 0 0 14px;
   color: var(--app-text);
   font-size: 0.92rem;
 }
@@ -8146,11 +8174,15 @@ html[data-theme="light"] .professor-course-list-card:hover {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px 16px;
-  padding: 18px;
+  padding: 14px;
   border: 1px solid rgba(125, 211, 252, 0.16);
   border-radius: 12px;
   background: var(--app-surface);
-  margin-bottom: 16px;
+  margin-bottom: 12px;
+}
+.list-card-grid-dense .student-grade-row {
+  padding: 11px;
+  margin-bottom: 8px;
 }
 .student-grade-row strong,
 .student-grade-row span {
@@ -8178,7 +8210,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   background: linear-gradient(90deg, #2563eb, #06b6d4);
 }
 .student-grade-body footer {
-  min-height: 58px;
+  min-height: 50px;
   border-radius: 12px;
   background: rgba(6, 182, 212, 0.14);
   border: 1px solid rgba(125, 211, 252, 0.2);
@@ -8186,12 +8218,29 @@ html[data-theme="light"] .professor-course-list-card:hover {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 0 18px;
+  padding: 0 16px;
   font-weight: 900;
 }
 .student-grade-body footer strong {
   color: var(--app-text);
-  font-size: 1.4rem;
+  font-size: 1.1rem;
+}
+.student-grade-detail-row > td {
+  padding: 0 0 12px !important;
+  border-bottom: 1px solid var(--app-line);
+  background: var(--app-surface);
+}
+.student-grade-table-detail {
+  margin: 0;
+  padding: 18px;
+  border: 1px solid rgba(125, 211, 252, 0.14);
+  border-radius: 0 0 14px 14px;
+}
+.student-grade-table-detail .student-empty-box {
+  min-height: 64px;
+}
+.student-grades-table .professor-score-link-button {
+  white-space: nowrap;
 }
 .student-course-heading {
   margin-bottom: 24px;
