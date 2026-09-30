@@ -1762,6 +1762,11 @@ button.dean-integrity-link { border: 0; background: transparent; padding: 0; cur
 .settings-modal .card h2 {
   color: var(--app-text);
 }
+.settings-readonly-note {
+  margin: -2px 0 14px;
+  color: var(--app-text-muted);
+  font-size: 0.92rem;
+}
 .settings-modal .info-list span,
 .settings-surface-card .info-list span {
   display: grid;

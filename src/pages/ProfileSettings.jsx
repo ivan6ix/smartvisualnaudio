@@ -5,6 +5,8 @@ import ProfileAvatar from "../components/ProfileAvatar";
 import SettingsSections from "../components/SettingsSections";
 import { Button, Card, PageHeader } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
+import { writeAccountAuditLog } from "../lib/accountAudit";
+import { AVATAR_BUCKET, AVATAR_OUTPUT_MIME_TYPE, buildAvatarPath, getAvatarFileValidationError } from "../lib/avatarSettings";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 function readImageFile(file) {
@@ -84,12 +86,9 @@ export default function ProfileSettings() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please upload an image file.");
-      return;
-    }
-    if (file.size > 5 * 1024 * 1024) {
-      toast.error("Profile picture must be 5MB or smaller.");
+    const validationError = getAvatarFileValidationError(file);
+    if (validationError) {
+      toast.error(validationError);
       return;
     }
 
@@ -110,13 +109,13 @@ export default function ProfileSettings() {
 
       let nextAvatarUrl = await blobToDataUrl(blob);
       if (hasSupabaseConfig) {
-        const path = `${user.id}/avatar.png`;
+        const path = buildAvatarPath(user.id);
         const { error: uploadError } = await supabase.storage
-          .from("profile-pictures")
-          .upload(path, blob, { contentType: "image/png", upsert: true });
+          .from(AVATAR_BUCKET)
+          .upload(path, blob, { contentType: AVATAR_OUTPUT_MIME_TYPE, upsert: true });
         if (uploadError) throw uploadError;
 
-        const { data: publicData } = supabase.storage.from("profile-pictures").getPublicUrl(path);
+        const { data: publicData } = supabase.storage.from(AVATAR_BUCKET).getPublicUrl(path);
         nextAvatarUrl = `${publicData.publicUrl}?v=${Date.now()}`;
 
         const { error: profileError } = await supabase
@@ -124,6 +123,15 @@ export default function ProfileSettings() {
           .update({ avatar_url: nextAvatarUrl })
           .eq("id", user.id);
         if (profileError) throw profileError;
+
+        await writeAccountAuditLog({
+          supabase,
+          user,
+          eventType: "account.avatar_updated",
+          action: "Profile Picture Updated",
+          description: "A user updated their profile picture.",
+          metadata: { bucket: AVATAR_BUCKET },
+        });
       }
 
       setAvatarUrl(nextAvatarUrl);
@@ -151,9 +159,18 @@ export default function ProfileSettings() {
         if (profileError) throw profileError;
 
         const { error: storageError } = await supabase.storage
-          .from("profile-pictures")
-          .remove([`${user.id}/avatar.png`]);
+          .from(AVATAR_BUCKET)
+          .remove([buildAvatarPath(user.id)]);
         if (storageError && import.meta.env.DEV) window.console.warn("Profile photo storage delete failed", storageError);
+
+        await writeAccountAuditLog({
+          supabase,
+          user,
+          eventType: "account.avatar_removed",
+          action: "Profile Picture Removed",
+          description: "A user removed their profile picture.",
+          metadata: { bucket: AVATAR_BUCKET },
+        });
       }
 
       setAvatarUrl("");
@@ -193,7 +210,8 @@ export default function ProfileSettings() {
           </div>
         </Card>
         <Card className="admin-panel settings-surface-card">
-          <h2>Profile Information</h2>
+          <h2>Account Information</h2>
+          <p className="settings-readonly-note">These identity details are managed by your institution and cannot be edited here.</p>
           <div className="info-list">
             <span>Full Name <strong>{user?.fullName || "-"}</strong></span>
             <span>Email <strong>{user?.email || "-"}</strong></span>

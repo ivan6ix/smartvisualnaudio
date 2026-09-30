@@ -6,15 +6,37 @@ import ActiveSessions from "../components/ActiveSessions";
 import LegalLinks from "../components/LegalLinks";
 import PersonalActivityLogs from "../components/PersonalActivityLogs";
 import { Button, Card, Field } from "../components/ui";
+import { useAuth } from "../context/AuthContext";
+import { writeAccountAuditLog } from "../lib/accountAudit";
+import { changeAuthenticatedPassword, PASSWORD_MIN_LENGTH } from "../lib/settingsSecurity";
 
 export default function SecurityPrivacy() {
   const { register, handleSubmit, reset, formState: { isSubmitting } } = useForm();
+  const { user } = useAuth();
 
   async function changePassword(values) {
-    if (values.newPassword.length < 6 || values.newPassword !== values.confirmPassword) { toast.error("Use at least 6 characters and matching passwords."); return; }
     if (hasSupabaseConfig) {
-      const { error } = await supabase.auth.updateUser({ password: values.newPassword });
-      if (error) { toast.error(error.message); return; }
+      const result = await changeAuthenticatedPassword({
+        supabase,
+        email: user?.email,
+        currentPassword: values.currentPassword,
+        newPassword: values.newPassword,
+        confirmPassword: values.confirmPassword,
+      });
+      if (!result.ok) {
+        toast.error(result.error);
+        return;
+      }
+      await writeAccountAuditLog({
+        supabase,
+        user,
+        eventType: "account.password_changed",
+        action: "Password Changed",
+        description: "A user changed their account password.",
+      });
+    } else if (values.newPassword.length < PASSWORD_MIN_LENGTH || values.newPassword !== values.confirmPassword || !values.currentPassword) {
+      toast.error(`Use at least ${PASSWORD_MIN_LENGTH} characters and matching passwords.`);
+      return;
     }
     toast.success("Password updated");
     reset();
@@ -33,10 +55,11 @@ export default function SecurityPrivacy() {
       <div className="dashboard-grid">
         <Card className="admin-panel settings-surface-card">
           <h2>Password & Authentication</h2>
+          <p className="settings-readonly-note">Confirm your current password before choosing a new one.</p>
           <form className="stack-form" onSubmit={handleSubmit(changePassword)}>
-            <Field label="Current Password" type="password" {...register("currentPassword", { required: true })} />
-            <Field label="New Password" type="password" {...register("newPassword", { required: true })} />
-            <Field label="Confirm Password" type="password" {...register("confirmPassword", { required: true })} />
+            <Field autoComplete="current-password" label="Current Password" type="password" {...register("currentPassword", { required: true })} />
+            <Field autoComplete="new-password" label="New Password" minLength={PASSWORD_MIN_LENGTH} type="password" {...register("newPassword", { required: true, minLength: PASSWORD_MIN_LENGTH })} />
+            <Field autoComplete="new-password" label="Confirm New Password" minLength={PASSWORD_MIN_LENGTH} type="password" {...register("confirmPassword", { required: true, minLength: PASSWORD_MIN_LENGTH })} />
             <Button disabled={isSubmitting}>{isSubmitting ? "Updating..." : "Update Password"}</Button>
           </form>
         </Card>

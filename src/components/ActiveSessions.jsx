@@ -78,7 +78,7 @@ export default function ActiveSessions() {
 
       const { error } = await supabase.auth.signOut({ scope: "others" });
       if (error) throw error;
-      toast.success("Other sessions have been logged out");
+      toast.success("All other sessions have been logged out");
       setConfirmOpen(false);
       await loadSession();
     } catch (error) {
@@ -120,8 +120,8 @@ function CardlessSessionPanel({ device, loading, onRefresh, onRequestLogoutOther
     <div className="active-sessions-panel">
       <div className="active-sessions-heading">
         <div>
-          <h2>Active Sessions</h2>
-          <p>Review the devices and sessions currently signed in to your account.</p>
+          <h2>Current Session</h2>
+          <p>Review the browser session you are using now.</p>
         </div>
         <button disabled={loading} onClick={onRefresh} type="button">
           <FiRefreshCw /> {loading ? "Refreshing..." : "Refresh"}
@@ -130,12 +130,12 @@ function CardlessSessionPanel({ device, loading, onRefresh, onRequestLogoutOther
       <article className="active-session-item">
         <div>
           <strong>{device.os} · {device.browser}</strong>
-          <span>Last active: Just now</span>
+          <span>Status: Active now</span>
           <span>Expires: {formatDate(session?.expires_at)}</span>
         </div>
         <span className="session-current-badge">Current Session</span>
       </article>
-      <p className="active-session-note">No other active sessions are available from the browser client. Supabase Auth can log out other sessions, but does not expose a safe frontend list of every logged-in device.</p>
+      <p className="active-session-note">This panel shows only the current browser session. Supabase Auth can log out other sessions, but the browser client cannot safely list every signed-in device.</p>
       <div className="active-session-actions">
         <Button disabled={loading || !hasSupabaseConfig} onClick={onRequestLogoutOthers} type="button" variant="light">
           Log Out All Other Sessions

@@ -1,10 +1,10 @@
 import NotificationBell from "../../components/NotificationBell";
 import PortalNav from "../../components/PortalNav";
 import { useState } from "react";
-import { FiLogOut, FiMessageCircle, FiShield, FiUser } from "react-icons/fi";
+import { FiMessageCircle } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useNavigate } from "react-router-dom";
 import MessageModal from "../../components/MessageModal";
-import ProfileAvatar from "../../components/ProfileAvatar";
+import ProfileMenu from "../../components/ProfileMenu";
 import { PageSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useMessagePreview from "../../hooks/useMessagePreview";
@@ -14,7 +14,6 @@ export default function ProfessorLayout() {
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messageTargetId, setMessageTargetId] = useState("");
-  const [profileOpen, setProfileOpen] = useState(false);
   const { conversations, unreadCount } = useMessagePreview(user);
 
   function openMessages(conversationId = "") {
@@ -60,16 +59,7 @@ export default function ProfessorLayout() {
             </div>
           </div>
           <NotificationBell user={user} />
-          <div className={`cluster-profile-menu ${profileOpen ? "open" : ""}`}>
-            <button aria-label="Open profile menu" onClick={() => setProfileOpen((open) => !open)} title="Profile" type="button">
-              <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
-            </button>
-            <div>
-              <button onClick={() => { navigate("/professor/profile"); setProfileOpen(false); }} type="button"><FiUser /> Profile Settings</button>
-              <button onClick={() => { navigate("/professor/security"); setProfileOpen(false); }} type="button"><FiShield /> Security & Privacy</button>
-              <button onClick={logout}><FiLogOut /> Logout</button>
-            </div>
-          </div>
+          <ProfileMenu className="cluster-profile-menu" logout={logout} user={user} />
         </div>
       </header>
       <main className="cluster-shell professor-shell">

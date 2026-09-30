@@ -1,9 +1,9 @@
 import NotificationBell from "./NotificationBell";
 import PortalNav from "./PortalNav";
 import { useState } from "react";
-import { FiLogOut, FiMessageCircle, FiShield, FiUserCheck } from "react-icons/fi";
+import { FiMessageCircle, FiUserCheck } from "react-icons/fi";
 import { NavLink, useNavigate } from "react-router-dom";
-import ProfileAvatar from "./ProfileAvatar";
+import ProfileMenu from "./ProfileMenu";
 import { useAuth } from "../context/AuthContext";
 import useMessagePreview from "../hooks/useMessagePreview";
 import MessageModal from "./MessageModal";
@@ -13,7 +13,6 @@ export default function TopNav() {
   const navigate = useNavigate();
   const [messagesOpen, setMessagesOpen] = useState(false);
   const [messageTargetId, setMessageTargetId] = useState("");
-  const [profileOpen, setProfileOpen] = useState(false);
   const { conversations, unreadCount } = useMessagePreview(user);
   const links = [
     ["Dashboard", "/"],
@@ -57,16 +56,7 @@ export default function TopNav() {
             </div>
           </div>
           <NotificationBell user={user} emptyText="No password reset requests yet." />
-          <div className={`profile-menu ${profileOpen ? "open" : ""}`}>
-            <button aria-label="Open profile menu" onClick={() => setProfileOpen((open) => !open)} type="button">
-              <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
-            </button>
-            <div>
-              <button onClick={() => { navigate("/profile"); setProfileOpen(false); }} type="button"><FiUserCheck /> Profile Settings</button>
-              <button onClick={() => { navigate("/security"); setProfileOpen(false); }} type="button"><FiShield /> Security & Privacy</button>
-              <button onClick={logout}><FiLogOut /> Logout</button>
-            </div>
-          </div>
+          <ProfileMenu icon={FiUserCheck} logout={logout} user={user} />
         </div>
       </header>
       {messagesOpen ? <MessageModal initialConversationId={messageTargetId} onClose={() => setMessagesOpen(false)} /> : null}
