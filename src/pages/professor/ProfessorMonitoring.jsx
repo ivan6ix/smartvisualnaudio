@@ -7,6 +7,11 @@ import { useAuth } from "../../context/AuthContext";
 import { professorAlerts } from "../../data/professorData";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { getListPageSlice } from "../../lib/listView";
+import {
+  MONITORING_INITIAL_VIOLATION_LIMIT,
+  getViolationEvidenceState,
+  shouldRequestLazyEvidence,
+} from "../../lib/professorMonitoring";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const violationLabels = {
@@ -23,8 +28,6 @@ const violationLabels = {
   PHONE_DETECTED: "Cellphone detected",
   GADGET_DETECTED: "Spare gadget detected",
 };
-
-const audioViolationTypes = new Set(["AUDIO_DETECTED", "LOUD_AUDIO", "LOUD_NOISE_DETECTED", "BACKGROUND_VOICE"]);
 
 function severityTone(severity) {
   if (severity === "High") return "danger";
@@ -69,14 +72,6 @@ function parseCourseLabel(value) {
   return { courseCode: text };
 }
 
-function getAudioEvidenceName(violation) {
-  if (violation.evidence_url?.startsWith("data:audio/")) return violation.evidence_url;
-  if (violation.evidence_url?.endsWith(".webm")) return violation.evidence_url;
-  if (violation.screenshot_url?.startsWith("data:audio/")) return violation.screenshot_url;
-  if (violation.screenshot_url?.endsWith(".webm")) return violation.screenshot_url;
-  return null;
-}
-
 async function findNearestAudioEvidence(violation) {
   if (!violation.student_id || !violation.exam_id) return null;
   const folder = `${violation.student_id}/${violation.exam_id}`;
@@ -118,6 +113,7 @@ export default function ProfessorMonitoring() {
     period: "Demo",
     examName: alert.exam,
   })));
+  const [evidenceLoadingId, setEvidenceLoadingId] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
   const [studentSearch, setStudentSearch] = useState("");
   const [studentCourseFilter, setStudentCourseFilter] = useState("All Courses");
@@ -228,7 +224,7 @@ export default function ProfessorMonitoring() {
         .select(violationSelect)
         .or(violationFilter)
         .order("created_at", { ascending: false })
-        .limit(500);
+        .limit(MONITORING_INITIAL_VIOLATION_LIMIT);
 
       if (
         violationsResult.error?.message?.includes("evidence_url")
@@ -242,7 +238,7 @@ export default function ProfessorMonitoring() {
           .select(fallbackViolationSelect)
           .in("exam_id", examIds)
           .order("created_at", { ascending: false })
-          .limit(500);
+          .limit(MONITORING_INITIAL_VIOLATION_LIMIT);
         violationRows = fallbackViolationsResult.data || [];
         violationsError = fallbackViolationsResult.error;
       } else {
@@ -269,24 +265,9 @@ export default function ProfessorMonitoring() {
       });
       setStudents(Array.from(studentById.values()));
 
-      const rowsWithScreenshots = await Promise.all((violationRows || []).map(async (violation) => {
+      const rowsWithEvidenceState = (violationRows || []).map((violation) => {
         const { date, time } = formatDateTime(violation.created_at);
-        let screenshotUrl = null;
-        let audioUrl = null;
-        const isAudioViolation = audioViolationTypes.has(violation.violation_type);
-        const audioEvidenceName = getAudioEvidenceName(violation) || (isAudioViolation ? await findNearestAudioEvidence(violation) : null);
-        if (audioEvidenceName?.startsWith("data:audio/")) {
-          audioUrl = audioEvidenceName;
-        } else if (audioEvidenceName) {
-          const { data: signed } = await supabase.storage.from("audio-violations").createSignedUrl(audioEvidenceName, 60 * 60);
-          audioUrl = signed?.signedUrl || null;
-        } else if (violation.screenshot_url && !violation.screenshot_url.endsWith(".webm")) {
-          const { data: signed } = await supabase.storage.from("proctor-snapshots").createSignedUrl(violation.screenshot_url, 60 * 60);
-          screenshotUrl = signed?.signedUrl || null;
-        }
-        const hasAudioEvidence = Boolean(audioEvidenceName)
-          || violation.evidence_type?.startsWith("audio")
-          || isAudioViolation;
+        const evidenceState = getViolationEvidenceState(violation);
         const exam = { ...(examById.get(violation.exam_id) || {}), ...(violation.exams || {}) };
         const courseId = exam.course_id || violation.course_id || "";
         const course = firstRow(exam.courses) || courseById.get(courseId);
@@ -307,15 +288,19 @@ export default function ProfessorMonitoring() {
           period: exam.description || "No period",
           activity: violationLabels[violation.violation_type] || violation.violation_type || "Monitoring alert",
           severity: violation.severity || "Low",
-          screenshotUrl,
+          evidencePath: evidenceState.audioPath || violation.screenshot_url || "",
+          screenshotUrl: "",
           audioLevel: violation.audio_level,
-          audioUrl,
-          hasAudioEvidence,
+          audioUrl: evidenceState.audioPath?.startsWith("data:audio/") ? evidenceState.audioPath : "",
+          hasAudioEvidence: evidenceState.hasAudioEvidence,
+          hasScreenshotEvidence: evidenceState.hasScreenshotEvidence,
+          evidenceLoading: false,
+          createdAt: violation.created_at,
           date,
           time,
         };
-      }));
-      setViolations(rowsWithScreenshots);
+      });
+      setViolations(rowsWithEvidenceState);
     }
 
     loadMonitoring();
@@ -395,6 +380,41 @@ export default function ProfessorMonitoring() {
       period: "All Periods",
       exam: "All Exams",
     });
+  }
+
+  async function loadEvidence(violation) {
+    if (!hasSupabaseConfig || !shouldRequestLazyEvidence(violation)) return;
+    setEvidenceLoadingId(violation.id);
+    setViolations((current) => current.map((item) => item.id === violation.id ? { ...item, evidenceLoading: true } : item));
+    try {
+      let audioPath = violation.hasAudioEvidence ? violation.evidencePath : "";
+      let audioUrl = "";
+      let screenshotUrl = "";
+      if (audioPath?.startsWith("data:audio/")) {
+        audioUrl = audioPath;
+      } else if (!audioPath && violation.hasAudioEvidence) {
+        audioPath = await findNearestAudioEvidence({
+          student_id: violation.studentId,
+          exam_id: violation.examId,
+          created_at: violation.createdAt,
+        });
+      }
+      if (audioPath && !audioUrl) {
+        const { data: signed, error } = await supabase.storage.from("audio-violations").createSignedUrl(audioPath, 60 * 60);
+        if (error) throw error;
+        audioUrl = signed?.signedUrl || "";
+      } else if (violation.hasScreenshotEvidence && violation.evidencePath) {
+        const { data: signed, error } = await supabase.storage.from("proctor-snapshots").createSignedUrl(violation.evidencePath, 60 * 60);
+        if (error) throw error;
+        screenshotUrl = signed?.signedUrl || "";
+      }
+      setViolations((current) => current.map((item) => item.id === violation.id ? { ...item, audioUrl, screenshotUrl, evidenceLoading: false } : item));
+    } catch (error) {
+      toast.error(error.message || "Unable to load evidence.");
+      setViolations((current) => current.map((item) => item.id === violation.id ? { ...item, evidenceLoading: false } : item));
+    } finally {
+      setEvidenceLoadingId("");
+    }
   }
 
   return (
@@ -544,6 +564,11 @@ export default function ProfessorMonitoring() {
                     <strong>{violation.activity}</strong>
                     <span>{violation.courseCode} - {violation.section} - {violation.period} - {violation.examName}</span>
                     <small>{violation.date} - {violation.time}</small>
+                    {shouldRequestLazyEvidence(violation) ? (
+                      <Button variant="light" disabled={evidenceLoadingId === violation.id} onClick={() => loadEvidence(violation)}>
+                        {evidenceLoadingId === violation.id ? "Loading evidence..." : "Load evidence"}
+                      </Button>
+                    ) : null}
                     {violation.screenshotUrl ? (
                       <a href={violation.screenshotUrl} rel="noreferrer" target="_blank">
                         <img alt={`${violation.activity} snapshot`} decoding="async" loading="lazy" src={violation.screenshotUrl} />
@@ -556,7 +581,7 @@ export default function ProfessorMonitoring() {
                         <audio controls src={violation.audioUrl} />
                       </div>
                     ) : null}
-                    {violation.hasAudioEvidence && !violation.audioUrl ? (
+                    {violation.hasAudioEvidence && !violation.audioUrl && !shouldRequestLazyEvidence(violation) ? (
                       <div className="professor-audio-evidence missing">
                         <small>No audio recording attached. Check the audio-violations bucket and violation evidence columns.</small>
                       </div>

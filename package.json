@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite",
     "roboflow-proxy": "node server/roboflow-proxy.js",
-    "test": "node scripts/check-exam-assignment-helpers.mjs && node scripts/check-ongoing-exams-helpers.mjs && node scripts/check-list-view-helpers.mjs && node scripts/check-audit-log-helpers.mjs && node scripts/check-notification-helpers.mjs && node scripts/check-settings-helpers.mjs && node scripts/check-exam-compatibility-helpers.mjs && node scripts/check-responsive-hardening.mjs",
+    "test": "node scripts/check-exam-assignment-helpers.mjs && node scripts/check-ongoing-exams-helpers.mjs && node scripts/check-list-view-helpers.mjs && node scripts/check-audit-log-helpers.mjs && node scripts/check-notification-helpers.mjs && node scripts/check-settings-helpers.mjs && node scripts/check-exam-compatibility-helpers.mjs && node scripts/check-responsive-hardening.mjs && node scripts/check-monitoring-performance-helpers.mjs && node scripts/check-auth-performance-helpers.mjs",
     "build": "vite build",
     "preview": "vite preview",
     "lint": "eslint ."

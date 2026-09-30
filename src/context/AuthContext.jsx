@@ -266,7 +266,9 @@ export function AuthProvider({ children }) {
   async function login(email, password) {
     intentionalLogout.current = false;
     queryClient.clear();
-    queryPersister.removeClient();
+    window.setTimeout(() => {
+      queryPersister.removeClient();
+    }, 0);
     if (hasSupabaseConfig) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
