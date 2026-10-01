@@ -4,7 +4,7 @@ import { FiBookOpen, FiFileText, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
-import { Badge, Card, PageHeader, StatCard } from "../../components/ui";
+import { Badge, Card } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
@@ -149,59 +149,100 @@ export default function ProfessorCourses() {
   }
 
   return (
-    <>
-      <PageHeader title="Courses" subtitle="View your assigned courses and the exams created for each course." />
+    <section className="professor-courses-page">
+      <header className="professor-courses-page-header">
+        <h1>Courses</h1>
+        <p>View your assigned courses and the exams created for each course.</p>
+      </header>
 
-      <div className="professor-stats-grid">
-        <StatCard label="My Courses" value={courses.length} icon={FiBookOpen} />
-        <StatCard label="Course Exams" value={exams.length} icon={FiFileText} />
-        <StatCard label="Published Exams" value={exams.filter((exam) => ["Published", "published", "Active"].includes(exam.status)).length} icon={FiFileText} />
-        <StatCard label="Enrolled Students" value={totalStudents} icon={FiUsers} />
+      <div className="professor-stats-grid professor-courses-stats">
+        <Card className="professor-kpi-card">
+          <FiBookOpen aria-hidden="true" />
+          <div><span>My Courses</span><strong>{courses.length}</strong></div>
+        </Card>
+        <Card className="professor-kpi-card">
+          <FiFileText aria-hidden="true" />
+          <div><span>Course Exams</span><strong>{exams.length}</strong></div>
+        </Card>
+        <Card className="professor-kpi-card">
+          <FiFileText aria-hidden="true" />
+          <div><span>Published Exams</span><strong>{exams.filter((exam) => ["Published", "published", "Active"].includes(exam.status)).length}</strong></div>
+        </Card>
+        <Card className="professor-kpi-card">
+          <FiUsers aria-hidden="true" />
+          <div><span>Enrolled Students</span><strong>{totalStudents}</strong></div>
+        </Card>
       </div>
 
-      <Card>
+      <Card className="professor-courses-panel">
         <div className="professor-courses-header">
           <div>
             <h2>My Courses</h2>
-            <p>Select a course card to view exams created for that course.</p>
+            <p>Open a course to manage materials, exams, and members.</p>
           </div>
           <span>{courses.length} courses</span>
         </div>
-        <ListViewToolbar
-          controls={{
-            cardDensity: courseView.cardDensity,
-            onCardDensity: courseView.setCardDensity,
-            onTableDensity: courseView.setTableDensity,
-            onView: (nextView) => setCoursePage(courseView.switchViewPreservingPage(nextView, coursePageData.page, courses.length)),
-            tableDensity: courseView.tableDensity,
-            view: courseView.view,
-          }}
-        />
+        <div className="professor-courses-toolbar">
+          <div className="professor-courses-toolbar-summary">
+            <strong>{coursePageData.rows.length}</strong>
+            <span>shown on this page</span>
+          </div>
+          <ListViewToolbar
+            controls={{
+              cardDensity: courseView.cardDensity,
+              onCardDensity: courseView.setCardDensity,
+              onTableDensity: courseView.setTableDensity,
+              onView: (nextView) => setCoursePage(courseView.switchViewPreservingPage(nextView, coursePageData.page, courses.length)),
+              tableDensity: courseView.tableDensity,
+              view: courseView.view,
+            }}
+          />
+        </div>
 
         {courseView.view === "cards" ? (
           <ListCardGrid density={courseView.cardDensity}>
             {coursePageData.rows.map((course) => (
-            <button
-              className={`professor-course-list-card ${selectedCourseId === course.id ? "active" : ""}`}
-              key={course.id}
-              onClick={() => openCourse(course)}
-              type="button"
-            >
-              <FiBookOpen />
-              <div>
-                <strong className="professor-course-code">{course.courseCode}</strong>
-                <span>{course.courseName}</span>
-                <small>{formatCourseMeta(course) || "Program not assigned"}</small>
-                <small>{formatCourseTerm(course) || (course.section ? `Section ${course.section}` : "Section not assigned")}</small>
-                <em>{course.students} student{Number(course.students) === 1 ? "" : "s"}</em>
-              </div>
-              <i><span>Joining Code</span>{course.joiningCode || "No code"}</i>
-            </button>
-          ))}
+              <article className="professor-course-record-card" key={course.id}>
+                <header className="professor-course-record-header">
+                  <div>
+                    <strong className="professor-course-code">{course.courseCode}</strong>
+                    <span>{course.courseName}</span>
+                  </div>
+                  <FiBookOpen aria-hidden="true" />
+                </header>
+                <dl className="professor-course-record-body">
+                  <div>
+                    <dt>Program</dt>
+                    <dd>{formatCourseMeta(course) || "Program not assigned"}</dd>
+                  </div>
+                  <div>
+                    <dt>Term</dt>
+                    <dd>{formatCourseTerm(course) || (course.section ? `Section ${course.section}` : "Section not assigned")}</dd>
+                  </div>
+                  <div>
+                    <dt>Students</dt>
+                    <dd>{course.students} student{Number(course.students) === 1 ? "" : "s"}</dd>
+                  </div>
+                  <div>
+                    <dt>Joining Code</dt>
+                    <dd>{course.joiningCode || "No code"}</dd>
+                  </div>
+                </dl>
+                <button className="professor-course-record-action" onClick={() => openCourse(course)} type="button">Open</button>
+              </article>
+            ))}
           </ListCardGrid>
         ) : (
-          <ResponsiveTable density={courseView.tableDensity}>
-            <table className="professor-score-table compact">
+          <ResponsiveTable density={courseView.tableDensity} className="professor-courses-table-card">
+            <table className="professor-courses-table">
+              <colgroup>
+                <col style={{ width: "26%" }} />
+                <col style={{ width: "24%" }} />
+                <col style={{ width: "18%" }} />
+                <col style={{ width: "10%" }} />
+                <col style={{ width: "14%" }} />
+                <col style={{ width: "8%" }} />
+              </colgroup>
               <thead><tr><th>Course</th><th>Program</th><th>Term</th><th>Students</th><th>Code</th><th>Action</th></tr></thead>
               <tbody>
                 {coursePageData.rows.map((course) => (
@@ -218,11 +259,16 @@ export default function ProfessorCourses() {
             </table>
           </ResponsiveTable>
         )}
-        {!courses.length ? <div className="professor-exams-empty">No assigned courses found.</div> : null}
+        {!courses.length ? (
+          <div className="professor-courses-empty">
+            <strong>No assigned courses found.</strong>
+            <span>Your assigned courses will appear here.</span>
+          </div>
+        ) : null}
         <ListPagination count={courses.length} page={coursePageData.page} pageSize={courseView.pageSize} onPage={setCoursePage} />
       </Card>
 
-      <Card>
+      <Card className="professor-courses-panel professor-course-exams-panel">
         <div className="professor-courses-header">
           <div>
             <h2>{selectedCourse ? `${selectedCourse.courseCode} Exams` : "Course Exams"}</h2>
@@ -247,6 +293,6 @@ export default function ProfessorCourses() {
           {!selectedExams.length ? <div className="professor-exams-empty">No exams created for this course yet.</div> : null}
         </div>
       </Card>
-    </>
+    </section>
   );
 }

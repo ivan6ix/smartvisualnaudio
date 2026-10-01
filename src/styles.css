@@ -14279,3 +14279,365 @@ html[data-theme] .professor-shell .professor-exams-section .professor-exam-actio
   background: rgba(239, 68, 68, 0.12);
   color: #b91c1c;
 }
+
+.professor-courses-page {
+  color: var(--text-primary);
+  display: grid;
+  gap: 18px;
+}
+.professor-courses-page-header {
+  display: grid;
+  gap: 5px;
+}
+.professor-courses-page-header h1 {
+  color: var(--text-primary);
+  font-size: clamp(1.8rem, 3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.12;
+  margin: 0;
+}
+.professor-courses-page-header p {
+  color: var(--text-muted);
+  font-size: 0.96rem;
+  margin: 2px 0 0;
+}
+.professor-courses-page .professor-kpi-card,
+.professor-courses-page .professor-courses-panel {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+html[data-theme="dark"] .professor-courses-page .professor-kpi-card,
+html[data-theme="dark"] .professor-courses-page .professor-courses-panel,
+html[data-appearance="dark"] .professor-courses-page .professor-kpi-card,
+html[data-appearance="dark"] .professor-courses-page .professor-courses-panel {
+  background: var(--app-surface);
+  border-color: rgba(226, 232, 240, 0.58);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  color: var(--app-text);
+}
+.professor-courses-page .professor-kpi-card {
+  align-content: space-between;
+  display: grid;
+  gap: 10px;
+  min-height: 104px;
+  padding: 15px 16px;
+}
+.professor-courses-page .professor-kpi-card svg {
+  color: var(--primary);
+  height: 22px;
+  width: 22px;
+}
+.professor-courses-page .professor-kpi-card span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.professor-courses-page .professor-kpi-card strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 9px;
+}
+.professor-courses-page .professor-courses-panel {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.professor-courses-page .professor-courses-header {
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding-bottom: 14px;
+}
+.professor-courses-page .professor-courses-header h2 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+.professor-courses-page .professor-courses-header p {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  margin: 4px 0 0;
+}
+.professor-courses-page .professor-courses-header > span,
+.professor-courses-page .professor-courses-toolbar-summary {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 7px 10px;
+}
+.professor-courses-page .professor-courses-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+.professor-courses-page .professor-courses-toolbar-summary {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+}
+.professor-courses-page .professor-courses-toolbar-summary strong {
+  color: var(--text-primary);
+}
+.professor-courses-page .list-card-grid {
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+.professor-courses-page .professor-course-record-card {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  display: grid;
+  gap: 14px;
+  min-height: 238px;
+  padding: 16px;
+}
+.professor-courses-page .professor-course-record-card.active {
+  border-color: #2563eb;
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.16), 0 12px 28px rgba(15, 23, 42, 0.1);
+}
+.professor-courses-page .professor-course-record-header {
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 12px;
+}
+.professor-courses-page .professor-course-record-header strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+.professor-courses-page .professor-course-record-header span {
+  color: var(--text-secondary);
+  display: block;
+  font-size: 0.86rem;
+  margin-top: 4px;
+}
+.professor-courses-page .professor-course-record-header svg {
+  color: var(--primary);
+  flex: 0 0 auto;
+  height: 22px;
+  width: 22px;
+}
+.professor-courses-page .professor-course-record-body {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+.professor-courses-page .professor-course-record-body div {
+  display: grid;
+  gap: 3px;
+}
+.professor-courses-page .professor-course-record-body dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.professor-courses-page .professor-course-record-body dd {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.professor-courses-page .professor-course-record-action {
+  align-self: end;
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  border-radius: 8px;
+  color: #fff;
+  cursor: pointer;
+  font-weight: 800;
+  min-height: 38px;
+  padding: 0 14px;
+  justify-self: start;
+}
+.professor-courses-page .professor-course-record-action:hover,
+.professor-courses-page .professor-course-record-action:focus-visible {
+  background: #1d4ed8;
+}
+.professor-courses-page .list-card-grid.compact .professor-course-record-card {
+  gap: 12px;
+  min-height: 218px;
+  padding: 14px;
+}
+.professor-courses-page .list-card-grid.dense .professor-course-record-card {
+  gap: 10px;
+  min-height: 196px;
+  padding: 12px;
+}
+.professor-courses-page .professor-courses-table-card {
+  border: 1px solid rgba(15, 23, 42, 0.24);
+  border-radius: 8px;
+  overflow-x: auto;
+}
+.professor-courses-page .professor-courses-table {
+  border-collapse: collapse;
+  min-width: 780px;
+  width: 100%;
+}
+.professor-courses-page .professor-courses-table th,
+.professor-courses-page .professor-courses-table td {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  padding: 13px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+.professor-courses-page .professor-courses-table th {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.professor-courses-page .professor-courses-table td strong,
+.professor-courses-page .professor-courses-table td span {
+  display: block;
+}
+.professor-courses-page .professor-courses-table td strong {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+.professor-courses-page .professor-courses-table td span {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 3px;
+}
+.professor-courses-page .professor-courses-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.professor-courses-page .professor-courses-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  border-radius: 8px;
+  color: var(--text-muted);
+  display: grid;
+  gap: 4px;
+  padding: 22px;
+  text-align: center;
+}
+.professor-courses-page .professor-courses-empty strong {
+  color: var(--text-primary);
+}
+.professor-courses-page .professor-course-exam-list article {
+  border-radius: 8px;
+}
+.professor-courses-page .professor-scroll-surface,
+.professor-courses-page .professor-courses-table-card {
+  scrollbar-color: #94a3b8 #e5e7eb;
+}
+.professor-courses-page .professor-scroll-surface::-webkit-scrollbar,
+.professor-courses-page .professor-courses-table-card::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.professor-courses-page .professor-scroll-surface::-webkit-scrollbar-track,
+.professor-courses-page .professor-courses-table-card::-webkit-scrollbar-track {
+  background: #e5e7eb;
+}
+.professor-courses-page .professor-scroll-surface::-webkit-scrollbar-thumb,
+.professor-courses-page .professor-courses-table-card::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #e5e7eb;
+  border-radius: 999px;
+}
+html[data-theme="dark"] .professor-courses-page .professor-course-record-card,
+html[data-appearance="dark"] .professor-courses-page .professor-course-record-card {
+  background: var(--app-surface);
+  border-color: rgba(226, 232, 240, 0.58);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  color: var(--app-text);
+}
+html[data-theme="dark"] .professor-courses-page .professor-course-record-card.active,
+html[data-appearance="dark"] .professor-courses-page .professor-course-record-card.active {
+  border-color: #93c5fd;
+  box-shadow: 0 0 0 2px rgba(147, 197, 253, 0.16), 0 16px 34px rgba(0, 0, 0, 0.28);
+}
+html[data-theme="dark"] .professor-courses-page .professor-courses-header > span,
+html[data-theme="dark"] .professor-courses-page .professor-courses-toolbar-summary,
+html[data-theme="dark"] .professor-courses-page .professor-courses-table-card,
+html[data-appearance="dark"] .professor-courses-page .professor-courses-header > span,
+html[data-appearance="dark"] .professor-courses-page .professor-courses-toolbar-summary,
+html[data-appearance="dark"] .professor-courses-page .professor-courses-table-card {
+  border-color: rgba(226, 232, 240, 0.26);
+}
+html[data-theme="dark"] .professor-courses-page .professor-scroll-surface,
+html[data-theme="dark"] .professor-courses-page .professor-courses-table-card,
+html[data-appearance="dark"] .professor-courses-page .professor-scroll-surface,
+html[data-appearance="dark"] .professor-courses-page .professor-courses-table-card {
+  scrollbar-color: rgba(226, 232, 240, 0.42) rgba(15, 23, 42, 0.55);
+}
+html[data-theme="dark"] .professor-courses-page .professor-scroll-surface::-webkit-scrollbar-track,
+html[data-theme="dark"] .professor-courses-page .professor-courses-table-card::-webkit-scrollbar-track,
+html[data-appearance="dark"] .professor-courses-page .professor-scroll-surface::-webkit-scrollbar-track,
+html[data-appearance="dark"] .professor-courses-page .professor-courses-table-card::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.55);
+}
+html[data-theme="dark"] .professor-courses-page .professor-scroll-surface::-webkit-scrollbar-thumb,
+html[data-theme="dark"] .professor-courses-page .professor-courses-table-card::-webkit-scrollbar-thumb,
+html[data-appearance="dark"] .professor-courses-page .professor-scroll-surface::-webkit-scrollbar-thumb,
+html[data-appearance="dark"] .professor-courses-page .professor-courses-table-card::-webkit-scrollbar-thumb {
+  background: rgba(226, 232, 240, 0.42);
+  border-color: rgba(15, 23, 42, 0.55);
+}
+.professor-course-detail-page .professor-course-panel {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+.professor-course-detail-page .professor-course-menu {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+}
+html[data-theme="dark"] .professor-course-detail-page .professor-course-panel,
+html[data-theme="dark"] .professor-course-detail-page .professor-course-menu,
+html[data-appearance="dark"] .professor-course-detail-page .professor-course-panel,
+html[data-appearance="dark"] .professor-course-detail-page .professor-course-menu {
+  background: var(--app-surface);
+  border-color: rgba(226, 232, 240, 0.58);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  color: var(--app-text);
+}
+
+@media (min-width: 1200px) {
+  .professor-courses-page .list-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .professor-courses-page .professor-courses-header,
+  .professor-courses-page .professor-courses-toolbar {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .professor-courses-page .professor-courses-toolbar-summary {
+    justify-content: center;
+  }
+}
