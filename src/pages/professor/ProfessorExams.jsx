@@ -568,7 +568,7 @@ export default function ProfessorExams() {
         {rows.map((exam) => (
           <article className="professor-exam-record-card" key={exam.id}>
             <header className="professor-exam-record-header">
-              <div>
+              <div className="professor-exam-record-title">
                 <strong>{exam.title || "Untitled Exam"}</strong>
                 <span>{exam.course} / {exam.type}</span>
               </div>
@@ -577,25 +577,25 @@ export default function ProfessorExams() {
               </span>
             </header>
             <dl className="professor-exam-record-body">
-              <div>
+              <div className="professor-exam-record-meta-item">
                 <dt>Period</dt>
                 <dd>{exam.period}</dd>
               </div>
-              <div>
+              <div className="professor-exam-record-meta-item">
                 <dt>Duration</dt>
                 <dd>{exam.duration}</dd>
               </div>
-              <div>
+              <div className="professor-exam-record-meta-item">
                 <dt>Questions</dt>
                 <dd>{exam.questionCount || 0}</dd>
               </div>
-              <div>
+              <div className="professor-exam-record-meta-item">
                 <dt>Program</dt>
                 <dd>{exam.courseMeta || "Not assigned"}</dd>
               </div>
             </dl>
             {exam.clusterStatus === "rejected" && exam.rejectionReason ? <small className="professor-rejection-note">Reason: {exam.rejectionReason}</small> : null}
-            <div className="professor-exam-actions">
+            <div className="professor-exam-actions professor-exam-record-actions">
               <RowActionMenu
                 actions={actionFactory(exam).filter((action) => !action.separator)}
                 label={`Exam actions for ${exam.title || "exam"}`}

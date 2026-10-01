@@ -24,7 +24,10 @@ assert.match(exams, /renderExamSection\("unpublished", "Unpublished Exams"/, "Un
 
 assert.match(exams, /className="professor-exam-record-card"/, "Card view should render boxed exam record cards.");
 assert.match(exams, /className="professor-exam-record-header"/, "Exam cards need a structured header.");
+assert.match(exams, /className="professor-exam-record-title"/, "Exam card title and secondary text should use a stable title column.");
 assert.match(exams, /className="professor-exam-record-body"/, "Exam cards need a structured metadata body.");
+assert.match(exams, /className="professor-exam-record-meta-item"/, "Exam card metadata fields should use consistent label/value items.");
+assert.match(exams, /className="professor-exam-actions professor-exam-record-actions"/, "Exam card actions should stay in a predictable card action area.");
 assert.match(exams, /className=\{`professor-status-pill \$\{exam\.status\}/, "Status badges must remain wired to actual exam status.");
 assert.match(exams, /<RowActionMenu[\s\S]*menuId=\{`\$\{prefix\}-\$\{exam\.id\}`\}/, "Exam records should keep stable portal kebab action menus.");
 assert.match(exams, /<ResponsiveTable density=\{listView\.tableDensity\} className="professor-exams-table-card"/, "Table view should remain a real responsive table.");
@@ -42,6 +45,11 @@ assert.match(exams, /setShareExam\(exam\)/, "Share action must remain wired.");
 
 assert.match(styles, /\.professor-exams-page \.professor-exam-record-card\s*\{[\s\S]*border:\s*1px solid rgba\(15,\s*23,\s*42,\s*0\.48\)/, "Light exam cards need a visible dark-neutral outline.");
 assert.match(styles, /html\[data-theme="dark"\] \.professor-exams-page \.professor-exam-record-card[\s\S]*border-color:\s*rgba\(226,\s*232,\s*240,\s*0\.58\)/, "Dark exam cards need a visible light outline.");
+assert.match(styles, /\.professor-exams-page \.professor-exam-record-card\s*\{[\s\S]*flex-direction:\s*column/, "Exam cards should use a predictable vertical card flow.");
+assert.match(styles, /\.professor-exams-page \.professor-exam-record-header\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\) auto/, "Exam card headers should keep titles and status badges aligned.");
+assert.match(styles, /\.professor-exams-page \.professor-exam-record-body\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, "Exam card metadata should use a stable two-column grid.");
+assert.match(styles, /\.professor-exams-page \.professor-exam-record-meta-item\s*\{[\s\S]*min-width:\s*0/, "Exam metadata items should allow long values to wrap inside the card.");
+assert.match(styles, /\.professor-exams-page \.professor-exam-record-actions \.row-action-menu-trigger\s*\{[\s\S]*background:\s*transparent[\s\S]*border:\s*0/, "Exam card kebab trigger should be plain by default, not a filled badge.");
 assert.match(styles, /\.professor-exams-page \.professor-exams-table-card\s*\{[\s\S]*overflow-x:\s*auto/, "Exam table should use local horizontal scrolling.");
 assert.match(styles, /\.professor-exams-page \.professor-exams-section\s*\{[\s\S]*border-radius:\s*8px/, "Exam sections should follow the approved 8px boxed language.");
 
