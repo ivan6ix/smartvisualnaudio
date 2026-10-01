@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FiRefreshCw, FiSlash, FiUserPlus, FiX } from "react-icons/fi";
-import { Button, Card, Field, SearchBox, SelectField, Table, Badge } from "../components/ui";
+import { Button, Card, Field, SearchBox, SelectField, Table, Badge, RowActionMenu } from "../components/ui";
 import { clusterProfessors, deans, professors } from "../data/mockData";
 import useLocalStorageState from "../hooks/useLocalStorageState";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
@@ -46,6 +46,7 @@ export default function People({ type }) {
   const [form, setForm] = useState({ name: "", email: "", employeeNumber: "", password: "123456" });
   const [saving, setSaving] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [openActionMenuId, setOpenActionMenuId] = useState("");
   const isUnified = !type;
   const accountType = type || selectedType;
   const rowsSource = hasSupabaseConfig ? liveRowsByType : rowsByType;
@@ -197,11 +198,11 @@ export default function People({ type }) {
   }
 
   const columns = [
-    { key: "name", label: "Name", width: "17%" },
-    { key: "email", label: "Email", width: "23%" },
-    { key: "employeeNumber", label: "Employee Number", width: "16%" },
-    { key: "role", label: "Account Type", width: "16%", render: (row) => <Badge>{row.role || accountType}</Badge> },
-    { key: "status", label: "Status", width: "12%", className: "admin-table-center", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
+    { key: "name", label: "Name", width: "18%" },
+    { key: "email", label: "Email", width: "25%" },
+    { key: "employeeNumber", label: "Employee Number", width: "17%" },
+    { key: "role", label: "Account Type", width: "17%", render: (row) => <Badge>{row.role || accountType}</Badge> },
+    { key: "status", label: "Status", width: "13%", className: "admin-table-center", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
   ];
 
   const createForm = (
@@ -250,15 +251,22 @@ export default function People({ type }) {
       <Card className="admin-panel admin-activity-panel">
         <h2>{isUnified ? "Active Accounts" : `Active ${getPlural(accountType)}`}</h2>
         <Table className="admin-account-table admin-account-table-active" columns={columns} rows={active} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => (
-          <>
-            <Button variant="light" onClick={() => resetPassword(row)}><FiRefreshCw /> Reset Password</Button>
-            <Button variant="light" onClick={() => setStatus(row, "Deactivated")}><FiSlash /> Deactivate</Button>
-          </>
-        ), { width: "16%" })} />
+          <RowActionMenu
+            actions={[
+              { icon: FiRefreshCw, label: "Reset Password", onClick: () => resetPassword(row) },
+              { danger: true, icon: FiSlash, label: "Deactivate", onClick: () => setStatus(row, "Deactivated") },
+            ]}
+            label={`More actions for ${row.name || row.email || "account"}`}
+            menuId={`account-actions-${row.id}`}
+            openMenuId={openActionMenuId}
+            rowId={row.id}
+            setOpenMenuId={setOpenActionMenuId}
+          />
+        ), { width: "10%" })} />
       </Card>
       <Card className="admin-panel admin-activity-panel">
         <h2>{isUnified ? "Deactivated Accounts" : `Deactivated ${getPlural(accountType)}`}</h2>
-        <Table className="admin-account-table admin-account-table-deactivated" columns={columns} rows={deactivated} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "16%" })} />
+        <Table className="admin-account-table admin-account-table-deactivated" columns={columns} rows={deactivated} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "10%" })} />
       </Card>
       {createModalOpen ? (
         <div className="modal-backdrop account-modal-backdrop" onClick={closeCreateModal} role="presentation">

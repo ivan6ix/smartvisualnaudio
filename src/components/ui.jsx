@@ -1,5 +1,6 @@
-import { forwardRef } from "react";
-import { FiArchive, FiRefreshCw, FiSearch, FiShield } from "react-icons/fi";
+import { forwardRef, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
+import { FiArchive, FiMoreVertical, FiRefreshCw, FiSearch, FiShield } from "react-icons/fi";
 
 export function Button({ children, variant = "dark", className = "", ...props }) {
   return <button className={`btn ${variant === "light" ? "btn-light" : ""} ${className}`} {...props}>{children}</button>;
@@ -125,6 +126,114 @@ export function Table({ columns, rows, renderActions, emptyTitle, emptyDescripti
       </table>
       {!rows.length ? <EmptyState title={emptyTitle} description={emptyDescription} /> : null}
     </div>
+  );
+}
+
+export function RowActionMenu({ actions = [], label = "More actions", menuId, openMenuId, rowId, setOpenMenuId }) {
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
+  const resolvedMenuId = menuId || rowId;
+  const isOpen = openMenuId === resolvedMenuId;
+  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
+  const availableActions = actions.filter(Boolean);
+
+  useEffect(() => {
+    if (!isOpen) return undefined;
+
+    function closeMenu() {
+      setOpenMenuId("");
+    }
+
+    function handlePointerDown(event) {
+      if (triggerRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
+      closeMenu();
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") closeMenu();
+    }
+
+    function updateMenuPosition() {
+      const triggerRect = triggerRef.current?.getBoundingClientRect();
+      if (!triggerRect) return;
+      const menuWidth = menuRef.current?.offsetWidth || 190;
+      const menuHeight = menuRef.current?.offsetHeight || 160;
+      const gap = 6;
+      const edge = 12;
+      const spaceBelow = window.innerHeight - triggerRect.bottom;
+      const openUp = spaceBelow < menuHeight + gap && triggerRect.top > spaceBelow;
+      const left = Math.min(Math.max(edge, triggerRect.right - menuWidth), window.innerWidth - menuWidth - edge);
+      const top = openUp
+        ? Math.max(edge, triggerRect.top - menuHeight - gap)
+        : Math.min(triggerRect.bottom + gap, window.innerHeight - menuHeight - edge);
+      setMenuPosition({ left, top });
+    }
+
+    updateMenuPosition();
+    document.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [isOpen, setOpenMenuId]);
+
+  function toggleMenu() {
+    setOpenMenuId(isOpen ? "" : resolvedMenuId);
+  }
+
+  function runAction(action) {
+    if (action.disabled) return;
+    setOpenMenuId("");
+    action.onClick();
+  }
+
+  return (
+    <span className="row-action-menu">
+      <button
+        aria-expanded={isOpen}
+        aria-haspopup="menu"
+        aria-label={label}
+        className="row-action-menu-trigger"
+        disabled={!availableActions.length}
+        onClick={toggleMenu}
+        ref={triggerRef}
+        title={label}
+        type="button"
+      >
+        <FiMoreVertical />
+      </button>
+      {isOpen ? createPortal(
+        <div
+          className="row-action-menu-popover"
+          ref={menuRef}
+          role="menu"
+          style={{ left: `${menuPosition.left}px`, top: `${menuPosition.top}px` }}
+        >
+          {availableActions.map((action) => {
+            const Icon = action.icon;
+            return (
+              <button
+                className={action.danger ? "danger" : ""}
+                disabled={action.disabled}
+                key={action.label}
+                onClick={() => runAction(action)}
+                role="menuitem"
+                type="button"
+              >
+                {Icon ? <Icon /> : null}
+                <span>{action.label}</span>
+              </button>
+            );
+          })}
+        </div>,
+        document.body,
+      ) : null}
+    </span>
   );
 }
 
