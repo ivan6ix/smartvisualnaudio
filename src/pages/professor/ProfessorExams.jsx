@@ -1,10 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FiArchive, FiEdit2, FiGrid, FiMoreVertical, FiPlus, FiRotateCcw, FiTrash2, FiUser, FiUsers, FiX } from "react-icons/fi";
-import { createPortal } from "react-dom";
+import { FiArchive, FiEdit2, FiFileText, FiGrid, FiPlus, FiRotateCcw, FiTrash2, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "../../components/ui";
+import { Button, RowActionMenu } from "../../components/ui";
 import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
@@ -49,111 +48,6 @@ function getApprovalActionLabel(exam) {
   if (exam.status === "pending") return "Submitted";
   if (exam.clusterStatus === "approved") return "Cluster Approved";
   return exam.clusterStatus === "rejected" ? "Resubmit for Approval" : "Submit for Approval";
-}
-
-function ExamActionsMenu({ actions, exam, loading, menuId, openMenuId, setOpenMenuId }) {
-  const wrapperRef = useRef(null);
-  const menuRef = useRef(null);
-  const isOpen = openMenuId === menuId;
-  const [menuPosition, setMenuPosition] = useState({ left: 0, top: 0 });
-  const availableActions = actions.filter(Boolean);
-
-  useEffect(() => {
-    if (!isOpen) return undefined;
-
-    function handlePointerDown(event) {
-      if (wrapperRef.current?.contains(event.target) || menuRef.current?.contains(event.target)) return;
-      setOpenMenuId("");
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") setOpenMenuId("");
-    }
-
-    function updateMenuPosition() {
-      const triggerRect = wrapperRef.current?.getBoundingClientRect();
-      if (!triggerRect) return;
-      const menuWidth = menuRef.current?.offsetWidth || 210;
-      const menuHeight = menuRef.current?.offsetHeight || 210;
-      const gap = 6;
-      const edge = 12;
-      const spaceBelow = window.innerHeight - triggerRect.bottom;
-      const openUp = spaceBelow < menuHeight + gap && triggerRect.top > spaceBelow;
-      const left = Math.min(Math.max(edge, triggerRect.right - menuWidth), window.innerWidth - menuWidth - edge);
-      const top = openUp
-        ? Math.max(edge, triggerRect.top - menuHeight - gap)
-        : Math.min(triggerRect.bottom + gap, window.innerHeight - menuHeight - edge);
-      setMenuPosition({ left, top });
-    }
-
-    updateMenuPosition();
-    document.addEventListener("mousedown", handlePointerDown);
-    window.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", updateMenuPosition);
-    window.addEventListener("scroll", updateMenuPosition, true);
-    return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
-      window.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", updateMenuPosition);
-      window.removeEventListener("scroll", updateMenuPosition, true);
-    };
-  }, [isOpen, setOpenMenuId]);
-
-  function toggleMenu() {
-    if (isOpen) {
-      setOpenMenuId("");
-      return;
-    }
-    setOpenMenuId(menuId);
-  }
-
-  function runAction(action) {
-    if (action.disabled) return;
-    setOpenMenuId("");
-    action.onClick();
-  }
-
-  return (
-    <div className="professor-exam-actions-menu" ref={wrapperRef}>
-      <button
-        aria-expanded={isOpen}
-        aria-haspopup="menu"
-        aria-label={`Exam actions for ${exam.title || "exam"}`}
-        className="professor-exam-actions-trigger"
-        disabled={!availableActions.length || loading}
-        onClick={toggleMenu}
-        title="Exam actions"
-        type="button"
-      >
-        <FiMoreVertical />
-      </button>
-      {isOpen ? createPortal(
-        <div
-          className="professor-exam-actions-popover"
-          ref={menuRef}
-          role="menu"
-          style={{ left: `${menuPosition.left}px`, top: `${menuPosition.top}px` }}
-        >
-          {availableActions.map((action, index) => action.separator ? (
-            <div aria-hidden="true" className="professor-exam-actions-divider" key={`separator-${index}`} />
-          ) : (
-            <button
-              className={action.danger ? "danger" : ""}
-              disabled={action.disabled}
-              key={action.label}
-              onClick={() => runAction(action)}
-              role="menuitem"
-              type="button"
-            >
-              {action.icon ? <action.icon /> : null}
-              <span>{action.label}</span>
-            </button>
-          ))}
-        </div>,
-        document.body,
-      ) : null}
-    </div>
-  );
 }
 
 const initialSectionFilters = {
@@ -278,6 +172,12 @@ export default function ProfessorExams() {
   const pendingExams = useMemo(() => activeExams.filter((exam) => exam.status === "pending"), [activeExams]);
   const draftExams = useMemo(() => activeExams.filter((exam) => exam.status === "draft"), [activeExams]);
   const unpublishedExams = useMemo(() => activeExams.filter((exam) => exam.status === "unpublished"), [activeExams]);
+  const statusSummaries = [
+    { key: "drafts", label: "Drafts", value: draftExams.length, icon: FiEdit2 },
+    { key: "pending", label: "Pending Approval", value: pendingExams.length, icon: FiArchive },
+    { key: "unpublished", label: "Unpublished", value: unpublishedExams.length, icon: FiFileText },
+    { key: "published", label: "Published", value: publishedExams.length, icon: FiUsers },
+  ];
   const filteredArchivedExams = useMemo(() => {
     const term = archivedSearch.trim().toLowerCase();
     if (!term) return archivedExams;
@@ -666,20 +566,42 @@ export default function ProfessorExams() {
     return (
       <ListCardGrid density={listView.cardDensity}>
         {rows.map((exam) => (
-          <article className="professor-draft-row list-exam-card" key={exam.id}>
-            <div>
-              <strong>{exam.title || "Untitled Exam"}</strong>
-              <span>{exam.course} - {exam.type} - {exam.period}</span>
-              <small>{exam.duration} - {exam.questionCount || 0} question{exam.questionCount === 1 ? "" : "s"}</small>
-              {exam.clusterStatus === "rejected" && exam.rejectionReason ? <small className="professor-rejection-note">Reason: {exam.rejectionReason}</small> : null}
-            </div>
+          <article className="professor-exam-record-card" key={exam.id}>
+            <header className="professor-exam-record-header">
+              <div>
+                <strong>{exam.title || "Untitled Exam"}</strong>
+                <span>{exam.course} / {exam.type}</span>
+              </div>
+              <span className={`professor-status-pill ${exam.status} ${exam.clusterStatus.replaceAll(" ", "-")}`}>
+                {getStatusLabel(exam)}
+              </span>
+            </header>
+            <dl className="professor-exam-record-body">
+              <div>
+                <dt>Period</dt>
+                <dd>{exam.period}</dd>
+              </div>
+              <div>
+                <dt>Duration</dt>
+                <dd>{exam.duration}</dd>
+              </div>
+              <div>
+                <dt>Questions</dt>
+                <dd>{exam.questionCount || 0}</dd>
+              </div>
+              <div>
+                <dt>Program</dt>
+                <dd>{exam.courseMeta || "Not assigned"}</dd>
+              </div>
+            </dl>
+            {exam.clusterStatus === "rejected" && exam.rejectionReason ? <small className="professor-rejection-note">Reason: {exam.rejectionReason}</small> : null}
             <div className="professor-exam-actions">
-              <ExamActionsMenu
-                actions={actionFactory(exam)}
-                exam={exam}
-                loading={loadingActionId === exam.id}
+              <RowActionMenu
+                actions={actionFactory(exam).filter((action) => !action.separator)}
+                label={`Exam actions for ${exam.title || "exam"}`}
                 menuId={`${prefix}-${exam.id}`}
                 openMenuId={openMenuId}
+                rowId={exam.id}
                 setOpenMenuId={setOpenMenuId}
               />
             </div>
@@ -693,12 +615,19 @@ export default function ProfessorExams() {
     return (
       <ResponsiveTable density={listView.tableDensity} className="professor-exams-table-card">
         <table className="professor-exams-table">
+          <colgroup>
+            <col style={{ width: "30%" }} />
+            <col style={{ width: "22%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "14%" }} />
+            <col style={{ width: "10%" }} />
+            <col style={{ width: "6%" }} />
+          </colgroup>
           <thead>
             <tr>
-              <th>Title</th>
+              <th>Exam</th>
               <th>Course</th>
-              <th>Type</th>
-              <th>Period</th>
+              <th>Type / Period</th>
               <th>Duration</th>
               <th>Status</th>
               <th>Actions</th>
@@ -717,8 +646,10 @@ export default function ProfessorExams() {
                   {exam.course}
                   <small>{exam.courseMeta}</small>
                 </td>
-                <td>{exam.type}</td>
-                <td>{exam.period}</td>
+                <td>
+                  {exam.type}
+                  <small>{exam.period}</small>
+                </td>
                 <td>{exam.duration}</td>
                 <td>
                   <div className="professor-status-stack">
@@ -729,12 +660,12 @@ export default function ProfessorExams() {
                 </td>
                 <td>
                   <div className="professor-exam-actions">
-                    <ExamActionsMenu
-                      actions={actionFactory(exam)}
-                      exam={exam}
-                      loading={loadingActionId === exam.id}
+                    <RowActionMenu
+                      actions={actionFactory(exam).filter((action) => !action.separator)}
+                      label={`Exam actions for ${exam.title || "exam"}`}
                       menuId={`${prefix}-${exam.id}`}
                       openMenuId={openMenuId}
+                      rowId={exam.id}
                       setOpenMenuId={setOpenMenuId}
                     />
                   </div>
@@ -757,7 +688,7 @@ export default function ProfessorExams() {
             <h2>Drafts</h2>
             <p>Unfinished exams saved locally and in Supabase when possible.</p>
           </div>
-          <span>{draftExams.length}</span>
+          <span>{draftExams.length} {draftExams.length === 1 ? "exam" : "exams"}</span>
         </div>
         {listView.view === "cards" ? renderExamCards(pageData.rows, getDraftActions, "draft") : renderExamTable(pageData.rows, getDraftActions, "draft")}
         {!draftExams.length ? <div className="professor-exams-empty">No draft exams.</div> : null}
@@ -1055,7 +986,7 @@ export default function ProfessorExams() {
             <h2>{title}</h2>
             <p>{description}</p>
           </div>
-          <span>{filteredRows.length}</span>
+          <span>{filteredRows.length} {filteredRows.length === 1 ? "exam" : "exams"}</span>
         </div>
 
         <div className="professor-exam-section-filters">
@@ -1092,37 +1023,56 @@ export default function ProfessorExams() {
 
   return (
     <section className="professor-exams-page">
-      <div className="professor-exams-header">
+      <div className="professor-exams-page-header">
         <div>
           <h1>Exams</h1>
-          <p>Create, publish, unpublish, share, and manage your exams.</p>
+          <p>Create, organize, review, and manage your examinations.</p>
         </div>
         <div className="professor-exams-header-actions">
           <Button className="professor-archived-exams" onClick={() => setArchiveModalOpen(true)}>
-            Archived Exams
+            Archived Exams{archivedExams.length ? ` (${archivedExams.length})` : ""}
           </Button>
           <Button className="professor-create-exam" onClick={() => navigate("/professor/exams/create", { state: { freshCreateSession: crypto.randomUUID() } })}><FiPlus /> Create Exam</Button>
         </div>
       </div>
-      <ListViewToolbar
-        controls={{
-          cardDensity: listView.cardDensity,
-          onCardDensity: listView.setCardDensity,
-          onTableDensity: listView.setTableDensity,
-          onView: (nextView) => {
-            const nextPageSize = getPageSizeForView(nextView);
-            setSectionPages((current) => ({
-              drafts: toNextListPage({ currentPage: current.drafts || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: draftExams.length }),
-              published: toNextListPage({ currentPage: current.published || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: publishedExams.length }),
-              pending: toNextListPage({ currentPage: current.pending || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: pendingExams.length }),
-              unpublished: toNextListPage({ currentPage: current.unpublished || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: unpublishedExams.length }),
-            }));
-            listView.setView(nextView);
-          },
-          tableDensity: listView.tableDensity,
-          view: listView.view,
-        }}
-      />
+
+      <div className="professor-exams-summary-grid">
+        {statusSummaries.map((summary) => {
+          const Icon = summary.icon;
+          return (
+            <article className="professor-kpi-card" key={summary.key}>
+              <Icon aria-hidden="true" />
+              <div><span>{summary.label}</span><strong>{summary.value}</strong></div>
+            </article>
+          );
+        })}
+      </div>
+
+      <div className="professor-exams-toolbar">
+        <div className="professor-exams-toolbar-summary">
+          <strong>{activeExams.length}</strong>
+          <span>{activeExams.length === 1 ? "active exam" : "active exams"}</span>
+        </div>
+        <ListViewToolbar
+          controls={{
+            cardDensity: listView.cardDensity,
+            onCardDensity: listView.setCardDensity,
+            onTableDensity: listView.setTableDensity,
+            onView: (nextView) => {
+              const nextPageSize = getPageSizeForView(nextView);
+              setSectionPages((current) => ({
+                drafts: toNextListPage({ currentPage: current.drafts || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: draftExams.length }),
+                published: toNextListPage({ currentPage: current.published || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: publishedExams.length }),
+                pending: toNextListPage({ currentPage: current.pending || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: pendingExams.length }),
+                unpublished: toNextListPage({ currentPage: current.unpublished || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: unpublishedExams.length }),
+              }));
+              listView.setView(nextView);
+            },
+            tableDensity: listView.tableDensity,
+            view: listView.view,
+          }}
+        />
+      </div>
 
       {renderDraftsSection()}
       {renderExamSection("published", "Published Exams", "Exams currently available to students.", publishedExams)}

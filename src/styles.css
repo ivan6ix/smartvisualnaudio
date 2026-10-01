@@ -14641,3 +14641,452 @@ html[data-appearance="dark"] .professor-course-detail-page .professor-course-men
     justify-content: center;
   }
 }
+
+.professor-exams-page {
+  color: var(--text-primary);
+  display: grid;
+  gap: 18px;
+  margin: 0 auto;
+  width: min(100%, 1320px);
+}
+.professor-exams-page-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 18px;
+  justify-content: space-between;
+}
+.professor-exams-page-header h1 {
+  color: var(--text-primary);
+  font-size: clamp(1.8rem, 3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.12;
+  margin: 0;
+}
+.professor-exams-page-header p {
+  color: var(--text-muted);
+  font-size: 0.96rem;
+  margin: 5px 0 0;
+}
+.professor-exams-page .professor-exams-summary-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.professor-exams-page .professor-kpi-card,
+.professor-exams-page .professor-exams-section,
+.professor-exams-page .professor-exams-toolbar {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+.professor-exams-page .professor-kpi-card {
+  align-content: space-between;
+  display: grid;
+  gap: 10px;
+  min-height: 104px;
+  padding: 15px 16px;
+}
+.professor-exams-page .professor-kpi-card svg {
+  color: var(--primary);
+  height: 22px;
+  width: 22px;
+}
+.professor-exams-page .professor-kpi-card span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.professor-exams-page .professor-kpi-card strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 9px;
+}
+.professor-exams-page .professor-exams-toolbar {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 14px 16px;
+}
+.professor-exams-page .professor-exams-toolbar-summary {
+  align-items: center;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  gap: 6px;
+  padding: 7px 10px;
+}
+.professor-exams-page .professor-exams-toolbar-summary strong {
+  color: var(--text-primary);
+}
+.professor-exams-page .professor-exams-section {
+  display: grid;
+  gap: 16px;
+  padding: 20px;
+}
+.professor-exams-page .professor-exams-section-header {
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  padding: 0 0 14px;
+}
+.professor-exams-page .professor-exams-section-header h2 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+.professor-exams-page .professor-exams-section-header p {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  margin: 4px 0 0;
+}
+.professor-exams-page .professor-exams-section-header > span {
+  background: transparent;
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  display: inline-flex;
+  font-size: 0.78rem;
+  font-weight: 800;
+  height: auto;
+  min-height: 34px;
+  min-width: 0;
+  padding: 7px 10px;
+  place-items: initial;
+  white-space: nowrap;
+}
+.professor-exams-page .professor-exam-section-filters {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(220px, 1fr) repeat(4, minmax(128px, 170px));
+}
+.professor-exams-page .professor-exam-section-filters input,
+.professor-exams-page .professor-exam-section-filters select,
+.professor-exams-page .professor-archive-search {
+  background: var(--app-input);
+  border: 1px solid rgba(15, 23, 42, 0.22);
+  border-radius: 8px;
+  color: var(--text-primary);
+  min-height: 40px;
+}
+.professor-exams-page .list-card-grid {
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+}
+.professor-exams-page .professor-exam-record-card {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  display: grid;
+  gap: 14px;
+  min-height: 248px;
+  padding: 16px;
+}
+.professor-exams-page .professor-exam-record-header {
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 12px;
+}
+.professor-exams-page .professor-exam-record-header strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 1rem;
+  line-height: 1.2;
+}
+.professor-exams-page .professor-exam-record-header span:not(.professor-status-pill) {
+  color: var(--text-secondary);
+  display: block;
+  font-size: 0.86rem;
+  margin-top: 4px;
+}
+.professor-exams-page .professor-exam-record-body {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+.professor-exams-page .professor-exam-record-body dt {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.professor-exams-page .professor-exam-record-body dd {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  margin: 3px 0 0;
+  overflow-wrap: anywhere;
+}
+.professor-exams-page .professor-exam-record-card .professor-exam-actions {
+  justify-content: flex-end;
+}
+.professor-exams-page .list-card-grid.compact .professor-exam-record-card {
+  gap: 12px;
+  min-height: 228px;
+  padding: 14px;
+}
+.professor-exams-page .list-card-grid.dense .professor-exam-record-card {
+  gap: 10px;
+  min-height: 208px;
+  padding: 12px;
+}
+.professor-exams-page .professor-exams-table-card {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.24);
+  border-radius: 8px;
+  box-shadow: none;
+  display: block;
+  overflow-x: auto;
+}
+.professor-exams-page .professor-exams-table {
+  border-collapse: collapse;
+  min-width: 860px;
+  table-layout: fixed;
+  width: 100%;
+}
+.professor-exams-page .professor-exams-table th,
+.professor-exams-page .professor-exams-table td {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.22);
+  color: var(--text-secondary);
+  font-size: 0.86rem;
+  padding: 13px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+.professor-exams-page .professor-exams-table th {
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.professor-exams-page .professor-exams-table td strong,
+.professor-exams-page .professor-exams-table td small {
+  display: block;
+}
+.professor-exams-page .professor-exams-table td strong {
+  color: var(--text-primary);
+  font-weight: 800;
+}
+.professor-exams-page .professor-exams-table td small {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+}
+.professor-exams-page .professor-exams-table th:last-child,
+.professor-exams-page .professor-exams-table td:last-child {
+  text-align: center;
+}
+.professor-exams-page .professor-exams-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+.professor-exams-page .row-action-menu-trigger,
+.professor-exams-page .professor-exam-actions-trigger {
+  background: transparent;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  height: 34px;
+  width: 34px;
+}
+.professor-exams-page .row-action-menu-trigger:hover,
+.professor-exams-page .row-action-menu-trigger:focus-visible,
+.professor-exams-page .professor-exam-actions-trigger:hover,
+.professor-exams-page .professor-exam-actions-trigger:focus-visible {
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+}
+.professor-exams-page .professor-status-pill {
+  border: 1px solid transparent;
+  border-radius: 999px;
+  display: inline-flex;
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.1;
+  min-height: 24px;
+  padding: 4px 9px;
+  text-transform: capitalize;
+}
+.professor-exams-page .professor-status-pill.draft {
+  background: #f1f5f9;
+  border-color: rgba(71, 85, 105, 0.24);
+  color: #475569;
+}
+.professor-exams-page .professor-status-pill.published {
+  background: #d1fae5;
+  border-color: rgba(4, 120, 87, 0.24);
+  color: #047857;
+}
+.professor-exams-page .professor-status-pill.pending {
+  background: #fef3c7;
+  border-color: rgba(146, 64, 14, 0.24);
+  color: #92400e;
+}
+.professor-exams-page .professor-status-pill.unpublished {
+  background: #f8fafc;
+  border-color: rgba(71, 85, 105, 0.24);
+  color: #475569;
+}
+.professor-exams-page .professor-status-pill.unpublished.approved {
+  background: #dbeafe;
+  border-color: rgba(29, 78, 216, 0.24);
+  color: #1d4ed8;
+}
+.professor-exams-page .professor-status-pill.unpublished.rejected {
+  background: #fee2e2;
+  border-color: rgba(153, 27, 27, 0.24);
+  color: #991b1b;
+}
+.professor-exams-page .professor-exams-empty {
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  border-radius: 8px;
+  color: var(--text-muted);
+  padding: 18px;
+  text-align: center;
+}
+.professor-exams-page .professor-archive-modal,
+.professor-share-modal.professor-archive-modal {
+  border-radius: 8px;
+  max-width: 1180px;
+}
+.professor-exams-page .professor-archive-list {
+  overflow: auto;
+}
+.professor-exams-page .professor-archive-table {
+  min-width: 980px;
+}
+.professor-exams-page .professor-exams-table-card,
+.professor-exams-page .professor-archive-list,
+.professor-shell {
+  scrollbar-color: #94a3b8 #e5e7eb;
+}
+.professor-exams-page .professor-exams-table-card::-webkit-scrollbar,
+.professor-exams-page .professor-archive-list::-webkit-scrollbar,
+.professor-shell::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.professor-exams-page .professor-exams-table-card::-webkit-scrollbar-track,
+.professor-exams-page .professor-archive-list::-webkit-scrollbar-track,
+.professor-shell::-webkit-scrollbar-track {
+  background: #e5e7eb;
+}
+.professor-exams-page .professor-exams-table-card::-webkit-scrollbar-thumb,
+.professor-exams-page .professor-archive-list::-webkit-scrollbar-thumb,
+.professor-shell::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border: 2px solid #e5e7eb;
+  border-radius: 999px;
+}
+html[data-theme="dark"] .professor-exams-page .professor-kpi-card,
+html[data-theme="dark"] .professor-exams-page .professor-exams-section,
+html[data-theme="dark"] .professor-exams-page .professor-exams-toolbar,
+html[data-theme="dark"] .professor-exams-page .professor-exam-record-card,
+html[data-theme="dark"] .professor-exams-page .professor-exams-table-card,
+html[data-appearance="dark"] .professor-exams-page .professor-kpi-card,
+html[data-appearance="dark"] .professor-exams-page .professor-exams-section,
+html[data-appearance="dark"] .professor-exams-page .professor-exams-toolbar,
+html[data-appearance="dark"] .professor-exams-page .professor-exam-record-card,
+html[data-appearance="dark"] .professor-exams-page .professor-exams-table-card {
+  background: var(--app-surface);
+  border-color: rgba(226, 232, 240, 0.58);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  color: var(--app-text);
+}
+html[data-theme="dark"] .professor-exams-page .professor-exams-section-header > span,
+html[data-theme="dark"] .professor-exams-page .professor-exams-toolbar-summary,
+html[data-theme="dark"] .professor-exams-page .row-action-menu-trigger,
+html[data-appearance="dark"] .professor-exams-page .professor-exams-section-header > span,
+html[data-appearance="dark"] .professor-exams-page .professor-exams-toolbar-summary,
+html[data-appearance="dark"] .professor-exams-page .row-action-menu-trigger {
+  border-color: rgba(226, 232, 240, 0.26);
+}
+html[data-theme="dark"] .professor-exams-page .professor-exams-table-card,
+html[data-theme="dark"] .professor-exams-page .professor-archive-list,
+html[data-theme="dark"] .professor-shell,
+html[data-appearance="dark"] .professor-exams-page .professor-exams-table-card,
+html[data-appearance="dark"] .professor-exams-page .professor-archive-list,
+html[data-appearance="dark"] .professor-shell {
+  scrollbar-color: rgba(226, 232, 240, 0.42) rgba(15, 23, 42, 0.55);
+}
+html[data-theme="dark"] .professor-exams-page .professor-exams-table-card::-webkit-scrollbar-track,
+html[data-theme="dark"] .professor-exams-page .professor-archive-list::-webkit-scrollbar-track,
+html[data-theme="dark"] .professor-shell::-webkit-scrollbar-track,
+html[data-appearance="dark"] .professor-exams-page .professor-exams-table-card::-webkit-scrollbar-track,
+html[data-appearance="dark"] .professor-exams-page .professor-archive-list::-webkit-scrollbar-track,
+html[data-appearance="dark"] .professor-shell::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.55);
+}
+html[data-theme="dark"] .professor-exams-page .professor-exams-table-card::-webkit-scrollbar-thumb,
+html[data-theme="dark"] .professor-exams-page .professor-archive-list::-webkit-scrollbar-thumb,
+html[data-theme="dark"] .professor-shell::-webkit-scrollbar-thumb,
+html[data-appearance="dark"] .professor-exams-page .professor-exams-table-card::-webkit-scrollbar-thumb,
+html[data-appearance="dark"] .professor-exams-page .professor-archive-list::-webkit-scrollbar-thumb,
+html[data-appearance="dark"] .professor-shell::-webkit-scrollbar-thumb {
+  background: rgba(226, 232, 240, 0.42);
+  border-color: rgba(15, 23, 42, 0.55);
+}
+
+@media (min-width: 1200px) {
+  .professor-exams-page .list-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1024px) {
+  .professor-exams-page .professor-exams-summary-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .professor-exams-page .professor-exam-section-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .professor-exams-page-header,
+  .professor-exams-page .professor-exams-toolbar,
+  .professor-exams-page .professor-exams-section-header {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .professor-exams-page .professor-exams-header-actions {
+    justify-content: stretch;
+  }
+
+  .professor-exams-page .professor-exams-header-actions .btn,
+  .professor-exams-page .professor-exams-header-actions button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 520px) {
+  .professor-exams-page .professor-exams-summary-grid,
+  .professor-exams-page .professor-exam-section-filters,
+  .professor-exams-page .professor-exam-record-body {
+    grid-template-columns: 1fr;
+  }
+}

@@ -180,7 +180,7 @@ export default function ProfessorCourses() {
             <h2>My Courses</h2>
             <p>Open a course to manage materials, exams, and members.</p>
           </div>
-          <span>{courses.length} courses</span>
+          <span>{courses.length} {courses.length === 1 ? "course" : "courses"}</span>
         </div>
         <div className="professor-courses-toolbar">
           <div className="professor-courses-toolbar-summary">
