@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { FiActivity, FiBookOpen, FiCheckCircle, FiCpu, FiDatabase, FiFileText, FiPlus, FiRadio, FiShield, FiUsers } from "react-icons/fi";
+import { FiActivity, FiBookOpen, FiCheckCircle, FiDatabase, FiFileText, FiPlus, FiRadio, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { Card, QuickAction, Table, Badge } from "../components/ui";
 import { useChartTheme } from "../context/ThemeContext";
@@ -173,27 +173,11 @@ export default function Dashboard() {
 
   return (
     <section className="admin-dashboard-page">
-      <div className="admin-hero">
-        <div className="admin-hero-copy">
-          <span><FiShield /> Smart Proctoring Admin Command Center</span>
-          <h1>Realtime control for accounts, exams, courses, and monitoring integrity.</h1>
-          <p>Track who is inside the system, what exams are active, where violations are rising, and whether the Supabase services behind the platform are healthy.</p>
-        </div>
-        <div className="admin-hero-hud" aria-label="Admin system map">
-          <div className="admin-hud-orbit">
-            <span><FiUsers /> Accounts</span>
-            <span><FiBookOpen /> Courses</span>
-            <span><FiFileText /> Exams</span>
-            <span><FiActivity /> Alerts</span>
-          </div>
-          <div className="admin-hud-core">
-            <FiCpu />
-            <strong>{liveStats.activeExams}</strong>
-            <small>active exams</small>
-          </div>
-          <i />
-          <i />
-          <i />
+      <div className="admin-dashboard-header">
+        <span>Welcome back</span>
+        <div>
+          <h1>System Overview</h1>
+          <p>Monitor users, courses, exams, and system integrity.</p>
         </div>
       </div>
 
@@ -209,10 +193,51 @@ export default function Dashboard() {
         ))}
       </div>
 
-      <div className="admin-command-grid">
+      <div className="admin-dashboard-grid">
+        <Card className="admin-panel admin-chart-panel">
+          <div className="admin-panel-title">
+            <span><FiActivity /> Violation Analytics</span>
+            <small>Face, audio, fullscreen, and device alerts</small>
+          </div>
+          <div className="chart-box">
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={liveViolationChart}>
+                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                <XAxis dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
+                <Bar dataKey="count" fill="var(--primary)" radius={[6, 6, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Card>
+
+        <Card className="admin-panel active-exams-card admin-active-exams-card">
+          <div className="admin-panel-title">
+            <span><FiFileText /> Active Exams</span>
+            <small>Currently published or scheduled</small>
+          </div>
+          <div className="scroll-list admin-exam-list">
+            {liveExams.slice(0, 5).map((exam) => (
+              <span key={exam.id}>
+                <FiCheckCircle />
+                <div>
+                  <strong>{exam.title}</strong>
+                  <small>{exam.course} - {exam.duration} minutes</small>
+                </div>
+                <Badge>{exam.status}</Badge>
+              </span>
+            ))}
+            {!liveExams.length ? <div className="empty-state">No active exams found.</div> : null}
+          </div>
+          <button className="text-button" onClick={() => navigate("/reports")} type="button">View More</button>
+        </Card>
+      </div>
+
+      <div className="admin-operations-grid">
         <Card className="admin-panel admin-actions-panel">
           <div className="admin-panel-title">
-            <span><FiRadio /> Operations</span>
+            <span><FiRadio /> Quick Actions</span>
             <small>Connected to admin modules</small>
           </div>
           <div className="quick-grid admin-quick-grid">
@@ -245,47 +270,6 @@ export default function Dashboard() {
               <Badge tone={systemHealth.storage === "Unavailable" ? "danger" : systemHealth.storage === "Checking" ? "warn" : "success"}>{systemHealth.storage}</Badge>
             </span>
           </div>
-        </Card>
-      </div>
-
-      <div className="admin-command-grid">
-        <Card className="admin-panel admin-chart-panel">
-          <div className="admin-panel-title">
-            <span><FiActivity /> Violation Analytics</span>
-            <small>Face, audio, fullscreen, and device alerts</small>
-          </div>
-          <div className="chart-box">
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={liveViolationChart}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fill: chartTheme.axis }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
-                <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card className="admin-panel active-exams-card admin-active-exams-card">
-          <div className="admin-panel-title">
-            <span><FiFileText /> Active Exams</span>
-            <small>Currently published or scheduled</small>
-          </div>
-          <div className="scroll-list admin-exam-list">
-            {liveExams.slice(0, 5).map((exam) => (
-              <span key={exam.id}>
-                <FiCheckCircle />
-                <div>
-                  <strong>{exam.title}</strong>
-                  <small>{exam.course} - {exam.duration} minutes</small>
-                </div>
-                <Badge>{exam.status}</Badge>
-              </span>
-            ))}
-            {!liveExams.length ? <div className="empty-state">No active exams found.</div> : null}
-          </div>
-          <button className="text-button" onClick={() => navigate("/reports")} type="button">View More</button>
         </Card>
       </div>
 

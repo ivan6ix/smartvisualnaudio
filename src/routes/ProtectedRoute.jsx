@@ -1,5 +1,6 @@
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import AppShell from "../components/AppShell";
 import TopNav from "../components/TopNav";
 import { PageSkeleton } from "../components/ui";
 
@@ -16,6 +17,7 @@ export default function ProtectedRoute({ roles }) {
   if (loading) return <PageSkeleton />;
   if (!hasLoggedInThisSession || !user) return <Navigate to="/login" replace />;
   if (roles?.length && !roles.includes(user.role)) return <Navigate to={roleHome[user.role] || "/login"} replace />;
+  if (user.role === "Admin") return <AppShell role="Admin" />;
 
   return (
     <>
