@@ -219,9 +219,11 @@ export default function ProfessorOngoingExams() {
             onBack={backToList}
           />
         )}
-      </Card>
 
-      <small className="professor-ongoing-note">Violation sound is rate-limited to one alert every {VIOLATION_SOUND_COOLDOWN_MS / 1000}s.</small>
+        <footer className="professor-ongoing-footer">
+          <small className="professor-ongoing-note">Violation sound is rate-limited to one alert every {VIOLATION_SOUND_COOLDOWN_MS / 1000}s.</small>
+        </footer>
+      </Card>
     </section>
   );
 }
@@ -256,7 +258,7 @@ function ActiveExamList({ exams, loading, page, onPage, onView }) {
 
   return (
     <>
-      <div className="professor-ongoing-exam-list" role="table" aria-label="Active ongoing exams">
+      <div className="professor-ongoing-exam-list professor-scroll-surface" role="table" aria-label="Active ongoing exams">
         <div className="professor-ongoing-exam-head" role="row">
           <span role="columnheader">Exam</span>
           <span role="columnheader">Course / Section</span>
@@ -342,7 +344,7 @@ function ExamDetail({ exam, expandedStudents, expandedViolations, highlightedRow
 
 function StudentsTable({ exam, rows, expandedStudents, expandedViolations, highlightedRows, toggleStudent, toggleViolations }) {
   return (
-    <div className="professor-score-table-wrap professor-ongoing-table-wrap">
+    <div className="professor-score-table-wrap professor-ongoing-table-wrap professor-scroll-surface">
       <table className="professor-score-table compact professor-ongoing-table">
         <thead><tr><th>Student</th><th>Status</th><th>Attempt</th><th>Live Progress</th><th>Violations</th></tr></thead>
         <tbody>

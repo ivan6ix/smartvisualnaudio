@@ -223,7 +223,6 @@ export default function ProfessorDashboard() {
   return (
     <section className="professor-dashboard-page">
       <header className="professor-dashboard-header">
-        <span>Professor Workspace</span>
         <h1>Professor Dashboard</h1>
         <p>Manage your courses, examinations, and student performance.</p>
       </header>
@@ -261,7 +260,7 @@ export default function ProfessorDashboard() {
               {examOptions.map((exam) => <option key={exam.id} value={exam.id}>{exam.exam_title || exam.title || "Untitled exam"}</option>)}
             </select>
           </div>
-          <div className="chart-box professor-violation-chart">
+          <div className="chart-box professor-violation-chart professor-scroll-surface">
             <ResponsiveContainer width="100%" height={300}>
               <BarChart data={violationChartData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
@@ -272,7 +271,7 @@ export default function ProfessorDashboard() {
                   itemStyle={{ color: chartTheme.tooltipText }}
                   labelStyle={{ color: chartTheme.tooltipText }}
                 />
-                <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
+                <Bar dataKey="count" fill="var(--primary)" radius={[8, 8, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -284,7 +283,7 @@ export default function ProfessorDashboard() {
               <p>Latest recorded violations for your exams.</p>
             </div>
           </div>
-          <div className="professor-alert-list">
+          <div className="professor-alert-list professor-scroll-surface">
             {liveAlerts.map((alert) => (
               <article key={alert.id}>
                 <div>

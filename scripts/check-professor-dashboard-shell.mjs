@@ -25,7 +25,16 @@ assert.match(dashboard, /className="professor-kpi-card"/, "Professor KPIs should
 assert.match(dashboard, /<ProfessorOngoingExams \/>/, "Ongoing Exams must remain on the Professor Dashboard.");
 assert.match(dashboard, /DASHBOARD_VIOLATION_ANALYTICS_LIMIT = 100/, "Professor Dashboard violation analytics should keep the optimized 100-row cap.");
 assert.doesNotMatch(dashboard, /\.limit\(500\)/, "Professor Dashboard must not restore 500-row violation loading.");
+assert.doesNotMatch(dashboard, /<span>Professor Workspace<\/span>/, "Professor Dashboard should not duplicate the topbar workspace context.");
+assert.doesNotMatch(dashboard, /fill="#06b6d4"/, "Professor analytics chart should not use the old bright cyan fill.");
+assert.match(dashboard, /fill="var\(--primary\)"/, "Professor analytics chart should use the professional primary accent.");
+
+assert.match(ongoing, /className="professor-ongoing-footer"/, "Ongoing Exams sound note should be integrated inside the panel footer.");
+assert.doesNotMatch(ongoing, /<\/Card>\s*<small className="professor-ongoing-note">/, "Ongoing Exams sound note should not float outside the panel.");
 
 assert.match(styles, /\.professor-dashboard-page \.professor-kpi-card\s*\{[\s\S]*border:\s*1px solid/, "Professor KPI cards need a visible boxed outline.");
 assert.match(styles, /html\[data-theme="dark"\] \.professor-dashboard-page \.professor-kpi-card[\s\S]*border-color:\s*rgba\(226,\s*232,\s*240,\s*0\.58\)/, "Dark Professor KPI cards need a visible light outline.");
 assert.match(styles, /\.professor-dashboard-grid\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1\.5fr\) minmax\(280px,\s*0\.8fr\)/, "Professor Dashboard should keep a balanced dashboard grid.");
+assert.match(styles, /\.professor-dashboard-page \.professor-kpi-card\s*\{[\s\S]*min-height:\s*104px/, "Professor KPI cards should be compact but still boxed.");
+assert.match(styles, /\.professor-dashboard-page \.professor-scroll-surface\s*::-webkit-scrollbar-thumb/, "Professor dashboard scrollbars should be scoped and neutral.");
+assert.match(styles, /\.professor-topbar-actions \.professor-theme-button\s*\{[\s\S]*border-color:\s*var\(--app-line\)/, "Professor theme control should match neighboring topbar controls.");

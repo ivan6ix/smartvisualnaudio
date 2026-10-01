@@ -103,7 +103,6 @@ export default function ProfessorLayout() {
         <header className="admin-topbar professor-topbar">
           <button aria-label="Open professor navigation" className="admin-menu-button professor-menu-button" onClick={() => setDrawerOpen(true)} type="button"><FiMenu /></button>
           <div className="admin-topbar-title professor-topbar-title">
-            <span>Professor Workspace</span>
             <strong>{currentPage}</strong>
           </div>
           <div className="admin-topbar-actions professor-topbar-actions">
