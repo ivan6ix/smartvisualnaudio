@@ -2,6 +2,7 @@ import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useSta
 import { toast } from "sonner";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 import { queryClient, queryPersister } from "../lib/queryClient";
+import { REGISTRATION_DEVICE_EMAIL_LIMIT, getRegistrationLimitStatus, recordRegistrationEmail } from "../lib/registrationRateLimit";
 
 const AuthContext = createContext(null);
 const AUTH_USER_STORAGE_KEY = "smartvisualnaudio.auth.user";
@@ -294,6 +295,8 @@ export function AuthProvider({ children }) {
     if (!values.termsAccepted || !values.privacyAccepted) throw new Error("Agree to the Terms of Use and acknowledge the Privacy Policy to register.");
     if (!values.fullName?.trim() || values.fullName.length > 120) throw new Error("Full name is required and must be 120 characters or fewer.");
     if (!values.studentNumber?.trim() || values.studentNumber.length > 40) throw new Error("Student number is required and must be 40 characters or fewer.");
+    const registrationLimit = getRegistrationLimitStatus(window.localStorage, values.email);
+    if (!registrationLimit.allowed) throw new Error(`This device has reached the registration limit of ${REGISTRATION_DEVICE_EMAIL_LIMIT} student accounts.`);
     if (hasSupabaseConfig) {
       const { error } = await supabase.auth.signUp({
         email: values.email,
@@ -310,6 +313,7 @@ export function AuthProvider({ children }) {
       });
       if (error) throw error;
     }
+    recordRegistrationEmail(window.localStorage, values.email);
     toast.success("Registration created. Please confirm your email before logging in.");
   }
 
