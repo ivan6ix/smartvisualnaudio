@@ -3721,6 +3721,38 @@ html[data-theme="light"] .list-view-segment button.active {
   --list-card-gap: 8px;
   --list-card-min: min(100%, 170px);
 }
+.admin-section-page .list-card-grid {
+  --list-card-gap: 18px;
+  --list-card-min: min(100%, 280px);
+  grid-template-columns: repeat(auto-fit, minmax(var(--list-card-min), 1fr));
+}
+.admin-section-page .list-card-grid-comfortable {
+  --list-card-gap: 18px;
+  --list-card-min: min(100%, 280px);
+}
+.admin-section-page .list-card-grid-compact {
+  --list-card-gap: 14px;
+  --list-card-min: min(100%, 260px);
+}
+.admin-section-page .list-card-grid-dense {
+  --list-card-gap: 12px;
+  --list-card-min: min(100%, 230px);
+}
+@media (min-width: 1200px) {
+  .admin-section-page .list-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (min-width: 768px) and (max-width: 1199px) {
+  .admin-section-page .list-card-grid {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  }
+}
+@media (max-width: 767px) {
+  .admin-section-page .list-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
 .list-card-grid .professor-course-list-card,
 .list-card-grid .student-course-card,
 .list-card-grid .student-available-exam-card,
@@ -3769,6 +3801,110 @@ html[data-theme="light"] .list-view-segment button.active {
   flex-wrap: wrap;
   gap: 6px;
   justify-content: flex-end;
+}
+.admin-section-page .list-record-card {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  gap: 0;
+  padding: 16px;
+}
+html[data-theme="light"] .admin-section-page .list-record-card {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.48);
+  color: #0f172a;
+}
+html[data-theme="dark"] .admin-section-page .list-record-card,
+html[data-appearance="dark"] .admin-section-page .list-record-card {
+  background: var(--app-surface);
+  border-color: rgba(226, 232, 240, 0.58);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  color: var(--app-text);
+}
+.admin-section-page .record-card__header {
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.18);
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+  padding-bottom: 12px;
+}
+html[data-theme="dark"] .admin-section-page .record-card__header,
+html[data-appearance="dark"] .admin-section-page .record-card__header {
+  border-bottom-color: rgba(226, 232, 240, 0.24);
+}
+.admin-section-page .record-card__title {
+  color: inherit;
+  flex: 1 1 auto;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.admin-section-page .record-card__body {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding-top: 12px;
+}
+.admin-section-page .record-card__field {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.admin-section-page .record-card__label {
+  color: var(--app-text-muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.admin-section-page .record-card__value {
+  color: var(--app-text);
+  font-weight: 700;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+html[data-theme="light"] .admin-section-page .record-card__value {
+  color: #0f172a;
+}
+.admin-section-page .list-record-actions {
+  align-items: flex-start;
+  flex: 0 0 auto;
+  flex-shrink: 0;
+  flex-wrap: nowrap;
+}
+.admin-section-page .list-record-actions .btn {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.admin-section-page .list-record-card:hover {
+  border-color: rgba(15, 23, 42, 0.66);
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+}
+html[data-theme="dark"] .admin-section-page .list-record-card:hover,
+html[data-appearance="dark"] .admin-section-page .list-record-card:hover {
+  border-color: rgba(248, 250, 252, 0.72);
+  box-shadow: 0 18px 38px rgba(0, 0, 0, 0.34);
+}
+.admin-section-page .list-card-grid-dense .list-record-card {
+  padding: 12px;
+}
+.admin-section-page .list-card-grid-dense .record-card__header {
+  padding-bottom: 9px;
+}
+.admin-section-page .list-card-grid-dense .record-card__body {
+  gap: 8px;
+  padding-top: 9px;
+}
+.admin-section-page .list-card-grid-comfortable .list-record-card {
+  padding: 18px;
+}
+.admin-section-page .list-card-grid-comfortable .record-card__body {
+  gap: 12px;
 }
 .list-card-grid-dense .list-record-card,
 .list-card-grid-dense .professor-draft-row,

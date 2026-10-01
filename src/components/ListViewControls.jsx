@@ -64,15 +64,15 @@ export function RecordCardList({ columns, density, empty, renderActions, rows, t
           const detailColumns = columns.filter((column) => column.key !== titleColumn.key);
           return (
             <article className="list-record-card" key={row.id}>
-              <header>
-                <strong>{titleColumn.render ? titleColumn.render(row) : row[titleColumn.key]}</strong>
-                {renderActions ? <div className="list-record-actions">{renderActions(row)}</div> : null}
+              <header className="record-card__header">
+                <strong className="record-card__title">{titleColumn.render ? titleColumn.render(row) : row[titleColumn.key]}</strong>
+                {renderActions ? <div className="list-record-actions record-card__actions">{renderActions(row)}</div> : null}
               </header>
-              <dl>
+              <dl className="record-card__body">
                 {detailColumns.map((column) => (
-                  <div key={column.key}>
-                    <dt>{column.label}</dt>
-                    <dd>{column.render ? column.render(row) : row[column.key]}</dd>
+                  <div className="record-card__field" key={column.key}>
+                    <dt className="record-card__label">{column.label}</dt>
+                    <dd className="record-card__value">{column.render ? column.render(row) : row[column.key]}</dd>
                   </div>
                 ))}
               </dl>
