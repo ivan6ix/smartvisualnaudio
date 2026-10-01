@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FiActivity, FiBookOpen, FiFileText, FiMonitor } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
-import { Badge, Card, PageHeader, StatCard } from "../../components/ui";
+import { Badge, Card } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useChartTheme } from "../../context/ThemeContext";
 import { professorAlerts, professorCourses, professorExams } from "../../data/professorData";
@@ -39,6 +39,8 @@ const violationChartGroups = {
   LOUD_NOISE_DETECTED: "BACKGROUND_VOICE",
   PHONE_DETECTED: "GADGET_DETECTED",
 };
+
+const DASHBOARD_VIOLATION_ANALYTICS_LIMIT = 100;
 
 function severityTone(severity) {
   if (severity === "High") return "danger";
@@ -146,7 +148,7 @@ export default function ProfessorDashboard() {
           .select("id, exam_id, violation_type, severity, created_at, profiles:student_id(full_name), exams(id, title, exam_title)")
           .in("exam_id", examIds)
           .order("created_at", { ascending: false })
-          .limit(500);
+          .limit(DASHBOARD_VIOLATION_ANALYTICS_LIMIT);
 
         if (violationsError) throw violationsError;
         const violations = violationRows || [];
@@ -219,15 +221,32 @@ export default function ProfessorDashboard() {
   }
 
   return (
-    <>
-      <PageHeader title="Professor Dashboard" subtitle="Manage courses, exams, monitoring activity, and student scores." />
+    <section className="professor-dashboard-page">
+      <header className="professor-dashboard-header">
+        <span>Professor Workspace</span>
+        <h1>Professor Dashboard</h1>
+        <p>Manage your courses, examinations, and student performance.</p>
+      </header>
       <div className="professor-stats-grid">
-        {statCards.map(([label, value, icon]) => <StatCard key={label} label={label} value={value} icon={icon} />)}
+        {statCards.map(([label, value, Icon]) => (
+          <Card className="professor-kpi-card" key={label}>
+            <div>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+            <Icon />
+          </Card>
+        ))}
       </div>
       <ProfessorOngoingExams />
       <div className="professor-dashboard-grid">
-        <Card>
-          <h2>Violation Analytics</h2>
+        <Card className="professor-dashboard-panel professor-analytics-panel">
+          <div className="professor-panel-title">
+            <div>
+              <h2>Violation Analytics</h2>
+              <p>Recent monitoring trends from the latest dashboard sample.</p>
+            </div>
+          </div>
           <div className="professor-analytics-filters">
             <select aria-label="Filter analytics by course" onChange={(event) => setAnalyticsFilter("course", event.target.value)} value={analyticsFilters.course}>
               <option>All Courses</option>
@@ -258,8 +277,13 @@ export default function ProfessorDashboard() {
             </ResponsiveContainer>
           </div>
         </Card>
-        <Card>
-          <h2>Live Monitoring Alerts</h2>
+        <Card className="professor-dashboard-panel professor-alerts-panel">
+          <div className="professor-panel-title">
+            <div>
+              <h2>Live Monitoring Alerts</h2>
+              <p>Latest recorded violations for your exams.</p>
+            </div>
+          </div>
           <div className="professor-alert-list">
             {liveAlerts.map((alert) => (
               <article key={alert.id}>
@@ -277,6 +301,6 @@ export default function ProfessorDashboard() {
           </div>
         </Card>
       </div>
-    </>
+    </section>
   );
 }

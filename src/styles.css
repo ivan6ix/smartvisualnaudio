@@ -3544,10 +3544,115 @@ html[data-theme="light"] .profile-remove-actions button.danger {
   background: rgba(6, 182, 212, 0.12);
   color: #bfdbfe;
 }
-.professor-shell {
-  background: linear-gradient(180deg, var(--app-surface) 0%, var(--app-surface) 100%);
+.professor-app-shell {
+  background: var(--app-bg);
+}
+.professor-sidebar-utility {
+  align-content: end;
+  border-top: 1px solid rgba(148, 163, 184, 0.16);
+  margin-top: auto;
   padding-top: 12px;
+}
+.professor-shell {
   align-content: start;
+  background: var(--app-bg);
+  padding: 24px;
+}
+.professor-dashboard-page {
+  color: var(--text-primary);
+  display: grid;
+  gap: 20px;
+}
+.professor-dashboard-header {
+  display: grid;
+  gap: 6px;
+}
+.professor-dashboard-header > span {
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+.professor-dashboard-header h1 {
+  color: var(--text-primary);
+  font-size: clamp(1.8rem, 3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.12;
+  margin: 0;
+}
+.professor-dashboard-header p {
+  color: var(--text-muted);
+  font-size: 0.96rem;
+  margin: 6px 0 0;
+}
+.professor-dashboard-page .professor-kpi-card,
+.professor-dashboard-page .professor-dashboard-panel,
+.professor-dashboard-page .professor-ongoing-card {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+html[data-theme="dark"] .professor-dashboard-page .professor-kpi-card,
+html[data-theme="dark"] .professor-dashboard-page .professor-dashboard-panel,
+html[data-theme="dark"] .professor-dashboard-page .professor-ongoing-card,
+html[data-appearance="dark"] .professor-dashboard-page .professor-kpi-card,
+html[data-appearance="dark"] .professor-dashboard-page .professor-dashboard-panel,
+html[data-appearance="dark"] .professor-dashboard-page .professor-ongoing-card {
+  background: var(--app-surface);
+  border-color: rgba(226, 232, 240, 0.58);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  color: var(--app-text);
+}
+.professor-dashboard-page .professor-kpi-card {
+  align-content: space-between;
+  display: grid;
+  gap: 14px;
+  min-height: 118px;
+  padding: 18px;
+}
+.professor-dashboard-page .professor-kpi-card svg {
+  color: var(--primary);
+  height: 22px;
+  width: 22px;
+}
+.professor-dashboard-page .professor-kpi-card span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.professor-dashboard-page .professor-kpi-card strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 12px;
+}
+.professor-dashboard-page .professor-dashboard-panel,
+.professor-dashboard-page .professor-ongoing-card {
+  padding: 20px;
+}
+.professor-panel-title {
+  align-items: flex-start;
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+.professor-panel-title h2 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+.professor-panel-title p {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  margin: 4px 0 0;
 }
 .dean-shell {
   padding-top: 12px;
@@ -3636,15 +3741,15 @@ html[data-theme="light"] .profile-remove-actions button.danger {
 }
 .professor-dashboard-grid {
   display: grid;
-  grid-template-columns: minmax(0, 2.4fr) minmax(260px, 0.75fr);
+  grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.8fr);
   align-items: stretch;
-  gap: 22px;
+  gap: 20px;
 }
 .professor-dashboard-grid > .card {
-  min-height: 430px;
+  min-height: 420px;
 }
 .professor-dashboard-grid > .card:last-child {
-  min-height: 430px;
+  min-height: 420px;
 }
 .list-view-toolbar {
   align-items: center;
@@ -12580,6 +12685,44 @@ html[data-theme="light"] .professor-course-panel-title > .badge-blue {
   border-color: var(--app-line) !important;
   background: var(--app-active) !important;
   color: var(--app-text) !important;
+}
+
+.professor-app-shell .professor-shell {
+  background: var(--app-bg) !important;
+}
+.professor-app-shell .professor-shell::before {
+  content: none;
+}
+.professor-app-shell .professor-dashboard-page .professor-kpi-card,
+.professor-app-shell .professor-dashboard-page .professor-dashboard-panel,
+.professor-app-shell .professor-dashboard-page .professor-ongoing-card {
+  background: #fff !important;
+  border: 1px solid rgba(15, 23, 42, 0.48) !important;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08) !important;
+  color: #0f172a;
+  backdrop-filter: none;
+}
+html[data-theme="dark"] .professor-app-shell .professor-dashboard-page .professor-kpi-card,
+html[data-theme="dark"] .professor-app-shell .professor-dashboard-page .professor-dashboard-panel,
+html[data-theme="dark"] .professor-app-shell .professor-dashboard-page .professor-ongoing-card,
+html[data-appearance="dark"] .professor-app-shell .professor-dashboard-page .professor-kpi-card,
+html[data-appearance="dark"] .professor-app-shell .professor-dashboard-page .professor-dashboard-panel,
+html[data-appearance="dark"] .professor-app-shell .professor-dashboard-page .professor-ongoing-card {
+  background: var(--app-surface) !important;
+  border-color: rgba(226, 232, 240, 0.58) !important;
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28) !important;
+  color: var(--app-text);
+}
+html[data-theme="light"] .professor-app-shell .professor-dashboard-page .professor-kpi-card,
+html[data-theme="light"] .professor-app-shell .professor-dashboard-page .professor-dashboard-panel,
+html[data-theme="light"] .professor-app-shell .professor-dashboard-page .professor-ongoing-card,
+html[data-appearance="light"] .professor-app-shell .professor-dashboard-page .professor-kpi-card,
+html[data-appearance="light"] .professor-app-shell .professor-dashboard-page .professor-dashboard-panel,
+html[data-appearance="light"] .professor-app-shell .professor-dashboard-page .professor-ongoing-card {
+  background: #fff !important;
+  border-color: rgba(15, 23, 42, 0.48) !important;
+  color: #0f172a;
 }
 
 html[data-theme="light"] .professor-score-header-actions > span,
