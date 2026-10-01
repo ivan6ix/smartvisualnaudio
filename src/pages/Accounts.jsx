@@ -72,9 +72,14 @@ export default function Accounts() {
 
   const filtered = useMemo(() => accounts.filter((account) => {
     const matchesRole = role === "All Roles" || account.role === role;
-    const matchesSearch = `${account.name} ${account.displayId || account.id} ${account.email || ""} ${account.role}`.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = `${account.name} ${account.displayId || account.id} ${account.email || ""} ${account.role}`.toLowerCase().includes(search.trim().toLowerCase());
     return matchesRole && matchesSearch && (statusFilter === "All" || account.status === statusFilter);
   }), [accounts, role, search, statusFilter]);
+
+  useEffect(() => {
+    setActivePage(1);
+    setDeactivatedPage(1);
+  }, [role, search, statusFilter]);
 
   async function callAccountFunction(body) {
     const { data, error } = await supabase.functions.invoke("create-account", { body });
@@ -103,10 +108,10 @@ export default function Accounts() {
   }
 
   const columns = [
-    { key: "name", label: "Name" },
-    { key: "displayId", label: "ID", render: (row) => row.displayId || row.id },
-    { key: "role", label: "Role" },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
+    { key: "name", label: "Name", width: "25%" },
+    { key: "displayId", label: "ID", width: "20%", render: (row) => row.displayId || row.id },
+    { key: "role", label: "Role", width: "18%" },
+    { key: "status", label: "Status", width: "12%", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
   ];
   const activeRows = filtered.filter((account) => account.status !== "Deactivated");
   const deactivatedRows = filtered.filter((account) => account.status === "Deactivated");
@@ -119,7 +124,7 @@ export default function Accounts() {
         {listView.view === "cards" ? (
           <RecordCardList columns={columns} density={listView.cardDensity} rows={pageData.rows} titleKey="name" renderActions={action} />
         ) : (
-          <Table className={`list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={action} />
+          <Table className={`admin-account-table ${action.tableClassName || ""} list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or choose All Roles to show more accounts." renderActions={action} />
         )}
         <ListPagination count={rows.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
       </>
@@ -160,11 +165,11 @@ export default function Accounts() {
       <Card className="admin-panel admin-activity-panel">
         <h2>Active Accounts</h2>
         {accountsQuery.isPending && !accounts.length ? <p className="muted">Loading live accounts...</p> : null}
-        {renderAccounts(activeRows, (row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>, activePageData, setActivePage)}
+        {renderAccounts(activeRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>, { width: "25%", tableClassName: "admin-account-table-active" }), activePageData, setActivePage)}
       </Card>
       <Card className="admin-panel admin-activity-panel">
         <h2>Deactivated Accounts</h2>
-        {renderAccounts(deactivatedRows, (row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, deactivatedPageData, setDeactivatedPage)}
+        {renderAccounts(deactivatedRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "25%", tableClassName: "admin-account-table-deactivated" }), deactivatedPageData, setDeactivatedPage)}
       </Card>
     </section>
   );

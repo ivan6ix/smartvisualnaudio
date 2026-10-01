@@ -112,12 +112,12 @@ export function Table({ columns, rows, renderActions, emptyTitle, emptyDescripti
           </colgroup>
         ) : null}
         <thead>
-          <tr>{columns.map((column) => <th key={column.key}>{column.label}</th>)}{renderActions ? <th className="actions-heading">Actions</th> : null}</tr>
+          <tr>{columns.map((column) => <th className={column.className || undefined} key={column.key}>{column.label}</th>)}{renderActions ? <th className="actions-heading">Actions</th> : null}</tr>
         </thead>
         <tbody>
           {rows.map((row) => (
             <tr key={row.id}>
-              {columns.map((column) => <td key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>)}
+              {columns.map((column) => <td className={column.className || undefined} key={column.key}>{column.render ? column.render(row) : row[column.key]}</td>)}
               {renderActions ? <td className="actions">{renderActions(row)}</td> : null}
             </tr>
           ))}

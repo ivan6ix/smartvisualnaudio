@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { FiActivity, FiBookOpen, FiCheckCircle, FiDatabase, FiFileText, FiPlus, FiRadio, FiUsers } from "react-icons/fi";
-import { useNavigate } from "react-router-dom";
-import { Card, QuickAction, Table, Badge } from "../components/ui";
+import { FiActivity, FiBookOpen, FiDatabase, FiFileText, FiUsers } from "react-icons/fi";
+import { Card, Table, Badge } from "../components/ui";
 import { useChartTheme } from "../context/ThemeContext";
-import { exams, logs, violationChart } from "../data/mockData";
+import { logs, violationChart } from "../data/mockData";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const defaultStats = {
@@ -43,7 +42,6 @@ async function countRows(query) {
 
 export default function Dashboard() {
   const chartTheme = useChartTheme();
-  const navigate = useNavigate();
   const [systemHealth, setSystemHealth] = useState(defaultHealth);
 
   const statsQuery = useQuery({
@@ -159,7 +157,6 @@ export default function Dashboard() {
 
   const liveStats = hasSupabaseConfig ? statsQuery.data || defaultStats : defaultStats;
   const liveViolationChart = hasSupabaseConfig ? detailsQuery.data?.violationChart || violationChart : violationChart;
-  const liveExams = hasSupabaseConfig ? detailsQuery.data?.exams || exams : exams;
   const liveLogs = hasSupabaseConfig ? detailsQuery.data?.logs || logs : logs;
 
   const stats = [
@@ -209,42 +206,6 @@ export default function Dashboard() {
                 <Bar dataKey="count" fill="var(--primary)" radius={[6, 6, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
-          </div>
-        </Card>
-
-        <Card className="admin-panel active-exams-card admin-active-exams-card">
-          <div className="admin-panel-title">
-            <span><FiFileText /> Active Exams</span>
-            <small>Currently published or scheduled</small>
-          </div>
-          <div className="scroll-list admin-exam-list">
-            {liveExams.slice(0, 5).map((exam) => (
-              <span key={exam.id}>
-                <FiCheckCircle />
-                <div>
-                  <strong>{exam.title}</strong>
-                  <small>{exam.course} - {exam.duration} minutes</small>
-                </div>
-                <Badge>{exam.status}</Badge>
-              </span>
-            ))}
-            {!liveExams.length ? <div className="empty-state">No active exams found.</div> : null}
-          </div>
-          <button className="text-button" onClick={() => navigate("/reports")} type="button">View More</button>
-        </Card>
-      </div>
-
-      <div className="admin-operations-grid">
-        <Card className="admin-panel admin-actions-panel">
-          <div className="admin-panel-title">
-            <span><FiRadio /> Quick Actions</span>
-            <small>Connected to admin modules</small>
-          </div>
-          <div className="quick-grid admin-quick-grid">
-            <QuickAction icon={FiPlus} onClick={() => navigate("/create-account")}>Create Account</QuickAction>
-            <QuickAction icon={FiPlus} onClick={() => navigate("/courses")}>Create Course</QuickAction>
-            <QuickAction icon={FiUsers} onClick={() => navigate("/accounts")}>Manage Accounts</QuickAction>
-            <QuickAction icon={FiFileText} onClick={() => navigate("/reports")}>View Reports</QuickAction>
           </div>
         </Card>
 

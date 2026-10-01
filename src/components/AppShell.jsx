@@ -81,6 +81,7 @@ export default function AppShell({ role = "Admin" }) {
             <strong>{adminNavigation.find((item) => item.to === location.pathname)?.label || "System Overview"}</strong>
           </div>
           <div className="admin-topbar-actions">
+            <button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} className="admin-icon-button" onClick={toggleTheme} title="Theme" type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}</button>
             <div className="message-menu admin-message-menu">
               <button onClick={() => openMessages()} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
               <div className="message-menu-panel">
@@ -97,7 +98,6 @@ export default function AppShell({ role = "Admin" }) {
                 )) : <p className="message-menu-empty">No live messages yet.</p>}
               </div>
             </div>
-            <button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} className="admin-icon-button" onClick={toggleTheme} title="Theme" type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}</button>
             <NotificationBell user={user} emptyText="No password reset requests yet." />
             <ProfileMenu className="profile-menu admin-profile-menu" icon={FiUser} logout={logout} user={user} />
           </div>

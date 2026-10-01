@@ -32,8 +32,11 @@ assert.ok(appShell.includes("MessageModal"), "Admin topbar must preserve message
 assert.ok(appShell.includes("ProfileMenu"), "Admin topbar must preserve profile actions.");
 assert.ok(appShell.includes("toggleTheme"), "Admin topbar must preserve theme toggle.");
 
-["System Overview", "Monitor users, courses, exams, and system integrity.", "Quick Actions", "System Health", "Violation Analytics", "Active Exams", "Recent Account Activity"].forEach((token) => {
+["System Overview", "Monitor users, courses, exams, and system integrity.", "System Health", "Violation Analytics", "Recent Account Activity"].forEach((token) => {
   assert.ok(dashboard.includes(token), `Dashboard missing required section text: ${token}`);
+});
+["Quick Actions</span>", "Active Exams</span>"].forEach((token) => {
+  assert.ok(!dashboard.includes(token), `Dashboard should remove panel text: ${token}`);
 });
 assert.ok(!dashboard.includes("Admin Command Center"), "Dashboard must remove command-center language.");
 assert.ok(!dashboard.includes("admin-hero-hud"), "Dashboard must remove decorative HUD visualization.");

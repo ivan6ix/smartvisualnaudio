@@ -57,7 +57,7 @@ export default function People({ type }) {
 
   const filtered = useMemo(() => rows.filter((row) => {
     const matchesRole = !isUnified || roleFilter === "All Account Types" || row.role === roleFilter;
-    const matchesSearch = `${row.name} ${row.employeeNumber} ${row.email}`.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = `${row.name} ${row.employeeNumber} ${row.email}`.toLowerCase().includes(search.trim().toLowerCase());
     return matchesRole && matchesSearch;
   }), [isUnified, roleFilter, rows, search]);
   const active = filtered.filter((row) => row.status === "Active");
@@ -197,11 +197,11 @@ export default function People({ type }) {
   }
 
   const columns = [
-    { key: "name", label: "Name" },
-    { key: "email", label: "Email" },
-    { key: "employeeNumber", label: "Employee Number" },
-    { key: "role", label: "Account Type", render: (row) => <Badge>{row.role || accountType}</Badge> },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
+    { key: "name", label: "Name", width: "15%" },
+    { key: "email", label: "Email", width: "24%" },
+    { key: "employeeNumber", label: "Employee Number", width: "15%" },
+    { key: "role", label: "Account Type", width: "16%", render: (row) => <Badge>{row.role || accountType}</Badge> },
+    { key: "status", label: "Status", width: "12%", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
   ];
 
   const createForm = (
@@ -249,16 +249,16 @@ export default function People({ type }) {
       </div>
       <Card className="admin-panel admin-activity-panel">
         <h2>{isUnified ? "Active Accounts" : `Active ${getPlural(accountType)}`}</h2>
-        <Table columns={columns} rows={active} renderActions={(row) => (
+        <Table className="admin-account-table admin-account-table-active" columns={columns} rows={active} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => (
           <>
             <Button variant="light" onClick={() => resetPassword(row)}><FiRefreshCw /> Reset Password</Button>
             <Button variant="light" onClick={() => setStatus(row, "Deactivated")}><FiSlash /> Deactivate</Button>
           </>
-        )} />
+        ), { width: "18%" })} />
       </Card>
       <Card className="admin-panel admin-activity-panel">
         <h2>{isUnified ? "Deactivated Accounts" : `Deactivated ${getPlural(accountType)}`}</h2>
-        <Table columns={columns} rows={deactivated} renderActions={(row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>} />
+        <Table className="admin-account-table admin-account-table-deactivated" columns={columns} rows={deactivated} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "18%" })} />
       </Card>
       {createModalOpen ? (
         <div className="modal-backdrop account-modal-backdrop" onClick={closeCreateModal} role="presentation">

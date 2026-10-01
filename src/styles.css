@@ -1859,6 +1859,69 @@ html[data-theme="dark"] .admin-sidebar {
 .admin-activity-panel tbody tr:hover {
   background: var(--surface-hover);
 }
+.admin-account-table,
+.admin-logs-table {
+  width: 100%;
+}
+.admin-account-table-active,
+.admin-account-table-deactivated {
+  max-width: 100%;
+}
+.admin-account-table table,
+.admin-logs-table table {
+  width: 100%;
+  table-layout: fixed;
+}
+.admin-account-table table {
+  min-width: 920px;
+}
+.admin-account-table th,
+.admin-account-table td,
+.admin-logs-table th,
+.admin-logs-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+  vertical-align: middle;
+}
+.admin-account-table .actions-heading,
+.admin-account-table .actions {
+  min-width: 0;
+  text-align: right;
+}
+.admin-account-table .actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+.admin-account-table .actions .btn {
+  width: auto;
+  min-width: 0;
+}
+.admin-logs-table table {
+  min-width: 1120px;
+}
+.admin-logs-table th,
+.admin-logs-table td {
+  padding: 14px 14px;
+  border-bottom-color: var(--app-line);
+}
+.admin-logs-table .admin-log-description {
+  min-width: 210px;
+  line-height: 1.45;
+}
+.admin-logs-table .actions-heading,
+.admin-logs-table .actions {
+  min-width: 0;
+  text-align: right;
+}
+.admin-logs-table .actions {
+  justify-content: flex-end;
+  align-items: center;
+  flex-wrap: nowrap;
+}
+.admin-logs-table .actions .btn {
+  width: auto;
+  min-width: 0;
+}
 .reports-panel-header {
   display: flex;
   align-items: center;

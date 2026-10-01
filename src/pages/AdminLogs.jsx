@@ -164,12 +164,12 @@ export default function AdminLogs() {
   }
 
   const columns = [
-    { key: "createdAt", label: "Date & Time", width: "16%" },
-    { key: "actor", label: "Actor", width: "18%" },
+    { key: "createdAt", label: "Date & Time", width: "15%" },
+    { key: "actor", label: "Actor", width: "17%" },
     { key: "role", label: "Role", width: "10%", render: (row) => <Badge>{row.role}</Badge> },
-    { key: "action", label: "Action", width: "16%" },
+    { key: "action", label: "Action", width: "15%" },
     { key: "entity", label: "Entity / Context", width: "15%" },
-    { key: "description", label: "Description" },
+    { key: "description", label: "Description", width: "18%", className: "admin-log-description" },
   ];
 
   if (!hasSupabaseConfig) {
@@ -223,6 +223,7 @@ export default function AdminLogs() {
         {logsQuery.isError ? <p className="muted">Unable to load logs: {logsQuery.error.message}</p> : null}
         {logsQuery.isFetching ? <p className="muted">Loading audit records...</p> : null}
         <Table
+          className="admin-logs-table"
           columns={columns}
           emptyDescription="Try adjusting the date range, search, or filters."
           emptyTitle="No audit logs found"
