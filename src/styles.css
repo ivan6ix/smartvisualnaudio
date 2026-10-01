@@ -1879,17 +1879,24 @@ html[data-theme="dark"] .admin-sidebar {
 .admin-account-table td,
 .admin-logs-table th,
 .admin-logs-table td {
+  padding-left: 14px;
+  padding-right: 14px;
   overflow-wrap: normal;
   word-break: normal;
   vertical-align: middle;
 }
+.admin-account-table .admin-table-center,
+.admin-logs-table .admin-table-center {
+  text-align: center;
+}
 .admin-account-table .actions-heading,
 .admin-account-table .actions {
   min-width: 0;
-  text-align: right;
+  text-align: center;
 }
 .admin-account-table .actions {
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: center;
   flex-wrap: nowrap;
 }
 .admin-account-table .actions .btn {
@@ -1911,10 +1918,10 @@ html[data-theme="dark"] .admin-sidebar {
 .admin-logs-table .actions-heading,
 .admin-logs-table .actions {
   min-width: 0;
-  text-align: right;
+  text-align: center;
 }
 .admin-logs-table .actions {
-  justify-content: flex-end;
+  justify-content: center;
   align-items: center;
   flex-wrap: nowrap;
 }

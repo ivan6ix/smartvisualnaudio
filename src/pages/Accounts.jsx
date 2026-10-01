@@ -110,8 +110,8 @@ export default function Accounts() {
   const columns = [
     { key: "name", label: "Name", width: "25%" },
     { key: "displayId", label: "ID", width: "20%", render: (row) => row.displayId || row.id },
-    { key: "role", label: "Role", width: "18%" },
-    { key: "status", label: "Status", width: "12%", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
+    { key: "role", label: "Role", width: "20%" },
+    { key: "status", label: "Status", width: "17.5%", className: "admin-table-center", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
   ];
   const activeRows = filtered.filter((account) => account.status !== "Deactivated");
   const deactivatedRows = filtered.filter((account) => account.status === "Deactivated");
@@ -165,11 +165,11 @@ export default function Accounts() {
       <Card className="admin-panel admin-activity-panel">
         <h2>Active Accounts</h2>
         {accountsQuery.isPending && !accounts.length ? <p className="muted">Loading live accounts...</p> : null}
-        {renderAccounts(activeRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>, { width: "25%", tableClassName: "admin-account-table-active" }), activePageData, setActivePage)}
+        {renderAccounts(activeRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>, { width: "17.5%", tableClassName: "admin-account-table-active" }), activePageData, setActivePage)}
       </Card>
       <Card className="admin-panel admin-activity-panel">
         <h2>Deactivated Accounts</h2>
-        {renderAccounts(deactivatedRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "25%", tableClassName: "admin-account-table-deactivated" }), deactivatedPageData, setDeactivatedPage)}
+        {renderAccounts(deactivatedRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "17.5%", tableClassName: "admin-account-table-deactivated" }), deactivatedPageData, setDeactivatedPage)}
       </Card>
     </section>
   );

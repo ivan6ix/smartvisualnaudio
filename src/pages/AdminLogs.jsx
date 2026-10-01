@@ -165,11 +165,11 @@ export default function AdminLogs() {
 
   const columns = [
     { key: "createdAt", label: "Date & Time", width: "15%" },
-    { key: "actor", label: "Actor", width: "17%" },
+    { key: "actor", label: "Actor", width: "16%" },
     { key: "role", label: "Role", width: "10%", render: (row) => <Badge>{row.role}</Badge> },
     { key: "action", label: "Action", width: "15%" },
-    { key: "entity", label: "Entity / Context", width: "15%" },
-    { key: "description", label: "Description", width: "18%", className: "admin-log-description" },
+    { key: "entity", label: "Entity / Context", width: "12%" },
+    { key: "description", label: "Description", width: "22%", className: "admin-log-description" },
   ];
 
   if (!hasSupabaseConfig) {

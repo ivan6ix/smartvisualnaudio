@@ -197,11 +197,11 @@ export default function People({ type }) {
   }
 
   const columns = [
-    { key: "name", label: "Name", width: "15%" },
-    { key: "email", label: "Email", width: "24%" },
-    { key: "employeeNumber", label: "Employee Number", width: "15%" },
+    { key: "name", label: "Name", width: "17%" },
+    { key: "email", label: "Email", width: "23%" },
+    { key: "employeeNumber", label: "Employee Number", width: "16%" },
     { key: "role", label: "Account Type", width: "16%", render: (row) => <Badge>{row.role || accountType}</Badge> },
-    { key: "status", label: "Status", width: "12%", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
+    { key: "status", label: "Status", width: "12%", className: "admin-table-center", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
   ];
 
   const createForm = (
@@ -254,11 +254,11 @@ export default function People({ type }) {
             <Button variant="light" onClick={() => resetPassword(row)}><FiRefreshCw /> Reset Password</Button>
             <Button variant="light" onClick={() => setStatus(row, "Deactivated")}><FiSlash /> Deactivate</Button>
           </>
-        ), { width: "18%" })} />
+        ), { width: "16%" })} />
       </Card>
       <Card className="admin-panel admin-activity-panel">
         <h2>{isUnified ? "Deactivated Accounts" : `Deactivated ${getPlural(accountType)}`}</h2>
-        <Table className="admin-account-table admin-account-table-deactivated" columns={columns} rows={deactivated} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "18%" })} />
+        <Table className="admin-account-table admin-account-table-deactivated" columns={columns} rows={deactivated} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "16%" })} />
       </Card>
       {createModalOpen ? (
         <div className="modal-backdrop account-modal-backdrop" onClick={closeCreateModal} role="presentation">
