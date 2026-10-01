@@ -1,10 +1,11 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useId, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 import {
   NOTIFICATION_HISTORY_PAGE_SIZE,
   NOTIFICATION_RECENT_LIMIT,
+  buildNotificationChannelName,
   buildNotificationRange,
   isInternalNotificationPath,
   mergeRealtimeNotification,
@@ -32,10 +33,12 @@ function mapNotification(notification) {
 
 export default function useNotifications(user, { page = 1, includeHistory = false } = {}) {
   const queryClient = useQueryClient();
+  const hookOwnerId = useId();
   const userId = user?.id;
   const recentKey = useMemo(() => ["notifications", "recent", userId], [userId]);
   const countKey = useMemo(() => ["notifications", "unread-count", userId], [userId]);
   const historyKey = useMemo(() => ["notifications", "history", userId, page], [userId, page]);
+  const channelName = useMemo(() => buildNotificationChannelName(userId, hookOwnerId), [hookOwnerId, userId]);
 
   const recentQuery = useQuery({
     queryKey: recentKey,
@@ -90,10 +93,10 @@ export default function useNotifications(user, { page = 1, includeHistory = fals
   const historyPageCount = Math.max(1, Math.ceil(historyTotal / NOTIFICATION_HISTORY_PAGE_SIZE));
 
   useEffect(() => {
-    if (!hasSupabaseConfig || !userId) return undefined;
+    if (!hasSupabaseConfig || !userId || !channelName) return undefined;
 
     const channel = supabase
-      .channel(`notifications-${userId}`)
+      .channel(channelName)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "notifications", filter: `user_id=eq.${userId}` }, (payload) => {
         const next = mapNotification(payload.new);
         queryClient.setQueryData(recentKey, (current = []) => mergeRealtimeNotification(current, next));
@@ -111,7 +114,7 @@ export default function useNotifications(user, { page = 1, includeHistory = fals
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [countKey, queryClient, recentKey, userId]);
+  }, [channelName, countKey, queryClient, recentKey, userId]);
 
   useEffect(() => {
     if (recentQuery.error) toast.error(recentQuery.error.message);

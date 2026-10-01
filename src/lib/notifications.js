@@ -8,6 +8,16 @@ export function buildNotificationRange(page) {
   return { from, to: from + NOTIFICATION_HISTORY_PAGE_SIZE - 1 };
 }
 
+function sanitizeChannelPart(value) {
+  return String(value || "").replace(/[^a-zA-Z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+export function buildNotificationChannelName(userId, ownerId) {
+  const safeUserId = sanitizeChannelPart(userId);
+  const safeOwnerId = sanitizeChannelPart(ownerId);
+  return safeUserId && safeOwnerId ? `notifications-${safeUserId}-${safeOwnerId}` : "";
+}
+
 export function isInternalNotificationPath(path) {
   return typeof path === "string"
     && path.startsWith("/")
