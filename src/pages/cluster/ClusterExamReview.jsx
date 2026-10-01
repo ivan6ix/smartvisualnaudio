@@ -1,22 +1,90 @@
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Button, Card, PageHeader, TextArea } from "../../components/ui";
+import { Button, Card, EmptyState, PageHeader, TextArea } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
+import { buildClusterQuestionReview } from "../../lib/clusterReview";
 import { StatusBadge } from "./helpers";
 
 const REVIEW_NOTES_LIMIT = 1000;
+const EMPTY = "Not configured";
+
+function renderAnswerList(title, items) {
+  return (
+    <div className="cluster-question-review-block">
+      <strong>{title}</strong>
+      {items.length ? <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul> : <p>{EMPTY}</p>}
+    </div>
+  );
+}
+
+function renderQuestionDetails(question) {
+  const review = buildClusterQuestionReview(question);
+
+  if (review.questionType === "Matching Type") {
+    return (
+      <>
+        <div className="cluster-question-review-block">
+          <strong>Correct matches</strong>
+          {review.matchingPairs.length ? (
+            <div className="cluster-match-review">
+              {review.matchingPairs.map((pair) => (
+                <div key={`${pair.left}-${pair.right}`}>
+                  <span>{pair.left}</span>
+                  <b>{pair.right}</b>
+                </div>
+              ))}
+            </div>
+          ) : <p>{EMPTY}</p>}
+        </div>
+        {renderAnswerList("Distractors", review.matchingDistractors)}
+      </>
+    );
+  }
+
+  if (review.questionType === "Ordering / Sequencing") {
+    return renderAnswerList("Configured sequence", review.sequence);
+  }
+
+  if (review.questionType === "Drag and Drop") {
+    return (
+      <>
+        {renderAnswerList("Available choices", review.choices.map((choice) => choice.value).filter(Boolean))}
+        {renderAnswerList("Correct choices", review.correctAnswers)}
+      </>
+    );
+  }
+
+  if (review.questionType === "File Upload") {
+    return (
+      <div className="cluster-question-review-block">
+        <strong>Upload configuration</strong>
+        <p>{review.questionConfig.allowedTypes || review.questionConfig.accept || "Student file submission; no configured answer key."}</p>
+      </div>
+    );
+  }
+
+  return (
+    <>
+      {renderAnswerList("Choices", review.choices.map((choice) => choice.value).filter(Boolean))}
+      {renderAnswerList(review.questionType === "Multiple Select" ? "Correct choices" : "Correct answer", review.correctAnswers)}
+      {review.partialMatch ? <p className="cluster-review-hint">Partial match enabled</p> : null}
+    </>
+  );
+}
 
 export default function ClusterExamReview() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { exams, saveReview, approveExam, rejectExam } = useCluster();
-  const exam = exams.find((item) => item.id === id);
+  const safeExams = Array.isArray(exams) ? exams : [];
+  const exam = safeExams.find((item) => item.id === id);
   const [notes, setNotes] = useState(exam?.reviewNotes || "");
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const points = useMemo(() => exam?.questions.reduce((total, item) => total + Number(item.points), 0) || 0, [exam]);
+  const questions = useMemo(() => Array.isArray(exam?.questions) ? exam.questions : [], [exam]);
+  const points = useMemo(() => questions.reduce((total, item) => total + Number(item.points || 0), 0), [questions]);
 
   if (!exam) return <Navigate to="/cluster/pending" replace />;
 
@@ -73,14 +141,15 @@ export default function ClusterExamReview() {
       <Card>
         <h2>Questions</h2>
         <div className="cluster-question-list">
-          {exam.questions.map((question, index) => (
+          {questions.map((question, index) => (
             <article key={question.id}>
               <div><strong>Question {index + 1}</strong><span>{question.questionType}</span></div>
-              <p>{question.questionText}</p>
-              <ul>{question.choices.map((choice) => <li key={choice}>{choice}</li>)}</ul>
-              <footer><span>Correct answer: <b>{question.correctAnswer}</b></span><span>Points: <b>{question.points}</b></span></footer>
+              <p>{question.questionText || EMPTY}</p>
+              {renderQuestionDetails(question)}
+              <footer><span>Question type: <b>{question.questionType || "Question"}</b></span><span>Points: <b>{question.points || 0}</b></span></footer>
             </article>
           ))}
+          {!questions.length ? <EmptyState title="No questions available" description="This exam does not have configured review questions yet." /> : null}
         </div>
       </Card>
       {approveOpen ? (

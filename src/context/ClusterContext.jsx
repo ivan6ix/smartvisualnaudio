@@ -1,10 +1,18 @@
 import useNotifications from "../hooks/useNotifications";
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useAuth } from "./AuthContext";
 import { clusterExams, clusterMessages, clusterNotifications } from "../data/clusterData";
 import useLocalStorageState from "../hooks/useLocalStorageState";
 import { formatCourseMeta } from "../lib/coursePrograms";
+import {
+  normalizeClusterExam,
+  normalizeClusterExams,
+  normalizeClusterMessages,
+  normalizeClusterNotifications,
+  normalizeClusterQuestion,
+  normalizeClusterReviews,
+} from "../lib/clusterReview";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const ClusterContext = createContext(null);
@@ -25,14 +33,17 @@ function formatCourseName(course) {
 }
 
 function buildFilterOptions(exams = [], courseRows = [], professorRows = []) {
+  const safeExams = normalizeClusterExams(exams);
+  const safeCourseRows = Array.isArray(courseRows) ? courseRows : [];
+  const safeProfessorRows = Array.isArray(professorRows) ? professorRows : [];
   return {
     courses: uniqueText([
-      ...exams.map((exam) => exam.course),
-      ...courseRows.map(formatCourseName),
+      ...safeExams.map((exam) => exam.course),
+      ...safeCourseRows.map(formatCourseName),
     ]),
     professors: uniqueText([
-      ...exams.map((exam) => exam.professorName),
-      ...professorRows.map((profile) => profile.full_name || profile.email),
+      ...safeExams.map((exam) => exam.professorName),
+      ...safeProfessorRows.map((profile) => profile.full_name || profile.email),
     ]),
   };
 }
@@ -97,17 +108,18 @@ function normalizeClusterStatus(status) {
 }
 
 function mapQuestion(question) {
-  const choiceItems = Array.isArray(question.choices) ? question.choices : [];
-  const choices = choiceItems.map((choice) => typeof choice === "string" ? choice : `${choice.key || ""}${choice.value ? `. ${choice.value}` : ""}`.trim()).filter(Boolean);
-
-  return {
+  return normalizeClusterQuestion({
     id: question.id,
     questionType: question.question_type || "Question",
     questionText: question.question_text || "",
-    choices,
+    choices: question.choices,
     correctAnswer: question.correct_answer || (Array.isArray(question.correct_answers) ? question.correct_answers.join(", ") : ""),
+    correctAnswers: question.correct_answers,
+    questionConfig: question.question_config,
+    question_config: question.question_config,
     points: question.points || 1,
-  };
+    manualGrading: question.manual_grading,
+  });
 }
 
 function mapLiveExam(exam, profileMap, questionMap, reviewMap) {
@@ -116,7 +128,7 @@ function mapLiveExam(exam, profileMap, questionMap, reviewMap) {
   const reviews = reviewMap.get(exam.id) || [];
   const latestReview = reviews[0];
 
-  return {
+  return normalizeClusterExam({
     id: exam.id,
     examTitle: exam.exam_title || exam.title || "Untitled exam",
     description: exam.description || exam.course || "",
@@ -141,7 +153,7 @@ function mapLiveExam(exam, profileMap, questionMap, reviewMap) {
     rejectionReason: latestReview?.decision === "Rejected" ? latestReview.remarks || "" : "",
     reviewNotes: latestReview?.remarks || "",
     questions: questionMap.get(exam.id) || [],
-  };
+  });
 }
 
 
@@ -165,16 +177,32 @@ function updateExamDecisionState(exams, examId, decision, remarks = "") {
 export function ClusterProvider({ children }) {
   const { user } = useAuth();
   const liveNotifications = useNotifications(user?.role === "Cluster Professor" ? user : null);
-  const [exams, setExams] = useLocalStorageState("smartproctor.cluster.exams", clusterExams);
+  const [storedExams, setStoredExams] = useLocalStorageState("smartproctor.cluster.exams", clusterExams);
   const [professorExams, setProfessorExams] = useLocalStorageState("smartproctor.professor.exams", initialProfessorExams);
-  const [reviews, setReviews] = useLocalStorageState("smartproctor.cluster.reviews", [
+  const [storedReviews, setStoredReviews] = useLocalStorageState("smartproctor.cluster.reviews", [
     { id: "RV-9001", examId: "EX-1002", examTitle: "Information Assurance Quiz", professorName: "Prof. Daniel Reyes", course: "Information Assurance", reviewDate: "2026-05-30", decision: "Approved", remarks: "Answer key and timing look appropriate." },
     { id: "RV-9002", examId: "EX-1003", examTitle: "Ethics Essay Exam", professorName: "Dr. Elise Tan", course: "Professional Ethics", reviewDate: "2026-05-28", decision: "Rejected", remarks: "Missing instructions and incomplete answer guide." },
   ]);
-  const [messages, setMessages] = useLocalStorageState("smartproctor.cluster.messages", clusterMessages);
-  const [notifications, setNotifications] = useLocalStorageState("smartproctor.cluster.notifications", clusterNotifications);
+  const [storedMessages, setStoredMessages] = useLocalStorageState("smartproctor.cluster.messages", clusterMessages);
+  const [storedNotifications, setStoredNotifications] = useLocalStorageState("smartproctor.cluster.notifications", clusterNotifications);
   const [reportsGenerated, setReportsGenerated] = useLocalStorageState("smartproctor.cluster.reportsGenerated", 8);
   const [filterOptions, setFilterOptions] = useState(() => buildFilterOptions(clusterExams));
+  const exams = useMemo(() => normalizeClusterExams(storedExams), [storedExams]);
+  const reviews = useMemo(() => normalizeClusterReviews(storedReviews), [storedReviews]);
+  const messages = useMemo(() => normalizeClusterMessages(storedMessages), [storedMessages]);
+  const notifications = useMemo(() => normalizeClusterNotifications(storedNotifications), [storedNotifications]);
+  const setExams = useCallback((updater) => {
+    setStoredExams((current) => normalizeClusterExams(typeof updater === "function" ? updater(normalizeClusterExams(current)) : updater));
+  }, [setStoredExams]);
+  const setReviews = useCallback((updater) => {
+    setStoredReviews((current) => normalizeClusterReviews(typeof updater === "function" ? updater(normalizeClusterReviews(current)) : updater));
+  }, [setStoredReviews]);
+  const setMessages = useCallback((updater) => {
+    setStoredMessages((current) => normalizeClusterMessages(typeof updater === "function" ? updater(normalizeClusterMessages(current)) : updater));
+  }, [setStoredMessages]);
+  const setNotifications = useCallback((updater) => {
+    setStoredNotifications((current) => normalizeClusterNotifications(typeof updater === "function" ? updater(normalizeClusterNotifications(current)) : updater));
+  }, [setStoredNotifications]);
 
   const loadLiveClusterData = useCallback(async function loadLiveClusterData() {
     if (!hasSupabaseConfig || !user?.id || user.role !== "Cluster Professor") return;
@@ -201,7 +229,7 @@ export function ClusterProvider({ children }) {
         ? supabase.from("profiles").select("id, full_name, email").in("id", professorIds)
         : Promise.resolve({ data: [], error: null }),
       examIds.length
-        ? supabase.from("exam_questions").select("id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, points").in("exam_id", examIds)
+        ? supabase.from("exam_questions").select("id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points").in("exam_id", examIds)
         : Promise.resolve({ data: [], error: null }),
       examIds.length
         ? supabase.from("exam_reviews").select("id, exam_id, decision, remarks, review_date, cluster_professor_id").in("exam_id", examIds).order("review_date", { ascending: false })
@@ -269,6 +297,26 @@ export function ClusterProvider({ children }) {
   useEffect(() => {
     loadLiveClusterData();
   }, [loadLiveClusterData]);
+
+  useEffect(() => {
+    if (hasSupabaseConfig) return;
+    if (!Array.isArray(storedExams)) setStoredExams([]);
+  }, [setStoredExams, storedExams]);
+
+  useEffect(() => {
+    if (hasSupabaseConfig) return;
+    if (!Array.isArray(storedReviews)) setStoredReviews([]);
+  }, [setStoredReviews, storedReviews]);
+
+  useEffect(() => {
+    if (hasSupabaseConfig) return;
+    if (!Array.isArray(storedMessages)) setStoredMessages([]);
+  }, [setStoredMessages, storedMessages]);
+
+  useEffect(() => {
+    if (hasSupabaseConfig) return;
+    if (!Array.isArray(storedNotifications)) setStoredNotifications([]);
+  }, [setStoredNotifications, storedNotifications]);
 
   useEffect(() => {
     if (hasSupabaseConfig) return;
