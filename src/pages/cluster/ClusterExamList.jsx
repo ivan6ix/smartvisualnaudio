@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiClock, FiDownload, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { ListPagination } from "../../components/ListViewControls";
-import { Button, Field, RowActionMenu, SearchBox, SelectField, Table } from "../../components/ui";
+import { Field, RowActionMenu, SearchBox, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { DENSITIES, getListPageSlice, TABLE_PAGE_SIZE } from "../../lib/listView";
@@ -165,27 +165,41 @@ export default function ClusterExamList({ status }) {
       );
     }
 
-    return status === "Approved" ? (
-      <>
-        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View</Button>
-        <Button variant="light">Download Review</Button>
-        <Button variant="light">Generate Report</Button>
-      </>
-    ) : status === "Rejected" ? (
-      <>
-        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View</Button>
-        <Button variant="light" onClick={() => downloadFeedback(row)}><FiDownload /> Download Feedback</Button>
-        <Button variant="light" onClick={() => setHistoryExam(row)}><FiClock /> Resubmission History</Button>
-      </>
-    ) : (
-      <>
-        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View Exam</Button>
-        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Review Exam</Button>
-        <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleApprove(row.id)}>{loadingActionId === row.id ? "Saving..." : "Approve"}</Button>
-        <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleReject(row.id)}>Reject</Button>
-        <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Send Feedback</Button>
-      </>
-    );
+    if (status === "Approved") {
+      return (
+        <RowActionMenu
+          actions={[
+            { label: "View", onClick: () => navigate(`/cluster/exams/${row.id}`) },
+            { label: "Download Review", onClick: () => {} },
+            { label: "Generate Report", onClick: () => {} },
+          ]}
+          label={`Actions for ${row.examTitle || "exam"}`}
+          menuId={`cluster-exam-actions-${status}-${row.id}`}
+          openMenuId={openActionMenuId}
+          rowId={row.id}
+          setOpenMenuId={setOpenActionMenuId}
+        />
+      );
+    }
+
+    if (status === "Rejected") {
+      return (
+        <RowActionMenu
+          actions={[
+            { label: "View", onClick: () => navigate(`/cluster/exams/${row.id}`) },
+            { icon: FiDownload, label: "Download Feedback", onClick: () => downloadFeedback(row) },
+            { icon: FiClock, label: "Resubmission History", onClick: () => setHistoryExam(row) },
+          ]}
+          label={`Actions for ${row.examTitle || "exam"}`}
+          menuId={`cluster-exam-actions-${status}-${row.id}`}
+          openMenuId={openActionMenuId}
+          rowId={row.id}
+          setOpenMenuId={setOpenActionMenuId}
+        />
+      );
+    }
+
+    return null;
   }
   const renderTableActions = Object.assign(renderActions, { width: "7%" });
 

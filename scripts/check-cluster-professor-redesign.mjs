@@ -16,7 +16,9 @@ assert.match(app, /<Route path="\/cluster" element=\{<ClusterLayout \/>\}/, "Clu
 
 assert.match(layout, /className="admin-app-shell cluster-app-shell"/, "Cluster layout should use the shared sidebar shell.");
 assert.match(layout, /Smart Proctoring[\s\S]*Cluster Professor Portal/, "Cluster sidebar branding should remain present.");
-assert.match(layout, /clusterNavigation = \[[\s\S]*Review Overview[\s\S]*Pending Exams[\s\S]*Approved Exams[\s\S]*Rejected Exams[\s\S]*Review History[\s\S]*Reports[\s\S]*Messages[\s\S]*Notifications/, "Cluster navigation must expose actual cluster routes.");
+assert.match(layout, /clusterNavigation = \[[\s\S]*Review Overview[\s\S]*Pending Exams[\s\S]*Approved Exams[\s\S]*Rejected Exams[\s\S]*Review History[\s\S]*Reports/, "Cluster navigation must expose actual cluster routes.");
+assert.doesNotMatch(layout, /clusterNavigation = \[[\s\S]*label: "Messages"[\s\S]*\]/, "Cluster sidebar should not duplicate Messages navigation.");
+assert.doesNotMatch(layout, /clusterNavigation = \[[\s\S]*label: "Notifications"[\s\S]*\]/, "Cluster sidebar should not duplicate Notifications navigation.");
 assert.match(layout, /clusterUtilityNavigation = \[[\s\S]*Profile/, "Cluster profile utility route must remain reachable.");
 assert.match(layout, /useTheme\(\)/, "Cluster shell must use the shared theme context.");
 assert.match(layout, /cluster-topbar-actions[\s\S]*cluster-theme-button[\s\S]*cluster-message-menu[\s\S]*<NotificationBell user=\{user\} \/>[\s\S]*cluster-profile-menu/, "Topbar order must be Theme, Messages, Notifications, Profile.");
@@ -52,7 +54,7 @@ assert.match(examList, /matchesSearch = `\$\{exam\.id\} \$\{exam\.examTitle\} \$
 assert.match(examList, /matchesCourse[\s\S]*matchesProfessor[\s\S]*matchesDate/, "Existing Course, Professor, and Date filters must be preserved.");
 assert.match(examList, /useListViewPreference\(\{ role: "cluster", page: "exam-review", defaultView: "table" \}\)/, "Cards/Table preference must remain table-first and cluster-scoped.");
 assert.match(examList, /getListPageSlice\(filtered, page, TABLE_PAGE_SIZE\)/, "Cluster exam queue pagination must stay table-sized and ignore stale card-view preferences.");
-assert.match(examList, /import \{ Button, Field, RowActionMenu, SearchBox, SelectField, Table \} from "\.\.\/\.\.\/components\/ui"/, "Pending Exams should reuse the shared RowActionMenu for multiple row actions.");
+assert.match(examList, /import \{ Field, RowActionMenu, SearchBox, SelectField, Table \} from "\.\.\/\.\.\/components\/ui"/, "Pending Exams should reuse the shared RowActionMenu for row actions.");
 assert.match(examList, /const \[openActionMenuId, setOpenActionMenuId\] = useState\(""\)/, "Pending Exams should allow only one row action menu open at a time.");
 assert.doesNotMatch(examList, /RecordCardList|ListViewToolbar|listView\.view|switchViewPreservingPage|setCardDensity|cardDensity/, "ClusterExamList should be table-only with no Cards/Table selector or card branch.");
 assert.match(examList, /function TableDensityControls\(\{ tableDensity, onTableDensity \}\)/, "ClusterExamList should keep scoped table density controls.");
@@ -66,8 +68,10 @@ assert.match(examList, /<Table className=\{`cluster-exam-list-table list-table-\
 assert.match(examList, /emptyTitle="No exams are currently awaiting review\."/,
   "Pending Exams table should show a concise empty state.");
 assert.match(examList, /label=\{`Actions for \$\{row\.examTitle \|\| "exam"\}`\}[\s\S]*menuId=\{`cluster-exam-actions-\$\{status\}-\$\{row\.id\}`\}/, "Each Pending Exams record should expose one accessible kebab trigger.");
-assert.match(examList, /status === "Approved" \? \([\s\S]*>View<[\s\S]*>Download Review<[\s\S]*>Generate Report</, "Approved actions must be preserved.");
-assert.match(examList, /status === "Rejected" \? \([\s\S]*>View<[\s\S]*Download Feedback[\s\S]*Resubmission History/, "Rejected actions must be preserved.");
+assert.match(examList, /if \(status === "Approved"\) \{[\s\S]*<RowActionMenu[\s\S]*label: "View"[\s\S]*label: "Download Review"[\s\S]*label: "Generate Report"[\s\S]*menuId=\{`cluster-exam-actions-\$\{status\}-\$\{row\.id\}`\}/, "Approved actions must move into RowActionMenu without changing labels.");
+assert.match(examList, /if \(status === "Rejected"\) \{[\s\S]*<RowActionMenu[\s\S]*label: "View"[\s\S]*label: "Download Feedback"[\s\S]*onClick: \(\) => downloadFeedback\(row\)[\s\S]*label: "Resubmission History"[\s\S]*onClick: \(\) => setHistoryExam\(row\)[\s\S]*menuId=\{`cluster-exam-actions-\$\{status\}-\$\{row\.id\}`\}/, "Rejected actions must move into RowActionMenu without changing handlers.");
+assert.equal((examList.match(/<RowActionMenu/g) || []).length, 3, "Pending, Approved, and Rejected queues should all use the shared kebab menu.");
+assert.doesNotMatch(examList, /<Button[\s\S]*Download Review|<Button[\s\S]*Generate Report|<Button[\s\S]*Download Feedback|<Button[\s\S]*Resubmission History/, "Approved and Rejected rows should not render inline action buttons.");
 assert.match(examList, /label: "View Exam"[\s\S]*label: "Review Exam"[\s\S]*label: loadingActionId === row\.id \? "Saving\.\.\." : "Approve"[\s\S]*label: "Reject"[\s\S]*label: "Send Feedback"/, "Pending Review actions must be preserved.");
 assert.match(styles, /\.cluster-exam-list-page\s*\{[\s\S]*display:\s*grid/, "Pending Exams should have scoped page styling.");
 assert.match(styles, /\.cluster-exam-list-panel\s*\{[\s\S]*border-radius:\s*8px/, "Pending Exams records panel should use boxed system styling.");

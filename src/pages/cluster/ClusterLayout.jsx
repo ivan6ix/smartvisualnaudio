@@ -1,6 +1,6 @@
 import NotificationBell from "../../components/NotificationBell";
 import { useEffect, useState } from "react";
-import { FiBell, FiCheckCircle, FiFileText, FiInbox, FiMenu, FiMessageCircle, FiMoon, FiShield, FiSun, FiUser, FiX, FiXCircle } from "react-icons/fi";
+import { FiCheckCircle, FiFileText, FiInbox, FiMenu, FiMessageCircle, FiMoon, FiShield, FiSun, FiUser, FiX, FiXCircle } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import MessageModal from "../../components/MessageModal";
 import ProfileAvatar from "../../components/ProfileAvatar";
@@ -17,8 +17,6 @@ const clusterNavigation = [
   { label: "Rejected Exams", to: "/cluster/rejected", icon: FiXCircle },
   { label: "Review History", to: "/cluster/history", icon: FiFileText },
   { label: "Reports", to: "/cluster/reports", icon: FiFileText },
-  { label: "Messages", to: "/cluster/messages", icon: FiMessageCircle },
-  { label: "Notifications", to: "/cluster/notifications", icon: FiBell },
 ];
 
 const clusterUtilityNavigation = [
