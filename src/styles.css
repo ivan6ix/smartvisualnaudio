@@ -6894,14 +6894,22 @@ html[data-theme="light"] .professor-course-list-card:hover {
   gap: 12px;
   justify-content: space-between;
 }
+.professor-assignment-heading {
+  margin-bottom: 14px;
+}
+.professor-assignment-heading h2 {
+  line-height: 1.25;
+}
 .professor-assignment-heading p {
   color: var(--app-muted);
-  margin: -10px 0 0;
+  line-height: 1.45;
+  margin: 6px 0 0;
 }
 .professor-assignment-mode {
+  align-items: center;
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
+  gap: 12px 28px;
 }
 .professor-assignment-mode label,
 .professor-assignment-select-all {
