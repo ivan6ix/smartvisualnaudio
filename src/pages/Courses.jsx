@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FiArchive, FiEdit2, FiPlus, FiRefreshCw, FiTrash2 } from "react-icons/fi";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
-import { Button, Card, Field, PageHeader, SearchBox, SelectField, Table, Badge } from "../components/ui";
+import { Badge, Button, Card, EmptyState, Field, PageHeader, SearchBox, SelectField, Table } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import useListViewPreference from "../hooks/useListViewPreference";
 import { courses as seedCourses, professors } from "../data/mockData";
@@ -289,6 +289,9 @@ export default function Courses() {
   ];
   const pageData = getListPageSlice(visible, page, listView.pageSize);
   const deleteConfirmed = deleteConfirmationText === "DELETE";
+  const deanProfessorCount = new Set(visible.map((course) => course.professor).filter((professor) => professor && professor !== "Unassigned")).size;
+  const deanActiveCount = visible.filter((course) => !course.archived).length;
+  const deanArchivedCount = visible.filter((course) => course.archived).length;
 
   const programColumns = [
     { key: "program_code", label: "Program Code", width: "20%", render: (row) => <strong>{row.program_code}</strong> },
@@ -297,15 +300,22 @@ export default function Courses() {
   ];
 
   return (
-    <section className="admin-dashboard-page admin-section-page">
-      <div className="admin-section-hero">
+    <section className={`admin-dashboard-page admin-section-page${isReadOnly ? " dean-courses-page" : ""}`}>
+      {isReadOnly ? (
+        <header className="dean-dashboard-header dean-courses-header">
+          <h1>Courses</h1>
+          <p>View and oversee academic courses and their examination activity.</p>
+        </header>
+      ) : (
+        <div className="admin-section-hero">
         <div>
           <span><FiPlus /> Course Operations</span>
           <h1>Courses</h1>
-          <p>{isReadOnly ? "View courses and assigned professors across the institution." : "Create courses, assign professors, generate joining codes, and manage archives."}</p>
+          <p>Create courses, assign professors, generate joining codes, and manage archives.</p>
         </div>
         <strong>{visible.length}</strong>
-      </div>
+        </div>
+      )}
       {!isReadOnly ? <PageHeader title="Courses" subtitle="Create courses, assign professors, generate joining codes, and manage archives." /> : null}
       {!isReadOnly ? (
         <Card className="admin-panel admin-form-panel">
@@ -353,12 +363,44 @@ export default function Courses() {
         </Card>
       ) : null}
       {isReadOnly ? (
-        <div className="dean-course-search">
-          <SearchBox value={search} onChange={setSearch} placeholder="Search course or professor" />
-        </div>
+        <>
+          <div className="dean-kpi-grid dean-courses-kpi-grid">
+            <Card className="dean-kpi-card">
+              <div>
+                <span>Total Courses</span>
+                <strong>{visible.length}</strong>
+              </div>
+            </Card>
+            <Card className="dean-kpi-card">
+              <div>
+                <span>Active Courses</span>
+                <strong>{deanActiveCount}</strong>
+              </div>
+            </Card>
+            <Card className="dean-kpi-card">
+              <div>
+                <span>Archived</span>
+                <strong>{deanArchivedCount}</strong>
+              </div>
+            </Card>
+            <Card className="dean-kpi-card">
+              <div>
+                <span>Assigned Professors</span>
+                <strong>{deanProfessorCount}</strong>
+              </div>
+            </Card>
+          </div>
+          <Card className="dean-dashboard-panel dean-courses-controls">
+            <div className="dean-course-search">
+              <SearchBox value={search} onChange={setSearch} placeholder="Search course or professor" />
+            </div>
+          </Card>
+        </>
       ) : (
         <SearchBox value={search} onChange={setSearch} placeholder="Search course, professor, section, or joining code" />
       )}
+      {!isReadOnly ? (
+        <>
       <ListViewToolbar
         controls={{
           cardDensity: listView.cardDensity,
@@ -372,7 +414,7 @@ export default function Courses() {
       <Card className="admin-panel admin-activity-panel">
         <div className="course-records-header">
           <h2>Course Records</h2>
-          {!isReadOnly ? <Button variant="light" onClick={() => setShowArchived(true)}><FiArchive /> Archives</Button> : null}
+          <Button variant="light" onClick={() => setShowArchived(true)}><FiArchive /> Archives</Button>
         </div>
         {listView.view === "cards" ? (
           <RecordCardList
@@ -380,13 +422,69 @@ export default function Courses() {
             density={listView.cardDensity}
             rows={pageData.rows}
             titleKey="courseName"
-            renderActions={!isReadOnly ? (row) => <Button disabled={archiveActionId === row.id} variant="light" onClick={() => setArchiveCandidate(row)}><FiArchive /> Archive</Button> : null}
+            renderActions={(row) => <Button disabled={archiveActionId === row.id} variant="light" onClick={() => setArchiveCandidate(row)}><FiArchive /> Archive</Button>}
           />
         ) : (
-          <Table className={`courses-table-wrap list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={!isReadOnly ? Object.assign((row) => <Button disabled={archiveActionId === row.id} variant="light" onClick={() => setArchiveCandidate(row)}><FiArchive /> Archive</Button>, { width: "17%" }) : null} />
+          <Table className={`courses-table-wrap list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={Object.assign((row) => <Button disabled={archiveActionId === row.id} variant="light" onClick={() => setArchiveCandidate(row)}><FiArchive /> Archive</Button>, { width: "17%" })} />
         )}
         <ListPagination count={visible.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
       </Card>
+        </>
+      ) : (
+        <Card className="dean-dashboard-panel dean-courses-records-panel">
+          <div className="dean-dashboard-section-header">
+            <div>
+              <h2>Course Records</h2>
+              <p>Read-only course oversight with assigned professor and academic term details.</p>
+            </div>
+            <span>{visible.length} courses</span>
+          </div>
+          <ListViewToolbar
+            controls={{
+              cardDensity: listView.cardDensity,
+              onCardDensity: listView.setCardDensity,
+              onTableDensity: listView.setTableDensity,
+              onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, visible.length)),
+              tableDensity: listView.tableDensity,
+              view: listView.view,
+            }}
+          />
+          {coursesQuery.isError ? (
+            <div className="dean-courses-state dean-courses-error" role="alert">
+              <strong>Unable to load courses.</strong>
+              <span>{coursesQuery.error.message}</span>
+            </div>
+          ) : coursesQuery.isLoading ? (
+            <div className="dean-courses-state" aria-busy="true">
+              <strong>Loading courses...</strong>
+              <span>Fetching the current academic course records.</span>
+            </div>
+          ) : (
+            <div className="dean-courses-table-scroll">
+              {listView.view === "cards" ? (
+                <RecordCardList
+                  columns={columns}
+                  density={listView.cardDensity}
+                  empty={<EmptyState title="No courses match the current search." description="Adjust the search text to review course records." />}
+                  rows={pageData.rows}
+                  titleKey="courseName"
+                />
+              ) : (
+                <Table
+                  className={`dean-courses-table list-table-${listView.tableDensity}`}
+                  columns={columns}
+                  emptyDescription="Adjust the search text to review course records."
+                  emptyTitle="No courses match the current search."
+                  rows={pageData.rows}
+                />
+              )}
+            </div>
+          )}
+          {!coursesQuery.isError && !coursesQuery.isLoading ? (
+            <ListPagination count={visible.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
+          ) : null}
+        </Card>
+      )}
       {showArchived && !isReadOnly ? (
         <div className="modal-backdrop" onClick={() => setShowArchived(false)}>
           <Card className="modal" onClick={(event) => event.stopPropagation()}>
