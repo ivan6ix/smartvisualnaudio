@@ -3864,6 +3864,137 @@ html[data-appearance="dark"] .dean-sidebar {
   font-weight: 800;
   white-space: nowrap;
 }
+.dean-integrity-page {
+  color: var(--text-primary);
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.dean-integrity-controls {
+  display: grid;
+  gap: 14px;
+}
+.dean-integrity-search-row {
+  max-width: 640px;
+}
+.dean-integrity-search-row .search-box {
+  min-height: 44px;
+  box-shadow: none;
+}
+.dean-integrity-filter-row {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(180px, 260px));
+}
+.dean-integrity-records-panel {
+  min-width: 0;
+}
+.dean-integrity-records-panel .list-view-toolbar {
+  margin-top: 0;
+}
+.dean-integrity-table-scroll {
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  max-height: calc(48px + (52px * 15));
+  min-width: 0;
+  overflow: auto;
+}
+.dean-integrity-table-scroll::-webkit-scrollbar {
+  height: 10px;
+  width: 10px;
+}
+.dean-integrity-table-scroll::-webkit-scrollbar-thumb {
+  background: rgba(100, 116, 139, 0.5);
+  border-radius: 999px;
+}
+.dean-integrity-table {
+  border: 0;
+  min-width: 980px;
+}
+.dean-integrity-table table {
+  table-layout: fixed;
+}
+.dean-integrity-table thead th {
+  background: var(--app-input);
+  border-bottom: 1px solid var(--app-line);
+  color: var(--text-muted);
+  font-size: 0.74rem;
+  letter-spacing: 0.04em;
+  line-height: 1.25;
+  padding: 12px 14px;
+  position: sticky;
+  text-transform: uppercase;
+  top: 0;
+  z-index: 2;
+}
+.dean-integrity-table tbody td {
+  line-height: 1.35;
+  padding: 12px 14px;
+  vertical-align: middle;
+}
+.dean-integrity-table th,
+.dean-integrity-table td {
+  overflow-wrap: anywhere;
+}
+.dean-integrity-table .dean-integrity-primary {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+.dean-integrity-state {
+  background: var(--app-input);
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  color: var(--text-primary);
+  display: grid;
+  gap: 6px;
+  padding: 24px;
+}
+.dean-integrity-state span {
+  color: var(--text-muted);
+}
+.dean-integrity-error {
+  border-color: rgba(220, 38, 38, 0.45);
+}
+.dean-integrity-records-panel .empty-state {
+  border: 0;
+  border-radius: 0 0 8px 8px;
+  min-height: 180px;
+}
+.dean-integrity-records-panel .list-card-grid {
+  padding: 1px;
+}
+.dean-integrity-records-panel .list-record-card {
+  border-radius: 8px;
+}
+.dean-integrity-records-panel .badge {
+  justify-content: center;
+  min-width: 70px;
+  padding: 5px 9px;
+}
+.dean-integrity-link {
+  color: var(--accent);
+  font-weight: 800;
+  text-decoration: none;
+}
+button.dean-integrity-link {
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+}
+.dean-integrity-link:hover {
+  color: var(--app-text);
+  text-decoration: underline;
+}
+.dean-integrity-audio {
+  background: var(--app-surface);
+  border-radius: 999px;
+  height: 34px;
+  max-width: 100%;
+  width: 220px;
+}
 .dean-course-search {
   width: min(100%, 520px);
 }
@@ -13192,6 +13323,8 @@ html[data-theme="light"] :is(
   .dashboard-grid, .messages-layout { grid-template-columns: 1fr; }
   .inline-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dean-dashboard-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dean-integrity-filter-row { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dean-integrity-table { min-width: 900px; }
   .top-nav { grid-template-columns: 1fr; }
   .top-nav nav { justify-content: flex-start; }
   .cluster-topbar { grid-template-columns: 1fr; }
@@ -13476,6 +13609,9 @@ html[data-theme="light"] :is(
   .stats-grid, .form-grid, .inline-form, .toolbar, .quick-grid, .reply-box { grid-template-columns: 1fr; }
   .dean-dashboard-search-row,
   .dean-dashboard-filters { grid-template-columns: 1fr; }
+  .dean-integrity-filter-row { grid-template-columns: 1fr; }
+  .dean-integrity-table-scroll { max-height: none; }
+  .dean-integrity-table { min-width: 860px; }
   .dean-dashboard-section-header { align-items: flex-start; flex-direction: column; }
   .nav-tools { flex-wrap: wrap; }
   .profile-menu > button span { display: none; }

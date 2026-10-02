@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FiActivity, FiAlertTriangle, FiCamera, FiShield } from "react-icons/fi";
 import { toast } from "sonner";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
-import { Badge, Card, PageHeader, SearchBox, SelectField, StatCard, Table } from "../../components/ui";
+import { Badge, Card, EmptyState, SearchBox, SelectField, Table } from "../../components/ui";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -90,6 +90,8 @@ function EvidenceCell({ row }) {
 
 export default function DeanExamIntegrity() {
   const [violations, setViolations] = useState([]);
+  const [loading, setLoading] = useState(Boolean(hasSupabaseConfig));
+  const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [severity, setSeverity] = useState("All Severities");
@@ -97,9 +99,14 @@ export default function DeanExamIntegrity() {
   const listView = useListViewPreference({ role: "dean", page: "exam-integrity", defaultView: "table" });
 
   useEffect(() => {
-    if (!hasSupabaseConfig) return undefined;
+    if (!hasSupabaseConfig) {
+      setLoading(false);
+      return undefined;
+    }
 
     async function loadViolations() {
+      setLoading(true);
+      setLoadError("");
       const { data, error } = await supabase
         .from("violations")
         .select("id, student_id, exam_id, violation_type, description, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at")
@@ -107,6 +114,8 @@ export default function DeanExamIntegrity() {
         .limit(500);
 
       if (error) {
+        setLoadError(error.message);
+        setLoading(false);
         toast.error(error.message);
         return;
       }
@@ -151,6 +160,7 @@ export default function DeanExamIntegrity() {
       });
 
       setViolations(rows);
+      setLoading(false);
     }
 
     loadViolations();
@@ -178,39 +188,71 @@ export default function DeanExamIntegrity() {
   const examCount = new Set(violations.map((violation) => violation.exam)).size;
 
   const columns = [
-    { key: "student", label: "Student" },
-    { key: "studentNumber", label: "Student ID" },
-    { key: "exam", label: "Exam" },
-    { key: "violationType", label: "Violation" },
-    { key: "severity", label: "Severity", render: (row) => <Badge tone={severityTone(row.severity)}>{row.severity}</Badge> },
-    { key: "date", label: "Date" },
-    { key: "time", label: "Time" },
+    { key: "student", label: "Student", width: "18%", className: "dean-integrity-primary" },
+    { key: "studentNumber", label: "Student ID", width: "10%" },
+    { key: "exam", label: "Exam", width: "20%", className: "dean-integrity-primary" },
+    { key: "violationType", label: "Violation", width: "18%", className: "dean-integrity-primary" },
+    { key: "severity", label: "Severity", width: "10%", render: (row) => <Badge tone={severityTone(row.severity)}>{row.severity}</Badge> },
+    { key: "date", label: "Date", width: "10%" },
+    { key: "time", label: "Time", width: "8%" },
     {
       key: "snapshot",
       label: "Evidence",
+      width: "10%",
       render: (row) => <EvidenceCell row={row} />,
     },
   ];
   const pageData = getListPageSlice(filteredViolations, page, listView.pageSize);
 
   return (
-    <>
-      <PageHeader title="Exam Integrity" subtitle="Monitor live proctoring violations and review submitted alert evidence." />
-      <div className="stats-grid dean-stats-grid">
-        <StatCard label="Total Alerts" value={violations.length} icon={FiActivity} />
-        <StatCard label="High Severity" value={highCount} icon={FiAlertTriangle} />
-        <StatCard label="Exams With Alerts" value={examCount} icon={FiShield} />
-        <StatCard label="Snapshots" value={snapshotCount} icon={FiCamera} />
+    <section className="dean-integrity-page">
+      <header className="dean-dashboard-header dean-integrity-header">
+        <h1>Exam Integrity</h1>
+        <p>Review examination integrity records and recorded monitoring events.</p>
+      </header>
+
+      <div className="dean-kpi-grid dean-integrity-kpi-grid">
+        {[
+          ["Total Alerts", violations.length, FiActivity],
+          ["High Severity", highCount, FiAlertTriangle],
+          ["Exams With Alerts", examCount, FiShield],
+          ["Evidence Records", snapshotCount, FiCamera],
+        ].map(([label, value, Icon]) => (
+          <Card className="dean-kpi-card" key={label}>
+            <div>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+            <Icon aria-hidden="true" />
+          </Card>
+        ))}
       </div>
-      <Card>
-        <div className="toolbar">
+
+      <Card className="dean-dashboard-panel dean-integrity-controls">
+        <div className="dean-integrity-search-row">
           <SearchBox value={search} onChange={setSearch} placeholder="Search student, exam, or violation" />
+        </div>
+        <div className="dean-integrity-filter-row">
           <SelectField label="Severity Filter" value={severity} onChange={(event) => setSeverity(event.target.value)}>
             <option>All Severities</option>
             <option>High</option>
             <option>Medium</option>
             <option>Low</option>
-          </SelectField><SelectField label="Violation Type" value={typeFilter} onChange={event => setTypeFilter(event.target.value)}><option>All</option>{[...new Set(violations.map(item => item.violationType))].filter(Boolean).map(type => <option key={type}>{type}</option>)}</SelectField>
+          </SelectField>
+          <SelectField label="Violation Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+            <option>All</option>
+            {[...new Set(violations.map((item) => item.violationType))].filter(Boolean).map((type) => <option key={type}>{type}</option>)}
+          </SelectField>
+        </div>
+      </Card>
+
+      <Card className="dean-dashboard-panel dean-integrity-records-panel">
+        <div className="dean-dashboard-section-header">
+          <div>
+            <h2>Integrity Records</h2>
+            <p>Showing the latest capped monitoring records with evidence available on request.</p>
+          </div>
+          <span>{filteredViolations.length} records</span>
         </div>
         <ListViewToolbar
           controls={{
@@ -222,15 +264,41 @@ export default function DeanExamIntegrity() {
             view: listView.view,
           }}
         />
-        <div className="dean-integrity-table-scroll">
+        {loadError ? (
+          <div className="dean-integrity-state dean-integrity-error" role="alert">
+            <strong>Unable to load integrity records.</strong>
+            <span>{loadError}</span>
+          </div>
+        ) : loading ? (
+          <div className="dean-integrity-state" aria-busy="true">
+            <strong>Loading integrity records...</strong>
+            <span>Fetching the latest monitoring metadata.</span>
+          </div>
+        ) : (
+          <div className="dean-integrity-table-scroll">
           {listView.view === "cards" ? (
-            <RecordCardList columns={columns} density={listView.cardDensity} rows={pageData.rows} titleKey="student" />
+            <RecordCardList
+              columns={columns}
+              density={listView.cardDensity}
+              empty={<EmptyState title="No integrity records match the current filters." description="Adjust search or filters to review records." />}
+              rows={pageData.rows}
+              titleKey="student"
+            />
           ) : (
-            <Table className={`list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} />
+            <Table
+              className={`dean-integrity-table list-table-${listView.tableDensity}`}
+              columns={columns}
+              emptyDescription="Adjust search or filters to review records."
+              emptyTitle="No integrity records match the current filters."
+              rows={pageData.rows}
+            />
           )}
-        </div>
-        <ListPagination count={filteredViolations.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
+          </div>
+        )}
+        {!loadError && !loading ? (
+          <ListPagination count={filteredViolations.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
+        ) : null}
       </Card>
-    </>
+    </section>
   );
 }
