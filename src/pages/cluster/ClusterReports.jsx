@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
 import { FiFileText } from "react-icons/fi";
 import { toast } from "sonner";
-import { Button, Card, Field, PageHeader, SelectField, Table } from "../../components/ui";
+import { Button, Field, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
+import { StatusBadge } from "./helpers";
 
 function pdfSafe(value) {
   return String(value ?? "")
@@ -128,13 +129,13 @@ export default function ClusterReports() {
   }
 
   return (
-    <>
-      <PageHeader title="Reports" subtitle="Generate cluster review reports with date, course, professor, and status filters." />
-      <div className="cluster-report-actions">
-        <Button onClick={exportReport}><FiFileText /> Generate Report</Button>
-      </div>
-      <Card>
-        <div className="cluster-filters">
+    <section className="cluster-reports-page">
+      <header className="cluster-reports-header">
+        <h1>Reports</h1>
+        <p>Generate cluster review reports with date, course, professor, and status filters.</p>
+      </header>
+      <section className="cluster-reports-filters-panel">
+        <div className="cluster-reports-filters">
           <SelectField label="Report Type" value={reportType} onChange={(event) => setReportType(event.target.value)}>
             <option>Exam Approval Report</option><option>Rejected Exam Report</option><option>Monthly Review Report</option><option>Professor Submission Report</option><option>Cluster Review Summary</option>
           </SelectField>
@@ -143,17 +144,20 @@ export default function ClusterReports() {
           <SelectField label="Professor" value={professor} onChange={(event) => setProfessor(event.target.value)}>{professors.map((item) => <option key={item}>{item}</option>)}</SelectField>
           <SelectField label="Status" value={status} onChange={(event) => setStatus(event.target.value)}>{statuses.map((item) => <option key={item}>{item}</option>)}</SelectField>
         </div>
-      </Card>
-      <Card>
-        <h2>{reportType}</h2>
-        <Table columns={[
+      </section>
+      <section className="cluster-reports-panel">
+        <div className="cluster-reports-panel-header">
+          <h2>{reportType}</h2>
+          <Button onClick={exportReport}><FiFileText /> Generate Report</Button>
+        </div>
+        <Table className="cluster-reports-table" columns={[
           { key: "examTitle", label: "Exam Title" },
           { key: "professorName", label: "Professor Name" },
           { key: "course", label: "Course" },
-          { key: "status", label: "Status" },
+          { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
           { key: "submittedAt", label: "Submitted" },
         ]} rows={rows} />
-      </Card>
-    </>
+      </section>
+    </section>
   );
 }

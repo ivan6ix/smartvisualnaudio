@@ -6,6 +6,7 @@ const layout = readFileSync("src/pages/cluster/ClusterLayout.jsx", "utf8");
 const dashboard = readFileSync("src/pages/cluster/ClusterDashboard.jsx", "utf8");
 const examList = readFileSync("src/pages/cluster/ClusterExamList.jsx", "utf8");
 const history = readFileSync("src/pages/cluster/ClusterHistory.jsx", "utf8");
+const reports = readFileSync("src/pages/cluster/ClusterReports.jsx", "utf8");
 const review = readFileSync("src/pages/cluster/ClusterExamReview.jsx", "utf8");
 const notifications = readFileSync("src/hooks/useNotifications.js", "utf8");
 const styles = readFileSync("src/styles.css", "utf8");
@@ -100,8 +101,21 @@ assert.match(history, /function closeSelectedReview\(\) \{[\s\S]*setSelectedRevi
 assert.doesNotMatch(history, /saveReview|approveExam|rejectExam|setApproveOpen|setRejectOpen/, "Review History detail must not expose decision-changing workflow actions.");
 assert.doesNotMatch(history, /renderActions=\{\(\) => <Button variant="light">View<\/Button>\}/, "Review History View must not be a no-op button.");
 
+assert.match(reports, /className="cluster-reports-page"/, "Cluster Reports should use the compact scoped page shell.");
+assert.doesNotMatch(reports, /<PageHeader title="Reports"/, "Cluster Reports should not use the oversized shared hero header.");
+assert.match(reports, /<section className="cluster-reports-panel">[\s\S]*<div className="cluster-reports-panel-header">[\s\S]*<h2>\{reportType\}<\/h2>[\s\S]*<Button onClick=\{exportReport\}><FiFileText \/> Generate Report<\/Button>/, "Generate Report should live in the report panel header and keep its handler.");
+assert.match(reports, /className="cluster-reports-filters"[\s\S]*Report Type[\s\S]*Date range[\s\S]*Course[\s\S]*Professor[\s\S]*Status/, "Cluster Reports filters should remain present in a compact scoped container.");
+assert.match(reports, /render: \(row\) => <StatusBadge status=\{row\.status\} \/>/, "Cluster Reports status values should render as shared status badges.");
+assert.match(reports, /<Table className="cluster-reports-table"[\s\S]*Exam Title[\s\S]*Professor Name[\s\S]*Course[\s\S]*Status[\s\S]*Submitted/, "Cluster Reports should remain table-only with the existing columns.");
+assert.doesNotMatch(reports, /ListViewToolbar|RecordCardList|cardDensity|Cards|switchViewPreservingPage/, "Cluster Reports should not expose Cards/Table view switching.");
+
 assert.match(styles, /\.admin-topbar-actions \.cluster-profile-menu > button\s*\{[\s\S]*width:\s*38px;[\s\S]*height:\s*38px;[\s\S]*border-radius:\s*50%;[\s\S]*overflow:\s*hidden;/, "Cluster topbar profile trigger should be a compact circle.");
 assert.match(styles, /\.admin-topbar-actions \.cluster-profile-menu > button \.profile-avatar\s*\{[\s\S]*border-radius:\s*50%;[\s\S]*overflow:\s*hidden;/, "Cluster topbar avatar should remain clipped to a circle.");
+assert.match(styles, /\.cluster-reports-page\s*\{[\s\S]*display:\s*grid/, "Cluster Reports should have scoped compact page styling.");
+assert.match(styles, /\.cluster-reports-filters\s*\{[\s\S]*grid-template-columns:\s*minmax\(180px,\s*1\.15fr\) repeat\(4,\s*minmax\(130px,\s*1fr\)\)/, "Cluster Reports filters should use a compact proportional row.");
+assert.match(styles, /\.cluster-reports-panel\s*\{[\s\S]*border-radius:\s*8px/, "Cluster Reports table should live in one boxed panel.");
+assert.match(styles, /\.cluster-reports-table\s*\{[\s\S]*min-width:\s*0;[\s\S]*table-layout:\s*fixed/, "Cluster Reports table should avoid artificial desktop overflow.");
+assert.match(styles, /\.cluster-reports-table \.badge\s*\{[\s\S]*width:\s*fit-content;[\s\S]*white-space:\s*nowrap;/, "Cluster Reports status badges should be compact natural-width pills.");
 assert.match(styles, /\.cluster-history-table\s*\{[\s\S]*min-width:\s*900px;[\s\S]*table-layout:\s*fixed;/, "Review History table should use local width instead of compressing headers character-by-character.");
 assert.match(styles, /\.cluster-history-table th\s*\{[\s\S]*font-size:\s*clamp\(0\.66rem,\s*0\.9vw,\s*0\.74rem\);[\s\S]*white-space:\s*nowrap;[\s\S]*word-break:\s*normal;/, "Review History headers should stay readable with responsive sizing and normal word breaking.");
 assert.match(styles, /\.cluster-history-table th:nth-child\(1\),\s*\.cluster-history-table td:nth-child\(1\)\s*\{[\s\S]*overflow-wrap:\s*break-word;[\s\S]*word-break:\s*normal;/, "Review History UUIDs may wrap safely without forcing other headers to break.");
