@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 const app = readFileSync("src/App.jsx", "utf8");
 const layout = readFileSync("src/pages/cluster/ClusterLayout.jsx", "utf8");
 const dashboard = readFileSync("src/pages/cluster/ClusterDashboard.jsx", "utf8");
+const examList = readFileSync("src/pages/cluster/ClusterExamList.jsx", "utf8");
 const review = readFileSync("src/pages/cluster/ClusterExamReview.jsx", "utf8");
 const notifications = readFileSync("src/hooks/useNotifications.js", "utf8");
 const styles = readFileSync("src/styles.css", "utf8");
@@ -42,6 +43,35 @@ assert.match(dashboard, /actions=\{\[[\s\S]*label: "Review"[\s\S]*onClick: \(\) 
 assert.doesNotMatch(dashboard, /<div className="cluster-row-actions">[\s\S]*<Button disabled=\{loadingActionId === row\.id\} variant="light" onClick=\{\(\) => handleApprove\(row\.id\)\}/, "Recent Activity should not render the old inline approve/review/reject button group.");
 assert.match(styles, /\.cluster-row-actions\s*\{[\s\S]*justify-content:\s*center/, "Cluster Recent Activity actions column should center the kebab trigger.");
 assert.match(styles, /\.cluster-review-table th:nth-child\(6\)\s*\{\s*width:\s*8%;\s*\}/, "Cluster Recent Activity Actions column should be compact after moving actions into the menu.");
+
+assert.match(examList, /export default function ClusterExamList\(\{ status \}\)/, "Cluster exam list route component must remain status-driven.");
+assert.match(examList, /const \{ exams, filterOptions, reviews, approveExam, rejectExam \} = useCluster\(\)/, "Cluster exam list must keep its existing data source and handlers.");
+assert.match(examList, /setStatusFilter\(status\)/, "Pending/Approved/Rejected route status filter must remain driven by route props.");
+assert.match(examList, /exam\.status === statusFilter/, "Existing pending-status filtering must remain exact.");
+assert.match(examList, /matchesSearch = `\$\{exam\.id\} \$\{exam\.examTitle\} \$\{exam\.professorName\} \$\{exam\.course\}`/, "Existing search fields must be preserved.");
+assert.match(examList, /matchesCourse[\s\S]*matchesProfessor[\s\S]*matchesDate/, "Existing Course, Professor, and Date filters must be preserved.");
+assert.match(examList, /useListViewPreference\(\{ role: "cluster", page: "exam-review", defaultView: "table" \}\)/, "Cards/Table preference must remain table-first and cluster-scoped.");
+assert.match(examList, /getListPageSlice\(filtered, page, listView\.pageSize\)/, "Shared pagination must remain wired.");
+assert.match(examList, /import \{ Button, Card, Field, PageHeader, RowActionMenu, SearchBox, SelectField, Table \} from "\.\.\/\.\.\/components\/ui"/, "Pending Exams should reuse the shared RowActionMenu for multiple row actions.");
+assert.match(examList, /const \[openActionMenuId, setOpenActionMenuId\] = useState\(""\)/, "Pending Exams should allow only one row action menu open at a time.");
+assert.match(examList, /className="cluster-exam-list-page"/, "Pending Exams should use the scoped redesigned page wrapper.");
+assert.match(examList, /<header className="cluster-exam-list-header">[\s\S]*<h1>\{titles\[status\]\}<\/h1>/, "Pending Exams should use the compact cluster page header.");
+assert.match(examList, /className="cluster-exam-list-toolbar"/, "Pending Exams filters should live in a boxed toolbar.");
+assert.match(examList, /className="cluster-exam-list-panel"/, "Pending Exams records should live in a boxed panel.");
+assert.match(examList, /className="cluster-exam-table-scroll"/, "Pending Exams table should use local horizontal overflow.");
+assert.match(examList, /<Table className=\{`cluster-exam-list-table list-table-\$\{listView\.tableDensity\}`\} columns=\{columns\} rows=\{pageData\.rows\} renderActions=\{renderActions\}/, "Pending Exams table path must keep existing columns and actions.");
+assert.match(examList, /empty=\{<div className="cluster-exam-list-state"[\s\S]*No exams are currently awaiting review\./, "Pending Exams cards should show a scoped empty state.");
+assert.match(examList, /emptyTitle="No exams are currently awaiting review\."/,
+  "Pending Exams table should show a concise empty state.");
+assert.match(examList, /label=\{`Actions for \$\{row\.examTitle \|\| "exam"\}`\}[\s\S]*menuId=\{`cluster-exam-actions-\$\{status\}-\$\{row\.id\}`\}/, "Each Pending Exams record should expose one accessible kebab trigger.");
+assert.match(examList, /status === "Approved" \? \([\s\S]*>View<[\s\S]*>Download Review<[\s\S]*>Generate Report</, "Approved actions must be preserved.");
+assert.match(examList, /status === "Rejected" \? \([\s\S]*>View<[\s\S]*Download Feedback[\s\S]*Resubmission History/, "Rejected actions must be preserved.");
+assert.match(examList, /label: "View Exam"[\s\S]*label: "Review Exam"[\s\S]*label: loadingActionId === row\.id \? "Saving\.\.\." : "Approve"[\s\S]*label: "Reject"[\s\S]*label: "Send Feedback"/, "Pending Review actions must be preserved.");
+assert.match(styles, /\.cluster-exam-list-page\s*\{[\s\S]*display:\s*grid/, "Pending Exams should have scoped page styling.");
+assert.match(styles, /\.cluster-exam-list-panel\s*\{[\s\S]*border-radius:\s*8px/, "Pending Exams records panel should use boxed system styling.");
+assert.match(styles, /\.cluster-exam-table-scroll\s*\{[\s\S]*overflow:\s*auto/, "Pending Exams table should keep local overflow.");
+assert.match(styles, /\.cluster-exam-list-page \.list-record-card\s*\{[\s\S]*border-radius:\s*8px/, "Pending Exams card view should use true boxed cards.");
+assert.match(styles, /html\[data-theme="dark"\] \.cluster-exam-list-page \.list-record-card/, "Pending Exams card view should keep Dark Mode card borders.");
 
 assert.match(review, /const REVIEW_NOTES_LIMIT = 1000/, "Review notes limit must remain 1000 characters.");
 assert.match(review, /<TextArea label="Review Notes"[\s\S]*maxLength=\{REVIEW_NOTES_LIMIT\}/, "Review notes textarea must keep its max length.");

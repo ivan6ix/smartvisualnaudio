@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiClock, FiDownload, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
-import { Button, Card, Field, PageHeader, SearchBox, SelectField, Table } from "../../components/ui";
+import { Button, Card, Field, PageHeader, RowActionMenu, SearchBox, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { getListPageSlice } from "../../lib/listView";
@@ -23,6 +23,7 @@ export default function ClusterExamList({ status }) {
   const [date, setDate] = useState("");
   const [statusFilter, setStatusFilter] = useState(status);
   const [loadingActionId, setLoadingActionId] = useState("");
+  const [openActionMenuId, setOpenActionMenuId] = useState("");
   const [historyExam, setHistoryExam] = useState(null);
   const [page, setPage] = useState(1);
   const listView = useListViewPreference({ role: "cluster", page: "exam-review", defaultView: "table" });
@@ -130,6 +131,25 @@ export default function ClusterExamList({ status }) {
   const pageData = getListPageSlice(filtered, page, listView.pageSize);
 
   function renderActions(row) {
+    if (status === "Pending Review") {
+      return (
+        <RowActionMenu
+          actions={[
+            { label: "View Exam", onClick: () => navigate(`/cluster/exams/${row.id}`) },
+            { label: "Review Exam", onClick: () => navigate(`/cluster/exams/${row.id}`) },
+            { label: loadingActionId === row.id ? "Saving..." : "Approve", disabled: loadingActionId === row.id, onClick: () => handleApprove(row.id) },
+            { danger: true, label: "Reject", disabled: loadingActionId === row.id, onClick: () => handleReject(row.id) },
+            { label: "Send Feedback", onClick: () => navigate(`/cluster/exams/${row.id}`) },
+          ]}
+          label={`Actions for ${row.examTitle || "exam"}`}
+          menuId={`cluster-exam-actions-${status}-${row.id}`}
+          openMenuId={openActionMenuId}
+          rowId={row.id}
+          setOpenMenuId={setOpenActionMenuId}
+        />
+      );
+    }
+
     return status === "Approved" ? (
       <>
         <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>View</Button>
@@ -150,6 +170,67 @@ export default function ClusterExamList({ status }) {
         <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleReject(row.id)}>Reject</Button>
         <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Send Feedback</Button>
       </>
+    );
+  }
+
+  if (status === "Pending Review") {
+    return (
+      <section className="cluster-exam-list-page">
+        <header className="cluster-exam-list-header">
+          <div>
+            <h1>{titles[status]}</h1>
+            <p>Review examinations submitted for Cluster Professor approval.</p>
+          </div>
+        </header>
+        <div className="cluster-exam-list-toolbar">
+          <SearchBox value={search} onChange={setSearch} placeholder="Search exam" />
+          <SelectField label="Course" value={course} onChange={(event) => setCourse(event.target.value)}>{courses.map((item) => <option key={item}>{item}</option>)}</SelectField>
+          <SelectField label="Professor" value={professor} onChange={(event) => setProfessor(event.target.value)}>{professors.map((item) => <option key={item}>{item}</option>)}</SelectField>
+          <Field label="Date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <option>{status}</option>
+            <option>All Statuses</option>
+            <option>Draft</option>
+            <option>Pending Review</option>
+            <option>Approved</option>
+            <option>Rejected</option>
+            <option>Published</option>
+          </SelectField>
+        </div>
+        <section className="cluster-exam-list-panel">
+          <div className="cluster-exam-list-panel-header">
+            <div>
+              <h2>Exam Queue</h2>
+              <p>{filtered.length} {filtered.length === 1 ? "exam" : "exams"} awaiting review.</p>
+            </div>
+          </div>
+          <ListViewToolbar
+            controls={{
+              cardDensity: listView.cardDensity,
+              onCardDensity: listView.setCardDensity,
+              onTableDensity: listView.setTableDensity,
+              onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filtered.length)),
+              tableDensity: listView.tableDensity,
+              view: listView.view,
+            }}
+          />
+          {listView.view === "cards" ? (
+            <RecordCardList
+              columns={columns}
+              density={listView.cardDensity}
+              empty={<div className="cluster-exam-list-state">No exams are currently awaiting review.</div>}
+              rows={pageData.rows}
+              titleKey="examTitle"
+              renderActions={renderActions}
+            />
+          ) : (
+            <div className="cluster-exam-table-scroll">
+              <Table className={`cluster-exam-list-table list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderActions} emptyTitle="No exams are currently awaiting review." emptyDescription="Submitted exams that need cluster review will appear here." />
+            </div>
+          )}
+          <ListPagination count={filtered.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
+        </section>
+      </section>
     );
   }
 
