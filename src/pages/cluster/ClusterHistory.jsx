@@ -54,7 +54,7 @@ export default function ClusterHistory() {
           { key: "reviewDate", label: "Review Date" },
           { key: "decision", label: "Decision" },
           { key: "remarks", label: "Remarks" },
-        ]} rows={rows} renderActions={(row) => <Button variant="light" onClick={() => setSelectedReview(row)}>View</Button>} />
+        ]} className="cluster-history-table" rows={rows} renderActions={(row) => <Button variant="light" onClick={() => setSelectedReview(row)}>View</Button>} />
       </Card>
       {selectedReview ? (
         <div className="cluster-history-backdrop" onClick={(event) => { if (event.target === event.currentTarget) closeSelectedReview(); }} role="presentation">

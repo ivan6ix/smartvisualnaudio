@@ -46,6 +46,8 @@ assert.match(dashboard, /actions=\{\[[\s\S]*label: "Review"[\s\S]*onClick: \(\) 
 assert.doesNotMatch(dashboard, /<div className="cluster-row-actions">[\s\S]*<Button disabled=\{loadingActionId === row\.id\} variant="light" onClick=\{\(\) => handleApprove\(row\.id\)\}/, "Recent Activity should not render the old inline approve/review/reject button group.");
 assert.match(styles, /\.cluster-row-actions\s*\{[\s\S]*justify-content:\s*center/, "Cluster Recent Activity actions column should center the kebab trigger.");
 assert.match(styles, /\.cluster-review-table th:nth-child\(6\)\s*\{\s*width:\s*8%;\s*\}/, "Cluster Recent Activity Actions column should be compact after moving actions into the menu.");
+assert.match(styles, /\.cluster-review-table \.badge\s*\{[\s\S]*width:\s*fit-content;[\s\S]*white-space:\s*nowrap;/, "Cluster Recent Activity status badges should use natural width and stay on one line.");
+assert.match(styles, /\.cluster-review-table th:nth-child\(5\)\s*\{\s*width:\s*13%;\s*\}/, "Cluster Recent Activity Status column should fit Pending Review without oversized pills.");
 
 assert.match(examList, /export default function ClusterExamList\(\{ status \}\)/, "Cluster exam list route component must remain status-driven.");
 assert.match(examList, /const \{ exams, filterOptions, reviews, approveExam, rejectExam \} = useCluster\(\)/, "Cluster exam list must keep its existing data source and handlers.");
@@ -91,6 +93,7 @@ assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.cluster-exam-table-scr
 assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.cluster-exam-list-table\s*\{[\s\S]*min-width:\s*900px/, "Cluster exam queue should use a smaller mobile-only minimum based on actual columns.");
 
 assert.match(history, /const \[selectedReview, setSelectedReview\] = useState\(null\)/, "Review History View should select a review for inspection.");
+assert.match(history, /<Table columns=\{\[[\s\S]*Review ID[\s\S]*Exam Title[\s\S]*Professor Name[\s\S]*Course[\s\S]*Review Date[\s\S]*Decision[\s\S]*Remarks[\s\S]*\]\} className="cluster-history-table"/, "Review History should keep its table columns with scoped responsive styling.");
 assert.match(history, /onClick=\{\(\) => setSelectedReview\(row\)\}[\s\S]*>View<\/Button>/, "Review History View must open the selected review row.");
 assert.match(history, /selectedReview \? \([\s\S]*className="cluster-history-backdrop"[\s\S]*aria-labelledby="cluster-history-review-title"[\s\S]*Review Details[\s\S]*selectedReview\.examTitle[\s\S]*selectedReview\.id[\s\S]*selectedReview\.decision[\s\S]*selectedReview\.remarks/, "Review History should render a read-only detail modal for the selected review.");
 assert.match(history, /function closeSelectedReview\(\) \{[\s\S]*setSelectedReview\(null\)/, "Review History modal should have a safe close path.");
@@ -99,6 +102,10 @@ assert.doesNotMatch(history, /renderActions=\{\(\) => <Button variant="light">Vi
 
 assert.match(styles, /\.admin-topbar-actions \.cluster-profile-menu > button\s*\{[\s\S]*width:\s*38px;[\s\S]*height:\s*38px;[\s\S]*border-radius:\s*50%;[\s\S]*overflow:\s*hidden;/, "Cluster topbar profile trigger should be a compact circle.");
 assert.match(styles, /\.admin-topbar-actions \.cluster-profile-menu > button \.profile-avatar\s*\{[\s\S]*border-radius:\s*50%;[\s\S]*overflow:\s*hidden;/, "Cluster topbar avatar should remain clipped to a circle.");
+assert.match(styles, /\.cluster-history-table\s*\{[\s\S]*min-width:\s*900px;[\s\S]*table-layout:\s*fixed;/, "Review History table should use local width instead of compressing headers character-by-character.");
+assert.match(styles, /\.cluster-history-table th\s*\{[\s\S]*font-size:\s*clamp\(0\.66rem,\s*0\.9vw,\s*0\.74rem\);[\s\S]*white-space:\s*nowrap;[\s\S]*word-break:\s*normal;/, "Review History headers should stay readable with responsive sizing and normal word breaking.");
+assert.match(styles, /\.cluster-history-table th:nth-child\(1\),\s*\.cluster-history-table td:nth-child\(1\)\s*\{[\s\S]*overflow-wrap:\s*break-word;[\s\S]*word-break:\s*normal;/, "Review History UUIDs may wrap safely without forcing other headers to break.");
+assert.match(styles, /\.cluster-history-table \.actions-heading,\s*\.cluster-history-table \.actions\s*\{[\s\S]*min-width:\s*0;[\s\S]*white-space:\s*nowrap;/, "Review History Actions header should stay compact and readable.");
 
 assert.match(review, /const REVIEW_NOTES_LIMIT = 1000/, "Review notes limit must remain 1000 characters.");
 assert.match(review, /<TextArea label="Review Notes"[\s\S]*maxLength=\{REVIEW_NOTES_LIMIT\}/, "Review notes textarea must keep its max length.");
