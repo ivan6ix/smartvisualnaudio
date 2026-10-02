@@ -94,6 +94,8 @@ assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.cluster-exam-table-scr
 assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.cluster-exam-list-table\s*\{[\s\S]*min-width:\s*900px/, "Cluster exam queue should use a smaller mobile-only minimum based on actual columns.");
 
 assert.match(history, /const \[selectedReview, setSelectedReview\] = useState\(null\)/, "Review History View should select a review for inspection.");
+assert.match(history, /<header className="cluster-reports-header">[\s\S]*<h1>Review History<\/h1>[\s\S]*<p>All exam review decisions, remarks, and supporting actions\.<\/p>[\s\S]*<\/header>/, "Review History should reuse the compact Cluster Reports header structure.");
+assert.doesNotMatch(history, /<PageHeader title="Review History"/, "Review History should not use the oversized shared hero header.");
 assert.match(history, /<Table columns=\{\[[\s\S]*Review ID[\s\S]*Exam Title[\s\S]*Professor Name[\s\S]*Course[\s\S]*Review Date[\s\S]*Decision[\s\S]*Remarks[\s\S]*\]\} className="cluster-history-table"/, "Review History should keep its table columns with scoped responsive styling.");
 assert.match(history, /onClick=\{\(\) => setSelectedReview\(row\)\}[\s\S]*>View<\/Button>/, "Review History View must open the selected review row.");
 assert.match(history, /selectedReview \? \([\s\S]*className="cluster-history-backdrop"[\s\S]*aria-labelledby="cluster-history-review-title"[\s\S]*Review Details[\s\S]*selectedReview\.examTitle[\s\S]*selectedReview\.id[\s\S]*selectedReview\.decision[\s\S]*selectedReview\.remarks/, "Review History should render a read-only detail modal for the selected review.");

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiX } from "react-icons/fi";
-import { Button, Card, Field, PageHeader, SelectField, Table } from "../../components/ui";
+import { Button, Card, Field, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import { StatusBadge } from "./helpers";
 
@@ -38,7 +38,10 @@ export default function ClusterHistory() {
 
   return (
     <>
-      <PageHeader title="Review History" subtitle="All exam review decisions, remarks, and supporting actions." />
+      <header className="cluster-reports-header">
+        <h1>Review History</h1>
+        <p>All exam review decisions, remarks, and supporting actions.</p>
+      </header>
       <div className="cluster-filters">
         <SelectField label="Decision" value={decision} onChange={(event) => setDecision(event.target.value)}><option>All Decisions</option><option>Approved</option><option>Rejected</option><option>Revision Needed</option></SelectField>
         <Field label="Date range" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
