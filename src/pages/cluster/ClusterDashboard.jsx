@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FiCheckCircle, FiFileText, FiInbox, FiMessageCircle, FiXCircle } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button } from "../../components/ui";
+import { RowActionMenu } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -29,6 +29,7 @@ export default function ClusterDashboard() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [loadingActionId, setLoadingActionId] = useState("");
+  const [openActionMenuId, setOpenActionMenuId] = useState("");
   const [liveStats, setLiveStats] = useState(null);
   const [liveRecent, setLiveRecent] = useState([]);
 
@@ -189,9 +190,18 @@ export default function ClusterDashboard() {
                   <td><StatusBadge status={row.status} /></td>
                   <td>
                     <div className="cluster-row-actions">
-                      {row.status === "Pending Review" ? <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleApprove(row.id)}>{loadingActionId === row.id ? "Saving..." : "Approve Exam"}</Button> : null}
-                      <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Review</Button>
-                      {row.status === "Pending Review" ? <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleReject(row.id)}>Reject</Button> : null}
+                      <RowActionMenu
+                        actions={[
+                          { label: "Review", onClick: () => navigate(`/cluster/exams/${row.id}`) },
+                          row.status === "Pending Review" ? { label: loadingActionId === row.id ? "Saving..." : "Approve Exam", disabled: loadingActionId === row.id, onClick: () => handleApprove(row.id) } : null,
+                          row.status === "Pending Review" ? { danger: true, label: "Reject", disabled: loadingActionId === row.id, onClick: () => handleReject(row.id) } : null,
+                        ]}
+                        label={`Actions for ${row.examTitle || "exam"}`}
+                        menuId={`cluster-review-actions-${row.id}`}
+                        openMenuId={openActionMenuId}
+                        rowId={row.id}
+                        setOpenMenuId={setOpenActionMenuId}
+                      />
                     </div>
                   </td>
                 </tr>

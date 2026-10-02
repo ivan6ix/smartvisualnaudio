@@ -35,6 +35,13 @@ assert.match(dashboard, /filter: `receiver_id=eq\.\$\{user\.id\}`/, "Cluster das
 assert.match(dashboard, /handleApprove\(row\.id\)/, "Dashboard approve action must remain wired.");
 assert.match(dashboard, /navigate\(`\/cluster\/exams\/\$\{row\.id\}`\)/, "Dashboard review action must navigate to the review workflow.");
 assert.match(dashboard, /handleReject\(row\.id\)/, "Dashboard reject action must remain wired.");
+assert.match(dashboard, /import \{ RowActionMenu \} from "\.\.\/\.\.\/components\/ui"/, "Cluster Recent Activity should reuse the shared RowActionMenu.");
+assert.match(dashboard, /const \[openActionMenuId, setOpenActionMenuId\] = useState\(""\)/, "Cluster Recent Activity should allow only one shared row action menu open at a time.");
+assert.match(dashboard, /<RowActionMenu[\s\S]*label=\{`Actions for \$\{row\.examTitle \|\| "exam"\}`\}[\s\S]*menuId=\{`cluster-review-actions-\$\{row\.id\}`\}/, "Each Recent Activity row should expose one accessible kebab trigger.");
+assert.match(dashboard, /actions=\{\[[\s\S]*label: "Review"[\s\S]*onClick: \(\) => navigate\(`\/cluster\/exams\/\$\{row\.id\}`\)[\s\S]*row\.status === "Pending Review" \? \{[\s\S]*label: loadingActionId === row\.id \? "Saving\.\.\." : "Approve Exam"[\s\S]*onClick: \(\) => handleApprove\(row\.id\)[\s\S]*row\.status === "Pending Review" \? \{[\s\S]*danger: true[\s\S]*label: "Reject"[\s\S]*onClick: \(\) => handleReject\(row\.id\)/, "Pending Review menu should preserve Review, Approve Exam, and Reject handlers.");
+assert.doesNotMatch(dashboard, /<div className="cluster-row-actions">[\s\S]*<Button disabled=\{loadingActionId === row\.id\} variant="light" onClick=\{\(\) => handleApprove\(row\.id\)\}/, "Recent Activity should not render the old inline approve/review/reject button group.");
+assert.match(styles, /\.cluster-row-actions\s*\{[\s\S]*justify-content:\s*center/, "Cluster Recent Activity actions column should center the kebab trigger.");
+assert.match(styles, /\.cluster-review-table th:nth-child\(6\)\s*\{\s*width:\s*8%;\s*\}/, "Cluster Recent Activity Actions column should be compact after moving actions into the menu.");
 
 assert.match(review, /const REVIEW_NOTES_LIMIT = 1000/, "Review notes limit must remain 1000 characters.");
 assert.match(review, /<TextArea label="Review Notes"[\s\S]*maxLength=\{REVIEW_NOTES_LIMIT\}/, "Review notes textarea must keep its max length.");
