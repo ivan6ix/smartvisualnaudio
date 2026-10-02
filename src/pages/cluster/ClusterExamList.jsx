@@ -133,15 +133,15 @@ export default function ClusterExamList({ status }) {
     { key: "rejectionReason", label: "Reason", width: "20%" },
     { key: "status", label: "Status", width: "9%", render: (row) => <StatusBadge status={row.status} /> },
   ] : [
-    { key: "id", label: "Exam ID", width: "9%" },
+    { key: "id", label: "Exam ID", width: "10%" },
     { key: "examTitle", label: "Exam Title", width: "16%" },
     { key: "professorName", label: "Professor Name", width: "14%" },
     { key: "course", label: "Course", width: "8%" },
     { key: "questionsCount", label: "Questions Count", width: "8%", className: "cluster-exam-table-center" },
-    { key: "timeLimit", label: "Duration", width: "7%", className: "cluster-exam-table-center", render: (row) => `${row.timeLimit} min` },
+    { key: "timeLimit", label: "Duration", width: "8%", className: "cluster-exam-table-center", render: (row) => `${row.timeLimit} min` },
     { key: "passingScore", label: "Passing Score", width: "8%", className: "cluster-exam-table-center", render: (row) => `${row.passingScore}%` },
     { key: "submittedAt", label: "Submission Date", width: "11%", className: "cluster-exam-table-date" },
-    { key: "status", label: "Status", width: "12%", render: (row) => <StatusBadge status={row.status} /> },
+    { key: "status", label: "Status", width: "10%", render: (row) => <StatusBadge status={row.status} /> },
   ];
   const pageData = getListPageSlice(filtered, page, TABLE_PAGE_SIZE);
 

@@ -13803,12 +13803,16 @@ html[data-appearance="dark"] .cluster-sidebar {
 
 .cluster-exam-list-table .actions-heading,
 .cluster-exam-list-table .actions {
+  display: table-cell;
+  min-width: 0;
   text-align: center;
   white-space: nowrap;
 }
 
 .cluster-exam-list-table .actions {
-  white-space: nowrap;
+  flex-wrap: nowrap;
+  gap: 0;
+  justify-content: center;
 }
 
 .cluster-exam-list-page .row-action-menu-trigger {
@@ -13902,17 +13906,17 @@ html[data-appearance="light"] .cluster-review-panel {
   }
 }
 
-@media (max-width: 1024px) {
+@media (max-width: 720px) {
   .cluster-exam-table-scroll {
     overflow-x: auto;
   }
 
   .cluster-exam-list-table {
-    min-width: 1040px;
+    min-width: 900px;
   }
 
   .cluster-exam-list-table table {
-    min-width: 1040px;
+    min-width: 900px;
   }
 }
 
