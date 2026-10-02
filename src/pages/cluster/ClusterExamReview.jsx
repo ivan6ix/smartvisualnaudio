@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import { Button, Card, EmptyState, TextArea } from "../../components/ui";
@@ -83,8 +83,33 @@ export default function ClusterExamReview() {
   const [approveOpen, setApproveOpen] = useState(false);
   const [rejectOpen, setRejectOpen] = useState(false);
   const [reason, setReason] = useState("");
-  const questions = useMemo(() => Array.isArray(exam?.questions) ? exam.questions : [], [exam]);
+  const [questionSearch, setQuestionSearch] = useState("");
+  const [selectedQuestionId, setSelectedQuestionId] = useState("");
+  const questions = useMemo(() => (Array.isArray(exam?.questions) ? exam.questions : []).map((question, index) => ({
+    ...question,
+    number: index + 1,
+  })), [exam]);
+  const filteredQuestions = useMemo(() => questions.filter((question) => {
+    const query = questionSearch.trim().toLowerCase();
+    if (!query) return true;
+    return [
+      question.number,
+      question.questionText,
+      question.questionType,
+    ].some((value) => String(value ?? "").toLowerCase().includes(query));
+  }), [questions, questionSearch]);
+  const selectedQuestion = useMemo(() => filteredQuestions.find((question) => question.id === selectedQuestionId) || filteredQuestions[0] || null, [filteredQuestions, selectedQuestionId]);
   const points = useMemo(() => questions.reduce((total, item) => total + Number(item.points || 0), 0), [questions]);
+
+  useEffect(() => {
+    if (!filteredQuestions.length) {
+      if (selectedQuestionId) setSelectedQuestionId("");
+      return;
+    }
+    if (!filteredQuestions.some((question) => question.id === selectedQuestionId)) {
+      setSelectedQuestionId(filteredQuestions[0].id);
+    }
+  }, [filteredQuestions, selectedQuestionId]);
 
   if (!exam) return <Navigate to="/cluster/pending" replace />;
 
@@ -136,17 +161,57 @@ export default function ClusterExamReview() {
             </div>
           </Card>
           <Card className="cluster-exam-questions-panel">
-            <h2>Questions</h2>
-            <div className="cluster-question-list cluster-exam-question-list">
-              {questions.map((question, index) => (
-                <article key={question.id}>
-                  <div className="cluster-exam-question-header"><strong>Question {index + 1}</strong><span>{question.questionType || "Question"} • {question.points || 0} pts</span></div>
-                  <p>{question.questionText || EMPTY}</p>
-                  {renderQuestionDetails(question)}
-                  <footer><span>Question type: <b>{question.questionType || "Question"}</b></span><span>Points: <b>{question.points || 0}</b></span></footer>
-                </article>
-              ))}
-              {!questions.length ? <EmptyState title="No questions available" description="This exam does not have configured review questions yet." /> : null}
+            <div className="cluster-exam-questions-header">
+              <h2>Questions ({questions.length})</h2>
+              <input
+                aria-label="Search questions"
+                className="cluster-question-search"
+                placeholder="Search questions..."
+                type="search"
+                value={questionSearch}
+                onChange={(event) => setQuestionSearch(event.target.value)}
+              />
+            </div>
+            <div className="cluster-question-browser">
+              <section className="cluster-question-list-panel" aria-label="Question list">
+                <div className="cluster-question-list-title">QUESTION LIST</div>
+                <div className="cluster-question-list-scroll">
+                  {filteredQuestions.map((question) => (
+                    <button
+                      className={`cluster-question-list-row ${selectedQuestionId === question.id ? "is-selected" : ""}`}
+                      key={question.id}
+                      onClick={() => setSelectedQuestionId(question.id)}
+                      type="button"
+                    >
+                      <span className="cluster-question-row-number">{question.number}</span>
+                      <span className="cluster-question-row-text" title={question.questionText || EMPTY}>{question.questionText || EMPTY}</span>
+                      <span className="cluster-question-row-type">{question.questionType || "Question"}</span>
+                      <span className="cluster-question-row-points">{question.points || 0} pts</span>
+                    </button>
+                  ))}
+                  {!questions.length ? <EmptyState title="No questions available" description="This exam does not have configured review questions yet." /> : null}
+                  {questions.length && !filteredQuestions.length ? <EmptyState title="No questions match your search." description="Clear the search to restore the complete question list." /> : null}
+                </div>
+              </section>
+              <section className="cluster-question-preview" aria-label="Selected question preview">
+                {selectedQuestion ? (
+                  <article>
+                    <div className="cluster-exam-question-header">
+                      <strong>Question {selectedQuestion.number}</strong>
+                      <span>{selectedQuestion.questionType || "Question"} • {selectedQuestion.points || 0} pts</span>
+                    </div>
+                    <p>{selectedQuestion.questionText || EMPTY}</p>
+                    {renderQuestionDetails(selectedQuestion)}
+                    <footer>
+                      <h3>Question Information</h3>
+                      <span>Question type: <b>{selectedQuestion.questionType || "Question"}</b></span>
+                      <span>Points: <b>{selectedQuestion.points || 0}</b></span>
+                    </footer>
+                  </article>
+                ) : (
+                  <EmptyState title="No selected question" description="Choose a question from the list to preview its answer key." />
+                )}
+              </section>
             </div>
           </Card>
         </div>
