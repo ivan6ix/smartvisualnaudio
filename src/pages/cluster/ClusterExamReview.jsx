@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Button, Card, EmptyState, PageHeader, TextArea } from "../../components/ui";
+import { Button, Card, EmptyState, TextArea } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import { buildClusterQuestionReview } from "../../lib/clusterReview";
 import { StatusBadge } from "./helpers";
@@ -105,26 +105,53 @@ export default function ClusterExamReview() {
   }
 
   return (
-    <>
-      <PageHeader title="Exam Review" subtitle="Review exam metadata, questions, answer key, and scoring before approval." actions={<StatusBadge status={exam.status} />} />
-      <div className="dashboard-grid">
-        <Card>
-          <h2>{exam.examTitle}</h2>
-          <div className="info-list">
-            <span>Description <strong>{exam.description}</strong></span>
-            <span>Program <strong>{exam.programCode || "Program not assigned"}</strong></span>
-            <span>Course <strong>{exam.course}</strong></span>
-            <span>Year/Section <strong>{[exam.yearLevel, exam.section].filter(Boolean).join(" - ") || exam.courseMeta || "Not assigned"}</strong></span>
-            <span>Professor Name <strong>{exam.professorName}</strong></span>
-            <span>Time Limit <strong>{exam.timeLimit} minutes</strong></span>
-            <span>Passing Score <strong>{exam.passingScore}%</strong></span>
-            <span>Exam Type <strong>{exam.examType}</strong></span>
-            <span>Created Date <strong>{exam.createdAt}</strong></span>
-            <span>Submission Date <strong>{exam.submittedAt}</strong></span>
-            <span>Total Points <strong>{points}</strong></span>
-          </div>
-        </Card>
-        <Card>
+    <section className="cluster-exam-review-page">
+      <header className="cluster-exam-review-header">
+        <div>
+          <h1>Exam Review</h1>
+          <p>Review exam metadata, questions, answer key, and scoring before approval.</p>
+        </div>
+        <StatusBadge status={exam.status} />
+      </header>
+      <div className="cluster-exam-review-workspace">
+        <div className="cluster-exam-review-main">
+          <Card className="cluster-exam-details-panel">
+            <div className="cluster-exam-details-heading">
+              <span>Exam Details</span>
+              <h2>Exam Details</h2>
+              <h3>{exam.examTitle}</h3>
+            </div>
+            <div className="cluster-exam-details-grid">
+              <span><small>Description</small><strong>{exam.description || EMPTY}</strong></span>
+              <span><small>Program</small><strong>{exam.programCode || "Program not assigned"}</strong></span>
+              <span><small>Course</small><strong>{exam.course || EMPTY}</strong></span>
+              <span><small>Year / Section</small><strong>{[exam.yearLevel, exam.section].filter(Boolean).join(" - ") || exam.courseMeta || "Not assigned"}</strong></span>
+              <span><small>Professor</small><strong>{exam.professorName || EMPTY}</strong></span>
+              <span><small>Time Limit</small><strong>{exam.timeLimit} minutes</strong></span>
+              <span><small>Passing Score</small><strong>{exam.passingScore}%</strong></span>
+              <span><small>Exam Type</small><strong>{exam.examType || EMPTY}</strong></span>
+              <span><small>Created Date</small><strong>{exam.createdAt || EMPTY}</strong></span>
+              <span><small>Submission Date</small><strong>{exam.submittedAt || EMPTY}</strong></span>
+              <span><small>Total Points</small><strong>{points}</strong></span>
+            </div>
+          </Card>
+          <Card className="cluster-exam-questions-panel">
+            <h2>Questions</h2>
+            <div className="cluster-question-list cluster-exam-question-list">
+              {questions.map((question, index) => (
+                <article key={question.id}>
+                  <div className="cluster-exam-question-header"><strong>Question {index + 1}</strong><span>{question.questionType || "Question"} • {question.points || 0} pts</span></div>
+                  <p>{question.questionText || EMPTY}</p>
+                  {renderQuestionDetails(question)}
+                  <footer><span>Question type: <b>{question.questionType || "Question"}</b></span><span>Points: <b>{question.points || 0}</b></span></footer>
+                </article>
+              ))}
+              {!questions.length ? <EmptyState title="No questions available" description="This exam does not have configured review questions yet." /> : null}
+            </div>
+          </Card>
+        </div>
+        <aside className="cluster-exam-review-rail">
+          <Card className="cluster-exam-review-panel">
           <h2>Review Panel</h2>
           <div className="cluster-review-notes">
             <TextArea label="Review Notes" rows={7} value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={REVIEW_NOTES_LIMIT} />
@@ -132,26 +159,14 @@ export default function ClusterExamReview() {
           </div>
           <div className="header-actions cluster-review-actions">
             <Button variant="light" onClick={() => saveReview(exam.id, notes)}>Save Review</Button>
+            <span className="cluster-final-decision-label">FINAL DECISION</span>
             <Button onClick={() => setApproveOpen(true)}>Approve Exam</Button>
-            <Button variant="light" onClick={() => setRejectOpen(true)}>Reject Exam</Button>
+            <Button className="cluster-reject-button" variant="light" onClick={() => setRejectOpen(true)}>Reject Exam</Button>
             <Button variant="light" onClick={() => navigate(-1)}>Return</Button>
           </div>
-        </Card>
+          </Card>
+        </aside>
       </div>
-      <Card>
-        <h2>Questions</h2>
-        <div className="cluster-question-list">
-          {questions.map((question, index) => (
-            <article key={question.id}>
-              <div><strong>Question {index + 1}</strong><span>{question.questionType}</span></div>
-              <p>{question.questionText || EMPTY}</p>
-              {renderQuestionDetails(question)}
-              <footer><span>Question type: <b>{question.questionType || "Question"}</b></span><span>Points: <b>{question.points || 0}</b></span></footer>
-            </article>
-          ))}
-          {!questions.length ? <EmptyState title="No questions available" description="This exam does not have configured review questions yet." /> : null}
-        </div>
-      </Card>
       {approveOpen ? (
         <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget) setApproveOpen(false); }}>
           <Card className="cluster-modal">
@@ -170,6 +185,6 @@ export default function ClusterExamReview() {
           </Card>
         </div>
       ) : null}
-    </>
+    </section>
   );
 }

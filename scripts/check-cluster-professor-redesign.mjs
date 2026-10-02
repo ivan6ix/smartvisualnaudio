@@ -124,12 +124,32 @@ assert.match(styles, /\.cluster-history-table th:nth-child\(1\),\s*\.cluster-his
 assert.match(styles, /\.cluster-history-table \.actions-heading,\s*\.cluster-history-table \.actions\s*\{[\s\S]*min-width:\s*0;[\s\S]*white-space:\s*nowrap;/, "Review History Actions header should stay compact and readable.");
 
 assert.match(review, /const REVIEW_NOTES_LIMIT = 1000/, "Review notes limit must remain 1000 characters.");
+assert.match(review, /className="cluster-exam-review-page"/, "Exam Review should use a scoped redesigned page shell.");
+assert.match(review, /<header className="cluster-exam-review-header">[\s\S]*<h1>Exam Review<\/h1>[\s\S]*<p>Review exam metadata, questions, answer key, and scoring before approval\.<\/p>[\s\S]*<StatusBadge status=\{exam\.status\} \/>/, "Exam Review should use a compact header with the current status badge.");
+assert.doesNotMatch(review, /<PageHeader title="Exam Review"/, "Exam Review should not use the oversized shared hero header.");
+assert.match(review, /className="cluster-exam-review-workspace"[\s\S]*className="cluster-exam-review-main"[\s\S]*className="cluster-exam-review-rail"/, "Exam Review should use a real main column and review rail layout.");
+assert.match(review, /<Card className="cluster-exam-details-panel">[\s\S]*<h2>Exam Details<\/h2>[\s\S]*<h3>\{exam\.examTitle\}<\/h3>[\s\S]*className="cluster-exam-details-grid"[\s\S]*Description[\s\S]*Program[\s\S]*Course[\s\S]*Year \/ Section[\s\S]*Professor[\s\S]*Time Limit[\s\S]*Passing Score[\s\S]*Exam Type[\s\S]*Created Date[\s\S]*Submission Date[\s\S]*Total Points/, "Exam Review should keep existing metadata in one compact details panel.");
+assert.doesNotMatch(review, /className="info-list"/, "Exam Review metadata should not use separate giant info-list rows.");
+assert.match(review, /<Card className="cluster-exam-questions-panel">[\s\S]*<h2>Questions<\/h2>[\s\S]*className="cluster-question-list cluster-exam-question-list"[\s\S]*Question \{index \+ 1\}[\s\S]*\{question\.questionType \|\| "Question"\}[\s\S]*\{question\.points \|\| 0\} pts[\s\S]*renderQuestionDetails\(question\)/, "Exam Review questions should keep question number, type, points, and shared answer-key rendering.");
+assert.match(review, /<Card className="cluster-exam-review-panel">[\s\S]*<h2>Review Panel<\/h2>[\s\S]*Review Notes[\s\S]*FINAL DECISION[\s\S]*Approve Exam[\s\S]*Reject Exam[\s\S]*Return/, "Exam Review should render the notes and final decision controls in the right review panel.");
 assert.match(review, /<TextArea label="Review Notes"[\s\S]*maxLength=\{REVIEW_NOTES_LIMIT\}/, "Review notes textarea must keep its max length.");
 assert.match(review, /saveReview\(exam\.id, notes\)/, "Save Review behavior must remain wired.");
 assert.match(review, /setApproveOpen\(true\)/, "Approve confirmation must remain wired.");
 assert.match(review, /setRejectOpen\(true\)/, "Reject confirmation must remain wired.");
 assert.match(review, /navigate\(-1\)/, "Return behavior must remain wired.");
 assert.match(review, /buildClusterQuestionReview\(question\)/, "Question rendering must keep the shared review helper.");
+assert.doesNotMatch(review, /position:\s*fixed|padding-right|margin-right/, "Exam Review component should not implement overlay or fake spacer layout.");
+
+assert.match(styles, /\.cluster-exam-review-page\s*\{[\s\S]*display:\s*grid;[\s\S]*gap:\s*18px;[\s\S]*min-width:\s*0;/, "Exam Review page should use compact scoped spacing.");
+assert.match(styles, /\.cluster-exam-review-header\s*\{[\s\S]*align-items:\s*start;[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\) auto;/, "Exam Review header should align text left and status badge right.");
+assert.match(styles, /\.cluster-exam-review-workspace\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(320px,\s*360px\);[\s\S]*align-items:\s*start;[\s\S]*min-width:\s*0;/, "Exam Review workspace should reserve a real right column for the review rail.");
+assert.match(styles, /\.cluster-exam-review-main\s*\{[\s\S]*min-width:\s*0;/, "Exam Review main column should prevent questionnaire overflow.");
+assert.match(styles, /\.cluster-exam-review-rail\s*\{[\s\S]*position:\s*sticky;[\s\S]*top:\s*96px;/, "Exam Review rail may be sticky only inside its own column.");
+assert.doesNotMatch(styles, /\.cluster-exam-review-rail\s*\{[^}]*position:\s*fixed/, "Exam Review rail must not be fixed overlay.");
+assert.match(styles, /\.cluster-exam-details-grid\s*\{[\s\S]*grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/, "Exam details metadata should use a two-column desktop grid.");
+assert.match(styles, /\.cluster-exam-question-list article\s*\{[\s\S]*border-radius:\s*8px/, "Exam Review question records should use compact boxed styling.");
+assert.match(styles, /@media \(max-width: 1100px\)[\s\S]*\.cluster-exam-review-workspace\s*\{[\s\S]*grid-template-columns:\s*1fr;[\s\S]*\.cluster-exam-review-rail\s*\{[\s\S]*position:\s*static;/, "Exam Review should stack and disable sticky rail on constrained widths.");
+assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.cluster-exam-details-grid\s*\{[\s\S]*grid-template-columns:\s*1fr;/, "Exam details metadata should collapse to one column on narrow screens.");
 
 assert.match(styles, /\.cluster-sidebar,\s*html\[data-theme="light"\] \.cluster-sidebar\s*\{[\s\S]*background:\s*#0f172a/, "Cluster sidebar should remain dark navy in Light Mode.");
 assert.match(styles, /html\[data-theme="dark"\] \.cluster-sidebar[\s\S]*background:\s*#0b1220/, "Cluster sidebar should remain dark in Dark Mode.");

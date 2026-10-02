@@ -11858,6 +11858,197 @@ html[data-appearance="light"] .cluster-reports-panel {
   background: #fff;
   border-color: rgba(15, 23, 42, 0.48);
 }
+.cluster-exam-review-page {
+  color: var(--text-primary);
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.cluster-exam-review-header {
+  align-items: start;
+  display: grid;
+  gap: 14px;
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+.cluster-exam-review-header h1 {
+  color: var(--text-primary);
+  font-size: clamp(1.8rem, 3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.12;
+  margin: 0;
+}
+.cluster-exam-review-header p {
+  color: var(--text-muted);
+  font-size: 0.96rem;
+  margin: 5px 0 0;
+}
+.cluster-exam-review-header .badge,
+.cluster-exam-review-panel .badge {
+  justify-content: center;
+  width: fit-content;
+  white-space: nowrap;
+}
+.cluster-exam-review-workspace {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 360px);
+  min-width: 0;
+}
+.cluster-exam-review-main {
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.cluster-exam-review-rail {
+  min-width: 0;
+  position: sticky;
+  top: 96px;
+}
+.cluster-exam-details-panel,
+.cluster-exam-questions-panel,
+.cluster-exam-review-panel {
+  border-radius: 8px;
+  color: var(--text-primary);
+  min-width: 0;
+}
+.cluster-exam-details-heading {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 18px;
+}
+.cluster-exam-details-heading span,
+.cluster-final-decision-label {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.cluster-exam-details-heading h2,
+.cluster-exam-questions-panel h2,
+.cluster-exam-review-panel h2 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.25;
+  margin: 0;
+}
+.cluster-exam-details-heading h3 {
+  color: var(--text-primary);
+  font-size: 1.22rem;
+  line-height: 1.25;
+  margin: 4px 0 0;
+  overflow-wrap: anywhere;
+}
+.cluster-exam-details-grid {
+  display: grid;
+  gap: 14px 18px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.cluster-exam-details-grid span {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.cluster-exam-details-grid small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  line-height: 1.25;
+  text-transform: uppercase;
+}
+.cluster-exam-details-grid strong {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.cluster-exam-question-list article {
+  border-radius: 8px;
+  min-width: 0;
+}
+.cluster-exam-question-header {
+  align-items: start;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+.cluster-exam-question-header span {
+  flex: 0 1 auto;
+  overflow-wrap: anywhere;
+  text-align: right;
+}
+.cluster-question-review-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+.cluster-question-review-block strong {
+  font-size: 0.84rem;
+}
+.cluster-question-review-block li,
+.cluster-question-review-block p,
+.cluster-match-review span,
+.cluster-match-review b {
+  overflow-wrap: anywhere;
+}
+.cluster-match-review {
+  display: grid;
+  gap: 8px;
+}
+.cluster-match-review > div {
+  align-items: start;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  padding: 10px;
+}
+.cluster-exam-review-panel {
+  display: grid;
+  gap: 16px;
+}
+.cluster-exam-review-panel .cluster-review-actions {
+  display: grid;
+  gap: 10px;
+  margin-top: 0;
+}
+.cluster-exam-review-panel .cluster-review-actions .btn {
+  justify-content: center;
+  width: 100%;
+}
+.cluster-final-decision-label {
+  margin-top: 8px;
+}
+.cluster-exam-review-panel .cluster-reject-button {
+  border-color: rgba(220, 38, 38, 0.45);
+  color: #dc2626;
+}
+html[data-theme="dark"] .cluster-exam-details-panel,
+html[data-theme="dark"] .cluster-exam-questions-panel,
+html[data-theme="dark"] .cluster-exam-review-panel,
+html[data-appearance="dark"] .cluster-exam-details-panel,
+html[data-appearance="dark"] .cluster-exam-questions-panel,
+html[data-appearance="dark"] .cluster-exam-review-panel {
+  background: var(--app-surface);
+  border-color: rgba(226, 232, 240, 0.58);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+}
+html[data-theme="dark"] .cluster-exam-review-panel .cluster-reject-button,
+html[data-appearance="dark"] .cluster-exam-review-panel .cluster-reject-button {
+  color: #fca5a5;
+}
+html[data-theme="light"] .cluster-exam-details-panel,
+html[data-theme="light"] .cluster-exam-questions-panel,
+html[data-theme="light"] .cluster-exam-review-panel,
+html[data-appearance="light"] .cluster-exam-details-panel,
+html[data-appearance="light"] .cluster-exam-questions-panel,
+html[data-appearance="light"] .cluster-exam-review-panel {
+  background: #fff;
+  border-color: rgba(15, 23, 42, 0.48);
+}
 .cluster-question-list {
   display: grid;
   gap: 14px;
@@ -14109,6 +14300,14 @@ html[data-appearance="light"] .cluster-review-panel {
   .cluster-reports-filters {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .cluster-exam-review-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .cluster-exam-review-rail {
+    position: static;
+  }
 }
 
 @media (max-width: 720px) {
@@ -14152,6 +14351,14 @@ html[data-appearance="light"] .cluster-review-panel {
 
   .cluster-exam-list-toolbar,
   .cluster-reports-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .cluster-exam-review-header {
+    grid-template-columns: 1fr;
+  }
+
+  .cluster-exam-details-grid {
     grid-template-columns: 1fr;
   }
 
