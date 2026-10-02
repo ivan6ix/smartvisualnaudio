@@ -51,16 +51,17 @@ assert.match(examList, /exam\.status === statusFilter/, "Existing pending-status
 assert.match(examList, /matchesSearch = `\$\{exam\.id\} \$\{exam\.examTitle\} \$\{exam\.professorName\} \$\{exam\.course\}`/, "Existing search fields must be preserved.");
 assert.match(examList, /matchesCourse[\s\S]*matchesProfessor[\s\S]*matchesDate/, "Existing Course, Professor, and Date filters must be preserved.");
 assert.match(examList, /useListViewPreference\(\{ role: "cluster", page: "exam-review", defaultView: "table" \}\)/, "Cards/Table preference must remain table-first and cluster-scoped.");
-assert.match(examList, /getListPageSlice\(filtered, page, listView\.pageSize\)/, "Shared pagination must remain wired.");
-assert.match(examList, /import \{ Button, Card, Field, PageHeader, RowActionMenu, SearchBox, SelectField, Table \} from "\.\.\/\.\.\/components\/ui"/, "Pending Exams should reuse the shared RowActionMenu for multiple row actions.");
+assert.match(examList, /getListPageSlice\(filtered, page, TABLE_PAGE_SIZE\)/, "Cluster exam queue pagination must stay table-sized and ignore stale card-view preferences.");
+assert.match(examList, /import \{ Button, Field, RowActionMenu, SearchBox, SelectField, Table \} from "\.\.\/\.\.\/components\/ui"/, "Pending Exams should reuse the shared RowActionMenu for multiple row actions.");
 assert.match(examList, /const \[openActionMenuId, setOpenActionMenuId\] = useState\(""\)/, "Pending Exams should allow only one row action menu open at a time.");
+assert.doesNotMatch(examList, /RecordCardList|ListViewToolbar|listView\.view|switchViewPreservingPage|setCardDensity|cardDensity/, "ClusterExamList should be table-only with no Cards/Table selector or card branch.");
+assert.match(examList, /function TableDensityControls\(\{ tableDensity, onTableDensity \}\)/, "ClusterExamList should keep scoped table density controls.");
 assert.match(examList, /className="cluster-exam-list-page"/, "Pending Exams should use the scoped redesigned page wrapper.");
 assert.match(examList, /<header className="cluster-exam-list-header">[\s\S]*<h1>\{titles\[status\]\}<\/h1>/, "Pending Exams should use the compact cluster page header.");
 assert.match(examList, /className="cluster-exam-list-toolbar"/, "Pending Exams filters should live in a boxed toolbar.");
 assert.match(examList, /className="cluster-exam-list-panel"/, "Pending Exams records should live in a boxed panel.");
 assert.match(examList, /className="cluster-exam-table-scroll"/, "Pending Exams table should use local horizontal overflow.");
 assert.match(examList, /<Table className=\{`cluster-exam-list-table list-table-\$\{listView\.tableDensity\}`\} columns=\{columns\} rows=\{pageData\.rows\} renderActions=\{renderActions\}/, "Pending Exams table path must keep existing columns and actions.");
-assert.match(examList, /empty=\{<div className="cluster-exam-list-state"[\s\S]*No exams are currently awaiting review\./, "Pending Exams cards should show a scoped empty state.");
 assert.match(examList, /emptyTitle="No exams are currently awaiting review\."/,
   "Pending Exams table should show a concise empty state.");
 assert.match(examList, /label=\{`Actions for \$\{row\.examTitle \|\| "exam"\}`\}[\s\S]*menuId=\{`cluster-exam-actions-\$\{status\}-\$\{row\.id\}`\}/, "Each Pending Exams record should expose one accessible kebab trigger.");
@@ -70,8 +71,11 @@ assert.match(examList, /label: "View Exam"[\s\S]*label: "Review Exam"[\s\S]*labe
 assert.match(styles, /\.cluster-exam-list-page\s*\{[\s\S]*display:\s*grid/, "Pending Exams should have scoped page styling.");
 assert.match(styles, /\.cluster-exam-list-panel\s*\{[\s\S]*border-radius:\s*8px/, "Pending Exams records panel should use boxed system styling.");
 assert.match(styles, /\.cluster-exam-table-scroll\s*\{[\s\S]*overflow:\s*auto/, "Pending Exams table should keep local overflow.");
-assert.match(styles, /\.cluster-exam-list-page \.list-record-card\s*\{[\s\S]*border-radius:\s*8px/, "Pending Exams card view should use true boxed cards.");
-assert.match(styles, /html\[data-theme="dark"\] \.cluster-exam-list-page \.list-record-card/, "Pending Exams card view should keep Dark Mode card borders.");
+assert.match(styles, /\.cluster-exam-list-table\s*\{[\s\S]*min-width:\s*0;[\s\S]*width:\s*100%/, "Cluster exam queue table should use available desktop width without an oversized min-width.");
+assert.match(styles, /\.cluster-exam-list-table thead th\s*\{[\s\S]*overflow-wrap:\s*normal;[\s\S]*word-break:\s*normal/, "Cluster exam queue headers should not break character-by-character.");
+assert.match(styles, /\.cluster-exam-list-table \.badge\s*\{[\s\S]*white-space:\s*nowrap/, "Cluster exam queue status badges should stay readable.");
+assert.match(styles, /\.cluster-exam-list-table \.actions-heading[\s\S]*white-space:\s*nowrap/, "Cluster exam queue Actions header should stay on one line.");
+assert.match(styles, /@media \(max-width: 1024px\)[\s\S]*\.cluster-exam-list-table\s*\{[\s\S]*min-width:\s*1040px/, "Cluster exam queue should keep local narrow-screen overflow safety.");
 
 assert.match(review, /const REVIEW_NOTES_LIMIT = 1000/, "Review notes limit must remain 1000 characters.");
 assert.match(review, /<TextArea label="Review Notes"[\s\S]*maxLength=\{REVIEW_NOTES_LIMIT\}/, "Review notes textarea must keep its max length.");

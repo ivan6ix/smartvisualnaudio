@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiClock, FiDownload, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
-import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
-import { Button, Card, Field, PageHeader, RowActionMenu, SearchBox, SelectField, Table } from "../../components/ui";
+import { ListPagination } from "../../components/ListViewControls";
+import { Button, Field, RowActionMenu, SearchBox, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
-import { getListPageSlice } from "../../lib/listView";
+import { DENSITIES, getListPageSlice, TABLE_PAGE_SIZE } from "../../lib/listView";
 import { StatusBadge } from "./helpers";
 
 const titles = {
@@ -13,6 +13,21 @@ const titles = {
   Approved: "Approved Exams",
   Rejected: "Rejected Exams",
 };
+
+const DENSITY_LABELS = { comfortable: "Comfortable", compact: "Compact", dense: "Dense" };
+
+function TableDensityControls({ tableDensity, onTableDensity }) {
+  return (
+    <div className="cluster-exam-density-controls">
+      <span>Density:</span>
+      {DENSITIES.map((density) => (
+        <button aria-pressed={tableDensity === density} className={tableDensity === density ? "active" : ""} key={density} onClick={() => onTableDensity(density)} type="button">
+          {DENSITY_LABELS[density]}
+        </button>
+      ))}
+    </div>
+  );
+}
 
 export default function ClusterExamList({ status }) {
   const { exams, filterOptions, reviews, approveExam, rejectExam } = useCluster();
@@ -104,31 +119,31 @@ export default function ClusterExamList({ status }) {
   }), [exams, search, course, professor, date, statusFilter]);
 
   const columns = status === "Approved" ? [
-    { key: "examTitle", label: "Exam Title" },
-    { key: "professorName", label: "Professor Name" },
-    { key: "course", label: "Course" },
-    { key: "approvedAt", label: "Approved Date" },
-    { key: "approvedBy", label: "Approved By", render: () => "Prof. Nolan Lim" },
-    { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+    { key: "examTitle", label: "Exam Title", width: "23%" },
+    { key: "professorName", label: "Professor Name", width: "19%" },
+    { key: "course", label: "Course", width: "16%" },
+    { key: "approvedAt", label: "Approved Date", width: "13%" },
+    { key: "approvedBy", label: "Approved By", width: "14%", render: () => "Prof. Nolan Lim" },
+    { key: "status", label: "Status", width: "8%", render: (row) => <StatusBadge status={row.status} /> },
   ] : status === "Rejected" ? [
-    { key: "examTitle", label: "Exam Title" },
-    { key: "professorName", label: "Professor Name" },
-    { key: "course", label: "Course" },
-    { key: "rejectedAt", label: "Rejected Date" },
-    { key: "rejectionReason", label: "Reason" },
-    { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+    { key: "examTitle", label: "Exam Title", width: "21%" },
+    { key: "professorName", label: "Professor Name", width: "18%" },
+    { key: "course", label: "Course", width: "13%" },
+    { key: "rejectedAt", label: "Rejected Date", width: "12%" },
+    { key: "rejectionReason", label: "Reason", width: "20%" },
+    { key: "status", label: "Status", width: "9%", render: (row) => <StatusBadge status={row.status} /> },
   ] : [
-    { key: "id", label: "Exam ID" },
-    { key: "examTitle", label: "Exam Title" },
-    { key: "professorName", label: "Professor Name" },
-    { key: "course", label: "Course" },
-    { key: "questionsCount", label: "Questions Count" },
-    { key: "timeLimit", label: "Duration", render: (row) => `${row.timeLimit} min` },
-    { key: "passingScore", label: "Passing Score", render: (row) => `${row.passingScore}%` },
-    { key: "submittedAt", label: "Submission Date" },
-    { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+    { key: "id", label: "Exam ID", width: "9%" },
+    { key: "examTitle", label: "Exam Title", width: "16%" },
+    { key: "professorName", label: "Professor Name", width: "14%" },
+    { key: "course", label: "Course", width: "8%" },
+    { key: "questionsCount", label: "Questions Count", width: "8%", className: "cluster-exam-table-center" },
+    { key: "timeLimit", label: "Duration", width: "7%", className: "cluster-exam-table-center", render: (row) => `${row.timeLimit} min` },
+    { key: "passingScore", label: "Passing Score", width: "8%", className: "cluster-exam-table-center", render: (row) => `${row.passingScore}%` },
+    { key: "submittedAt", label: "Submission Date", width: "11%", className: "cluster-exam-table-date" },
+    { key: "status", label: "Status", width: "12%", render: (row) => <StatusBadge status={row.status} /> },
   ];
-  const pageData = getListPageSlice(filtered, page, listView.pageSize);
+  const pageData = getListPageSlice(filtered, page, TABLE_PAGE_SIZE);
 
   function renderActions(row) {
     if (status === "Pending Review") {
@@ -173,71 +188,15 @@ export default function ClusterExamList({ status }) {
     );
   }
 
-  if (status === "Pending Review") {
-    return (
-      <section className="cluster-exam-list-page">
-        <header className="cluster-exam-list-header">
-          <div>
-            <h1>{titles[status]}</h1>
-            <p>Review examinations submitted for Cluster Professor approval.</p>
-          </div>
-        </header>
-        <div className="cluster-exam-list-toolbar">
-          <SearchBox value={search} onChange={setSearch} placeholder="Search exam" />
-          <SelectField label="Course" value={course} onChange={(event) => setCourse(event.target.value)}>{courses.map((item) => <option key={item}>{item}</option>)}</SelectField>
-          <SelectField label="Professor" value={professor} onChange={(event) => setProfessor(event.target.value)}>{professors.map((item) => <option key={item}>{item}</option>)}</SelectField>
-          <Field label="Date" type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-          <SelectField label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option>{status}</option>
-            <option>All Statuses</option>
-            <option>Draft</option>
-            <option>Pending Review</option>
-            <option>Approved</option>
-            <option>Rejected</option>
-            <option>Published</option>
-          </SelectField>
-        </div>
-        <section className="cluster-exam-list-panel">
-          <div className="cluster-exam-list-panel-header">
-            <div>
-              <h2>Exam Queue</h2>
-              <p>{filtered.length} {filtered.length === 1 ? "exam" : "exams"} awaiting review.</p>
-            </div>
-          </div>
-          <ListViewToolbar
-            controls={{
-              cardDensity: listView.cardDensity,
-              onCardDensity: listView.setCardDensity,
-              onTableDensity: listView.setTableDensity,
-              onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filtered.length)),
-              tableDensity: listView.tableDensity,
-              view: listView.view,
-            }}
-          />
-          {listView.view === "cards" ? (
-            <RecordCardList
-              columns={columns}
-              density={listView.cardDensity}
-              empty={<div className="cluster-exam-list-state">No exams are currently awaiting review.</div>}
-              rows={pageData.rows}
-              titleKey="examTitle"
-              renderActions={renderActions}
-            />
-          ) : (
-            <div className="cluster-exam-table-scroll">
-              <Table className={`cluster-exam-list-table list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderActions} emptyTitle="No exams are currently awaiting review." emptyDescription="Submitted exams that need cluster review will appear here." />
-            </div>
-          )}
-          <ListPagination count={filtered.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
-        </section>
-      </section>
-    );
-  }
-
   return (
-    <>
-      <PageHeader title={titles[status]} subtitle="Use filters to find examinations by course, professor, date, and status." />
-      <div className="cluster-filters">
+    <section className="cluster-exam-list-page">
+      <header className="cluster-exam-list-header">
+        <div>
+          <h1>{titles[status]}</h1>
+          <p>{status === "Pending Review" ? "Review examinations submitted for Cluster Professor approval." : "Use filters to find examinations by course, professor, date, and status."}</p>
+        </div>
+      </header>
+      <div className="cluster-exam-list-toolbar">
         <SearchBox value={search} onChange={setSearch} placeholder="Search exam" />
         <SelectField label="Course" value={course} onChange={(event) => setCourse(event.target.value)}>{courses.map((item) => <option key={item}>{item}</option>)}</SelectField>
         <SelectField label="Professor" value={professor} onChange={(event) => setProfessor(event.target.value)}>{professors.map((item) => <option key={item}>{item}</option>)}</SelectField>
@@ -252,24 +211,19 @@ export default function ClusterExamList({ status }) {
           <option>Published</option>
         </SelectField>
       </div>
-      <Card>
-        <ListViewToolbar
-          controls={{
-            cardDensity: listView.cardDensity,
-            onCardDensity: listView.setCardDensity,
-            onTableDensity: listView.setTableDensity,
-            onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filtered.length)),
-            tableDensity: listView.tableDensity,
-            view: listView.view,
-          }}
-        />
-        {listView.view === "cards" ? (
-          <RecordCardList columns={columns} density={listView.cardDensity} rows={pageData.rows} titleKey="examTitle" renderActions={renderActions} />
-        ) : (
-          <Table className={`list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderActions} />
-        )}
-        <ListPagination count={filtered.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
-      </Card>
+      <section className="cluster-exam-list-panel">
+        <div className="cluster-exam-list-panel-header">
+          <div>
+            <h2>Exam Queue</h2>
+            <p>{filtered.length} {filtered.length === 1 ? "exam" : "exams"} {status === "Pending Review" ? "awaiting review." : "found."}</p>
+          </div>
+          <TableDensityControls tableDensity={listView.tableDensity} onTableDensity={listView.setTableDensity} />
+        </div>
+        <div className="cluster-exam-table-scroll">
+          <Table className={`cluster-exam-list-table list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderActions} emptyTitle="No exams are currently awaiting review." emptyDescription="Submitted exams that need cluster review will appear here." />
+        </div>
+        <ListPagination count={filtered.length} page={pageData.page} pageSize={TABLE_PAGE_SIZE} onPage={setPage} />
+      </section>
       {historyExam ? (
         <div className="cluster-history-backdrop" onClick={() => setHistoryExam(null)} role="presentation">
           <section aria-labelledby="cluster-resubmission-title" aria-modal="true" className="cluster-resubmission-modal" onClick={(event) => event.stopPropagation()} role="dialog">
@@ -304,6 +258,6 @@ export default function ClusterExamList({ status }) {
           </section>
         </div>
       ) : null}
-    </>
+    </section>
   );
 }
