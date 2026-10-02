@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiFileText, FiPrinter, FiShield, FiUsers } from "react-icons/fi";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
-import { Button, Card, SearchBox, SelectField, Table } from "../components/ui";
+import { Button, Card, EmptyState, SearchBox, SelectField, Table } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import useListViewPreference from "../hooks/useListViewPreference";
 import { getListPageSlice } from "../lib/listView";
@@ -73,18 +73,26 @@ function getRowsFromResponse(response) {
 
 export default function Reports() {
   const { user } = useAuth();
+  const isDean = user?.role === "Dean";
   const [tab, setTab] = useState("Overview");
   const [search, setSearch] = useState("");
   const [violationFilter, setViolationFilter] = useState("All Violations");
   const [stats, setStats] = useState(emptyStats);
   const [reportData, setReportData] = useState(emptyReportData);
+  const [loading, setLoading] = useState(Boolean(hasSupabaseConfig));
+  const [loadError, setLoadError] = useState("");
   const [page, setPage] = useState(1);
   const listView = useListViewPreference({ role: String(user?.role || "admin").toLowerCase().replace(/\s+/g, "-"), page: "reports", defaultView: "table" });
 
   useEffect(() => {
-    if (!hasSupabaseConfig) return;
+    if (!hasSupabaseConfig) {
+      setLoading(false);
+      return;
+    }
 
     async function loadReports() {
+      setLoading(true);
+      setLoadError("");
       const [students, professors, deans, courses, exams, violations] = await Promise.all([
         safeCount(supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "Student")),
         safeCount(supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "Professor")),
@@ -103,6 +111,12 @@ export default function Reports() {
         supabase.from("violations").select("id, student_id, exam_id, violation_type, description, severity, created_at").order("created_at", { ascending: false }).limit(1000),
         supabase.from("exam_attempts").select("id, exam_id, student_id, score, earned_points, max_points, submitted_at").order("submitted_at", { ascending: false }).limit(1000),
       ]);
+      const dataError = [profilesResponse, coursesResponse, examsResponse, violationsResponse, attemptsResponse].find((response) => response.error)?.error;
+      if (dataError) {
+        setLoadError(dataError.message);
+        setLoading(false);
+        return;
+      }
 
       setReportData({
         profiles: getRowsFromResponse(profilesResponse),
@@ -111,6 +125,7 @@ export default function Reports() {
         violations: getRowsFromResponse(violationsResponse),
         attempts: getRowsFromResponse(attemptsResponse),
       });
+      setLoading(false);
     }
 
     loadReports();
@@ -322,45 +337,65 @@ export default function Reports() {
   ];
 
   return (
-    <section className="admin-dashboard-page admin-section-page reports-page">
-      <div className="admin-section-hero">
+    <section className={`admin-dashboard-page admin-section-page reports-page${isDean ? " dean-reports-page" : ""}`}>
+      {isDean ? (
+        <header className="dean-dashboard-header dean-reports-header">
+          <h1>Reports</h1>
+          <p>Review and generate examination integrity and monitoring reports.</p>
+        </header>
+      ) : (
+        <div className="admin-section-hero">
         <div>
           <span><FiPrinter /> Reports Intelligence</span>
           <h1>Reports Center</h1>
           <p>Search, filter, review, and print operational reports from users, courses, exams, violations, attempts, grades, and logs.</p>
         </div>
         <strong>{filteredRows.length}</strong>
-      </div>
-      <div className="admin-stats-grid">
+        </div>
+      )}
+      <div className={isDean ? "dean-kpi-grid dean-reports-kpi-grid" : "admin-stats-grid"}>
         {reportStats.map(([label, value, Icon]) => (
-          <article className="admin-stat-card" key={label}>
-            <Icon />
-            <div>
-              <strong>{value.toLocaleString()}</strong>
-              <span>{label}</span>
-            </div>
+          <article className={isDean ? "dean-kpi-card" : "admin-stat-card"} key={label}>
+            {isDean ? (
+              <>
+                <div>
+                  <span>{label}</span>
+                  <strong>{value.toLocaleString()}</strong>
+                </div>
+                <Icon aria-hidden="true" />
+              </>
+            ) : (
+              <>
+                <Icon />
+                <div>
+                  <strong>{value.toLocaleString()}</strong>
+                  <span>{label}</span>
+                </div>
+              </>
+            )}
           </article>
         ))}
       </div>
-      <div className="toolbar">
-        <SearchBox value={search} onChange={setSearch} placeholder="Search reports" />
-        <SelectField label="Violation Filter" value={violationFilter} onChange={(event) => setViolationFilter(event.target.value)}>
-          <option>All Violations</option>
-          {violationTypes.map((type) => <option key={type}>{type}</option>)}
-        </SelectField>
-      </div>
-      <div className="tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
-      <ListViewToolbar
-        controls={{
-          cardDensity: listView.cardDensity,
-          onCardDensity: listView.setCardDensity,
-          onTableDensity: listView.setTableDensity,
-          onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filteredRows.length)),
-          tableDensity: listView.tableDensity,
-          view: listView.view,
-        }}
-      />
-      <Card className={`admin-panel admin-activity-panel ${tab === "Overview" || tab === "Violations" ? "admin-violations-report-panel" : ""}`}>
+      {isDean ? (
+        <Card className="dean-dashboard-panel dean-reports-controls">
+          <div className="dean-reports-filter-row">
+            <SearchBox value={search} onChange={setSearch} placeholder="Search reports" />
+            <SelectField label="Violation Filter" value={violationFilter} onChange={(event) => setViolationFilter(event.target.value)}>
+              <option>All Violations</option>
+              {violationTypes.map((type) => <option key={type}>{type}</option>)}
+            </SelectField>
+          </div>
+        </Card>
+      ) : (
+        <div className="toolbar">
+          <SearchBox value={search} onChange={setSearch} placeholder="Search reports" />
+          <SelectField label="Violation Filter" value={violationFilter} onChange={(event) => setViolationFilter(event.target.value)}>
+            <option>All Violations</option>
+            {violationTypes.map((type) => <option key={type}>{type}</option>)}
+          </SelectField>
+        </div>
+      )}
+      <Card className={`admin-panel admin-activity-panel ${isDean ? "dean-dashboard-panel dean-reports-panel" : ""} ${tab === "Overview" || tab === "Violations" ? "admin-violations-report-panel" : ""}`}>
         <div className="reports-print-header" aria-hidden="true">
           <h1>Smart Proctoring System</h1>
           <h2>{reportTitle}</h2>
@@ -373,11 +408,25 @@ export default function Reports() {
           </dl>
         </div>
         <div className="reports-panel-header">
-          <h2>{tab === "Overview" ? "Violations Report" : tab}</h2>
+          <div>
+            <h2>{tab === "Overview" ? "Violations Report" : tab}</h2>
+            {isDean ? <p>{filteredRows.length.toLocaleString()} filtered records. Screen rows are paginated; print uses the report dataset where supported.</p> : null}
+          </div>
           <div className="header-actions">
             <Button variant="light" onClick={() => window.print()}><FiPrinter /> Print / Save as PDF</Button>
           </div>
         </div>
+        <div className="tabs">{tabs.map((item) => <button key={item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item}</button>)}</div>
+        <ListViewToolbar
+          controls={{
+            cardDensity: listView.cardDensity,
+            onCardDensity: listView.setCardDensity,
+            onTableDensity: listView.setTableDensity,
+            onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filteredRows.length)),
+            tableDensity: listView.tableDensity,
+            view: listView.view,
+          }}
+        />
         {isViolationReport ? (
           <div className="reports-print-table-wrap" aria-hidden="true">
             <table>
@@ -408,12 +457,37 @@ export default function Reports() {
             </table>
           </div>
         ) : null}
-        {listView.view === "cards" ? (
-          <RecordCardList columns={columnsByTab[tab] || columnsByTab.Overview} density={listView.cardDensity} rows={pageData.rows} />
+        {loadError ? (
+          <div className="dean-reports-state dean-reports-error" role="alert">
+            <strong>Unable to load report data.</strong>
+            <span>{loadError}</span>
+          </div>
+        ) : loading ? (
+          <div className="dean-reports-state" aria-busy="true">
+            <strong>Loading reports...</strong>
+            <span>Fetching report counts and records.</span>
+          </div>
         ) : (
-          <Table className={`list-table-${listView.tableDensity}`} columns={columnsByTab[tab] || columnsByTab.Overview} rows={pageData.rows} />
+          <div className={isDean ? "dean-reports-table-scroll" : ""}>
+            {listView.view === "cards" ? (
+              <RecordCardList
+                columns={columnsByTab[tab] || columnsByTab.Overview}
+                density={listView.cardDensity}
+                empty={<EmptyState title="No report records match the current filters." description="Adjust search, violation filter, or report tab." />}
+                rows={pageData.rows}
+              />
+            ) : (
+              <Table
+                className={`${isDean ? "dean-reports-table " : ""}list-table-${listView.tableDensity}`}
+                columns={columnsByTab[tab] || columnsByTab.Overview}
+                emptyDescription="Adjust search, violation filter, or report tab."
+                emptyTitle="No report records match the current filters."
+                rows={pageData.rows}
+              />
+            )}
+          </div>
         )}
-        <ListPagination count={filteredRows.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
+        {!loadError && !loading ? <ListPagination count={filteredRows.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} /> : null}
       </Card>
     </section>
   );
