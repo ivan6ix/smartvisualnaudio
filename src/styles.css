@@ -15131,25 +15131,64 @@ html[data-appearance="dark"] .professor-shell::-webkit-scrollbar-thumb {
   min-height: 100vh;
 }
 .student-sidebar {
-  background: var(--app-surface);
-  border-right: 1px solid var(--app-line);
+  background: #0f172a;
+  border-right: 1px solid rgba(226, 232, 240, 0.18);
+  color: #f8fafc;
+}
+html[data-theme="light"] .student-sidebar {
+  background: #0f172a;
+}
+html[data-theme="dark"] .student-sidebar,
+html[data-appearance="dark"] .student-sidebar {
+  background: #0b1220;
+  border-right-color: rgba(226, 232, 240, 0.14);
+}
+.student-sidebar-brand,
+.student-sidebar-brand strong,
+.student-sidebar-profile strong {
+  color: #f8fafc;
+}
+.student-sidebar-brand small,
+.student-sidebar-profile span {
+  color: rgba(226, 232, 240, 0.72);
 }
 .student-sidebar-brand span {
   background: #2563eb;
   color: #fff;
 }
 .student-sidebar nav a {
+  border: 1px solid transparent;
   border-radius: 8px;
+  color: rgba(226, 232, 240, 0.84);
 }
-.student-sidebar nav a.active,
+.student-sidebar nav a svg {
+  color: rgba(226, 232, 240, 0.66);
+}
 .student-sidebar nav a:hover {
+  background: rgba(37, 99, 235, 0.16);
+  border-color: rgba(147, 197, 253, 0.24);
+  color: #f8fafc;
+}
+.student-sidebar nav a:hover svg {
+  color: #f8fafc;
+}
+.student-sidebar nav a.active {
   background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+.student-sidebar nav a.active svg {
   color: #fff;
 }
 .student-sidebar-utility {
   border-top: 1px solid rgba(148, 163, 184, 0.18);
   margin-top: auto;
   padding-top: 12px;
+}
+.student-sidebar-profile {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(226, 232, 240, 0.18);
+  border-radius: 8px;
 }
 .student-shell-main {
   display: grid;

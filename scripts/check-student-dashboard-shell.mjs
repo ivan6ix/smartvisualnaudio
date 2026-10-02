@@ -39,6 +39,11 @@ assert.match(dashboard, /getExamAttemptEligibility/, "Existing available exam el
 assert.doesNotMatch(dashboard, /exam_attempts[\s\S]*select\("\*"\)/, "Dashboard must not add broad attempt-history fetching.");
 
 assert.match(styles, /\.student-app-shell\s*\{[\s\S]*grid-template-columns:\s*260px minmax\(0,\s*1fr\)/, "Student shell should use a desktop sidebar/content grid.");
+assert.match(styles, /html\[data-theme="light"\] \.student-sidebar\s*\{[\s\S]*background:\s*#0f172a/, "Light Student shell should keep a dark navy sidebar.");
+assert.match(styles, /\.student-sidebar nav a\s*\{[\s\S]*color:\s*rgba\(226,\s*232,\s*240,\s*0\.84\)/, "Inactive Student sidebar navigation should stay readable on dark navy.");
+assert.match(styles, /\.student-sidebar nav a\.active\s*\{[\s\S]*background:\s*#2563eb[\s\S]*color:\s*#fff/, "Active Student sidebar navigation should remain primary blue with white text.");
+assert.match(styles, /\.student-sidebar-profile\s*\{[\s\S]*background:\s*rgba\(15,\s*23,\s*42,\s*0\.78\)/, "Student sidebar identity block should use a subtle dark boxed surface.");
+assert.match(styles, /\.student-dashboard-page \.student-primary-button[\s\S]*background:\s*#2563eb/, "Student Join Course button should use the system primary blue.");
 assert.match(styles, /\.student-dashboard-page \.student-kpi-card\s*\{[\s\S]*border:\s*1px solid rgba\(15,\s*23,\s*42,\s*0\.48\)/, "Light Student KPI cards need visible dark-neutral outlines.");
 assert.match(styles, /html\[data-theme="dark"\] \.student-dashboard-page \.student-kpi-card[\s\S]*border-color:\s*rgba\(226,\s*232,\s*240,\s*0\.58\)/, "Dark Student KPI cards need visible light outlines.");
 assert.match(styles, /\.student-dashboard-page \.student-dashboard-card\s*\{[\s\S]*border-radius:\s*8px/, "Student dashboard panels should follow the approved boxed style.");
