@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FiCheckCircle, FiFileText, FiInbox, FiMessageCircle, FiXCircle } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button, Card, PageHeader, StatCard, Table } from "../../components/ui";
+import { Button } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -132,33 +132,79 @@ export default function ClusterDashboard() {
     setLoadingActionId("");
   }
 
+  const stats = [
+    { label: "Pending Exam Reviews", value: liveStats?.pending ?? pending.length, icon: FiInbox },
+    { label: "Approved Exams", value: liveStats?.approved ?? approved.length, icon: FiCheckCircle },
+    { label: "Rejected Exams", value: liveStats?.rejected ?? rejected.length, icon: FiXCircle },
+    { label: "Total Reviews", value: liveStats?.reviews ?? reviews.length, icon: FiFileText },
+    { label: "Reports Generated", value: liveStats?.reports ?? reportsGenerated, icon: FiFileText },
+    { label: "New Messages", value: liveStats?.messages ?? messages.reduce((sum, item) => sum + item.unread, 0), icon: FiMessageCircle },
+  ];
+
   return (
-    <>
-      <PageHeader title="Cluster Professor Dashboard" subtitle="Review submitted examinations, respond to professors, and monitor approval activity." />
-      <div className="stats-grid">
-        <StatCard label="Pending Exam Reviews" value={liveStats?.pending ?? pending.length} icon={FiInbox} />
-        <StatCard label="Approved Exams" value={liveStats?.approved ?? approved.length} icon={FiCheckCircle} />
-        <StatCard label="Rejected Exams" value={liveStats?.rejected ?? rejected.length} icon={FiXCircle} />
-        <StatCard label="Total Reviews" value={liveStats?.reviews ?? reviews.length} icon={FiFileText} />
-        <StatCard label="Reports Generated" value={liveStats?.reports ?? reportsGenerated} icon={FiFileText} />
-        <StatCard label="New Messages" value={liveStats?.messages ?? messages.reduce((sum, item) => sum + item.unread, 0)} icon={FiMessageCircle} />
+    <section className="cluster-review-page">
+      <header className="cluster-review-header">
+        <div>
+          <h1>Cluster Professor Dashboard</h1>
+          <p>Review submitted examinations, respond to professors, and monitor approval activity.</p>
+        </div>
+      </header>
+      <div className="cluster-kpi-grid">
+        {stats.map(({ icon: Icon, label, value }) => (
+          <article className="cluster-kpi-card" key={label}>
+            <div>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+            <Icon aria-hidden="true" />
+          </article>
+        ))}
       </div>
-      <Card>
-        <h2>Recent Activity</h2>
-        <Table columns={[
-          { key: "examTitle", label: "Exam Title" },
-          { key: "professorName", label: "Professor Name" },
-          { key: "course", label: "Course" },
-          { key: "submittedAt", label: "Submission Date" },
-          { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
-        ]} rows={dashboardExams} renderActions={(row) => (
-          <>
-            {row.status === "Pending Review" ? <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleApprove(row.id)}>{loadingActionId === row.id ? "Saving..." : "Approve Exam"}</Button> : null}
-            <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Review</Button>
-            {row.status === "Pending Review" ? <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleReject(row.id)}>Reject</Button> : null}
-          </>
-        )} />
-      </Card>
-    </>
+      <section className="cluster-review-panel">
+        <div className="cluster-panel-title">
+          <div>
+            <h2>Recent Activity</h2>
+            <p>Latest submitted exams and review decisions.</p>
+          </div>
+        </div>
+        <div className="cluster-table-scroll">
+          <table className="cluster-review-table">
+            <thead>
+              <tr>
+                <th>Exam Title</th>
+                <th>Professor Name</th>
+                <th>Course</th>
+                <th>Submission Date</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {dashboardExams.map((row) => (
+                <tr key={row.id}>
+                  <td><strong>{row.examTitle}</strong></td>
+                  <td>{row.professorName}</td>
+                  <td>{row.course}</td>
+                  <td>{row.submittedAt}</td>
+                  <td><StatusBadge status={row.status} /></td>
+                  <td>
+                    <div className="cluster-row-actions">
+                      {row.status === "Pending Review" ? <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleApprove(row.id)}>{loadingActionId === row.id ? "Saving..." : "Approve Exam"}</Button> : null}
+                      <Button variant="light" onClick={() => navigate(`/cluster/exams/${row.id}`)}>Review</Button>
+                      {row.status === "Pending Review" ? <Button disabled={loadingActionId === row.id} variant="light" onClick={() => handleReject(row.id)}>Reject</Button> : null}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!dashboardExams.length ? (
+                <tr>
+                  <td className="cluster-empty-row" colSpan={6}>No recent review activity yet.</td>
+                </tr>
+              ) : null}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </section>
   );
 }
