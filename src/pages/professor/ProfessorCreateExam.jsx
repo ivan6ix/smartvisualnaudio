@@ -1250,34 +1250,73 @@ export default function ProfessorCreateExam() {
       <form className="professor-create-form" onSubmit={(event) => event.preventDefault()}>
         <div className="professor-create-top-grid">
           <section className="professor-create-card professor-details-card">
-            <h2>Exam Details</h2>
-            <div className="professor-details-grid">
-              <SelectInput onChange={(event) => setExamValue("courseId", event.target.value)} value={examForm.courseId}>
-                <option value="" disabled>Select Course</option>
-                {courses.map((course) => <option key={course.id} value={course.id}>{course.courseCode} - {course.section}</option>)}
-              </SelectInput>
-              <TextInput onChange={(event) => setExamValue("title", event.target.value)} placeholder="Exam Title" type="text" value={examForm.title} />
-              <SelectInput onChange={(event) => setExamValue("examType", event.target.value)} value={examForm.examType}>
-                <option value="" disabled>Exam Type</option>
-                {examTypes.map((type) => <option key={type}>{type}</option>)}
-              </SelectInput>
-              <SelectInput disabled={Boolean(presetPeriod) && !isEditingExam} onChange={(event) => setExamValue("period", event.target.value)} value={examForm.period}>
-                <option value="" disabled>Select Period</option>
-                {periodOptions.map((period) => <option key={period}>{period}</option>)}
-              </SelectInput>
-              <SelectInput onChange={(event) => setExamValue("semester", event.target.value)} value={examForm.semester}>
-                <option value="" disabled>Select Semester</option>
-                {semesters.map((semester) => <option key={semester}>{semester}</option>)}
-              </SelectInput>
-              <TextInput min="1" onChange={(event) => setExamValue("duration", event.target.value)} placeholder="Time Duration (minutes)" type="number" value={examForm.duration} />
-              <SelectInput onChange={(event) => setExamValue("attempts", event.target.value)} value={examForm.attempts}>
-                <option value="" disabled>Attempts</option>
-                {attempts.map((attempt) => <option key={attempt}>{attempt}</option>)}
-              </SelectInput>
-              <label>Start (local time)<TextInput onChange={(event) => setExamValue("startsAt", event.target.value)} type="datetime-local" value={examForm.startsAt} /></label><label>Deadline (local time)<TextInput onChange={(event) => setExamValue("deadline", event.target.value)} type="datetime-local" value={examForm.deadline} /></label>
+            <div className="professor-section-heading">
+              <h2>Basic Details</h2>
+              <p>Create a new exam, configure the schedule, and describe what students need to know.</p>
             </div>
-            <label>Description<textarea className="professor-create-textarea" maxLength={1000} value={examForm.description} onChange={event => setExamValue("description", event.target.value)} /><small>{examForm.description.length} / 1000</small></label>
-            <textarea className="professor-create-textarea" onChange={(event) => setExamValue("instructions", event.target.value)} maxLength={5000} placeholder="Exam instructions" value={examForm.instructions} /><small>{examForm.instructions.length} / 5000</small>
+            <div className="professor-details-grid">
+              <label className="professor-field-label">
+                <span>Course</span>
+                <SelectInput onChange={(event) => setExamValue("courseId", event.target.value)} value={examForm.courseId}>
+                  <option value="" disabled>Select Course</option>
+                  {courses.map((course) => <option key={course.id} value={course.id}>{course.courseCode} - {course.section}</option>)}
+                </SelectInput>
+              </label>
+              <label className="professor-field-label">
+                <span>Exam Title</span>
+                <TextInput onChange={(event) => setExamValue("title", event.target.value)} placeholder="Exam Title" type="text" value={examForm.title} />
+              </label>
+              <label className="professor-field-label">
+                <span>Exam Type</span>
+                <SelectInput onChange={(event) => setExamValue("examType", event.target.value)} value={examForm.examType}>
+                  <option value="" disabled>Exam Type</option>
+                  {examTypes.map((type) => <option key={type}>{type}</option>)}
+                </SelectInput>
+              </label>
+              <label className="professor-field-label">
+                <span>Period</span>
+                <SelectInput disabled={Boolean(presetPeriod) && !isEditingExam} onChange={(event) => setExamValue("period", event.target.value)} value={examForm.period}>
+                  <option value="" disabled>Select Period</option>
+                  {periodOptions.map((period) => <option key={period}>{period}</option>)}
+                </SelectInput>
+              </label>
+              <label className="professor-field-label">
+                <span>Semester</span>
+                <SelectInput onChange={(event) => setExamValue("semester", event.target.value)} value={examForm.semester}>
+                  <option value="" disabled>Select Semester</option>
+                  {semesters.map((semester) => <option key={semester}>{semester}</option>)}
+                </SelectInput>
+              </label>
+              <label className="professor-field-label">
+                <span>Duration</span>
+                <TextInput min="1" onChange={(event) => setExamValue("duration", event.target.value)} placeholder="Time Duration (minutes)" type="number" value={examForm.duration} />
+              </label>
+              <label className="professor-field-label">
+                <span>Attempts</span>
+                <SelectInput onChange={(event) => setExamValue("attempts", event.target.value)} value={examForm.attempts}>
+                  <option value="" disabled>Attempts</option>
+                  {attempts.map((attempt) => <option key={attempt}>{attempt}</option>)}
+                </SelectInput>
+              </label>
+              <label className="professor-field-label">
+                <span>Start (local time)</span>
+                <TextInput onChange={(event) => setExamValue("startsAt", event.target.value)} type="datetime-local" value={examForm.startsAt} />
+              </label>
+              <label className="professor-field-label">
+                <span>Deadline (local time)</span>
+                <TextInput onChange={(event) => setExamValue("deadline", event.target.value)} type="datetime-local" value={examForm.deadline} />
+              </label>
+              <label className="professor-field-label professor-full-field">
+                <span>Description</span>
+                <textarea className="professor-create-textarea" maxLength={1000} value={examForm.description} onChange={event => setExamValue("description", event.target.value)} />
+                <small>{examForm.description.length} / 1000</small>
+              </label>
+              <label className="professor-field-label professor-full-field">
+                <span>Instructions</span>
+                <textarea className="professor-create-textarea" onChange={(event) => setExamValue("instructions", event.target.value)} maxLength={5000} placeholder="Exam instructions" value={examForm.instructions} />
+                <small>{examForm.instructions.length} / 5000</small>
+              </label>
+            </div>
           </section>
 
           <section className="professor-create-card professor-assignment-card">
@@ -1377,7 +1416,10 @@ export default function ProfessorCreateExam() {
           </section>
 
           <section className="professor-create-card professor-settings-card">
-            <h2>Exam Settings</h2>
+            <div className="professor-section-heading">
+              <h2>Exam / Proctoring Settings</h2>
+              <p>Configure the existing security and monitoring options for this exam.</p>
+            </div>
             <div className="professor-settings-grid">
               {settings.map((setting) => (
                 <label className="professor-setting-option" key={setting.key}>
