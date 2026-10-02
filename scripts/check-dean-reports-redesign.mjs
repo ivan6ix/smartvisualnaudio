@@ -51,6 +51,9 @@ assert.match(styles, /@media print[\s\S]*\.reports-page \.admin-violations-repor
 assert.match(styles, /@media print[\s\S]*\.admin-topbar,[\s\S]*\.dean-topbar,[\s\S]*\.admin-menu-button,[\s\S]*\.admin-drawer,[\s\S]*\.dean-sidebar/, "Dean app shell and topbar chrome must be hidden in print.");
 assert.match(styles, /@media print[\s\S]*\.dean-kpi-grid,[\s\S]*\.dean-reports-controls,[\s\S]*\.dean-reports-header/, "Dean Reports screen KPI/header/filter controls must be hidden in print.");
 assert.match(styles, /@media print[\s\S]*\.tabs,[\s\S]*\.header-actions,[\s\S]*\.list-view-toolbar,[\s\S]*\.list-view-controls/, "Report tabs, print button, view controls, and density controls must be hidden in print.");
+assert.match(styles, /reports-print-table-wrap td:nth-child\(4\) \{ width: 15%; \}[\s\S]*reports-print-table-wrap td:nth-child\(5\) \{ width: 30%; \}/, "Print table must reserve more room for Violation and Details columns.");
+assert.match(styles, /reports-print-table-wrap th:nth-child\(4\),[\s\S]*reports-print-table-wrap td:nth-child\(5\) \{[\s\S]*overflow-wrap:\s*anywhere;[\s\S]*word-break:\s*break-word;[\s\S]*white-space:\s*normal;/, "Long violation/details values must wrap inside print table cells.");
+assert.match(styles, /@media print[\s\S]*\.reports-page \.reports-panel-header p\s*\{[\s\S]*display:\s*none !important/, "Screen-only pagination helper text must be hidden in print.");
 assert.match(styles, /@media print[\s\S]*\.reports-print-header h2[\s\S]*font-size:\s*17pt[\s\S]*\.reports-print-header h3/, "Print header should use formal document typography.");
 assert.match(styles, /@media print[\s\S]*background:\s*#fff !important[\s\S]*color:\s*#111827 !important/, "Print output must remain readable from light or dark theme.");
 

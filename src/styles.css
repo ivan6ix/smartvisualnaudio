@@ -14215,19 +14215,19 @@ html[data-theme="light"] :is(
     overflow: visible !important;
   }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(1),
-  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(1) { width: 14%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(1) { width: 15%; }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(2),
-  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(2) { width: 9%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(2) { width: 8%; }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(3),
-  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(3) { width: 15%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(3) { width: 12%; }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(4),
-  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(4) { width: 13%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(4) { width: 15%; }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(5),
-  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(5) { width: 27%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(5) { width: 30%; }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(6),
   .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(6) { width: 12%; }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(7),
-  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(7) { width: 10%; }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(7) { width: 8%; }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(2),
   .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(2),
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(6),
@@ -14235,6 +14235,17 @@ html[data-theme="light"] :is(
   .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(7),
   .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(7) {
     white-space: nowrap;
+  }
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(4),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(4),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap th:nth-child(5),
+  .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(5) {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+    white-space: normal;
+  }
+  .reports-page .reports-panel-header p {
+    display: none !important;
   }
   .reports-page .admin-violations-report-panel .reports-print-table-wrap td:nth-child(6) span {
     display: block;
