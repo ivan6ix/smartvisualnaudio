@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { FiArrowRight, FiPlus, FiX } from "react-icons/fi";
+import { FiArrowRight, FiBookOpen, FiFileText, FiPlus, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
-import { Card, PageHeader } from "../../components/ui";
+import { Card } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { studentCourses } from "../../data/studentData";
@@ -137,6 +137,10 @@ export default function StudentDashboard() {
   const examsLoading = hasSupabaseConfig && dashboardQuery.isFetching;
   const coursePageData = getListPageSlice(courses, coursePage, coursesView.pageSize);
   const examPageData = getListPageSlice(availableExams, examPage, examsView.pageSize);
+  const dashboardSummaries = [
+    { key: "courses", label: "Enrolled Courses", value: courses.length, icon: FiBookOpen },
+    { key: "exams", label: "Available Exams", value: availableExams.length, icon: FiFileText },
+  ];
 
   useEffect(() => {
     if (dashboardQuery.data?.courses) setCourses(dashboardQuery.data.courses);
@@ -191,11 +195,25 @@ export default function StudentDashboard() {
 
   return (
     <section className="student-dashboard-page">
-      <PageHeader
-        title="Student Dashboard"
-        subtitle="View joined courses, available exams, resources, and grades."
-        actions={<button className="student-primary-button" onClick={() => setJoinOpen(true)} type="button"><FiPlus /> Join Course</button>}
-      />
+      <header className="student-dashboard-header">
+        <div>
+          <h1>Dashboard</h1>
+          <p>Overview of your courses, available exams, and academic activity.</p>
+        </div>
+        <button className="student-primary-button" onClick={() => setJoinOpen(true)} type="button"><FiPlus /> Join Course</button>
+      </header>
+
+      <div className="student-dashboard-summary-grid">
+        {dashboardSummaries.map((summary) => {
+          const Icon = summary.icon;
+          return (
+            <article className="student-kpi-card" key={summary.key}>
+              <Icon aria-hidden="true" />
+              <div><span>{summary.label}</span><strong>{summary.value}</strong></div>
+            </article>
+          );
+        })}
+      </div>
 
       <div className="professor-dashboard-grid student-dashboard-overview">
         <Card className="student-dashboard-card">
@@ -216,10 +234,10 @@ export default function StudentDashboard() {
           {coursesView.view === "cards" ? (
             <ListCardGrid density={coursesView.cardDensity}>
             {coursePageData.rows.map((course) => (
-              <button className="student-course-card" key={course.id} onClick={() => navigate(`/student/courses/${course.id}/materials`)} type="button">
+              <button className="student-course-card student-dashboard-record-card" key={course.id} onClick={() => navigate(`/student/courses/${course.id}/materials`)} type="button">
                 <div>
                   <strong>{course.name}</strong>
-                  <span>{course.section}</span>
+                  <span>{course.courseName || course.section}</span>
                   <small>{formatCourseMeta({ ...course, section: course.rawSection || course.section })}</small>
                 </div>
                 <i><FiArrowRight /></i>
@@ -266,7 +284,7 @@ export default function StudentDashboard() {
           {!examsLoading && examsView.view === "cards" ? (
             <ListCardGrid density={examsView.cardDensity}>
             {examPageData.rows.map((exam) => (
-              <article className="student-available-exam-card" key={exam.id}>
+              <article className="student-available-exam-card student-dashboard-record-card" key={exam.id}>
                 <div className="student-available-exam-main">
                   <strong>{exam.title}</strong>
                   <span>{exam.course}{exam.section ? ` - ${exam.section}` : ""}{exam.programCode ? ` - ${exam.programCode}` : ""}</span>

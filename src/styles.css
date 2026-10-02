@@ -15122,3 +15122,291 @@ html[data-appearance="dark"] .professor-shell::-webkit-scrollbar-thumb {
     grid-template-columns: 1fr;
   }
 }
+
+.student-app-shell {
+  background: var(--app-bg);
+  color: var(--text-primary);
+  display: grid;
+  grid-template-columns: 260px minmax(0, 1fr);
+  min-height: 100vh;
+}
+.student-sidebar {
+  background: var(--app-surface);
+  border-right: 1px solid var(--app-line);
+}
+.student-sidebar-brand span {
+  background: #2563eb;
+  color: #fff;
+}
+.student-sidebar nav a {
+  border-radius: 8px;
+}
+.student-sidebar nav a.active,
+.student-sidebar nav a:hover {
+  background: #2563eb;
+  color: #fff;
+}
+.student-sidebar-utility {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  margin-top: auto;
+  padding-top: 12px;
+}
+.student-shell-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+}
+.student-topbar {
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-line);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+.student-topbar-title strong {
+  color: var(--text-primary);
+}
+.student-topbar-actions .student-theme-button,
+.student-topbar-actions .message-menu > button,
+.student-topbar-actions .notification-menu > button,
+.student-topbar-actions .profile-menu > button {
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  color: var(--text-secondary);
+}
+.student-topbar-actions .student-theme-button:hover,
+.student-topbar-actions .message-menu > button:hover,
+.student-topbar-actions .notification-menu > button:hover,
+.student-topbar-actions .profile-menu > button:hover {
+  background: rgba(37, 99, 235, 0.08);
+  color: #1d4ed8;
+}
+.student-shell {
+  align-content: start;
+  background: var(--app-bg);
+  display: grid;
+  gap: 18px;
+  min-height: 0;
+  padding: 24px;
+}
+.student-shell::before {
+  display: none;
+}
+.student-exam-shell {
+  min-height: 100vh;
+}
+.student-dashboard-page {
+  color: var(--text-primary);
+  display: grid;
+  gap: 18px;
+}
+.student-dashboard-header {
+  align-items: flex-start;
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+}
+.student-dashboard-header h1 {
+  color: var(--text-primary);
+  font-size: clamp(1.8rem, 3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.12;
+  margin: 0;
+}
+.student-dashboard-header p {
+  color: var(--text-muted);
+  font-size: 0.96rem;
+  margin: 5px 0 0;
+}
+.student-dashboard-summary-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.student-dashboard-page .student-kpi-card {
+  align-content: space-between;
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  display: grid;
+  gap: 10px;
+  min-height: 104px;
+  padding: 15px 16px;
+}
+.student-dashboard-page .student-kpi-card svg {
+  color: var(--primary);
+  height: 22px;
+  width: 22px;
+}
+.student-dashboard-page .student-kpi-card span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.student-dashboard-page .student-kpi-card strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 9px;
+}
+.student-dashboard-page .student-dashboard-overview {
+  align-items: start;
+  display: grid;
+  gap: 18px;
+  grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
+  margin-top: 0;
+}
+.student-dashboard-page .student-dashboard-card {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+  padding: 20px;
+}
+.student-dashboard-page .student-card-title {
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.28);
+  display: flex;
+  gap: 14px;
+  justify-content: space-between;
+  margin-bottom: 0;
+  padding-bottom: 14px;
+}
+.student-dashboard-page .student-card-title h2 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+.student-dashboard-page .student-card-title > span {
+  border: 1px solid rgba(15, 23, 42, 0.2);
+  border-radius: 8px;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+  font-weight: 800;
+  padding: 7px 10px;
+}
+.student-dashboard-page .list-card-grid {
+  gap: 14px;
+}
+.student-dashboard-page .student-dashboard-record-card {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.48);
+  border-radius: 8px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+  color: #0f172a;
+}
+.student-dashboard-page .student-course-card {
+  min-height: 112px;
+  padding: 16px;
+}
+.student-dashboard-page .student-course-card > div,
+.student-dashboard-page .student-available-exam-main {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+.student-dashboard-page .student-course-card strong,
+.student-dashboard-page .student-available-exam-main strong {
+  color: var(--text-primary);
+  font-size: 0.98rem;
+  line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+.student-dashboard-page .student-course-card span,
+.student-dashboard-page .student-course-card small,
+.student-dashboard-page .student-available-exam-main span,
+.student-dashboard-page .student-available-exam-main small {
+  color: var(--text-muted);
+  font-size: 0.84rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.student-dashboard-page .student-course-card i {
+  background: rgba(37, 99, 235, 0.08);
+  border-radius: 8px;
+  color: #1d4ed8;
+}
+.student-dashboard-page .student-available-exam-card {
+  align-items: center;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 112px;
+  padding: 16px;
+}
+.student-dashboard-page .student-available-exam-actions {
+  justify-content: end;
+}
+.student-dashboard-page .student-start-exam,
+.student-dashboard-page .student-primary-button,
+.student-primary-button {
+  background: #2563eb;
+  border: 1px solid #1d4ed8;
+  border-radius: 8px;
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
+  color: #fff;
+}
+.student-dashboard-page .student-empty-box {
+  border: 1px dashed rgba(148, 163, 184, 0.5);
+  border-radius: 8px;
+  color: var(--text-muted);
+  padding: 18px;
+  text-align: center;
+}
+html[data-theme="dark"] .student-dashboard-page .student-kpi-card,
+html[data-theme="dark"] .student-dashboard-page .student-dashboard-card,
+html[data-theme="dark"] .student-dashboard-page .student-dashboard-record-card,
+html[data-appearance="dark"] .student-dashboard-page .student-kpi-card,
+html[data-appearance="dark"] .student-dashboard-page .student-dashboard-card,
+html[data-appearance="dark"] .student-dashboard-page .student-dashboard-record-card {
+  background: var(--app-surface);
+  border-color: rgba(226, 232, 240, 0.58);
+  box-shadow: 0 16px 34px rgba(0, 0, 0, 0.28);
+  color: var(--app-text);
+}
+html[data-theme="dark"] .student-dashboard-page .student-card-title > span,
+html[data-appearance="dark"] .student-dashboard-page .student-card-title > span {
+  border-color: rgba(226, 232, 240, 0.26);
+}
+
+@media (max-width: 1024px) {
+  .student-app-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .student-app-shell > .student-sidebar {
+    display: none;
+  }
+
+  .student-dashboard-page .student-dashboard-overview {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .student-app-shell .student-topbar,
+  .student-dashboard-header,
+  .student-dashboard-page .student-card-title,
+  .student-dashboard-page .student-available-exam-card {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .student-dashboard-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .student-shell {
+    padding: 16px 12px 32px;
+  }
+}
