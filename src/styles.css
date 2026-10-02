@@ -3685,20 +3685,122 @@ html[data-appearance="dark"] .professor-dashboard-page .professor-scroll-surface
   border-color: rgba(15, 23, 42, 0.55);
   background: rgba(226, 232, 240, 0.42);
 }
-.dean-shell {
-  padding-top: 12px;
-  gap: 16px;
-  align-content: start;
+.dean-app-shell {
+  background: var(--app-bg);
+  color: var(--text-primary);
 }
-.dean-shell .chart-box {
+.dean-sidebar,
+html[data-theme="light"] .dean-sidebar {
+  background: #0f172a;
+  border-right: 1px solid rgba(226, 232, 240, 0.18);
+  color: #f8fafc;
+}
+html[data-theme="dark"] .dean-sidebar,
+html[data-appearance="dark"] .dean-sidebar {
+  background: #0b1220;
+  border-right-color: rgba(226, 232, 240, 0.14);
+}
+.dean-sidebar nav a.active {
+  background: #2563eb;
+  color: #fff;
+}
+.dean-sidebar-utility {
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+  margin-top: auto;
+  padding-top: 12px;
+}
+.dean-sidebar-profile {
+  background: rgba(15, 23, 42, 0.78);
+  border: 1px solid rgba(226, 232, 240, 0.18);
+  border-radius: 8px;
+}
+.dean-topbar {
+  background: var(--app-surface);
+  border-bottom: 1px solid var(--app-line);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+}
+.dean-shell {
+  align-content: start;
+  background: var(--app-bg);
+  display: grid;
+  gap: 18px;
+  min-height: 0;
+  padding: 24px;
+}
+.dean-dashboard-page {
+  color: var(--text-primary);
+  display: grid;
+  gap: 18px;
+  min-width: 0;
+}
+.dean-dashboard-header {
+  display: grid;
+  gap: 5px;
+}
+.dean-dashboard-header h1 {
+  color: var(--text-primary);
+  font-size: clamp(1.8rem, 3vw, 2rem);
+  font-weight: 700;
+  line-height: 1.12;
+  margin: 0;
+}
+.dean-dashboard-header p {
+  color: var(--text-muted);
+  font-size: 0.96rem;
+  margin: 0;
+}
+.dean-kpi-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(4, minmax(160px, 1fr));
+}
+.dean-kpi-card {
+  align-items: center;
+  background: var(--app-surface);
+  border: 1px solid rgba(15, 23, 42, 0.32);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: var(--text-primary);
+  display: flex;
+  justify-content: space-between;
+  min-height: 104px;
+  padding: 16px;
+}
+.dean-kpi-card span {
+  color: var(--text-muted);
+  display: block;
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.dean-kpi-card strong {
+  color: var(--text-primary);
+  display: block;
+  font-size: 1.9rem;
+  font-weight: 700;
+  line-height: 1;
+  margin-top: 9px;
+}
+.dean-kpi-card svg {
+  color: #2563eb;
+  height: 22px;
+  width: 22px;
+}
+.dean-dashboard-panel {
+  background: var(--app-surface);
+  border: 1px solid rgba(15, 23, 42, 0.32);
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+  color: var(--text-primary);
+  padding: 20px;
+}
+.dean-shell .chart-box,
+.dean-chart-box {
+  background: var(--app-input);
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
   height: 320px;
-  border: 1px solid rgba(125, 211, 252, 0.14);
-  border-radius: 18px;
-  background:
-    linear-gradient(var(--app-surface), var(--app-surface)),
-    linear-gradient(90deg, rgba(125, 211, 252, 0.045) 1px, transparent 1px),
-    linear-gradient(rgba(125, 211, 252, 0.045) 1px, transparent 1px);
-  background-size: auto, 22px 22px, 22px 22px;
   padding: 14px;
 }
 .dean-shell .recharts-cartesian-grid line {
@@ -3740,18 +3842,27 @@ html[data-appearance="dark"] .professor-dashboard-page .professor-scroll-surface
 }
 .dean-dashboard-section-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 14px;
   margin-bottom: 18px;
 }
 .dean-dashboard-section-header h2 {
+  color: var(--text-primary);
+  font-size: 1rem;
+  font-weight: 700;
   margin: 0;
 }
+.dean-dashboard-section-header p {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 5px 0 0;
+}
 .dean-dashboard-section-header span {
-  color: var(--app-text-muted);
+  color: var(--text-muted);
   font-size: 0.86rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 .dean-course-search {
   width: min(100%, 520px);

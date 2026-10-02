@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiFileText, FiUsers, FiX } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
-import { Badge, Button, Card, EmptyState, PageHeader, SearchBox, SelectField, StatCard, Table } from "../../components/ui";
+import { Badge, Button, Card, EmptyState, SearchBox, SelectField, Table } from "../../components/ui";
 import { useChartTheme } from "../../context/ThemeContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { violationChart } from "../../data/mockData";
@@ -213,9 +213,23 @@ export default function DeanDashboard() {
   const pageData = getListPageSlice(filteredViolations, page, listView.pageSize);
 
   return (
-    <>
-      <PageHeader title="Dean Dashboard" subtitle="Monitor students, courses, exams, and proctoring violations." />
-      <Card className="dean-dashboard-controls">
+    <section className="dean-dashboard-page">
+      <header className="dean-dashboard-header">
+        <h1>Dashboard</h1>
+        <p>Overview of examination activity, integrity monitoring, and oversight records.</p>
+      </header>
+      <div className="dean-kpi-grid">
+        {cards.map(([label, value, Icon]) => (
+          <Card className="dean-kpi-card" key={label}>
+            <div>
+              <span>{label}</span>
+              <strong>{value}</strong>
+            </div>
+            <Icon />
+          </Card>
+        ))}
+      </div>
+      <Card className="dean-dashboard-panel dean-dashboard-controls">
         <div className="dean-dashboard-search-row">
           <SearchBox value={search} onChange={setSearch} placeholder="Search students, exams, courses, or violations..." />
           {search ? <Button variant="light" onClick={() => setSearch("")}><FiX /> Clear</Button> : null}
@@ -243,15 +257,15 @@ export default function DeanDashboard() {
           <Button variant="light" onClick={resetFilters}>Reset Filters</Button>
         </div>
       </Card>
-      <div className="stats-grid dean-stats-grid">
-        {cards.map(([label, value, icon]) => <StatCard key={label} label={label} value={value} icon={icon} />)}
-      </div>
-      <Card>
+      <Card className="dean-dashboard-panel dean-analytics-panel">
         <div className="dean-dashboard-section-header">
-          <h2>Violation Analytics</h2>
+          <div>
+            <h2>Violation Analytics</h2>
+            <p>Filtered proctoring records from the current Dean dashboard sample.</p>
+          </div>
           <span>{filteredViolations.length} matching records</span>
         </div>
-        <div className="chart-box">
+        <div className="chart-box dean-chart-box">
           {filteredViolations.length || !hasSupabaseConfig ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={violationData}>
@@ -285,6 +299,6 @@ export default function DeanDashboard() {
           </>
         ) : null}
       </Card>
-    </>
+    </section>
   );
 }
