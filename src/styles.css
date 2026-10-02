@@ -1657,6 +1657,17 @@ html[data-theme="dark"] .admin-sidebar {
   color: #fff;
   font-size: 0.68rem;
 }
+.admin-topbar-actions .cluster-profile-menu > button {
+  width: 38px;
+  height: 38px;
+  min-height: 38px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+.admin-topbar-actions .cluster-profile-menu > button .profile-avatar {
+  border-radius: 50%;
+  overflow: hidden;
+}
 .admin-main-content {
   width: 100%;
   max-width: 1580px;
@@ -12831,6 +12842,26 @@ html[data-theme="light"] .professor-shell .professor-create-textarea {
 html[data-theme="light"] .professor-shell .professor-create-input option {
   background: var(--app-surface);
   color: var(--app-text);
+}
+.cluster-history-review-details {
+  display: grid;
+  gap: 10px;
+  overflow: auto;
+}
+.cluster-history-review-details span {
+  display: grid;
+  gap: 6px;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 16px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  padding: 14px;
+}
+.cluster-history-review-details b {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
 }
 
 html[data-theme="light"] .professor-shell .professor-setting-option,

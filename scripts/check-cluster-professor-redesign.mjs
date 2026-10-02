@@ -5,6 +5,7 @@ const app = readFileSync("src/App.jsx", "utf8");
 const layout = readFileSync("src/pages/cluster/ClusterLayout.jsx", "utf8");
 const dashboard = readFileSync("src/pages/cluster/ClusterDashboard.jsx", "utf8");
 const examList = readFileSync("src/pages/cluster/ClusterExamList.jsx", "utf8");
+const history = readFileSync("src/pages/cluster/ClusterHistory.jsx", "utf8");
 const review = readFileSync("src/pages/cluster/ClusterExamReview.jsx", "utf8");
 const notifications = readFileSync("src/hooks/useNotifications.js", "utf8");
 const styles = readFileSync("src/styles.css", "utf8");
@@ -88,6 +89,16 @@ assert.match(styles, /\.cluster-exam-list-table \.actions-heading[\s\S]*white-sp
 assert.doesNotMatch(styles, /@media \(max-width: 1024px\)[\s\S]*\.cluster-exam-list-table\s*\{[\s\S]*min-width:\s*1040px/, "Cluster exam queue must not force the obsolete 1040px blank-scroll minimum.");
 assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.cluster-exam-table-scroll\s*\{[\s\S]*overflow-x:\s*auto/, "Cluster exam queue should keep local narrow-screen overflow only when genuinely needed.");
 assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.cluster-exam-list-table\s*\{[\s\S]*min-width:\s*900px/, "Cluster exam queue should use a smaller mobile-only minimum based on actual columns.");
+
+assert.match(history, /const \[selectedReview, setSelectedReview\] = useState\(null\)/, "Review History View should select a review for inspection.");
+assert.match(history, /onClick=\{\(\) => setSelectedReview\(row\)\}[\s\S]*>View<\/Button>/, "Review History View must open the selected review row.");
+assert.match(history, /selectedReview \? \([\s\S]*className="cluster-history-backdrop"[\s\S]*aria-labelledby="cluster-history-review-title"[\s\S]*Review Details[\s\S]*selectedReview\.examTitle[\s\S]*selectedReview\.id[\s\S]*selectedReview\.decision[\s\S]*selectedReview\.remarks/, "Review History should render a read-only detail modal for the selected review.");
+assert.match(history, /function closeSelectedReview\(\) \{[\s\S]*setSelectedReview\(null\)/, "Review History modal should have a safe close path.");
+assert.doesNotMatch(history, /saveReview|approveExam|rejectExam|setApproveOpen|setRejectOpen/, "Review History detail must not expose decision-changing workflow actions.");
+assert.doesNotMatch(history, /renderActions=\{\(\) => <Button variant="light">View<\/Button>\}/, "Review History View must not be a no-op button.");
+
+assert.match(styles, /\.admin-topbar-actions \.cluster-profile-menu > button\s*\{[\s\S]*width:\s*38px;[\s\S]*height:\s*38px;[\s\S]*border-radius:\s*50%;[\s\S]*overflow:\s*hidden;/, "Cluster topbar profile trigger should be a compact circle.");
+assert.match(styles, /\.admin-topbar-actions \.cluster-profile-menu > button \.profile-avatar\s*\{[\s\S]*border-radius:\s*50%;[\s\S]*overflow:\s*hidden;/, "Cluster topbar avatar should remain clipped to a circle.");
 
 assert.match(review, /const REVIEW_NOTES_LIMIT = 1000/, "Review notes limit must remain 1000 characters.");
 assert.match(review, /<TextArea label="Review Notes"[\s\S]*maxLength=\{REVIEW_NOTES_LIMIT\}/, "Review notes textarea must keep its max length.");
