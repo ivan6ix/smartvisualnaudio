@@ -34,6 +34,7 @@ assert.match(reports, /ListViewToolbar[\s\S]*onCardDensity[\s\S]*onTableDensity/
 assert.match(reports, /getListPageSlice\(filteredRows, page, listView\.pageSize\)/, "On-screen report pagination must remain wired.");
 assert.match(reports, /Records<\/dt><dd>\{filteredRows\.length\.toLocaleString\(\)\}/, "Report count must use the full filtered dataset count.");
 assert.match(reports, /window\.print\(\)/, "Print handler must remain the browser print action.");
+assert.match(reports, /<h1>Smart Proctoring System<\/h1>[\s\S]*<h2>Dean Reports<\/h2>[\s\S]*<h3>\{reportTitle\}<\/h3>/, "Print-only header must use a formal report document hierarchy.");
 assert.match(reports, /reports-print-table-wrap[\s\S]*filteredRows\.map\(\(row\)/, "Violation print table must use full filteredRows, not pageData rows.");
 assert.match(reports, /rows=\{pageData\.rows\}/, "On-screen table/card rows should remain paginated.");
 assert.match(reports, /Unable to load report data\./, "Report errors must remain distinguishable from empty results.");
@@ -47,6 +48,10 @@ assert.match(styles, /\.dean-reports-panel \.list-record-card\s*\{[\s\S]*border:
 assert.match(styles, /html\[data-theme="dark"\] \.dean-reports-panel \.list-record-card[\s\S]*border-color:\s*rgba\(226,\s*232,\s*240,\s*0\.48\)/, "Dean Reports cards must remain readable in dark mode.");
 assert.match(styles, /@media print[\s\S]*\.reports-page \.dean-reports-table-scroll\s*\{[\s\S]*max-height:\s*none !important[\s\S]*overflow:\s*visible !important/, "Print CSS must not clip the Dean Reports scroll container.");
 assert.match(styles, /@media print[\s\S]*\.reports-page \.admin-violations-report-panel \.dean-reports-table-scroll\s*\{[\s\S]*display:\s*none !important/, "Violation print output must use the full hidden print table instead of the paginated screen table.");
+assert.match(styles, /@media print[\s\S]*\.admin-topbar,[\s\S]*\.dean-topbar,[\s\S]*\.admin-menu-button,[\s\S]*\.admin-drawer,[\s\S]*\.dean-sidebar/, "Dean app shell and topbar chrome must be hidden in print.");
+assert.match(styles, /@media print[\s\S]*\.dean-kpi-grid,[\s\S]*\.dean-reports-controls,[\s\S]*\.dean-reports-header/, "Dean Reports screen KPI/header/filter controls must be hidden in print.");
+assert.match(styles, /@media print[\s\S]*\.tabs,[\s\S]*\.header-actions,[\s\S]*\.list-view-toolbar,[\s\S]*\.list-view-controls/, "Report tabs, print button, view controls, and density controls must be hidden in print.");
+assert.match(styles, /@media print[\s\S]*\.reports-print-header h2[\s\S]*font-size:\s*17pt[\s\S]*\.reports-print-header h3/, "Print header should use formal document typography.");
 assert.match(styles, /@media print[\s\S]*background:\s*#fff !important[\s\S]*color:\s*#111827 !important/, "Print output must remain readable from light or dark theme.");
 
 assert.match(dashboard, /className="dean-dashboard-page"/, "Dean Dashboard should remain on the approved Phase 1 container.");

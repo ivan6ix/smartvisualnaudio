@@ -14064,12 +14064,22 @@ html[data-theme="light"] :is(
   }
   .top-nav,
   .cluster-topbar,
+  .admin-topbar,
+  .dean-topbar,
+  .admin-menu-button,
+  .admin-drawer,
+  .admin-drawer-backdrop,
   .dean-sidebar,
   .admin-sidebar,
   .sidebar,
   .toolbar,
   .tabs,
   .header-actions,
+  .list-view-toolbar,
+  .list-view-controls,
+  .dean-kpi-grid,
+  .dean-reports-controls,
+  .dean-reports-header,
   .reports-page > .admin-section-hero,
   .reports-page > .admin-stats-grid {
     display: none !important;
@@ -14112,18 +14122,26 @@ html[data-theme="light"] :is(
     color: #111827;
   }
   .reports-print-header h1,
-  .reports-print-header h2 {
+  .reports-print-header h2,
+  .reports-print-header h3 {
     margin: 0;
     color: #111827;
     line-height: 1.2;
   }
   .reports-print-header h1 {
-    font-size: 16pt;
+    font-size: 11pt;
     font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
   .reports-print-header h2 {
-    margin-top: 2px;
-    font-size: 11pt;
+    margin-top: 5px;
+    font-size: 17pt;
+    font-weight: 800;
+  }
+  .reports-print-header h3 {
+    margin-top: 3px;
+    font-size: 12pt;
     font-weight: 700;
   }
   .reports-print-header dl {

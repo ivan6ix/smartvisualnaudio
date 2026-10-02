@@ -398,7 +398,8 @@ export default function Reports() {
       <Card className={`admin-panel admin-activity-panel ${isDean ? "dean-dashboard-panel dean-reports-panel" : ""} ${tab === "Overview" || tab === "Violations" ? "admin-violations-report-panel" : ""}`}>
         <div className="reports-print-header" aria-hidden="true">
           <h1>Smart Proctoring System</h1>
-          <h2>{reportTitle}</h2>
+          <h2>Dean Reports</h2>
+          <h3>{reportTitle}</h3>
           <dl>
             <div><dt>Generated</dt><dd>{generatedAt}</dd></div>
             <div><dt>Report</dt><dd>{tab === "Overview" ? "Violations" : tab}</dd></div>
