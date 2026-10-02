@@ -3265,86 +3265,59 @@ export default function StudentExamTake() {
   }
 
   return (
-    <section className={`student-exam-take-page ${proctoringEnabled ? "with-proctor-dock" : ""}`}>
+    <section className="student-exam-take-page with-proctor-dock">
       <PageHeader
         title={exam.exam_title || exam.title}
         subtitle={`${exam.courses?.course_code || ""} ${exam.courses?.section || ""} - Duration: ${formatDurationLabel(exam.time_limit || exam.duration)} - ${totalPoints} points`}
         actions={<Button disabled={submitting || !scanPassed || examLocked || isMicrophoneBlocked || attemptsExhausted || interruptionLimitExceededRef.current} onClick={() => handleSubmit("manual")}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
       />
 
-      {hasTimer ? (
-        <div className={`student-exam-timer ${remainingMs !== null && remainingMs <= 60000 ? "urgent" : ""}`} role="timer" aria-live="polite">
-          <FiClock />
-          <div>
-            <span>Time Remaining</span>
-            <strong>{formatRemainingTime(remainingMs ?? (timerEndsAt ? new Date(timerEndsAt).getTime() - Date.now() : durationMinutes * 60 * 1000))}</strong>
-          </div>
+      <div className="student-exam-workspace">
+        <div className="student-exam-question-list">
+          {questions.map(renderQuestion)}
         </div>
-      ) : null}
 
-      <div className={`student-exam-timer ${interruptionState.count >= interruptionState.limit ? "urgent" : ""}`} role="status" aria-live="polite">
-        <FiRefreshCw />
-        <div>
-          <strong>Interruptions: {interruptionState.count} / {interruptionState.limit}</strong>
-          <span>{interruptionWarning(interruptionState)}</span>
-        </div>
-      </div>
-
-      <div className={`student-exam-timer ${violations.length >= 3 ? "urgent" : ""}`} role="status" aria-live="polite">
-        <FiShield />
-        <div>
-          <strong>Violations: {violations.length} / {EXAM_VIOLATION_LIMIT}</strong>
-          <span>{violations.length ? violationWarning(violations.length) : "Your exam will lock and initiate submission after 5 violations."}</span>
-        </div>
-      </div>
-
-      {proctoringEnabled ? (
         <aside className="student-proctor-dock" aria-label="Live proctoring panel">
-          <section className="student-proctor-camera-card">
-            <div className="student-proctor-title">
-              {liveCameraMonitoringEnabled ? <FiCamera /> : <FiMic />}
-              <div>
-                <strong>{liveCameraMonitoringEnabled ? "Live Camera" : "Live Audio"}</strong>
-                <span>{liveCameraMonitoringEnabled ? (roboflowMonitoringEnabled ? "Roboflow detection active" : "Camera monitoring active") : "Audio monitoring only"}</span>
+          {proctoringEnabled ? (
+            <section className="student-proctor-camera-card">
+              <div className="student-proctor-title">
+                {liveCameraMonitoringEnabled ? <FiCamera /> : <FiMic />}
+                <div>
+                  <strong>{liveCameraMonitoringEnabled ? "Live Camera" : "Live Audio"}</strong>
+                  <span>{liveCameraMonitoringEnabled ? (roboflowMonitoringEnabled ? "Roboflow detection active" : "Camera monitoring active") : "Audio monitoring only"}</span>
+                </div>
               </div>
-            </div>
-            {liveCameraMonitoringEnabled ? (
-              <>
-                <div className="student-proctor-video-frame">
-                  <video autoPlay muted playsInline ref={proctorVideoRef} />
-                  <div className="student-face-bounding-box" aria-hidden="true">
-                    <span />
-                    <span />
-                    <span />
-                    <span />
+              {liveCameraMonitoringEnabled ? (
+                <>
+                  <div className="student-proctor-video-frame">
+                    <video autoPlay muted playsInline ref={proctorVideoRef} />
+                    <div className="student-face-bounding-box" aria-hidden="true">
+                      <span />
+                      <span />
+                      <span />
+                      <span />
+                    </div>
                   </div>
-                </div>
-                <div className="student-face-status">
-                  <FiShield />
-                  <span>{faceStatus}</span>
-                </div>
-                <div className="student-face-status">
-                  <FiCamera />
-                  <span>{roboflowStatus}</span>
-                </div>
-              </>
-            ) : null}
-            <div className={`student-exam-timer ${hasTimer && remainingMs !== null && remainingMs <= 60000 ? "urgent" : ""}`}>
-              <FiClock />
-              <div>
-                <span>Time Remaining</span>
-                <strong>{hasTimer ? formatRemainingTime(remainingMs ?? (timerEndsAt ? new Date(timerEndsAt).getTime() - Date.now() : durationMinutes * 60 * 1000)) : "No timer"}</strong>
-              </div>
-            </div>
-            {examSettings.liveAudioMonitoring ? (
-              <AudioMonitoringTimeline
-                level={audioMonitoring.audioLevel}
-                micStatus={audioMonitoring.micStatus}
-                status={audioMonitoring.audioStatus}
-                timeline={audioMonitoring.timeline}
-              />
-            ) : null}
-          </section>
+                  <div className="student-face-status">
+                    <FiShield />
+                    <span>{faceStatus}</span>
+                  </div>
+                  <div className="student-face-status">
+                    <FiCamera />
+                    <span>{roboflowStatus}</span>
+                  </div>
+                </>
+              ) : null}
+              {examSettings.liveAudioMonitoring ? (
+                <AudioMonitoringTimeline
+                  level={audioMonitoring.audioLevel}
+                  micStatus={audioMonitoring.micStatus}
+                  status={audioMonitoring.audioStatus}
+                  timeline={audioMonitoring.timeline}
+                />
+              ) : null}
+            </section>
+          ) : null}
 
           <section className="student-proctor-alert-card">
             <div className="student-proctor-alert-heading">
@@ -3360,8 +3333,34 @@ export default function StudentExamTake() {
               )) : <p>No alerts yet.</p>}
             </div>
           </section>
+
+          <section className={`student-exam-timer ${hasTimer && remainingMs !== null && remainingMs <= 60000 ? "urgent" : ""}`} role="timer" aria-live="polite">
+            <FiClock />
+            <div>
+              <span>Time Remaining</span>
+              <strong>{hasTimer ? formatRemainingTime(remainingMs ?? (timerEndsAt ? new Date(timerEndsAt).getTime() - Date.now() : durationMinutes * 60 * 1000)) : "No timer"}</strong>
+            </div>
+          </section>
+
+          <section className={`student-exam-timer ${interruptionState.count >= interruptionState.limit ? "urgent" : ""}`} role="status" aria-live="polite">
+            <FiRefreshCw />
+            <div>
+              <span>Interruptions</span>
+              <strong>{interruptionState.count} / {interruptionState.limit}</strong>
+              <small>{interruptionWarning(interruptionState)}</small>
+            </div>
+          </section>
+
+          <section className={`student-exam-timer ${violations.length >= 3 ? "urgent" : ""}`} role="status" aria-live="polite">
+            <FiShield />
+            <div>
+              <span>Violations</span>
+              <strong>{violations.length} / {EXAM_VIOLATION_LIMIT}</strong>
+              <small>{violations.length ? violationWarning(violations.length) : "Auto-submit after 5 violations."}</small>
+            </div>
+          </section>
         </aside>
-      ) : null}
+      </div>
 
       {examLocked ? (
         <div className="student-exam-lock-overlay" role="alert">
@@ -3386,10 +3385,6 @@ export default function StudentExamTake() {
           </Card>
         </div>
       ) : null}
-
-      <div className="student-exam-question-list">
-        {questions.map(renderQuestion)}
-      </div>
     </section>
   );
 }
