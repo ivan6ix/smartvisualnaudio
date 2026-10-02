@@ -187,6 +187,7 @@ export default function ClusterExamList({ status }) {
       </>
     );
   }
+  const renderTableActions = Object.assign(renderActions, { width: "7%" });
 
   return (
     <section className="cluster-exam-list-page">
@@ -220,7 +221,7 @@ export default function ClusterExamList({ status }) {
           <TableDensityControls tableDensity={listView.tableDensity} onTableDensity={listView.setTableDensity} />
         </div>
         <div className="cluster-exam-table-scroll">
-          <Table className={`cluster-exam-list-table list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderActions} emptyTitle="No exams are currently awaiting review." emptyDescription="Submitted exams that need cluster review will appear here." />
+          <Table className={`cluster-exam-list-table list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderTableActions} emptyTitle="No exams are currently awaiting review." emptyDescription="Submitted exams that need cluster review will appear here." />
         </div>
         <ListPagination count={filtered.length} page={pageData.page} pageSize={TABLE_PAGE_SIZE} onPage={setPage} />
       </section>

@@ -13717,8 +13717,10 @@ html[data-appearance="dark"] .cluster-sidebar {
 .cluster-exam-table-scroll {
   border: 1px solid var(--app-line);
   border-radius: 8px;
+  box-sizing: border-box;
   max-width: 100%;
-  overflow: auto;
+  overflow-x: visible;
+  overflow-y: visible;
   overscroll-behavior-x: contain;
 }
 
@@ -13734,11 +13736,17 @@ html[data-appearance="dark"] .cluster-sidebar {
 
 .cluster-exam-list-table {
   border: 0;
+  box-sizing: border-box;
+  max-width: 100%;
   min-width: 0;
+  overflow-x: visible;
   width: 100%;
 }
 
 .cluster-exam-list-table table {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-width: 0;
   table-layout: fixed;
   width: 100%;
 }
@@ -13895,7 +13903,15 @@ html[data-appearance="light"] .cluster-review-panel {
 }
 
 @media (max-width: 1024px) {
+  .cluster-exam-table-scroll {
+    overflow-x: auto;
+  }
+
   .cluster-exam-list-table {
+    min-width: 1040px;
+  }
+
+  .cluster-exam-list-table table {
     min-width: 1040px;
   }
 }
