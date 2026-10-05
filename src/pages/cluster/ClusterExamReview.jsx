@@ -4,10 +4,16 @@ import { toast } from "sonner";
 import { Button, Card, EmptyState, TextArea } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import { buildClusterQuestionReview } from "../../lib/clusterReview";
+import { getCorrectAnswers } from "../../lib/examQuestionTypes";
 import { StatusBadge } from "./helpers";
 
 const REVIEW_NOTES_LIMIT = 1000;
 const EMPTY = "Not configured";
+const CHOICE_REVIEW_TYPES = new Set(["Multiple Choice", "Picture Choice", "Multiple Select", "True or False"]);
+
+function normalizeReviewToken(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
 
 function renderAnswerList(title, items) {
   return (
@@ -15,6 +21,62 @@ function renderAnswerList(title, items) {
       <strong>{title}</strong>
       {items.length ? <ul>{items.map((item) => <li key={item}>{item}</li>)}</ul> : <p>{EMPTY}</p>}
     </div>
+  );
+}
+
+function resolveChoiceReviewState(review) {
+  const correctChoiceIds = new Set();
+  const ambiguousAnswers = [];
+  const rawAnswers = getCorrectAnswers(review).map(String).filter(Boolean);
+  const answers = rawAnswers.length ? rawAnswers : review.correctAnswers;
+
+  answers.forEach((answer) => {
+    const token = normalizeReviewToken(answer);
+    if (!token) return;
+    const candidates = review.choices.filter((choice) => (
+      normalizeReviewToken(choice.id) === token ||
+      normalizeReviewToken(choice.key) === token ||
+      normalizeReviewToken(choice.value) === token
+    ));
+    if (candidates.length === 1) {
+      correctChoiceIds.add(candidates[0].id);
+    } else {
+      ambiguousAnswers.push(answer);
+    }
+  });
+
+  return {
+    ambiguousAnswers: correctChoiceIds.size ? ambiguousAnswers : review.correctAnswers,
+    correctChoiceIds,
+  };
+}
+
+function renderChoiceRows(review) {
+  const { ambiguousAnswers, correctChoiceIds } = resolveChoiceReviewState(review);
+  const multiple = review.questionType === "Multiple Select";
+
+  return (
+    <>
+      <div className="cluster-question-review-block">
+        <strong>Choices</strong>
+        {review.choices.length ? (
+          <div className="cluster-choice-row-list">
+            {review.choices.map((choice) => {
+              const isCorrect = correctChoiceIds.has(choice.id);
+              return (
+                <div className={`cluster-choice-row ${isCorrect ? "is-correct" : ""}`} key={choice.id}>
+                  <span aria-hidden="true" className="cluster-choice-marker">{multiple ? (isCorrect ? "☑" : "☐") : (isCorrect ? "●" : "○")}</span>
+                  <span>{choice.value || EMPTY}</span>
+                  {isCorrect ? <b>✓ Correct Answer</b> : null}
+                </div>
+              );
+            })}
+          </div>
+        ) : <p>{EMPTY}</p>}
+      </div>
+      {ambiguousAnswers.length ? renderAnswerList(review.questionType === "Multiple Select" ? "Correct choices" : "Correct answer", ambiguousAnswers) : null}
+      {review.partialMatch ? <p className="cluster-review-hint">Partial match enabled</p> : null}
+    </>
   );
 }
 
@@ -62,6 +124,10 @@ function renderQuestionDetails(question) {
         <p>{review.questionConfig.allowedTypes || review.questionConfig.accept || "Student file submission; no configured answer key."}</p>
       </div>
     );
+  }
+
+  if (CHOICE_REVIEW_TYPES.has(review.questionType)) {
+    return renderChoiceRows(review);
   }
 
   return (
@@ -204,8 +270,10 @@ export default function ClusterExamReview() {
                     {renderQuestionDetails(selectedQuestion)}
                     <footer>
                       <h3>Question Information</h3>
-                      <span>Question type: <b>{selectedQuestion.questionType || "Question"}</b></span>
-                      <span>Points: <b>{selectedQuestion.points || 0}</b></span>
+                      <div className="cluster-question-info-grid">
+                        <span><small>Question Type</small><b>{selectedQuestion.questionType || "Question"}</b></span>
+                        <span><small>Points</small><b>{selectedQuestion.points || 0}</b></span>
+                      </div>
                     </footer>
                   </article>
                 ) : (

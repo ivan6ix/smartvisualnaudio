@@ -12002,6 +12002,7 @@ html[data-appearance="light"] .cluster-reports-panel {
   min-width: 0;
 }
 .cluster-question-list-panel {
+  align-self: start;
   overflow: hidden;
 }
 .cluster-question-list-title {
@@ -12015,6 +12016,7 @@ html[data-appearance="light"] .cluster-reports-panel {
 .cluster-question-list-scroll {
   display: grid;
   gap: 8px;
+  height: auto;
   max-height: 560px;
   overflow-x: hidden;
   overflow-y: auto;
@@ -12090,6 +12092,24 @@ html[data-appearance="light"] .cluster-reports-panel {
 .cluster-question-preview footer span {
   color: var(--text-muted);
 }
+.cluster-question-info-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.cluster-question-info-grid span {
+  display: grid;
+  gap: 4px;
+}
+.cluster-question-info-grid small {
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+.cluster-question-info-grid b {
+  color: var(--text-primary);
+}
 .cluster-exam-question-header {
   align-items: start;
   display: flex;
@@ -12108,6 +12128,38 @@ html[data-appearance="light"] .cluster-reports-panel {
 }
 .cluster-question-review-block strong {
   font-size: 0.84rem;
+}
+.cluster-choice-row-list {
+  display: grid;
+  gap: 8px;
+}
+.cluster-choice-row {
+  align-items: center;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  padding: 10px 12px;
+}
+.cluster-choice-row span {
+  overflow-wrap: anywhere;
+}
+.cluster-choice-row b {
+  color: var(--success);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+.cluster-choice-row.is-correct {
+  background: var(--success-soft);
+  border-color: var(--success);
+}
+.cluster-choice-marker {
+  color: var(--text-muted);
+  font-weight: 800;
+}
+.cluster-choice-row.is-correct .cluster-choice-marker {
+  color: var(--success);
 }
 .cluster-question-review-block li,
 .cluster-question-review-block p,
@@ -14506,6 +14558,15 @@ html[data-appearance="light"] .cluster-review-panel {
 
   .cluster-question-list-row {
     grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .cluster-choice-row,
+  .cluster-question-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .cluster-choice-row b {
+    white-space: normal;
   }
 
   .cluster-question-row-type,
