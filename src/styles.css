@@ -4971,6 +4971,31 @@ html[data-appearance="dark"] .professor-dashboard-page .professor-ongoing-footer
 .professor-violation-chart {
   height: 320px;
 }
+.professor-violation-plot {
+  width: 100%;
+}
+@media (max-width: 600px) {
+  .professor-analytics-panel .professor-violation-chart {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+  }
+  .professor-violation-plot {
+    min-width: var(--violation-plot-width);
+  }
+  .professor-violation-plot .recharts-xAxis .recharts-cartesian-axis-tick-value {
+    font-size: 12px;
+  }
+  .professor-analytics-panel .professor-analytics-filters {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 140px), 1fr));
+  }
+  .professor-analytics-panel .professor-analytics-filters select {
+    min-width: 0;
+    min-height: 44px;
+  }
+}
 .professor-analytics-filters {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -16409,6 +16434,8 @@ html[data-appearance="dark"] .professor-courses-page .professor-courses-panel {
 .professor-courses-page .professor-courses-table-card {
   border: 1px solid rgba(15, 23, 42, 0.24);
   border-radius: 8px;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
 }
 .professor-courses-page .professor-courses-table {
@@ -16447,6 +16474,21 @@ html[data-appearance="dark"] .professor-courses-page .professor-courses-panel {
 }
 .professor-courses-page .professor-courses-table tbody tr:last-child td {
   border-bottom: 0;
+}
+.professor-courses-page .professor-courses-table th:last-child,
+.professor-courses-page .professor-courses-table td:last-child {
+  min-width: 104px;
+  text-align: center;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+.professor-courses-page .professor-courses-table .professor-score-link-button {
+  min-width: 64px;
+  min-height: 44px;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .professor-courses-page .professor-courses-empty {
   border: 1px dashed rgba(148, 163, 184, 0.5);

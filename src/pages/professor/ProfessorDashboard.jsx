@@ -210,6 +210,7 @@ export default function ProfessorDashboard() {
     }), {});
     return Object.entries(violationChartLabels).map(([key, name]) => ({ key, name, count: counts[key] || 0 }));
   }, [filteredViolationRows]);
+  const mobileViolationPlotWidth = 70 + violationChartData.length * Math.max(120, ...violationChartData.map(({ name }) => name.length * 8 + 24));
 
   function setAnalyticsFilter(key, value) {
     setAnalyticsFilters((current) => ({
@@ -260,20 +261,22 @@ export default function ProfessorDashboard() {
               {examOptions.map((exam) => <option key={exam.id} value={exam.id}>{exam.exam_title || exam.title || "Untitled exam"}</option>)}
             </select>
           </div>
-          <div className="chart-box professor-violation-chart professor-scroll-surface">
-            <ResponsiveContainer width="100%" height={300}>
-              <BarChart data={violationChartData}>
-                <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                <XAxis dataKey="name" interval={0} tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} tick={{ fill: chartTheme.axis }} axisLine={false} tickLine={false} />
-                <Tooltip cursor={{ fill: chartTheme.cursor }}
-                  contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }}
-                  itemStyle={{ color: chartTheme.tooltipText }}
-                  labelStyle={{ color: chartTheme.tooltipText }}
-                />
-                <Bar dataKey="count" fill="var(--primary)" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+          <div className="chart-box professor-violation-chart professor-scroll-surface" tabIndex={0} role="region" aria-label="Violation chart, scroll horizontally to view all categories">
+            <div className="professor-violation-plot" style={{ "--violation-plot-width": `${mobileViolationPlotWidth}px` }}>
+              <ResponsiveContainer width="100%" height={300}>
+                <BarChart data={violationChartData}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                  <XAxis dataKey="name" interval={0} tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                  <YAxis allowDecimals={false} tick={{ fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                  <Tooltip cursor={{ fill: chartTheme.cursor }}
+                    contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }}
+                    itemStyle={{ color: chartTheme.tooltipText }}
+                    labelStyle={{ color: chartTheme.tooltipText }}
+                  />
+                  <Bar dataKey="count" fill="var(--primary)" radius={[8, 8, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
           </div>
         </Card>
         <Card className="professor-dashboard-panel professor-alerts-panel">

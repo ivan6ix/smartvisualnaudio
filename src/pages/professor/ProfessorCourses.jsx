@@ -241,7 +241,7 @@ export default function ProfessorCourses() {
                 <col style={{ width: "18%" }} />
                 <col style={{ width: "10%" }} />
                 <col style={{ width: "14%" }} />
-                <col style={{ width: "8%" }} />
+                <col style={{ width: "104px" }} />
               </colgroup>
               <thead><tr><th>Course</th><th>Program</th><th>Term</th><th>Students</th><th>Code</th><th>Action</th></tr></thead>
               <tbody>
