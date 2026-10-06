@@ -1,11 +1,34 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import postcss from "postcss";
 
 const app = readFileSync("src/App.jsx", "utf8");
 const layout = readFileSync("src/pages/student/StudentLayout.jsx", "utf8");
 const dashboard = readFileSync("src/pages/student/StudentDashboard.jsx", "utf8");
 const takeExam = readFileSync("src/pages/student/StudentExamTake.jsx", "utf8");
 const styles = readFileSync("src/styles.css", "utf8");
+const portalStyles = readFileSync("src/student-portal.css", "utf8");
+const grades = readFileSync("src/pages/student/StudentGrades.jsx", "utf8");
+const main = readFileSync("src/main.jsx", "utf8");
+
+assert.match(main, /import "\.\/styles.css";\s*import "\.\/student-portal.css";/, "Student presentation overrides must load after the shared styles.");
+const unscopedRules = [];
+postcss.parse(portalStyles).walkRules((rule) => {
+  if (rule.selectors.some((selector) => !selector.startsWith(".student-app-shell"))) unscopedRules.push(rule.selector);
+});
+assert.deepEqual(unscopedRules, [], "Student visual rules must be scoped to the normal shell, excluding Exam Taking and other roles.");
+const stackedTableRules = [];
+postcss.parse(styles + portalStyles).walkRules((rule) => {
+  if (/\.student-available-exams-table\s+td[^,]*::before/.test(rule.selector)) stackedTableRules.push(rule.selector);
+  if (!rule.selectors.some((selector) => /\.student-(?:available-exams|grades)-table(?:\s+(?:thead|tbody|tr|th|td)(?::nth-child\([^)]*\))?)*$/.test(selector))) return;
+  rule.walkDecls("display", ({ value }) => {
+    if (["none", "block", "grid", "flex"].includes(value)) stackedTableRules.push(rule.selector);
+  });
+});
+assert.deepEqual(stackedTableRules, [], "Student Table mode must preserve native headers and cells at every viewport.");
+assert.match(portalStyles, /\.student-app-shell \.list-table-wrap\s*\{[^}]*overflow-x: auto/, "Only the bounded table wrapper should own horizontal scrolling.");
+assert.match(grades, /\[openCourseId, setOpenCourseId\] = useState\(null\)/, "Grades must remain collapsed by default.");
+assert.match(grades, /aria-expanded=\{isOpen\}/, "Grade accordions must expose their expanded state.");
 
 assert.match(app, /<Route path="\/student" element=\{<StudentLayout \/>\}/, "Student shell route must remain available.");
 assert.match(app, /<Route index element=\{<StudentDashboard \/>\}/, "Student Dashboard index route must remain available.");

@@ -100,7 +100,7 @@ function groupByPeriod(grades) {
 
 function CourseGradeBody({ course, isTableDetail = false }) {
   return (
-    <div className={`student-grade-body${isTableDetail ? " student-grade-table-detail" : ""}`}>
+    <div id={`student-grade-body-${course.id}`} className={`student-grade-body${isTableDetail ? " student-grade-table-detail" : ""}`}>
       <h3>Academic Records</h3>
       {Object.entries(course.periods).map(([period, periodGrades]) => (
         <div className="student-grade-period" key={period}>
@@ -289,7 +289,7 @@ export default function StudentGrades() {
 
           return (
             <section className="student-card student-grade-course" key={course.id}>
-              <button className="student-grade-course-toggle" onClick={() => setOpenCourseId((current) => current === course.id ? null : course.id)} type="button">
+              <button aria-expanded={isOpen} aria-controls={isOpen ? `student-grade-body-${course.id}` : undefined} className="student-grade-course-toggle" onClick={() => setOpenCourseId((current) => current === course.id ? null : course.id)} type="button">
                 <div>
                   <h2>{course.name}</h2>
                   <p>{course.section}</p>
@@ -317,7 +317,7 @@ export default function StudentGrades() {
                     <td>{course.section}</td>
                     <td>{course.grades.length}</td>
                     <td>{course.average.toFixed(1)}%</td>
-                    <td><button className="professor-score-link-button" onClick={() => setOpenCourseId((current) => current === course.id ? null : course.id)} type="button">{openCourseId === course.id ? "Close" : "View"}</button></td>
+                    <td><button aria-expanded={openCourseId === course.id} aria-controls={openCourseId === course.id ? `student-grade-body-${course.id}` : undefined} className="professor-score-link-button" onClick={() => setOpenCourseId((current) => current === course.id ? null : course.id)} type="button">{openCourseId === course.id ? "Close" : "View"}</button></td>
                   </tr>
                   {openCourseId === course.id ? (
                     <tr className="student-grade-detail-row">

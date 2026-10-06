@@ -1,0 +1,298 @@
+/* Normal Student routes only. Exam taking renders outside this shell. */
+.student-app-shell {
+  --student-record-border: color-mix(in srgb, var(--text-primary) 36%, var(--app-surface));
+  --theme-color: #2563eb;
+  --theme-color-light: #3b82f6;
+  --theme-color-dark: #1d4ed8;
+  --theme-color-rgb: 37, 99, 235;
+  --accent: var(--primary);
+  --accent-hover: var(--primary-hover);
+  --app-active: color-mix(in srgb, var(--primary) 12%, var(--app-surface));
+  --selected: var(--app-active);
+  --app-on-accent: #fff;
+}
+
+.student-app-shell .student-topbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 12px; }
+.student-app-shell .student-topbar-title { flex: 1; min-width: 0; }
+.student-app-shell .student-topbar-actions { display: flex; flex-wrap: nowrap; flex-shrink: 0; }
+.student-app-shell .profile-menu > button .profile-avatar { display: inline-flex; align-items: center; justify-content: center; }
+.student-app-shell .profile-avatar { background: var(--app-surface-muted); border-color: var(--app-line); box-shadow: none; }
+.student-app-shell * { scrollbar-color: var(--border-strong) var(--app-surface-muted); }
+.student-app-shell *::-webkit-scrollbar-thumb { background: var(--border-strong); border-color: var(--app-surface-muted); }
+.student-app-shell *::-webkit-scrollbar-track { background: var(--app-surface-muted); }
+
+.student-app-shell .student-shell {
+  align-content: start;
+  min-width: 0;
+}
+
+.student-app-shell :is(.student-page, .student-dashboard-page, .settings-page, .security-privacy-page) {
+  width: 100%;
+  max-width: 1400px;
+  min-width: 0;
+  margin-inline: auto;
+}
+
+.student-app-shell :is(h1, h2, h3, button, th, label, .student-kpi-card span) {
+  letter-spacing: 0;
+}
+
+.student-app-shell .student-shell :is(.student-dashboard-header, .student-page-header, .student-course-heading, .page-header, .admin-section-hero) {
+  background: transparent !important;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 0;
+  margin: 0 0 20px;
+  min-height: 0;
+  gap: 16px;
+}
+
+.student-app-shell :is(.student-dashboard-header, .student-page-header, .student-course-heading, .page-header, .admin-section-hero) h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.student-app-shell :is(.student-dashboard-header, .student-page-header, .student-course-heading, .page-header, .admin-section-hero) p {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  margin: 6px 0 0;
+}
+
+.student-app-shell .student-shell :is(h2, .student-card-title h2) {
+  font-size: 1rem;
+  line-height: 1.4;
+  font-weight: 650;
+}
+
+.student-app-shell .student-shell h3 { font-size: 0.875rem; line-height: 1.4; }
+.student-app-shell .settings-page > .page-header { display: flex; }
+.student-app-shell .admin-section-hero > strong { display: none; }
+.student-app-shell :is(.student-card-title, .notification-history-toolbar) { flex-wrap: wrap; gap: 12px; }
+.student-app-shell .student-card-title > span { border-radius: 6px; padding: 4px 8px; font-weight: 600; }
+.student-app-shell :is(.student-card-title, .student-page-header, .student-dashboard-header) > div { min-width: 0; }
+
+/* Section bands stay unframed; individual records and form tools are boxed. */
+.student-app-shell :is(.student-dashboard-card, .student-folders-column > .student-card, .student-file-panel, .student-course-panel) {
+  background: transparent !important;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
+  min-height: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.student-app-shell :is(.student-card-title, .student-course-panel > h2) {
+  border-bottom: 1px solid var(--app-line);
+  padding-bottom: 12px;
+}
+
+.student-app-shell :is(.student-kpi-card, .student-dashboard-record-card, .student-folder-grid article, .student-grade-course, .student-folder-form, .student-period-folder) {
+  background: var(--app-surface) !important;
+  border: 1px solid var(--student-record-border) !important;
+  border-radius: 8px;
+  color: var(--text-primary);
+  box-shadow: 0 2px 6px rgb(0 0 0 / 4%);
+  backdrop-filter: none;
+  min-width: 0;
+}
+
+.student-app-shell .student-dashboard-page .student-dashboard-overview {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+}
+.student-app-shell .student-dashboard-header { margin-bottom: 0; }
+.student-app-shell .student-shell .student-dashboard-page .student-dashboard-card { box-shadow: none; }
+.student-app-shell .student-shell .student-dashboard-page :is(.student-dashboard-record-card, .student-kpi-card) { box-shadow: var(--shadow-low); }
+.student-app-shell .student-dashboard-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.student-app-shell .student-kpi-card span { font-weight: 600; text-transform: none; font-size: 0.875rem; }
+.student-app-shell .student-kpi-card strong { font-size: 1.75rem; }
+.student-app-shell .list-card-grid { align-items: start; }
+.student-app-shell .student-dashboard-card .list-card-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+.student-app-shell .student-dashboard-record-card { padding: 16px; min-height: 120px; }
+.student-app-shell .student-course-card { align-items: start; }
+.student-app-shell .student-course-card i { flex: 0 0 32px; }
+.student-app-shell .student-dashboard-record-card strong { font-weight: 650; line-height: 1.4; }
+.student-app-shell .student-dashboard-record-card :is(span, small) { line-height: 1.5; }
+.student-app-shell .student-dashboard-record-card strong + span { border-top: 1px solid var(--app-line); padding-top: 8px; }
+.student-app-shell .student-course-card:hover { border-color: var(--primary) !important; background: var(--app-surface-muted) !important; }
+.student-app-shell .list-card-grid-compact .student-dashboard-record-card { padding: 14px; min-height: 104px; }
+.student-app-shell .list-card-grid-dense .student-dashboard-record-card { padding: 12px; min-height: 92px; }
+
+.student-app-shell :is(.student-primary-button, .student-start-exam, .student-secondary-button, .professor-score-link-button, .student-file-list button, .student-archive-list button) {
+  min-height: 44px;
+  border-radius: 8px;
+  padding: 8px 14px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  box-shadow: none;
+}
+.student-app-shell :is(.student-primary-button, .student-start-exam) {
+  background: #2563eb !important;
+  border: 1px solid #1d4ed8;
+  color: #fff;
+}
+.student-app-shell :is(.student-primary-button, .student-start-exam):hover { background: #1d4ed8 !important; }
+.student-app-shell :is(.settings-surface-card, .new-message-panel, .reply-box) .btn:not(.btn-light) { background: #2563eb !important; color: #fff; box-shadow: none; }
+.student-app-shell .student-secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 1px solid var(--app-line);
+  background: var(--app-surface);
+  color: var(--text-primary);
+}
+.student-app-shell .professor-score-link-button { min-width: 64px; background: var(--app-surface); border-color: var(--student-record-border); color: var(--text-primary); }
+.student-app-shell :is(button, a, input, select, textarea):focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; }
+.student-app-shell :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea) {
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 8px;
+  font-size: 0.875rem;
+}
+.student-app-shell :is(.student-folder-search input, .student-folder-form input, .student-join-field input, .student-join-field select) { min-height: 44px; }
+.student-app-shell :is(.list-view-toolbar, .list-view-controls, .list-view-segment) { min-width: 0; flex-wrap: wrap; }
+.student-app-shell .list-view-segment button { min-height: 36px; font-weight: 600; }
+.student-app-shell .list-view-segment button.active { background: #2563eb !important; color: #fff !important; }
+
+.student-app-shell .list-table-wrap {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  border: 1px solid var(--student-record-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+}
+.student-app-shell .list-table-wrap table { min-width: 640px; width: 100%; table-layout: auto; border-collapse: collapse; }
+.student-app-shell .list-table-wrap :is(th, td) { padding-inline: 14px; vertical-align: middle; }
+.student-app-shell .list-table-wrap th { white-space: nowrap; font-size: 0.75rem; font-weight: 650; }
+.student-app-shell .list-table-wrap :is(th, td):last-child { width: 100px; min-width: 100px; text-align: center; }
+.student-app-shell .list-table-wrap td :is(strong, span, small) { overflow-wrap: anywhere; }
+.student-app-shell .student-available-exams-table td:nth-child(2) :is(span, small) { display: block; }
+.student-app-shell .student-available-exams-table td:nth-child(2) small { margin-top: 5px; }
+.student-app-shell .list-table-dense :is(th, td) { padding-block: 8px; }
+.student-app-shell .list-table-compact :is(th, td) { padding-block: 11px; }
+.student-app-shell .list-table-comfortable :is(th, td) { padding-block: 16px; }
+
+.student-app-shell .student-resources-layout { grid-template-columns: minmax(240px, 0.65fr) minmax(0, 1.6fr); align-items: start; gap: 24px; }
+.student-app-shell .student-folder-form { padding: 18px; }
+.student-app-shell .student-folder-form .student-folder-search { margin-bottom: 0; }
+.student-app-shell .student-folder-form .student-primary-button { justify-self: start; }
+.student-app-shell .student-folder-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.student-app-shell .student-folder-grid article.active { border-color: var(--primary) !important; box-shadow: inset 3px 0 var(--primary); }
+.student-app-shell .student-folder-grid article:hover { transform: none; box-shadow: none; }
+.student-app-shell .student-folder-open { padding: 16px 60px 16px 16px; min-height: 128px; }
+.student-app-shell .student-folder-open svg { border-radius: 8px; margin-bottom: 8px; box-shadow: none; }
+.student-app-shell .student-folder-archive { top: 12px; right: 12px; width: 44px; height: 44px; border-radius: 8px; }
+.student-app-shell .student-file-list article { border-radius: 8px; padding: 16px; }
+.student-app-shell .student-file-list article > div:last-child { display: flex; min-width: 0; flex-wrap: wrap; }
+.student-app-shell .student-file-menu > button { width: 44px; padding: 0; }
+
+.student-app-shell .student-grade-course-list { align-items: start; grid-auto-rows: auto; }
+.student-app-shell .student-grade-course { align-self: start; padding: 0; }
+.student-app-shell .student-grade-course-toggle { display: flex; border: 0; border-radius: 8px; box-shadow: none; gap: 12px; }
+.student-app-shell .student-grade-course-toggle > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.student-app-shell .student-grade-course-toggle > div:last-child { min-width: auto; flex-shrink: 0; gap: 8px; }
+.student-app-shell .student-grade-course-toggle > div:last-child strong,
+.student-app-shell :is(.student-grade-pill, .student-grade-body footer) { background: var(--app-surface-muted); border: 1px solid var(--app-line); border-radius: 6px; font-weight: 600; }
+.student-app-shell .student-grade-body { margin: 0; border: 0; border-top: 1px solid var(--app-line); border-radius: 0 0 8px 8px; padding: 18px; }
+.student-app-shell .student-grade-row { border: 0; border-bottom: 1px solid var(--app-line); border-radius: 0; padding: 12px 0; box-shadow: none; }
+.student-app-shell .student-grade-row > div { min-width: 0; overflow-wrap: anywhere; }
+.student-app-shell .student-grade-row b { font-weight: 600; }
+.student-app-shell .student-progress { background: var(--app-surface-muted); height: 6px; }
+.student-app-shell .student-progress span { background: var(--app-success); margin: 0; }
+
+.student-app-shell .student-course-layout { grid-template-columns: 180px minmax(0, 1fr); align-items: start; }
+.student-app-shell .student-course-menu { border: 0; border-right: 1px solid var(--app-line); border-radius: 0; padding: 0 16px 0 0; background: transparent; box-shadow: none; backdrop-filter: none; }
+.student-app-shell .student-course-menu a { min-height: 44px; border-radius: 8px; font-weight: 600; box-shadow: none; }
+.student-app-shell .student-course-menu a.active { border-color: var(--primary) !important; background: var(--app-active) !important; }
+.student-app-shell :is(.student-period-folder-main, .student-material-folder-toggle) { min-height: 56px; border-radius: 8px; }
+.student-app-shell .student-material-folder { background: var(--app-surface) !important; border-color: var(--app-line) !important; border-radius: 8px; box-shadow: none; }
+.student-app-shell :is(.student-material-items section, .student-member-list article) { border-radius: 8px; box-shadow: none; }
+.student-app-shell .student-material-file-actions { flex-wrap: wrap; min-width: 0; }
+.student-app-shell .student-material-file-actions :is(button, a) { min-height: 44px; white-space: nowrap; }
+.student-app-shell .student-period-material-list .student-material-folder .student-material-dropdown section { background: var(--app-surface); box-shadow: none; }
+.student-app-shell :is(.student-period-empty, .student-material-empty) { border-color: var(--app-line); border-radius: 8px; font-weight: 400; }
+
+.student-app-shell :is(.settings-surface-card, .settings-sections > .card, .student-shell > .card, .messages-layout > .card) { border-radius: 8px; box-shadow: none; padding: 20px; }
+.student-app-shell :is(.settings-page, .security-privacy-page) .dashboard-grid { align-items: start; }
+.student-app-shell :is(.info-list span, .profile-picture-editor, .theme-mode-grid button) { border-radius: 8px; }
+.student-app-shell .profile-picture-editor { border: 0; padding: 0; flex-wrap: wrap; }
+.student-app-shell .profile-picture-editor > div { flex: 1 1 180px; min-width: 0; }
+.student-app-shell :is(.profile-picture-upload, .profile-picture-remove) { min-height: 44px; border-radius: 8px; white-space: nowrap; font-weight: 600; }
+.student-app-shell .profile-picture-upload { background: var(--app-surface-muted); color: var(--text-primary); }
+.student-app-shell .info-list span { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 12px 0; border: 0; border-bottom: 1px solid var(--app-line); border-radius: 0; }
+.student-app-shell .info-list strong { font-weight: 600; }
+.student-app-shell .info-list strong { overflow-wrap: anywhere; }
+.student-app-shell .settings-switch.on { background: var(--app-active); border-color: var(--primary); }
+.student-app-shell .settings-switch.on i { background: #2563eb; }
+.student-app-shell .student-sidebar-profile .profile-avatar { color: var(--text-primary); }
+.student-app-shell .notification-history-list article { border-radius: 8px; gap: 12px; }
+.student-app-shell .notification-history-list article.unread { border-left: 3px solid var(--primary); }
+.student-app-shell :is(.notification-history-main, .notification-history-main > *, .notification-toggle-row > div) { min-width: 0; overflow-wrap: anywhere; }
+.student-app-shell :is(.notification-history-toolbar, .notification-pagination) { flex-wrap: wrap; }
+.student-app-shell :is(.message-panel, .floating-chat-box, .message-menu-panel, .notification-menu-panel, .profile-menu > div) { border-radius: 8px; }
+.student-app-shell :is(.conversation-list button, .bubble, .message-row) { border-radius: 8px; }
+.student-app-shell :is(.reply-box, .floating-chat-reply) { min-width: 0; grid-template-columns: minmax(0, 1fr) auto; }
+.student-app-shell :is(.reply-box, .floating-chat-reply) button { min-height: 44px; }
+.student-app-shell :is(.student-resource-modal, .student-join-modal, .module-preview-modal, .avatar-crop-modal, .settings-modal) { border-radius: 8px; padding: 20px; }
+.student-app-shell .student-empty-box { border-radius: 8px; font-weight: 400; font-size: 0.875rem; line-height: 1.5; }
+
+@media (max-width: 1200px) {
+  .student-app-shell .student-dashboard-page .student-dashboard-overview { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 900px) {
+  .student-app-shell :is(.student-resources-layout, .student-course-layout) { grid-template-columns: minmax(0, 1fr); }
+  .student-app-shell .student-course-menu { display: flex; flex-wrap: wrap; padding: 0 0 12px; border-right: 0; border-bottom: 1px solid var(--app-line); }
+  .student-app-shell .student-course-menu a { flex: 1 1 auto; justify-content: center; }
+  .student-app-shell .student-folder-form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+  .student-app-shell .student-folder-form h2 { grid-column: 1 / -1; }
+}
+
+@media (max-width: 700px) {
+  .student-app-shell .student-topbar { display: flex; flex-wrap: nowrap; align-items: center; gap: 6px; padding: 8px 12px; }
+  .student-app-shell .student-topbar-title { flex: 1; min-width: 0; }
+  .student-app-shell .student-topbar-title strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.875rem; }
+  .student-app-shell .student-topbar-actions { display: flex; flex-wrap: nowrap; gap: 4px; flex-shrink: 0; }
+  .student-app-shell :is(.student-page-header, .student-dashboard-header) { display: flex; flex-direction: column; align-items: flex-start; }
+  .student-app-shell .student-card-title { display: flex; }
+  .student-app-shell :is(.student-dashboard-header, .student-page-header, .student-course-heading, .page-header, .admin-section-hero) h1 { font-size: 1.5rem; }
+  .student-app-shell .student-file-list article { grid-template-columns: minmax(0, 1fr); }
+  .student-app-shell .student-file-list article > div:last-child { justify-content: flex-start; }
+  .student-app-shell .student-period-folder-main { gap: 8px; padding: 14px; grid-template-columns: auto minmax(0, 1fr) auto; }
+  .student-app-shell .student-period-folder-main > .badge { grid-column: 2; grid-row: 2; justify-self: start; }
+  .student-app-shell .student-period-folder-main > .student-material-chevron { grid-column: 3; grid-row: 1; }
+  .student-app-shell .student-period-folder-body { padding: 10px; }
+  .student-app-shell .student-material-dropdown { margin: 0 10px 10px !important; }
+  .student-app-shell .student-material-dropdown section { grid-template-columns: auto minmax(0, 1fr); }
+  .student-app-shell .student-material-file-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .student-app-shell :is(.student-archive-grid, .settings-page .dashboard-grid, .security-privacy-page .dashboard-grid, .messages-layout) { grid-template-columns: minmax(0, 1fr); }
+  .student-app-shell .student-archive-list article { grid-template-columns: auto minmax(0, 1fr); }
+  .student-app-shell .student-grade-row { grid-template-columns: minmax(0, 1fr); }
+  .student-app-shell .student-grade-course-toggle { padding: 16px; }
+  .student-app-shell .notification-history-list article { grid-template-columns: minmax(0, 1fr); }
+  .student-app-shell .notification-history-list article > .btn { justify-self: start; }
+  .student-app-shell .notification-toggle-row { gap: 12px; align-items: flex-start; }
+  .student-app-shell .settings-switch { flex-shrink: 0; }
+}
+
+@media (max-width: 380px) {
+  .student-app-shell .student-dashboard-summary-grid { grid-template-columns: minmax(0, 1fr); }
+  .student-app-shell .student-folder-form { grid-template-columns: minmax(0, 1fr); }
+  .student-app-shell .student-grade-course-toggle { flex-wrap: wrap; }
+  .student-app-shell .student-available-exam-card { grid-template-columns: minmax(0, 1fr); }
+  .student-app-shell .student-available-exam-actions { justify-content: flex-start; }
+}

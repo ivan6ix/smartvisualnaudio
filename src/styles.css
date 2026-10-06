@@ -8567,10 +8567,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   text-align: right;
 }
 .student-available-exams-table td:nth-child(2) {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 6px;
-  align-items: center;
+  vertical-align: middle;
 }
 .student-available-exams-table td:nth-child(2) span,
 .student-available-exams-table td:nth-child(2) small {
@@ -8677,59 +8674,6 @@ html[data-theme="light"] .professor-course-list-card:hover {
   padding: 18px;
   text-align: center;
   font-weight: 700;
-}
-@media (max-width: 520px) {
-  .student-available-exams-table,
-  .student-available-exams-table thead,
-  .student-available-exams-table tbody,
-  .student-available-exams-table tr,
-  .student-available-exams-table th,
-  .student-available-exams-table td {
-    display: block;
-    width: 100%;
-  }
-  .student-available-exams-table thead {
-    display: none;
-  }
-  .student-available-exams-table tbody {
-    display: grid;
-    gap: 10px;
-  }
-  .student-available-exams-table tr {
-    border: 1px solid var(--app-line);
-    border-radius: 12px;
-    background: var(--app-surface);
-    padding: 10px;
-  }
-  .student-available-exams-table th:nth-child(n),
-  .student-available-exams-table td:nth-child(n) {
-    width: 100%;
-  }
-  .student-available-exams-table td {
-    border-bottom: 0;
-    display: grid;
-    gap: 6px;
-    grid-template-columns: 86px minmax(0, 1fr);
-    padding: 5px 0;
-  }
-  .student-available-exams-table td:nth-child(2) {
-    display: grid;
-    align-items: start;
-  }
-  .student-available-exams-table td::before {
-    color: var(--app-text-muted);
-    content: attr(data-label);
-    font-size: 12px;
-    font-weight: 800;
-    text-transform: uppercase;
-  }
-  .student-available-exams-table td:nth-child(1)::before { content: "Exam"; }
-  .student-available-exams-table td:nth-child(2)::before { content: "Course"; }
-  .student-available-exams-table td:nth-child(3)::before { content: "Action"; }
-  .student-available-exams-table td:last-child {
-    padding-top: 10px;
-    text-align: left;
-  }
 }
 .student-exam-take-page,
 .student-exam-question-list {

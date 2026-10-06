@@ -25,6 +25,9 @@ function getCurrentPage(pathname) {
     .filter((item) => item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`))
     .sort((first, second) => second.to.length - first.to.length);
   if (/^\/student\/courses\//.test(pathname)) return "Courses";
+  if (pathname === "/student/notifications") return "Notifications";
+  if (pathname === "/student/messages") return "Messages";
+  if (pathname === "/student/security") return "Security & Privacy";
   return links[0]?.label || "Student Portal";
 }
 

@@ -8,6 +8,7 @@ import { AuthProvider } from "./context/AuthContext.jsx";
 import { ClusterProvider } from "./context/ClusterContext.jsx";
 import { DEFAULT_THEME, THEME_STORAGE_KEY, ThemeProvider } from "./context/ThemeContext.jsx";
 import "./styles.css";
+import "./student-portal.css";
 import { queryClient, queryPersistOptions } from "./lib/queryClient";
 
 const rootElement = window.document.documentElement;

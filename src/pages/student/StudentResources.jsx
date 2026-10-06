@@ -512,12 +512,13 @@ export default function StudentResources() {
   }
 
   return (
-    <section className="student-page">
+    <section className="student-page student-resources-page">
       <div className="student-page-header">
         <div>
           <h1>Resources</h1>
           <p>Create personal folders, upload files, and keep resources you want to open later.</p>
         </div>
+        <button className="student-secondary-button" onClick={() => setArchiveOpen(true)} type="button"><FiArchive /> View Archives</button>
       </div>
       {hasSupabaseConfig && user?.id && resourcesReady && !resourcesOnline ? (
         <div className="student-empty-box">Resources are using local storage until the Supabase student resources SQL is applied.</div>
@@ -529,17 +530,14 @@ export default function StudentResources() {
       {!loadingSupabaseResources ? <div className="student-resources-layout">
         <form className="student-card student-folder-form" onSubmit={handleCreateFolder}>
           <h2>Create Folder</h2>
-          <input onChange={(event) => setFolderName(event.target.value)} placeholder="Folder name" value={folderName} />
+          <label className="student-folder-search">
+            <span>Folder name</span>
+            <input onChange={(event) => setFolderName(event.target.value)} placeholder="Folder name" value={folderName} />
+          </label>
           <button className="student-primary-button" type="submit">Create Folder</button>
         </form>
 
         <div className="student-folders-column">
-          <div className="student-folder-outside-actions">
-            <button onClick={() => setArchiveOpen(true)} type="button">
-              <FiArchive /> View Archives
-            </button>
-          </div>
-
           <section className="student-card">
             <div className="student-card-title">
               <h2>My Folders</h2>
