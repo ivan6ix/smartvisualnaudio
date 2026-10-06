@@ -9542,6 +9542,13 @@ html[data-theme="light"] .professor-course-list-card:hover {
   text-align: left;
   cursor: pointer;
 }
+.student-matching-choice small {
+  display: block;
+  color: var(--app-text-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  margin-top: 3px;
+}
 .student-matching-column.right .student-matching-choice {
   text-align: right;
 }
@@ -9600,7 +9607,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   font-weight: 800;
 }
 .student-order-row {
-  grid-template-columns: minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   border: 1px solid rgba(125, 211, 252, 0.18);
   border-radius: 12px;
   background: var(--app-surface);
@@ -9621,6 +9628,32 @@ html[data-theme="light"] .professor-course-list-card:hover {
   transform: scale(1.01);
 }
 .student-order-row span {
+  pointer-events: none;
+}
+.student-order-controls {
+  display: flex;
+  gap: 8px;
+  min-height: 44px;
+}
+.student-order-controls button {
+  align-items: center;
+  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 8px;
+  background: var(--app-input);
+  color: var(--app-text);
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  min-height: 44px;
+  min-width: 78px;
+  padding: 8px 10px;
+  touch-action: manipulation;
+}
+.student-order-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.student-order-controls button span {
   pointer-events: none;
 }
 .student-file-answer {
@@ -16038,6 +16071,18 @@ svg {
   .student-matching-board {
     grid-template-columns: 1fr;
     gap: 14px;
+  }
+
+  .student-order-row {
+    grid-template-columns: 1fr;
+  }
+
+  .student-order-controls {
+    justify-content: stretch;
+  }
+
+  .student-order-controls button {
+    flex: 1 1 0;
   }
 
   .professor-matching-editor,

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
+import { FiArrowDown, FiArrowUp, FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiRepeat, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import AudioMonitoringTimeline from "../../components/exam/AudioMonitoringTimeline";
@@ -21,16 +21,12 @@ function moveItemToIndex(items, fromIndex, toIndex) {
   return next;
 }
 
-const environmentSteps = [
-  { id: "left", title: "180° Left Scan", instruction: "Start from the center, then slowly rotate your camera to the left side of your surroundings." },
-  { id: "right", title: "180° Right Scan", instruction: "Return through center, then slowly rotate your camera to the right side of your surroundings." },
-];
-
 const scanCheckpoints = [
-  { id: "center", title: "Center View", instruction: "Face the camera forward and show the front of your environment.", message: "Center view captured." },
-  ...environmentSteps.map((step) => step.id === "left"
-    ? { id: step.id, title: "Left Side", instruction: "Slowly show the left side of your environment.", message: "Left side captured." }
-    : { id: step.id, title: "Right Side", instruction: "Slowly show the right side of your environment.", message: "Right side captured." }),
+  { id: "front", title: "Front View", instruction: "Face the camera forward and show the front of your exam environment.", message: "Front view captured." },
+  { id: "left", title: "Left Side", instruction: "Slowly show the left side of your environment.", message: "Left side captured." },
+  { id: "right", title: "Right Side", instruction: "Slowly show the right side of your environment.", message: "Right side captured." },
+  { id: "upper", title: "Upper Surroundings", instruction: "Tilt the camera upward and show the upper surroundings.", message: "Upper surroundings captured." },
+  { id: "desk", title: "Desk View", instruction: "Point the camera down and show your desk or work surface.", message: "Desk view captured." },
 ];
 
 const MIN_SCAN_DURATION_MS = 5000;
@@ -444,6 +440,7 @@ export default function StudentExamTake() {
   const [scanProgress, setScanProgress] = useState({});
   const [scanFindings, setScanFindings] = useState([]);
   const [scanSensorStatus, setScanSensorStatus] = useState("Motion sensor pending");
+  const [scanFacingMode, setScanFacingMode] = useState("user");
   const [cameraError, setCameraError] = useState("");
   const [examModeReady, setExamModeReady] = useState(false);
   const [examLocked, setExamLocked] = useState(false);
@@ -1167,6 +1164,17 @@ export default function StudentExamTake() {
     });
   }
 
+  function removeMatchingAnswer(questionId, left) {
+    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    touchedAnswersRef.current.add(questionId);
+    updateAnswers((current) => {
+      const nextMatches = { ...(current[questionId] || {}) };
+      delete nextMatches[left];
+      return { ...current, [questionId]: nextMatches };
+    });
+    setSelectedMatchingLeft((current) => ({ ...current, [questionId]: "" }));
+  }
+
   function selectMatchingLeft(questionId, left) {
     setSelectedMatchingLeft((current) => ({
       ...current,
@@ -1291,7 +1299,7 @@ export default function StudentExamTake() {
     try {
       await startOrientationTracking();
       const stream = await window.navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "user", width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: { facingMode: scanFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
       });
       stream.getVideoTracks().forEach((track) => {
@@ -1309,6 +1317,23 @@ export default function StudentExamTake() {
       setCameraError(getEnvironmentScanError(error));
       stopEnvironmentCamera();
     }
+  }
+
+  function retakeEnvironmentScan() {
+    stopEnvironmentCamera();
+    setCameraError("");
+    setScanFindings([]);
+    setScanMotion({});
+    setScanProgress({});
+    setScanSensorStatus("Motion sensor pending");
+    setScanStepIndex(0);
+    setScanStatus("idle");
+  }
+
+  function switchEnvironmentCamera() {
+    if (scanStatus === "scanning" || scanStatus === "analyzing") return;
+    setScanFacingMode((current) => current === "user" ? "environment" : "user");
+    setCameraError("");
   }
 
   function stopEnvironmentCamera() {
@@ -1372,11 +1397,11 @@ export default function StudentExamTake() {
   }
 
   async function runLiveEnvironmentScan() {
-    const collectedFrames = { center: [], left: [], right: [] };
-    const progressScores = { center: 0, left: 0, right: 0 };
-    const acceptedSignatures = { center: [], left: [], right: [] };
+    const collectedFrames = Object.fromEntries(scanCheckpoints.map((step) => [step.id, []]));
+    const progressScores = Object.fromEntries(scanCheckpoints.map((step) => [step.id, 0]));
+    const acceptedSignatures = Object.fromEntries(scanCheckpoints.map((step) => [step.id, []]));
     const allAcceptedSignatures = [];
-    const captured = { center: false, left: false, right: false };
+    const captured = Object.fromEntries(scanCheckpoints.map((step) => [step.id, false]));
     let previousSignature = null;
     let repeatedSamples = 0;
     let lastAcceptedAt = 0;
@@ -1443,15 +1468,10 @@ export default function StudentExamTake() {
 
           const acceptedFrameCount = scanCheckpoints.reduce((total, step) => total + Math.min(CHECKPOINT_FRAMES_REQUIRED, collectedFrames[step.id].length), 0);
           const totalProgress = Math.min(100, Math.round(acceptedFrameCount * CHECKPOINT_PROGRESS));
-          progressScores.center = Math.min(100, Math.round((collectedFrames.center.length / CHECKPOINT_FRAMES_REQUIRED) * 100));
-          progressScores.left = Math.min(100, Math.round((collectedFrames.left.length / CHECKPOINT_FRAMES_REQUIRED) * 100));
-          progressScores.right = Math.min(100, Math.round((collectedFrames.right.length / CHECKPOINT_FRAMES_REQUIRED) * 100));
-          setScanProgress({
-            surroundings: totalProgress,
-            center: progressScores.center,
-            left: progressScores.left,
-            right: progressScores.right,
+          scanCheckpoints.forEach((step) => {
+            progressScores[step.id] = Math.min(100, Math.round((collectedFrames[step.id].length / CHECKPOINT_FRAMES_REQUIRED) * 100));
           });
+          setScanProgress({ surroundings: totalProgress, ...progressScores });
           setScanSensorStatus(captured[checkpoint.id] ? checkpoint.message : `Capturing ${checkpoint.title.toLowerCase()} ${progressScores[checkpoint.id]}%.`);
         } else if (imageChanged && (!isUniqueScene || !isUniqueForCheckpoint)) {
           setScanSensorStatus("This spot was already captured. Show a different part of your environment.");
@@ -1462,9 +1482,7 @@ export default function StudentExamTake() {
         }
 
         setScanMotion({
-          center: captured.center ? 1 : 0,
-          left: captured.left ? 1 : 0,
-          right: captured.right ? 1 : 0,
+          ...Object.fromEntries(scanCheckpoints.map((step) => [step.id, captured[step.id] ? 1 : 0])),
           surroundings: Number.isFinite(nearestSceneDistance) ? nearestSceneDistance : MIN_UNIQUE_SCENE_DISTANCE,
         });
       }
@@ -2941,10 +2959,11 @@ export default function StudentExamTake() {
                     className={`student-matching-choice ${matchedLeft ? "matched" : ""}`}
                     disabled={!selectedLeft && !matchedLeft}
                     key={option.id}
-                    onClick={() => connectMatchingAnswer(question.id, option.id)}
+                    onClick={() => selectedLeft ? connectMatchingAnswer(question.id, option.id) : removeMatchingAnswer(question.id, matchedLeft)}
                     type="button"
                   >
                     {option.text}
+                    {matchedLeft && !selectedLeft ? <small>Tap to remove</small> : null}
                   </button>
                 );
               })}
@@ -3003,6 +3022,28 @@ export default function StudentExamTake() {
             tabIndex={0}
           >
             <span>{itemIndex + 1}. {item}</span>
+            <div className="student-order-controls" aria-label={`Move ${item}`}>
+              <button
+                aria-label={`Move ${item} up`}
+                disabled={itemIndex === 0}
+                onClick={() => moveOrderingAnswer(question.id, itemIndex, itemIndex - 1)}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                <FiArrowUp />
+                <span>Up</span>
+              </button>
+              <button
+                aria-label={`Move ${item} down`}
+                disabled={itemIndex === orderItems.length - 1}
+                onClick={() => moveOrderingAnswer(question.id, itemIndex, itemIndex + 1)}
+                onPointerDown={(event) => event.stopPropagation()}
+                type="button"
+              >
+                <FiArrowDown />
+                <span>Down</span>
+              </button>
+            </div>
           </div>
         )) : null}
 
@@ -3134,9 +3175,9 @@ export default function StudentExamTake() {
   if (!scanPassed || scanOpen) {
     const currentStep = scanCheckpoints[scanStepIndex] || scanCheckpoints[0];
     const currentStepProgress = Math.min(100, scanProgress.surroundings || 0);
-    const centerProgress = scanProgress.center || 0;
-    const leftSweepProgress = scanProgress.left || 0;
-    const rightSweepProgress = scanProgress.right || 0;
+    const scanProgressSummary = scanCheckpoints
+      .map((step) => `${step.title.replace(" View", "")} ${Math.round(scanProgress[step.id] || 0)}%`)
+      .join(" - ");
 
     return (
       <section className="student-exam-take-page">
@@ -3201,7 +3242,7 @@ export default function StudentExamTake() {
               <div>
                 <span style={{ width: `${currentStepProgress}%` }} />
               </div>
-              <small>Center {centerProgress}% - Left {leftSweepProgress}% - Right {rightSweepProgress}%</small>
+              <small>{scanProgressSummary}</small>
               <small>{scanSensorStatus}</small>
               <small>
                 {(scanMotion.surroundings || 0) >= MIN_UNIQUE_SCENE_DISTANCE
@@ -3212,26 +3253,24 @@ export default function StudentExamTake() {
           ) : null}
 
           <div className="student-scan-steps">
-            <span className={scanProgress.center ? "done" : scanStatus === "scanning" && scanStepIndex === 0 ? "active" : ""}>
-              1. Face camera and show your surroundings.
-              <small>{centerProgress}% captured</small>
-            </span>
-            {scanCheckpoints.slice(1).map((step, index) => (
-              <span className={(scanProgress[step.id] || 0) >= 100 ? "done" : index + 1 === scanStepIndex && scanStatus === "scanning" ? "active" : ""} key={step.id}>
-                {index + 2}. {step.title}
+            {scanCheckpoints.map((step, index) => (
+              <span className={(scanProgress[step.id] || 0) >= 100 ? "done" : index === scanStepIndex && scanStatus === "scanning" ? "active" : ""} key={step.id}>
+                {index + 1}. {step.title}
                 <small>{Math.round(scanProgress[step.id] || 0)}% captured</small>
               </span>
             ))}
             <span className={scanStatus === "analyzing" || scanStatus === "passed" ? "active" : ""}>
-              4. Keep the tab active until scan completes.
+              {scanCheckpoints.length + 1}. Keep the tab active until scan completes.
             </span>
           </div>
 
           <div className="student-scan-actions">
+            <Button disabled={scanStatus === "scanning" || scanStatus === "analyzing"} onClick={switchEnvironmentCamera} type="button"><FiRepeat /> {scanFacingMode === "user" ? "Use Rear Camera" : "Use Front Camera"}</Button>
             {scanStatus === "idle" || scanStatus === "failed" ? <Button onClick={startEnvironmentScan}><FiCamera /> Start Live Scan</Button> : null}
             {scanStatus === "scanning" ? <Button disabled><FiCamera /> Keep Scanning...</Button> : null}
             {scanStatus === "analyzing" ? <Button disabled><FiRefreshCw /> Analyzing...</Button> : null}
-            {scanStatus === "passed" ? <Button onClick={enterExamMode}><FiCheckCircle /> {secureModeRequired ? "Continue to Secure Exam" : "Start Exam"}</Button> : null}
+            {scanStatus === "failed" || scanStatus === "passed" ? <Button onClick={retakeEnvironmentScan} type="button"><FiRefreshCw /> Retake</Button> : null}
+            {scanStatus === "passed" ? <Button onClick={enterExamMode}><FiCheckCircle /> Use Photo / {secureModeRequired ? "Continue to Secure Exam" : "Start Exam"}</Button> : null}
           </div>
         </Card>
       </section>
