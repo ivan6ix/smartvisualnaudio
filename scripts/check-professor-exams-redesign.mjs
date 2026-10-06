@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import postcss from "postcss";
 
 const app = readFileSync("src/App.jsx", "utf8");
 const exams = readFileSync("src/pages/professor/ProfessorExams.jsx", "utf8");
@@ -7,6 +8,18 @@ const courses = readFileSync("src/pages/professor/ProfessorCourses.jsx", "utf8")
 const dashboard = readFileSync("src/pages/professor/ProfessorDashboard.jsx", "utf8");
 const listView = readFileSync("src/lib/listView.js", "utf8");
 const styles = readFileSync("src/styles.css", "utf8");
+
+const invalidTableRules = [];
+postcss.parse(styles).walkRules((rule) => {
+  if (/\.professor-exams-table\s+td[^,]*::before/.test(rule.selector)) invalidTableRules.push(rule.selector);
+  if (!rule.selectors.some((selector) => /\.professor-exams-table(?:\s+(?:thead|tbody|tr|th|td))*$/.test(selector))) return;
+  rule.walkDecls("display", ({ value }) => {
+    if (["none", "block", "grid", "flex"].includes(value)) invalidTableRules.push(rule.selector);
+  });
+});
+assert.deepEqual(invalidTableRules, [], "Exam tables must preserve native layout and real headers without simulated mobile labels.");
+assert.match(exams, /<th>Type \/ Period<\/th>\s*<th>Duration<\/th>\s*<th>Status<\/th>\s*<th>Actions<\/th>/, "The real headers must match the combined Type/Period, Duration, Status, and Actions cells.");
+assert.match(exams, /<td>\{exam.duration\}<\/td>\s*<td>\s*<div className="professor-status-stack">[\s\S]*?<\/td>\s*<td>\s*<div className="professor-exam-actions">/, "Status and Actions must remain separate cells after Duration.");
 
 assert.match(app, /<Route path="exams" element=\{<ProfessorExams \/>\}/, "Professor Exams route must remain available.");
 assert.match(exams, /useListViewPreference\(\{ role: "professor", page: "exams", defaultView: "table" \}\)/, "Professor Exams must preserve the table default and role/page scoped preference.");

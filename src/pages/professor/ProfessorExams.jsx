@@ -617,11 +617,11 @@ export default function ProfessorExams() {
         <table className="professor-exams-table">
           <colgroup>
             <col style={{ width: "30%" }} />
-            <col style={{ width: "22%" }} />
-            <col style={{ width: "18%" }} />
+            <col style={{ width: "20%" }} />
             <col style={{ width: "14%" }} />
             <col style={{ width: "10%" }} />
-            <col style={{ width: "6%" }} />
+            <col style={{ width: "18%" }} />
+            <col style={{ width: "8%" }} />
           </colgroup>
           <thead>
             <tr>

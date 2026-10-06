@@ -7213,13 +7213,15 @@ html[data-theme="light"] .professor-course-list-card:hover {
 
 .professor-exams-section .professor-exams-table-card,
 .professor-shell .professor-exams-section .professor-exams-table-card {
-  overflow-x: visible;
-  overflow-y: visible;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
 }
 .professor-exams-section .professor-exams-table,
 .professor-shell .professor-exams-section .professor-exams-table {
   width: 100%;
-  min-width: 0;
+  min-width: 960px;
   table-layout: fixed;
 }
 .professor-exams-section .professor-exams-table th,
@@ -7745,7 +7747,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 
 .professor-shell .professor-exams-section .professor-exams-table-card {
-  overflow: visible;
+  overflow-x: auto;
 }
 .professor-shell .professor-exams-section .professor-exams-table th,
 .professor-shell .professor-exams-section .professor-exams-table td {
@@ -14745,72 +14747,6 @@ html[data-theme="light"] :is(
   border-color: color-mix(in srgb, var(--primary) 48%, var(--app-line)) !important;
 }
 
-@media (max-width: 900px) {
-  .professor-exams-section .professor-exams-table-card,
-  .professor-shell .professor-exams-section .professor-exams-table-card {
-    overflow: visible;
-  }
-  .professor-exams-section .professor-exams-table,
-  .professor-exams-section .professor-exams-table thead,
-  .professor-exams-section .professor-exams-table tbody,
-  .professor-exams-section .professor-exams-table tr,
-  .professor-exams-section .professor-exams-table th,
-  .professor-exams-section .professor-exams-table td {
-    display: block;
-    width: 100% !important;
-  }
-  .professor-exams-section .professor-exams-table thead {
-    display: none;
-  }
-  .professor-exams-section .professor-exams-table {
-    border-collapse: separate;
-    border-spacing: 0;
-  }
-  .professor-exams-section .professor-exams-table tbody {
-    display: grid;
-    gap: 12px;
-    padding: 12px;
-  }
-  .professor-exams-section .professor-exams-table tr {
-    border: 1px solid rgba(125, 211, 252, 0.16);
-    border-radius: 14px;
-    background: var(--app-surface);
-    overflow: hidden;
-  }
-  .professor-exams-section .professor-exams-table td,
-  .professor-shell .professor-exams-section .professor-exams-table td {
-    min-height: 0;
-    height: auto;
-    display: grid;
-    grid-template-columns: 116px minmax(0, 1fr);
-    gap: 12px;
-    align-items: start;
-    padding: 10px 14px;
-    border-bottom: 1px solid rgba(125, 211, 252, 0.1);
-    text-align: left;
-  }
-  .professor-exams-section .professor-exams-table td::before {
-    color: var(--app-text-muted);
-    font-size: 0.76rem;
-    font-weight: 900;
-    text-transform: uppercase;
-  }
-  .professor-exams-section .professor-exams-table td:nth-child(1)::before { content: "Title"; }
-  .professor-exams-section .professor-exams-table td:nth-child(2)::before { content: "Course"; }
-  .professor-exams-section .professor-exams-table td:nth-child(3)::before { content: "Type"; }
-  .professor-exams-section .professor-exams-table td:nth-child(4)::before { content: "Period"; }
-  .professor-exams-section .professor-exams-table td:nth-child(5)::before { content: "Duration"; }
-  .professor-exams-section .professor-exams-table td:nth-child(6)::before { content: "Status"; }
-  .professor-exams-section .professor-exams-table td:nth-child(7)::before { content: "Actions"; }
-  .professor-exams-section .professor-exams-table td:last-child {
-    border-bottom: 0;
-  }
-  .professor-exams-section .professor-exam-actions-trigger,
-  .professor-shell .professor-exams-section .professor-exam-actions-trigger {
-    flex: 0 0 34px;
-  }
-}
-
 @media (max-width: 620px) {
   .theme-mode-grid { grid-template-columns: 1fr; }
   .professor-exams-header,
@@ -16908,6 +16844,18 @@ html[data-appearance="dark"] .professor-course-detail-page .professor-course-men
 }
 .professor-exams-page .professor-exams-table tbody tr:last-child td {
   border-bottom: 0;
+}
+.professor-exams-page .professor-exams-table th,
+.professor-exams-page .professor-exams-table td:nth-child(4) {
+  white-space: nowrap;
+}
+.professor-exams-page .professor-exams-table .professor-status-pill {
+  white-space: nowrap;
+}
+.professor-exams-page .professor-exams-table .row-action-menu-trigger {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
 }
 .professor-exams-page .row-action-menu-trigger,
 .professor-exams-page .professor-exam-actions-trigger {
