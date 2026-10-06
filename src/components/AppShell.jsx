@@ -18,7 +18,7 @@ const adminNavigation = [
   { label: "Logs", to: "/admin/logs", icon: FiList },
 ];
 
-function AppSidebar({ onBrand, onNavigate, user }) {
+function AppSidebar({ drawerThemeAction, onBrand, onNavigate, user }) {
   return (
     <aside className="admin-sidebar" aria-label="Admin navigation">
       <button className="admin-sidebar-brand" onClick={onBrand} type="button">
@@ -36,6 +36,7 @@ function AppSidebar({ onBrand, onNavigate, user }) {
           </NavLink>
         ))}
       </nav>
+      {drawerThemeAction ? <div className="admin-sidebar-theme">{drawerThemeAction}</div> : null}
       <div className="admin-sidebar-profile">
         <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
         <div>
@@ -70,7 +71,12 @@ export default function AppShell({ role = "Admin" }) {
     <div className="admin-app-shell" data-role={role}>
       <AppSidebar onBrand={() => navigate("/")} onNavigate={() => {}} user={user} />
       <div className={`admin-drawer ${drawerOpen ? "open" : ""}`}>
-        <AppSidebar onBrand={() => { navigate("/"); setDrawerOpen(false); }} onNavigate={() => setDrawerOpen(false)} user={user} />
+        <AppSidebar
+          drawerThemeAction={<button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={toggleTheme} type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}<span>Theme</span></button>}
+          onBrand={() => { navigate("/"); setDrawerOpen(false); }}
+          onNavigate={() => setDrawerOpen(false)}
+          user={user}
+        />
       </div>
       {drawerOpen ? <button aria-label="Close admin navigation" className="admin-drawer-backdrop" onClick={() => setDrawerOpen(false)} type="button" /> : null}
       <div className="admin-shell-main">

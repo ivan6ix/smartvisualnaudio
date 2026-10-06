@@ -30,7 +30,7 @@ function getCurrentPage(pathname) {
   return links[0]?.label || "Dean Workspace";
 }
 
-function DeanSidebar({ onBrand, onNavigate, user }) {
+function DeanSidebar({ drawerThemeAction, onBrand, onNavigate, user }) {
   return (
     <aside className="admin-sidebar dean-sidebar" aria-label="Dean navigation">
       <button className="admin-sidebar-brand dean-sidebar-brand" onClick={onBrand} type="button">
@@ -56,6 +56,7 @@ function DeanSidebar({ onBrand, onNavigate, user }) {
           </NavLink>
         ))}
       </nav>
+      {drawerThemeAction ? <div className="admin-sidebar-theme dean-sidebar-theme">{drawerThemeAction}</div> : null}
       <div className="admin-sidebar-profile dean-sidebar-profile">
         <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
         <div>
@@ -95,7 +96,12 @@ export default function DeanLayout() {
     <div className="admin-app-shell dean-app-shell" data-role="Dean">
       <DeanSidebar onBrand={() => navigate("/dean")} onNavigate={() => {}} user={user} />
       <div className={`admin-drawer dean-drawer ${drawerOpen ? "open" : ""}`}>
-        <DeanSidebar onBrand={() => { navigate("/dean"); setDrawerOpen(false); }} onNavigate={() => setDrawerOpen(false)} user={user} />
+        <DeanSidebar
+          drawerThemeAction={<button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={toggleTheme} type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}<span>Theme</span></button>}
+          onBrand={() => { navigate("/dean"); setDrawerOpen(false); }}
+          onNavigate={() => setDrawerOpen(false)}
+          user={user}
+        />
       </div>
       {drawerOpen ? <button aria-label="Close dean navigation" className="admin-drawer-backdrop dean-drawer-backdrop" onClick={() => setDrawerOpen(false)} type="button" /> : null}
       <div className="admin-shell-main dean-shell-main">

@@ -31,7 +31,7 @@ function getCurrentPage(pathname) {
   return links[0]?.label || "Professor Workspace";
 }
 
-function ProfessorSidebar({ onBrand, onNavigate, user }) {
+function ProfessorSidebar({ drawerThemeAction, onBrand, onNavigate, user }) {
   return (
     <aside className="admin-sidebar professor-sidebar" aria-label="Professor navigation">
       <button className="admin-sidebar-brand professor-sidebar-brand" onClick={onBrand} type="button">
@@ -57,6 +57,7 @@ function ProfessorSidebar({ onBrand, onNavigate, user }) {
           </NavLink>
         ))}
       </nav>
+      {drawerThemeAction ? <div className="admin-sidebar-theme professor-sidebar-theme">{drawerThemeAction}</div> : null}
       <div className="admin-sidebar-profile professor-sidebar-profile">
         <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
         <div>
@@ -96,7 +97,12 @@ export default function ProfessorLayout() {
     <div className="admin-app-shell professor-app-shell" data-role="Professor">
       <ProfessorSidebar onBrand={() => navigate("/professor")} onNavigate={() => {}} user={user} />
       <div className={`admin-drawer professor-drawer ${drawerOpen ? "open" : ""}`}>
-        <ProfessorSidebar onBrand={() => { navigate("/professor"); setDrawerOpen(false); }} onNavigate={() => setDrawerOpen(false)} user={user} />
+        <ProfessorSidebar
+          drawerThemeAction={<button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={toggleTheme} type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}<span>Theme</span></button>}
+          onBrand={() => { navigate("/professor"); setDrawerOpen(false); }}
+          onNavigate={() => setDrawerOpen(false)}
+          user={user}
+        />
       </div>
       {drawerOpen ? <button aria-label="Close professor navigation" className="admin-drawer-backdrop professor-drawer-backdrop" onClick={() => setDrawerOpen(false)} type="button" /> : null}
       <div className="admin-shell-main professor-shell-main">

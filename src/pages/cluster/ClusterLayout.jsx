@@ -32,7 +32,7 @@ function getCurrentPage(pathname) {
   return links[0]?.label || "Cluster Professor Workspace";
 }
 
-function ClusterSidebar({ onBrand, onNavigate, user }) {
+function ClusterSidebar({ drawerThemeAction, onBrand, onNavigate, user }) {
   return (
     <aside className="admin-sidebar cluster-sidebar" aria-label="Cluster Professor navigation">
       <button className="admin-sidebar-brand cluster-sidebar-brand" onClick={onBrand} type="button">
@@ -58,6 +58,7 @@ function ClusterSidebar({ onBrand, onNavigate, user }) {
           </NavLink>
         ))}
       </nav>
+      {drawerThemeAction ? <div className="admin-sidebar-theme cluster-sidebar-theme">{drawerThemeAction}</div> : null}
       <div className="admin-sidebar-profile cluster-sidebar-profile">
         <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
         <div>
@@ -97,7 +98,12 @@ export default function ClusterLayout() {
     <div className="admin-app-shell cluster-app-shell" data-role="Cluster Professor">
       <ClusterSidebar onBrand={() => navigate("/cluster")} onNavigate={() => {}} user={user} />
       <div className={`admin-drawer cluster-drawer ${drawerOpen ? "open" : ""}`}>
-        <ClusterSidebar onBrand={() => { navigate("/cluster"); setDrawerOpen(false); }} onNavigate={() => setDrawerOpen(false)} user={user} />
+        <ClusterSidebar
+          drawerThemeAction={<button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={toggleTheme} type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}<span>Theme</span></button>}
+          onBrand={() => { navigate("/cluster"); setDrawerOpen(false); }}
+          onNavigate={() => setDrawerOpen(false)}
+          user={user}
+        />
       </div>
       {drawerOpen ? <button aria-label="Close cluster professor navigation" className="admin-drawer-backdrop cluster-drawer-backdrop" onClick={() => setDrawerOpen(false)} type="button" /> : null}
       <div className="admin-shell-main cluster-shell-main">

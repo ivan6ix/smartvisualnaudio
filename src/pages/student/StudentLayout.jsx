@@ -28,7 +28,7 @@ function getCurrentPage(pathname) {
   return links[0]?.label || "Student Portal";
 }
 
-function StudentSidebar({ onBrand, onNavigate, user }) {
+function StudentSidebar({ drawerThemeAction, onBrand, onNavigate, user }) {
   return (
     <aside className="admin-sidebar student-sidebar" aria-label="Student navigation">
       <button className="admin-sidebar-brand student-sidebar-brand" onClick={onBrand} type="button">
@@ -54,6 +54,7 @@ function StudentSidebar({ onBrand, onNavigate, user }) {
           </NavLink>
         ))}
       </nav>
+      {drawerThemeAction ? <div className="admin-sidebar-theme student-sidebar-theme">{drawerThemeAction}</div> : null}
       <div className="admin-sidebar-profile student-sidebar-profile">
         <ProfileAvatar name={user?.fullName} src={user?.avatarUrl} />
         <div>
@@ -102,7 +103,12 @@ export default function StudentLayout() {
     <div className="student-app-shell">
       <StudentSidebar onBrand={() => navigate("/student")} onNavigate={() => {}} user={user} />
       <div className={`admin-drawer student-drawer ${drawerOpen ? "open" : ""}`}>
-        <StudentSidebar onBrand={() => { navigate("/student"); setDrawerOpen(false); }} onNavigate={() => setDrawerOpen(false)} user={user} />
+        <StudentSidebar
+          drawerThemeAction={<button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} onClick={toggleTheme} type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}<span>Theme</span></button>}
+          onBrand={() => { navigate("/student"); setDrawerOpen(false); }}
+          onNavigate={() => setDrawerOpen(false)}
+          user={user}
+        />
       </div>
       {drawerOpen ? <button aria-label="Close student navigation" className="admin-drawer-backdrop student-drawer-backdrop" onClick={() => setDrawerOpen(false)} type="button" /> : null}
       <div className="student-shell-main">
