@@ -15183,6 +15183,17 @@ html[data-theme="light"] :is(
   .professor-monitoring-student-filters .search-box { grid-column: auto; }
   .professor-monitoring-grid { grid-template-columns: 1fr; }
   .professor-score-filters { grid-template-columns: 1fr; }
+  .professor-score-filters.compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .professor-score-filters.compact .search-box,
+  .professor-score-filters.compact .field,
+  .professor-score-filters.compact .field input,
+  .professor-score-filters.compact .field select {
+    grid-column: auto;
+    min-width: 0;
+    width: 100%;
+  }
   .professor-exam-section-filters { grid-template-columns: 1fr; }
   .professor-course-exam-filters { grid-template-columns: 1fr; }
   .professor-courses-header, .professor-course-exam-list article, .professor-score-course-list article { display: grid; }
@@ -16548,6 +16559,19 @@ html[data-appearance="dark"] .professor-course-detail-page .professor-course-men
 
   .professor-courses-page .professor-courses-toolbar-summary {
     justify-content: center;
+  }
+
+  .professor-score-filters.compact {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .professor-score-filters.compact .search-box,
+  .professor-score-filters.compact .field,
+  .professor-score-filters.compact .field input,
+  .professor-score-filters.compact .field select {
+    grid-column: auto;
+    min-width: 0;
+    width: 100%;
   }
 }
 
