@@ -293,7 +293,7 @@ export default function DeanDashboard() {
             {listView.view === "cards" ? (
               <RecordCardList columns={violationColumns} density={listView.cardDensity} rows={pageData.rows} titleKey="student" />
             ) : (
-              <Table className={`list-table-${listView.tableDensity}`} columns={violationColumns} rows={pageData.rows} emptyTitle="No matching records found." emptyDescription="Adjust the search or filters to show violation records." />
+              <Table className={`dean-dashboard-violations-table list-table-${listView.tableDensity}`} columns={violationColumns} rows={pageData.rows} emptyTitle="No matching records found." emptyDescription="Adjust the search or filters to show violation records." />
             )}
             <ListPagination count={filteredViolations.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
           </>

@@ -17914,3 +17914,239 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
     font-size: 1.42rem;
   }
 }
+
+/* Dean mobile responsive fixes: preserve desktop layout while preventing mobile compression. */
+.dean-app-shell[data-role="Dean"],
+.dean-app-shell[data-role="Dean"] .dean-shell-main,
+.dean-app-shell[data-role="Dean"] .dean-shell,
+.dean-app-shell[data-role="Dean"] .dean-dashboard-page,
+.dean-app-shell[data-role="Dean"] .dean-integrity-page,
+.dean-app-shell[data-role="Dean"] .dean-courses-page,
+.dean-app-shell[data-role="Dean"] .dean-reports-page {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.dean-app-shell[data-role="Dean"] {
+  overflow-x: clip;
+}
+
+.dean-app-shell[data-role="Dean"] .dean-shell {
+  width: 100%;
+}
+
+.dean-dashboard-page .dean-dashboard-header,
+.dean-dashboard-page .dean-dashboard-panel,
+.dean-dashboard-page .dean-kpi-grid,
+.dean-dashboard-page .dean-dashboard-controls,
+.dean-dashboard-page .dean-analytics-panel {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.dean-dashboard-filters {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+}
+
+.dean-dashboard-filters .btn {
+  min-height: 44px;
+}
+
+.dean-chart-box {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+}
+
+.dean-chart-box .recharts-responsive-container {
+  min-width: 640px;
+}
+
+.dean-dashboard-violations-table {
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  contain: inline-size;
+}
+
+.dean-dashboard-violations-table table {
+  min-width: 1120px;
+  table-layout: fixed;
+}
+
+.dean-dashboard-violations-table th,
+.dean-dashboard-violations-table td {
+  overflow-wrap: normal;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+  white-space: nowrap;
+  word-break: normal;
+}
+
+.dean-dashboard-violations-table th:nth-child(1),
+.dean-dashboard-violations-table td:nth-child(1) {
+  width: 170px;
+}
+
+.dean-dashboard-violations-table th:nth-child(2),
+.dean-dashboard-violations-table td:nth-child(2) {
+  width: 130px;
+}
+
+.dean-dashboard-violations-table th:nth-child(3),
+.dean-dashboard-violations-table td:nth-child(3) {
+  width: 110px;
+}
+
+.dean-dashboard-violations-table th:nth-child(4),
+.dean-dashboard-violations-table td:nth-child(4) {
+  width: 190px;
+}
+
+.dean-dashboard-violations-table th:nth-child(5),
+.dean-dashboard-violations-table td:nth-child(5) {
+  width: 220px;
+}
+
+.dean-dashboard-violations-table th:nth-child(6),
+.dean-dashboard-violations-table td:nth-child(6) {
+  width: 110px;
+}
+
+.dean-dashboard-violations-table th:nth-child(7),
+.dean-dashboard-violations-table td:nth-child(7) {
+  width: 120px;
+}
+
+.dean-dashboard-violations-table th:nth-child(8),
+.dean-dashboard-violations-table td:nth-child(8) {
+  width: 90px;
+}
+
+.dean-dashboard-violations-table .badge,
+.dean-integrity-table .badge,
+.dean-courses-table .badge,
+.dean-reports-table .badge {
+  white-space: nowrap;
+}
+
+.dean-integrity-table th,
+.dean-integrity-table td,
+.dean-courses-table th,
+.dean-courses-table td,
+.dean-reports-table th,
+.dean-reports-table td {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+@media (max-width: 900px) {
+  .dean-app-shell[data-role="Dean"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dean-app-shell[data-role="Dean"] .dean-shell {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 720px) {
+  .dean-app-shell[data-role="Dean"] .dean-shell {
+    padding: 16px 12px 28px;
+  }
+
+  .dean-dashboard-page,
+  .dean-integrity-page,
+  .dean-courses-page,
+  .dean-reports-page {
+    width: 100%;
+  }
+
+  .dean-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dean-kpi-card {
+    align-items: flex-start;
+    min-height: 112px;
+    padding: 14px;
+  }
+
+  .dean-kpi-card span {
+    font-size: 0.72rem;
+    line-height: 1.25;
+  }
+
+  .dean-kpi-card strong {
+    font-size: 1.65rem;
+  }
+
+  .dean-dashboard-search-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dean-dashboard-filters,
+  .dean-integrity-filter-row,
+  .dean-reports-filter-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .dean-dashboard-controls,
+  .dean-integrity-controls,
+  .dean-reports-controls {
+    padding: 16px;
+  }
+
+  .dean-chart-box {
+    height: 300px;
+    padding: 12px;
+  }
+
+  .dean-integrity-table-scroll,
+  .dean-courses-table-scroll,
+  .dean-reports-table-scroll {
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overscroll-behavior-x: contain;
+  }
+
+  .dean-integrity-table {
+    min-width: 980px;
+  }
+
+  .dean-courses-table {
+    min-width: 920px;
+  }
+
+  .dean-reports-table {
+    min-width: 1040px;
+  }
+}
+
+@media (max-width: 390px) {
+  .dean-topbar {
+    gap: 8px;
+    padding-inline: 12px;
+  }
+
+  .dean-topbar-actions {
+    gap: 5px;
+  }
+
+  .dean-dashboard-header h1 {
+    font-size: 1.65rem;
+  }
+}
+
+@media (max-width: 340px) {
+  .dean-kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .dean-app-shell[data-role="Dean"] .dean-shell {
+    padding-inline: 10px;
+  }
+}
