@@ -35,3 +35,38 @@ assert.ok(accounts.includes("setActivePage(1)") && accounts.includes("setDeactiv
   assert.ok(css.includes(token) || adminLogs.includes(token), `Logs layout should include ${token}.`);
 });
 assert.ok(adminLogs.includes('className: "admin-log-description"'), "Logs description column should have a dedicated class.");
+
+[
+  ".admin-section-page .admin-section-hero",
+  "border-radius: 8px",
+  "background: var(--app-surface)",
+  ".admin-section-page .admin-stat-card",
+  ".admin-section-page .admin-panel",
+  ".admin-section-page .toolbar",
+  ".admin-section-page .list-view-toolbar",
+  ".admin-section-page .table-wrap",
+  "contain: inline-size",
+  ".admin-section-page .modal",
+  ".admin-section-page .btn:not(.btn-light)",
+].forEach((token) => {
+  assert.ok(css.includes(token), `Admin visual polish missing CSS token: ${token}`);
+});
+
+[
+  "radial-gradient(circle at 86% 18%",
+  "linear-gradient(135deg, #2563eb, #06b6d4)",
+  "border-radius: 30px",
+  "box-shadow: 0 0 42px",
+].forEach((token) => {
+  const lateAdminPolish = css.slice(css.lastIndexOf("/* Admin system-wide UI polish"));
+  assert.ok(!lateAdminPolish.includes(token), `Final Admin polish should remove decorative token: ${token}`);
+});
+
+[
+  "@media (max-width: 390px)",
+  "@media (max-width: 360px)",
+  "@media (max-width: 340px)",
+  "grid-template-columns: minmax(0, 1fr)",
+].forEach((token) => {
+  assert.ok(css.includes(token), `Admin responsive polish missing token: ${token}`);
+});
