@@ -14,8 +14,9 @@ assert.match(app, /<Route path="\/dean" element=\{<DeanLayout \/>\}/, "Dean shel
 
 assert.match(layout, /className="admin-app-shell dean-app-shell"/, "Dean shell should use the shared app shell.");
 assert.match(layout, /Smart Proctoring[\s\S]*Dean Portal/, "Dean sidebar branding should remain present.");
-assert.match(layout, /deanNavigation = \[[\s\S]*Dashboard[\s\S]*Exam Integrity[\s\S]*Courses[\s\S]*Reports[\s\S]*Notifications/, "Dean navigation must expose actual Dean routes.");
-assert.match(layout, /deanUtilityNavigation = \[[\s\S]*Profile/, "Dean profile utility route must remain reachable.");
+assert.match(layout, /deanNavigation = \[[\s\S]*Dashboard[\s\S]*Exam Integrity[\s\S]*Courses[\s\S]*Reports/, "Dean navigation must expose actual Dean routes.");
+assert.doesNotMatch(layout, /label:\s*"Notifications"[\s\S]*to:\s*"\/dean\/notifications"/, "Dean sidebar should not duplicate topbar Notifications.");
+assert.match(layout, /deanUtilityNavigation = \[[\s\S]*Settings[\s\S]*\/dean\/profile[\s\S]*FiSettings/, "Dean settings utility route must remain reachable.");
 assert.match(layout, /useTheme\(\)/, "Dean shell must use the shared theme context.");
 assert.match(layout, /dean-topbar-actions[\s\S]*dean-theme-button[\s\S]*dean-message-menu[\s\S]*<NotificationBell user=\{user\} \/>[\s\S]*dean-profile-menu/, "Topbar order must be Theme, Messages, Notifications, Profile.");
 assert.match(layout, /useMessagePreview\(user\)/, "Dean message preview must remain wired.");

@@ -17972,7 +17972,7 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 }
 
 .dean-dashboard-violations-table table {
-  min-width: 1120px;
+  min-width: 1200px;
   table-layout: fixed;
 }
 
@@ -17988,11 +17988,13 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 .dean-dashboard-violations-table th:nth-child(1),
 .dean-dashboard-violations-table td:nth-child(1) {
   width: 170px;
+  padding-right: 24px;
 }
 
 .dean-dashboard-violations-table th:nth-child(2),
 .dean-dashboard-violations-table td:nth-child(2) {
   width: 130px;
+  padding-left: 18px;
 }
 
 .dean-dashboard-violations-table th:nth-child(3),
@@ -18040,6 +18042,20 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 .dean-reports-table td {
   overflow-wrap: normal;
   word-break: normal;
+}
+
+.dean-reports-table th.reports-email-column,
+.dean-reports-table td.reports-email-column {
+  min-width: 280px;
+  padding-right: 24px;
+  white-space: nowrap;
+}
+
+.dean-reports-table th.reports-role-column,
+.dean-reports-table td.reports-role-column {
+  min-width: 150px;
+  padding-left: 18px;
+  white-space: nowrap;
 }
 
 @media (max-width: 900px) {

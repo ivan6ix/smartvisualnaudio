@@ -1,6 +1,6 @@
 import NotificationBell from "../../components/NotificationBell";
 import { useEffect, useState } from "react";
-import { FiBarChart2, FiBell, FiBookOpen, FiFileText, FiMenu, FiMessageCircle, FiMoon, FiShield, FiSun, FiUser, FiX } from "react-icons/fi";
+import { FiBarChart2, FiBookOpen, FiFileText, FiMenu, FiMessageCircle, FiMoon, FiSettings, FiShield, FiSun, FiX } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import MessageModal from "../../components/MessageModal";
 import ProfileAvatar from "../../components/ProfileAvatar";
@@ -15,11 +15,10 @@ const deanNavigation = [
   { label: "Exam Integrity", to: "/dean/integrity", icon: FiShield },
   { label: "Courses", to: "/dean/courses", icon: FiBookOpen },
   { label: "Reports", to: "/dean/reports", icon: FiFileText },
-  { label: "Notifications", to: "/dean/notifications", icon: FiBell },
 ];
 
 const deanUtilityNavigation = [
-  { label: "Profile", to: "/dean/profile", icon: FiUser },
+  { label: "Settings", to: "/dean/profile", icon: FiSettings },
 ];
 
 function getCurrentPage(pathname) {

@@ -250,12 +250,12 @@ export default function Reports() {
       { key: "severity", label: "Severity" },
     ],
     "All Users": [
-      { key: "name", label: "Name" },
-      { key: "email", label: "Email" },
-      { key: "role", label: "Role" },
-      { key: "number", label: "ID Number" },
-      { key: "status", label: "Status" },
-      { key: "createdAt", label: "Created" },
+      { key: "name", label: "Name", width: "220px" },
+      { key: "email", label: "Email", className: "reports-email-column", width: "300px" },
+      { key: "role", label: "Role", className: "reports-role-column", width: "150px" },
+      { key: "number", label: "ID Number", width: "160px" },
+      { key: "status", label: "Status", width: "130px" },
+      { key: "createdAt", label: "Created", width: "160px" },
     ],
     Students: [
       { key: "name", label: "Student" },
