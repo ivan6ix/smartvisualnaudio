@@ -692,8 +692,9 @@ export default function ProfessorCourseDetail() {
     try {
       const { data: questionRows, error: questionError } = await supabase
         .from("exam_questions")
-        .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
+        .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order")
         .eq("exam_id", assessment.id)
+        .order("sort_order", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true });
 
       if (questionError) throw questionError;

@@ -93,6 +93,22 @@ Deno.serve(async (req) => {
     if (examError) return json({ error: examError.message }, 400);
     if (!exam) return json({ error: "Exam not found." }, 404);
 
+    const { data: groupMember, error: groupError } = await adminClient
+      .from("exam_publish_group_members")
+      .select("group_id")
+      .eq("exam_id", examId)
+      .maybeSingle();
+    if (groupError) return json({ error: groupError.message }, 400);
+    if (groupMember) {
+      const { data: group, error: reviewError } = await userClient.rpc("review_exam_group", {
+        p_exam_id: examId,
+        p_action: action,
+        p_remarks: remarks,
+      });
+      if (reviewError) return json({ error: reviewError.message }, 400);
+      return json({ group });
+    }
+
     const now = new Date().toISOString();
     const decision = action === "approve" ? "Approved" : "Rejected";
     const professorId = exam.professor_id || exam.created_by;

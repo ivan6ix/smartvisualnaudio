@@ -103,7 +103,7 @@ function validateStoredExamForRelease(exam, questionRows) {
   return "";
 }
 
-function mapExam(row, reviewByExam = {}) {
+function mapExam(row, reviewByExam = {}, groupByExam = {}) {
   const course = row.courses;
   const duration = row.time_limit || row.duration || 0;
   const latestReview = reviewByExam[row.id];
@@ -129,6 +129,10 @@ function mapExam(row, reviewByExam = {}) {
     rawStatus: row.status || "Draft",
     clusterStatus: getClusterStatus(row),
     rejectionReason: latestReview?.remarks || "",
+    reviewRequired: Boolean(row.submitted_at && !row.approved_at),
+    groupId: groupByExam[row.id]?.groupId || "",
+    sharedCourseCount: groupByExam[row.id]?.count || 0,
+    sharedCourses: groupByExam[row.id]?.courses || [],
   };
 }
 
@@ -158,15 +162,37 @@ export default function ProfessorExams() {
   const allExams = useMemo(() => Array.isArray(sourceExams) ? sourceExams : [], [sourceExams]);
   const activeExams = useMemo(() => allExams.filter((exam) => !exam.archived), [allExams]);
   const archivedExams = useMemo(() => allExams.filter((exam) => exam.archived), [allExams]);
+  async function transitionGroupAction(exam, action) {
+    const { data: group, error: groupError } = await supabase.rpc("get_exam_group", { p_exam_id: exam.id });
+    if (groupError) throw groupError;
+    if (!group) throw new Error("Shared exam group not found.");
+    const { error } = await supabase.rpc("transition_exam_group", {
+      p_group_id: group.group_id,
+      p_action: action,
+      p_expected_revision: group.revision,
+    });
+    if (error) throw error;
+    await loadExams(true);
+  }
   async function setArchived(exam) {
     if (!hasSupabaseConfig) { toast.error("Exam archiving requires a connected account."); return; }
+    if (exam.groupId && !window.confirm(`${exam.archived ? "Restore" : "Archive"} this exam across all ${exam.sharedCourseCount} courses?`)) return;
     setLoadingActionId(exam.id);
-    const { error } = await supabase.rpc("set_exam_archived", { p_id: exam.id, p_archived: !exam.archived });
-    setLoadingActionId("");
-    if (error) { toast.error(error.message); return; }
-    const next = liveExams.map(item => item.id === exam.id ? { ...item, archived: !exam.archived } : item);
-    setLiveExams(next);
-    queryClient.setQueryData(["professor-exams", user.id], next);
+    try {
+      if (exam.groupId) {
+        await transitionGroupAction(exam, exam.archived ? "restore" : "archive");
+      } else {
+        const { error } = await supabase.rpc("set_exam_archived", { p_id: exam.id, p_archived: !exam.archived });
+        if (error) throw error;
+        const next = liveExams.map(item => item.id === exam.id ? { ...item, archived: !exam.archived } : item);
+        setLiveExams(next);
+        queryClient.setQueryData(["professor-exams", user.id], next);
+      }
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setLoadingActionId("");
+    }
   }
   const publishedExams = useMemo(() => activeExams.filter((exam) => exam.status === "published"), [activeExams]);
   const pendingExams = useMemo(() => activeExams.filter((exam) => exam.status === "pending"), [activeExams]);
@@ -230,8 +256,34 @@ export default function ProfessorExams() {
     const examRows = data || [];
     const examIds = examRows.map((exam) => exam.id);
     let reviewByExam = {};
+    const groupByExam = {};
 
     if (examIds.length) {
+      const { data: visibleMembers, error: groupError } = await supabase
+        .from("exam_publish_group_members")
+        .select("group_id, exam_id")
+        .in("exam_id", examIds);
+      if (groupError) { toast.error(groupError.message); return; }
+      const groupIds = [...new Set((visibleMembers || []).map((member) => member.group_id))];
+      if (groupIds.length) {
+        const { data: allMembers, error: membersError } = await supabase
+          .from("exam_publish_group_members")
+          .select("group_id, exam_id, course_id, courses(course_code, section)")
+          .in("group_id", groupIds);
+        if (membersError) { toast.error(membersError.message); return; }
+        const grouped = new Map();
+        for (const member of allMembers || []) {
+          grouped.set(member.group_id, [...(grouped.get(member.group_id) || []), member]);
+        }
+        for (const member of visibleMembers || []) {
+          const groupMembers = grouped.get(member.group_id) || [];
+          groupByExam[member.exam_id] = {
+            groupId: member.group_id,
+            count: groupMembers.length,
+            courses: groupMembers.map((item) => `${item.courses?.course_code || "Course"} - ${item.courses?.section || ""}`.trim()),
+          };
+        }
+      }
       const { data: reviewRows, error: reviewError } = await supabase
         .from("exam_reviews")
         .select("exam_id, remarks, decision, review_date")
@@ -247,7 +299,7 @@ export default function ProfessorExams() {
       }
     }
 
-    const nextExams = examRows.map((exam) => mapExam(exam, reviewByExam));
+    const nextExams = examRows.map((exam) => mapExam(exam, reviewByExam, groupByExam));
     setLiveExams(nextExams);
     queryClient.setQueryData(queryKey, nextExams);
   }, [queryClient, user?.id]);
@@ -347,8 +399,9 @@ export default function ProfessorExams() {
         .maybeSingle(),
       supabase
         .from("exam_questions")
-        .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
+        .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order")
         .eq("exam_id", examId)
+        .order("sort_order", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true }),
     ]);
     if (examError) throw examError;
@@ -365,9 +418,15 @@ export default function ProfessorExams() {
 
   async function handleMoveDraftToUnpublished(exam) {
     if (!hasSupabaseConfig) return;
+    if (exam.groupId && !window.confirm(`Move all ${exam.sharedCourseCount} shared exams to Unpublished?`)) return;
     setLoadingActionId(exam.id);
     try {
       await validateExamForTransition(exam);
+      if (exam.groupId) {
+        await transitionGroupAction(exam, "move_to_unpublished");
+        toast.success("Shared drafts moved to Unpublished Exams.");
+        return;
+      }
       const { error } = await supabase
         .from("exams")
         .update({ status: "Unpublished", submitted_at: null })
@@ -421,9 +480,16 @@ export default function ProfessorExams() {
       submitProfessorExamForApproval(exam.id);
       return;
     }
+    if (exam.groupId && !window.confirm(`Submit the shared exam across all ${exam.sharedCourseCount} courses for review?`)) return;
 
     setLoadingActionId(exam.id);
     try {
+      if (exam.groupId) {
+        await transitionGroupAction(exam, "submit_review");
+        await notifyClusterExamSubmitted(exam);
+        toast.success("Shared exam submitted to cluster professor");
+        return;
+      }
       const { error } = await supabase
         .from("exams")
         .update({
@@ -466,9 +532,13 @@ export default function ProfessorExams() {
     if (!publishTarget || !hasSupabaseConfig) return;
     setPublishingId(publishTarget.id);
     try {
-      const { error } = await supabase.rpc("publish_exam", { p_exam_id: publishTarget.id });
-      if (error) throw error;
-      toast.success("Exam published for students");
+      if (publishTarget.groupId) {
+        await transitionGroupAction(publishTarget, "publish");
+      } else {
+        const { error } = await supabase.rpc("publish_exam", { p_exam_id: publishTarget.id });
+        if (error) throw error;
+      }
+      toast.success(publishTarget.groupId ? "Shared exam published in every course" : "Exam published for students");
       setPublishTarget(null);
       await loadExams(true);
     } catch (error) {
@@ -479,11 +549,24 @@ export default function ProfessorExams() {
   }
 
   function handleUnpublish(exam) {
+    if (exam.groupId) {
+      if (!window.confirm(`Unpublish this exam in all ${exam.sharedCourseCount} courses?`)) return;
+      setLoadingActionId(exam.id);
+      transitionGroupAction(exam, "unpublish")
+        .then(() => toast.success("Shared exam unpublished in every course"))
+        .catch((error) => toast.error(error.message))
+        .finally(() => setLoadingActionId(""));
+      return;
+    }
     updateExamStatus(exam, { status: "Unpublished" }, "Exam unpublished");
   }
 
   async function handleDeleteArchivedExam() {
     if (!deleteTarget || !hasSupabaseConfig) return;
+    if (deleteTarget.groupId) {
+      toast.error("Shared exam members cannot be permanently deleted individually.");
+      return;
+    }
     setDeletingId(deleteTarget.id);
     try {
       const { error } = await supabase.rpc("delete_archived_exam", { p_id: deleteTarget.id });
@@ -510,7 +593,7 @@ export default function ProfessorExams() {
 
   function getDraftActions(exam) {
     return [
-      { label: "Resume", icon: FiEdit2, onClick: () => navigate(`/professor/exams/create?editId=${exam.id}`) },
+      { label: exam.groupId ? "Edit Shared Exam" : "Resume", icon: FiEdit2, onClick: () => navigate(`/professor/exams/create?editId=${exam.id}`) },
       { label: loadingActionId === exam.id ? "Checking..." : "Move to Unpublished", onClick: () => handleMoveDraftToUnpublished(exam), disabled: loadingActionId === exam.id },
       { separator: true },
       { label: "Archive", icon: FiArchive, danger: true, onClick: () => setArchived(exam) },
@@ -537,11 +620,11 @@ export default function ProfessorExams() {
     }
 
     if (exam.status === "unpublished") {
-      actions.push({ label: "Edit", icon: FiEdit2, onClick: () => navigate(`/professor/exams/create?editId=${exam.id}`) });
-      if (exam.clusterStatus !== "rejected") {
+      actions.push({ label: exam.groupId ? "Edit Shared Exam" : "Edit", icon: FiEdit2, onClick: () => navigate(`/professor/exams/create?editId=${exam.id}`) });
+      if (exam.clusterStatus !== "rejected" && !exam.reviewRequired) {
         actions.push({ label: "Publish", onClick: () => handlePublish(exam) });
       } else {
-        actions.push({ label: getPublishGateLabel(exam), disabled: true, onClick: () => {} });
+        actions.push({ label: exam.reviewRequired && exam.clusterStatus !== "rejected" ? "Review required" : getPublishGateLabel(exam), disabled: true, onClick: () => {} });
       }
       if (exam.clusterStatus !== "approved") {
         actions.push({
@@ -571,6 +654,7 @@ export default function ProfessorExams() {
               <div className="professor-exam-record-title">
                 <strong>{exam.title || "Untitled Exam"}</strong>
                 <span>{exam.course} / {exam.type}</span>
+                {exam.groupId ? <small className="professor-shared-label" title={exam.sharedCourses.join(", ")}>Shared across {exam.sharedCourseCount} courses</small> : null}
               </div>
               <span className={`professor-status-pill ${exam.status} ${exam.clusterStatus.replaceAll(" ", "-")}`}>
                 {getStatusLabel(exam)}
@@ -638,6 +722,7 @@ export default function ProfessorExams() {
               <tr key={exam.id}>
                 <td>
                   <strong>{exam.title}</strong>
+                  {exam.groupId ? <small className="professor-shared-label" title={exam.sharedCourses.join(", ")}>Shared across {exam.sharedCourseCount} courses</small> : null}
                   {exam.clusterStatus === "rejected" && exam.rejectionReason ? (
                     <small className="professor-rejection-note">Reason: {exam.rejectionReason}</small>
                   ) : null}
@@ -737,7 +822,7 @@ export default function ProfessorExams() {
               <tbody>
                 {filteredArchivedExams.map((exam) => (
                   <tr key={exam.id}>
-                    <td><strong>{exam.title || "Untitled Exam"}</strong></td>
+                    <td><strong>{exam.title || "Untitled Exam"}</strong>{exam.groupId ? <small className="professor-shared-label">Shared across {exam.sharedCourseCount} courses</small> : null}</td>
                     <td>{exam.course}</td>
                     <td>{exam.type}</td>
                     <td>{exam.period}</td>
@@ -749,7 +834,7 @@ export default function ProfessorExams() {
                           <FiRotateCcw />
                           {loadingActionId === exam.id ? "Restoring..." : "Restore"}
                         </button>
-                        <button className="danger" disabled={loadingActionId === exam.id || deletingId === exam.id} onClick={() => setDeleteTarget(exam)}>
+                        <button className="danger" disabled={Boolean(exam.groupId) || loadingActionId === exam.id || deletingId === exam.id} onClick={() => setDeleteTarget(exam)} title={exam.groupId ? "Shared exams cannot be deleted individually" : "Delete archived exam"}>
                           <FiTrash2 />
                           Delete
                         </button>
@@ -809,7 +894,9 @@ export default function ProfessorExams() {
           <div className="professor-share-header">
             <div>
               <h2 id="professor-publish-title">Publish Exam?</h2>
-              <p>This will publish the exam directly without submitting it for Cluster Professor review.</p>
+              <p>{publishTarget.groupId
+                ? `This will publish the shared exam across all ${publishTarget.sharedCourseCount} courses.`
+                : "This will publish the exam directly without submitting it for Cluster Professor review."}</p>
             </div>
             <button aria-label="Close publish confirmation" disabled={publishingId === publishTarget.id} onClick={() => setPublishTarget(null)} type="button">
               <FiX />
@@ -849,8 +936,9 @@ export default function ProfessorExams() {
 
       const { data: questionRows, error: questionError } = await supabase
         .from("exam_questions")
-        .select("question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
+        .select("question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order")
         .eq("exam_id", shareExam.id)
+        .order("sort_order", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true });
 
       if (questionError) throw questionError;

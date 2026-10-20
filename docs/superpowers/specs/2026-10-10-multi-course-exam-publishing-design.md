@@ -30,7 +30,7 @@ Legacy exams have no membership rows and continue through existing single-exam R
 
 Run transactionally. Require an active authenticated Professor; validate a non-empty duplicate-free course list; lock and verify every course is active and owned by auth.uid(); validate the existing exam and question rules; reuse a matching request key; create one group, one exam per course, and one independent question set per exam; preserve Direct Publish or Pending Review status rules; and return the group and member exam IDs. Any failure rolls back the complete operation.
 
-### save_exam_group(p_group_id uuid, p_exam jsonb, p_questions jsonb, p_expected_revision bigint) returns jsonb
+### save_exam_group(p_group_id uuid, p_exam jsonb, p_questions jsonb, p_assignments jsonb, p_expected_revision bigint) returns jsonb
 
 Run transactionally. Require ownership of every member; lock the group and exams in stable order; reject stale revisions; detect attempts; allow only permitted metadata changes when attempts exist; reject question, answer, choice, correct-answer, point-value, or scoring-setting changes when attempts exist; otherwise replace every member questionnaire with the same validated payload while retaining exam and course IDs; preserve or renew approval state; and increment the revision once. No historical student record is updated.
 
@@ -57,3 +57,37 @@ Run npm test, npm run lint, npm run build, git diff --check, and local Supabase 
 ## Deployment Gate
 
 Review and apply the migration to the target Supabase environment before deploying frontend code that calls the new RPCs. Production deployment remains blocked until the migration is explicitly approved and verified.
+
+## Approved Clarifications (2026-10-10)
+
+This section refines the contracts above and controls implementation where earlier wording is less specific.
+
+### Shared and Course-Specific State
+
+Shared across every member: questionnaire order and content (including choices, answer keys, question configuration, manual-grading flag, and points); title, exam type, period, semester, duration, description, instructions, schedule, attempt limit, randomization, scan, monitoring, and snapshot settings. A group revision covers this shared state. Question IDs remain distinct per exam because attempt answers reference those IDs; equality compares questionnaire content and order, not IDs.
+
+Course-specific: exam ID, course ID/display, student assignment rows, access exceptions, enrollments, attempts, answers, scores, monitoring sessions, violations, notifications, reports, and audit history. The assignment mode is chosen for the group, but each member has independent selected-student IDs. For Selected Students, the request provides a course-ID-to-student-IDs map. The server validates each student as active and enrolled in that destination course, requires at least one eligible student per destination, and writes assignments only for that member. An Entire Course group creates no selected-student assignments. Share-to-Specific-Student remains per member and is never copied.
+
+### Draft and Idempotency
+
+One draft exam row is the editor's source. Its draftSnapshot stores selected course IDs and per-course student selections; autosave updates that row only. Publishing accepts its ID, checks that it is an owned editable draft, and adopts it as one member instead of creating a duplicate. A canonical request digest covers normalized shared payload, ordered question content, sorted distinct course IDs, assignment mode, and sorted per-course student IDs. The group row adds request_payload jsonb and request_digest text. The unique (created_by, request_key) row stores the canonical payload and its digest; equality of request_payload, not digest alone, decides replay versus conflict. A retry with the same key and digest returns the stored result; a changed digest returns a conflict. Locks and the unique constraint make concurrent retries safe. The client retains the key across network retries and rotates it only after a user edit.
+
+### Lifecycle and Review
+
+All group members have one lifecycle status. Publish, Unpublish, Archive/Restore, Draft-to-Unpublished, and Submit for Review operate through one group RPC that locks and validates every member before changing any. A member with an unexpected status or archive state makes the whole operation fail; no member is skipped. A rejected review blocks direct Publish as existing rules require. Direct Publish remains available where Cluster review is optional. A group review is presented once using a representative exam; the existing review Edge Function must call a group-aware transactional RPC for approve/reject, recording the decision for every member. Any content edit after approval clears approval group-wide and requires fresh review before publishing when the existing workflow requires it. Student notifications are emitted per member to that course's authorized students.
+
+Legacy status RPCs and direct client status/content updates must reject grouped members. Per-member assignment changes remain allowed only when they preserve the group assignment mode and pass that member course eligibility and started-student locks; the group edit RPC accepts a per-course assignment map. Group-only guards must prevent direct edits to grouped exam rows, question rows, and assignment mode outside group RPCs, while leaving legacy exams unchanged. Group operations must preserve existing audit and deletion safeguards; individual permanent deletion of a grouped member is blocked, and any future group deletion needs an explicit separate design.
+
+### Starts, Attempts, and Archived Members
+
+If any member has an exam_start_session or exam_attempt, reject questionnaire or scoring changes for the entire group. The existing question guard still applies. Only lifecycle/archive fields already allowed by the current guard may change after starts or attempts; do not introduce a broader metadata exemption. If any member is archived, shared editing fails with a clear error until the group is restored. Never skip archived or attempted members. A stale group revision or divergent member content/status fails before any write. No historical student row is rewritten.
+
+### Verification Additions
+
+SQL runtime tests must cover per-course Selected Students validation and isolation, Entire Course visibility, exception isolation, idempotency digest conflict, duplicate and mixed-owner courses, retries, archived-member failure, attempted-member content rejection, group status/review transitions, direct single-member mutation rejection, transaction rollback, and legacy exam compatibility. UI tests must cover course-specific assignment selection, selected count and chips, confirmation, conflict/error messages, group badges/actions, and narrow-screen overflow.
+
+### Question Order and Draft Privacy
+
+The current readers order exam questions by UUID. Cloned member questions have distinct UUIDs, so identical list content does not guarantee identical display order. Add a nullable sort_order integer to exam_questions, populate it for grouped questions, and update the student question RPC plus professor/cluster readers to order by sort_order nulls last, id. Legacy rows retain their current ID order. Compare group content in sort_order order.
+
+Do not expose per-course student selections in a published exam_settings.draftSnapshot. Keep them only in the owned draft while unpublished, then remove draftSnapshot from every published group member inside the publish transaction. An explicit professor-only draft store is preferable if the existing read policy exposes draft rows beyond the owner. Test that students cannot read assignment maps or answer keys through the new group metadata.

@@ -230,8 +230,9 @@ export default function ProfessorScores() {
           .limit(5000),
         supabase
           .from("exam_questions")
-          .select("id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
+          .select("id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order")
           .in("exam_id", examIds)
+          .order("sort_order", { ascending: true, nullsFirst: false })
           .order("id", { ascending: true }),
         supabase
           .from("course_enrollments")

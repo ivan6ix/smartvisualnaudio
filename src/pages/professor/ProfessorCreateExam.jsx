@@ -1,7 +1,7 @@
 import { validateExam, toLocalDateTime } from "../../lib/examValidation";
 import { queryClient } from "../../lib/queryClient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiEdit2, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
+import { FiChevronDown, FiEdit2, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { useAuth } from "../../context/AuthContext";
@@ -154,17 +154,18 @@ function isMeaningfulDraft(form, addedQuestions, draftQuestion) {
   );
 }
 
-function buildDraftSnapshot(form, addedQuestions, draftQuestion) {
+function buildDraftSnapshot(form, addedQuestions, draftQuestion, selectedStudentsByCourse = {}) {
   return {
     version: 1,
     savedAt: new Date().toISOString(),
     examForm: form,
     questions: addedQuestions,
     questionDraft: draftQuestion,
+    selectedStudentsByCourse,
   };
 }
 
-function applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraft) {
+function applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraft, setSelectedStudentsByCourse) {
   if (!snapshot?.examForm) return;
   setExamForm((current) => ({
     ...current,
@@ -173,11 +174,15 @@ function applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraf
   }));
   if (Array.isArray(snapshot.questions)) setQuestions(snapshot.questions.map(normalizeQuestionForEditing));
   if (snapshot.questionDraft) setQuestionDraft(normalizeQuestionForEditing({ ...emptyQuestionDraft(), ...snapshot.questionDraft }));
+  if (snapshot.selectedStudentsByCourse && setSelectedStudentsByCourse) {
+    setSelectedStudentsByCourse(snapshot.selectedStudentsByCourse);
+  }
 }
 
 function defaultExamForm({ presetCourseId = "", presetType = "", presetPeriod = "" } = {}) {
   return {
     courseId: presetCourseId,
+    courseIds: presetCourseId ? [presetCourseId] : [],
     title: "",
     examType: examTypes.includes(presetType) ? presetType : "",
     period: presetPeriod,
@@ -221,9 +226,16 @@ export default function ProfessorCreateExam() {
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [selectedProfessorMatchingLeft, setSelectedProfessorMatchingLeft] = useState("");
   const [draftExamId, setDraftExamId] = useState(editId);
+  const draftExamIdRef = useRef(editId);
+  const [groupId, setGroupId] = useState("");
+  const [groupRevision, setGroupRevision] = useState(null);
+  const [groupHasReviewHistory, setGroupHasReviewHistory] = useState(false);
+  const [existingExamStatus, setExistingExamStatus] = useState("");
+  const [courseSearch, setCourseSearch] = useState("");
+  const [assignmentCourseId, setAssignmentCourseId] = useState(presetCourseId);
+  const [selectedStudentsByCourse, setSelectedStudentsByCourse] = useState({});
   const [courseStudents, setCourseStudents] = useState([]);
-  const [selectedStudentIds, setSelectedStudentIds] = useState(() => new Set());
-  const [lockedStudentIds, setLockedStudentIds] = useState(() => new Set());
+  const [lockedStudentsByCourse, setLockedStudentsByCourse] = useState({});
   const [studentSearch, setStudentSearch] = useState("");
   const [studentSectionFilter, setStudentSectionFilter] = useState("All Sections");
   const [studentPage, setStudentPage] = useState(1);
@@ -237,10 +249,36 @@ export default function ProfessorCreateExam() {
   const finalPublishRef = useRef(false);
   const latestSnapshotRef = useRef(null);
   const lastSyncedJsonRef = useRef("");
+  const publishKeyRef = useRef(crypto.randomUUID());
+  const selectedCourseIds = useMemo(() => examForm.courseIds?.length
+    ? examForm.courseIds : examForm.courseId ? [examForm.courseId] : [], [examForm.courseId, examForm.courseIds]);
+  useEffect(() => {
+    if (!selectedCourseIds.includes(assignmentCourseId)) {
+      setAssignmentCourseId(examForm.courseId || selectedCourseIds[0] || "");
+    }
+  }, [assignmentCourseId, examForm.courseId, selectedCourseIds]);
+  const activeAssignmentCourseId = assignmentCourseId || examForm.courseId;
+  const selectedStudentIds = useMemo(() => new Set(selectedStudentsByCourse[activeAssignmentCourseId] || []),
+    [activeAssignmentCourseId, selectedStudentsByCourse]);
+  const lockedStudentIds = useMemo(() => new Set(lockedStudentsByCourse[activeAssignmentCourseId] || []),
+    [activeAssignmentCourseId, lockedStudentsByCourse]);
+  const setSelectedStudentIds = useCallback((updater) => {
+    setSelectedStudentsByCourse((current) => {
+      const selected = new Set(current[activeAssignmentCourseId] || []);
+      const next = typeof updater === "function" ? updater(selected) : updater;
+      return { ...current, [activeAssignmentCourseId]: [...next] };
+    });
+  }, [activeAssignmentCourseId]);
   const totalPossiblePoints = useMemo(
     () => questions.reduce((total, question) => total + (Number(question.points) || 0), 0),
     [questions],
   );
+  useEffect(() => {
+    draftExamIdRef.current = draftExamId;
+  }, [draftExamId]);
+  useEffect(() => {
+    publishKeyRef.current = crypto.randomUUID();
+  }, [examForm, questions, selectedStudentsByCourse]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !user?.id) return;
@@ -276,9 +314,14 @@ export default function ProfessorCreateExam() {
         courseId: current.courseId && liveCourses.some((course) => course.id === current.courseId)
           ? current.courseId
           : liveCourses[0]?.id || "",
+        courseIds: (current.courseIds || []).filter((id) => liveCourses.some((course) => course.id === id)).length
+          ? current.courseIds.filter((id) => liveCourses.some((course) => course.id === id))
+          : [current.courseId && liveCourses.some((course) => course.id === current.courseId)
+            ? current.courseId : liveCourses[0]?.id].filter(Boolean),
         examType: current.examType || (examTypes.includes(presetType) ? presetType : ""),
         period: current.period || presetPeriod,
       }));
+      setAssignmentCourseId((current) => current || liveCourses[0]?.id || "");
     }
 
     loadCourses();
@@ -295,6 +338,10 @@ export default function ProfessorCreateExam() {
       window.sessionStorage.removeItem(activeCreateDraftKey(user.id));
       window.localStorage.removeItem(recoveryKey(user.id, "new"));
       setDraftExamId("");
+      draftExamIdRef.current = "";
+      setGroupHasReviewHistory(false);
+      setSelectedStudentsByCourse({});
+      setAssignmentCourseId(presetCourseId);
       setQuestions([]);
       setQuestionDraft(emptyQuestionDraft());
       setEditingQuestionId("");
@@ -317,7 +364,7 @@ export default function ProfessorCreateExam() {
       const saved = window.localStorage.getItem(recoveryKey(user.id, createSessionRecoveryId(sessionId)));
       if (saved) {
         const snapshot = JSON.parse(saved);
-        applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraft);
+        applyDraftSnapshot(snapshot, setExamForm, setQuestions, setQuestionDraft, setSelectedStudentsByCourse);
         latestSnapshotRef.current = snapshot;
         setAutosaveStatus("Recovered locally");
       } else {
@@ -336,7 +383,7 @@ export default function ProfessorCreateExam() {
     async function loadExamForEdit() {
       const { data: exam, error: examError } = await supabase
         .from("exams")
-        .select("id, course_id, title, exam_title, description, semester, exam_type, duration, time_limit, status, exam_settings, assignment_mode, professor_id, created_by")
+        .select("id, course_id, title, exam_title, description, semester, exam_type, duration, time_limit, status, exam_settings, assignment_mode, professor_id, created_by, submitted_at, approved_at")
         .eq("id", editId)
         .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
         .maybeSingle();
@@ -351,28 +398,50 @@ export default function ProfessorCreateExam() {
         navigate("/professor/exams");
         return;
       }
+      setExistingExamStatus(exam.status || "");
+
+      const { data: group, error: groupError } = await supabase.rpc("get_exam_group", { p_exam_id: editId });
+      if (groupError) {
+        toast.error(groupError.message);
+        return;
+      }
+      const members = group?.members || [{ exam_id: editId, course_id: exam.course_id }];
+      if (group) {
+        setGroupId(group.group_id);
+        setGroupRevision(group.revision);
+        setGroupHasReviewHistory(Boolean(exam.submitted_at));
+        setSelectedStudentsByCourse(Object.fromEntries(members.map((member) => [member.course_id, member.student_ids || []])));
+      }
+      setAssignmentCourseId(exam.course_id);
 
       const { data: lockedRows, error: lockedError } = await supabase
         .from("exam_start_sessions")
-        .select("student_id")
-        .eq("exam_id", editId);
+        .select("exam_id, student_id")
+        .in("exam_id", members.map((member) => member.exam_id));
       if (lockedError) {
         toast.error(lockedError.message);
         return;
       }
       const { data: lockedAttemptRows, error: lockedAttemptError } = await supabase
         .from("exam_attempts")
-        .select("student_id")
-        .eq("exam_id", editId);
+        .select("exam_id, student_id")
+        .in("exam_id", members.map((member) => member.exam_id));
       if (lockedAttemptError) {
         toast.error(lockedAttemptError.message);
         return;
       }
-      setLockedStudentIds(new Set([...(lockedRows || []), ...(lockedAttemptRows || [])].map((row) => row.student_id)));
+      const memberCourseByExam = new Map(members.map((member) => [member.exam_id, member.course_id]));
+      const locks = {};
+      for (const row of [...(lockedRows || []), ...(lockedAttemptRows || [])]) {
+        const courseId = memberCourseByExam.get(row.exam_id);
+        locks[courseId] = [...new Set([...(locks[courseId] || []), row.student_id])];
+      }
+      setLockedStudentsByCourse(locks);
       const { data: questionRows, error: questionError } = await supabase
         .from("exam_questions")
-        .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points")
+        .select("id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order")
         .eq("exam_id", editId)
+        .order("sort_order", { ascending: true, nullsFirst: false })
         .order("id", { ascending: true });
 
       if (questionError) {
@@ -386,6 +455,7 @@ export default function ProfessorCreateExam() {
       setExamForm((current) => ({
         ...current,
         courseId: exam.course_id || "",
+        courseIds: members.map((member) => member.course_id),
         title: exam.exam_title || exam.title || "",
         examType: exam.exam_type || "",
         period,
@@ -413,7 +483,8 @@ export default function ProfessorCreateExam() {
         }
         const localTime = localSnapshot?.savedAt ? new Date(localSnapshot.savedAt).getTime() : 0;
         const serverTime = serverSnapshot.savedAt ? new Date(serverSnapshot.savedAt).getTime() : 0;
-        applyDraftSnapshot(localTime > serverTime ? localSnapshot : serverSnapshot, setExamForm, setQuestions, setQuestionDraft);
+        applyDraftSnapshot(localTime > serverTime ? localSnapshot : serverSnapshot,
+          setExamForm, setQuestions, setQuestionDraft, setSelectedStudentsByCourse);
         latestSnapshotRef.current = localTime > serverTime ? localSnapshot : serverSnapshot;
         setAutosaveStatus(localTime > serverTime ? "Recovered locally" : "Saved");
       }
@@ -424,7 +495,7 @@ export default function ProfessorCreateExam() {
   }, [editId, navigate, user?.id]);
 
   useEffect(() => {
-    if (!hasSupabaseConfig || !user?.id || !examForm.courseId) {
+    if (!hasSupabaseConfig || !user?.id || !activeAssignmentCourseId) {
       setCourseStudents([]);
       return;
     }
@@ -434,7 +505,7 @@ export default function ProfessorCreateExam() {
       const { data, error } = await supabase
         .from("course_enrollments")
         .select("student_id, profiles:student_id(full_name, student_number, email), courses:course_id(section)")
-        .eq("course_id", examForm.courseId)
+        .eq("course_id", activeAssignmentCourseId)
         .order("joined_at", { ascending: true });
 
       if (cancelled) return;
@@ -444,7 +515,7 @@ export default function ProfessorCreateExam() {
         return;
       }
 
-      const fallbackSection = courses.find((course) => course.id === examForm.courseId)?.section || "No section";
+      const fallbackSection = courses.find((course) => course.id === activeAssignmentCourseId)?.section || "No section";
       setCourseStudents((data || []).map((enrollment) => ({
         id: enrollment.student_id,
         name: enrollment.profiles?.full_name || enrollment.profiles?.email || "Unnamed student",
@@ -457,7 +528,7 @@ export default function ProfessorCreateExam() {
 
     loadCourseStudents();
     return () => { cancelled = true; };
-  }, [courses, examForm.courseId, lockedStudentIds, user?.id]);
+  }, [activeAssignmentCourseId, courses, lockedStudentIds, user?.id]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !editId) return;
@@ -472,11 +543,12 @@ export default function ProfessorCreateExam() {
         if (!["42P01", "PGRST205"].includes(error.code)) toast.error(error.message);
         return;
       }
-      setSelectedStudentIds(new Set((data || []).map((row) => row.student_id)));
+      setSelectedStudentsByCourse((current) => current[examForm.courseId]
+        ? current : { ...current, [examForm.courseId]: (data || []).map((row) => row.student_id) });
     }
     loadAssignments();
     return () => { cancelled = true; };
-  }, [editId]);
+  }, [editId, examForm.courseId]);
 
   const selectedCourse = courses.find((course) => course.id === examForm.courseId);
   const isAutoGraded = questionDraft.type ? AUTO_GRADED_TYPES.has(questionDraft.type) : true;
@@ -497,7 +569,7 @@ export default function ProfessorCreateExam() {
   const buildSavePayload = useCallback((statusOverride = null) => {
     const status = statusOverride || (examForm.status === "Submit for Review" ? "Pending Review" : "Draft");
     const durationValue = examForm.duration ? Number(examForm.duration) : null;
-    const snapshot = buildDraftSnapshot(examForm, questions, questionDraft);
+    const snapshot = buildDraftSnapshot(examForm, questions, questionDraft, selectedStudentsByCourse);
     const examPayload = {
       course_id: examForm.courseId,
       title: examForm.title.trim(),
@@ -545,7 +617,7 @@ export default function ProfessorCreateExam() {
       });
 
     return { examPayload, questionRows, snapshot };
-  }, [examForm, questionDraft, questions, selectedCourse, user?.id]);
+  }, [examForm, questionDraft, questions, selectedCourse, selectedStudentsByCourse, user?.id]);
 
   const getRecoveryTargetId = useCallback(() => {
     if (draftExamId) return draftExamId;
@@ -583,10 +655,23 @@ export default function ProfessorCreateExam() {
     if (error) throw error;
   }, [examForm.assignmentMode, lockedStudentIds, selectedStudentIds]);
 
+  const courseAssignmentMap = useCallback(() => normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS
+    ? Object.fromEntries(selectedCourseIds.map((courseId) => [courseId, selectedStudentsByCourse[courseId] || []]))
+    : {}, [examForm.assignmentMode, selectedCourseIds, selectedStudentsByCourse]);
+
+  const missingAssignmentCourse = normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS
+    ? selectedCourseIds.find((courseId) => !(selectedStudentsByCourse[courseId] || []).length)
+    : null;
+
   const syncDraftNow = useCallback(async (manual = false) => {
     if (!hasSupabaseConfig || !user?.id) return false;
     if (finalPublishRef.current) return false;
     const { examPayload, snapshot } = buildSavePayload("Draft");
+    if (groupId) {
+      persistLocalSnapshot(snapshot, getRecoveryTargetId());
+      setAutosaveStatus("Saved locally - shared changes need confirmation");
+      return false;
+    }
     if (!isMeaningfulDraft(examForm, questions, questionDraft)) return false;
     if (!examPayload.course_id) {
       setAutosaveStatus("Saved locally - select a course to sync");
@@ -609,19 +694,22 @@ export default function ProfessorCreateExam() {
       const latestPayload = buildSavePayload("Draft");
       try {
         const { data: savedId, error } = await supabase.rpc("save_exam", {
-          p_id: draftExamId || null,
+          p_id: draftExamIdRef.current || null,
           p_exam: latestPayload.examPayload,
           p_questions: latestPayload.questionRows,
         });
         if (error) throw error;
-        const nextId = savedId || draftExamId;
-        if (nextId && nextId !== draftExamId) {
+        const nextId = savedId || draftExamIdRef.current;
+        if (nextId && nextId !== draftExamIdRef.current) {
+          draftExamIdRef.current = nextId;
           setDraftExamId(nextId);
           window.sessionStorage.setItem(activeCreateDraftKey(user.id), nextId);
           const sessionId = createSessionIdRef.current;
           if (sessionId) window.localStorage.removeItem(recoveryKey(user.id, createSessionRecoveryId(sessionId)));
         }
-        if (nextId) await saveAssignmentsForExam(nextId, latestPayload.examPayload.assignment_mode);
+        if (nextId && selectedCourseIds.length === 1) {
+          await saveAssignmentsForExam(nextId, latestPayload.examPayload.assignment_mode);
+        }
         if (nextId) persistLocalSnapshot(latest, nextId);
         lastSyncedJsonRef.current = JSON.stringify(latest);
         setAutosaveStatus("Saved");
@@ -634,11 +722,11 @@ export default function ProfessorCreateExam() {
       autosaveInFlightRef.current = false;
     }
     return true;
-  }, [buildSavePayload, draftExamId, examForm, getRecoveryTargetId, persistLocalSnapshot, questionDraft, questions, saveAssignmentsForExam, user?.id]);
+  }, [buildSavePayload, examForm, getRecoveryTargetId, groupId, persistLocalSnapshot, questionDraft, questions, saveAssignmentsForExam, selectedCourseIds.length, user?.id]);
 
   useEffect(() => {
     if (!user?.id || !hydratedRef.current) return;
-    const snapshot = buildDraftSnapshot(examForm, questions, questionDraft);
+    const snapshot = buildDraftSnapshot(examForm, questions, questionDraft, selectedStudentsByCourse);
     latestSnapshotRef.current = snapshot;
     persistLocalSnapshot(snapshot, getRecoveryTargetId());
     window.clearTimeout(autosaveTimerRef.current);
@@ -647,7 +735,7 @@ export default function ProfessorCreateExam() {
       void syncDraftNow(false);
     }, AUTOSAVE_DELAY_MS);
     return () => window.clearTimeout(autosaveTimerRef.current);
-  }, [examForm, getRecoveryTargetId, persistLocalSnapshot, questionDraft, questions, syncDraftNow, user?.id]);
+  }, [examForm, getRecoveryTargetId, persistLocalSnapshot, questionDraft, questions, selectedStudentsByCourse, syncDraftNow, user?.id]);
 
   useEffect(() => {
     function handleOnline() {
@@ -662,11 +750,24 @@ export default function ProfessorCreateExam() {
   function setExamValue(key, value) {
     setExamForm((current) => ({ ...current, [key]: value }));
     if (key === "courseId") {
-      setSelectedStudentIds((current) => new Set([...current].filter((id) => lockedStudentIds.has(id))));
+      setAssignmentCourseId(value);
       setStudentSearch("");
       setStudentSectionFilter("All Sections");
       setStudentPage(1);
     }
+  }
+
+  function toggleCourse(courseId, checked) {
+    setExamForm((current) => {
+      const ids = checked
+        ? [...new Set([...(current.courseIds || [current.courseId].filter(Boolean)), courseId])]
+        : (current.courseIds || [current.courseId].filter(Boolean)).filter((id) => id !== courseId);
+      return { ...current, courseIds: ids, courseId: ids.includes(current.courseId) ? current.courseId : ids[0] || "" };
+    });
+    if (checked) setAssignmentCourseId(courseId);
+    else if (assignmentCourseId === courseId) setAssignmentCourseId(selectedCourseIds.find((id) => id !== courseId) || "");
+    setStudentSearch("");
+    setStudentPage(1);
   }
 
   function toggleStudent(studentId, checked) {
@@ -924,18 +1025,36 @@ export default function ProfessorCreateExam() {
       return;
     }
     if (!examForm.courseId) {
-      const snapshot = buildDraftSnapshot(examForm, questions, questionDraft);
+      const snapshot = buildDraftSnapshot(examForm, questions, questionDraft, selectedStudentsByCourse);
       persistLocalSnapshot(snapshot, getRecoveryTargetId());
       toast.success("Draft saved locally. Select a course to sync it.");
       return;
     }
+    if (groupId && !window.confirm(`Apply these shared changes to all ${selectedCourseIds.length} courses?`)) return;
     savingRef.current = true;
     setSaving(true);
     try {
+      if (groupId) {
+        const { examPayload, questionRows } = buildSavePayload("Unpublished");
+        const { data, error } = await supabase.rpc("save_exam_group", {
+          p_group_id: groupId,
+          p_exam: examPayload,
+          p_questions: questionRows,
+          p_assignments: courseAssignmentMap(),
+          p_expected_revision: groupRevision,
+        });
+        if (error) throw error;
+        setGroupRevision(data.revision);
+        queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
+        clearActiveCreateRecovery(editId);
+        toast.success(`Shared exam updated across ${selectedCourseIds.length} courses.`);
+        navigate("/professor/exams");
+        return;
+      }
       const synced = await syncDraftNow(true);
       if (!synced && hasSupabaseConfig) throw new Error("Draft is saved locally but could not sync yet.");
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
-      clearActiveCreateRecovery(draftExamId || editId);
+      clearActiveCreateRecovery(draftExamIdRef.current || editId);
       toast.success("Exam saved as draft.");
       navigate("/professor/exams");
     } catch (error) {
@@ -955,6 +1074,11 @@ export default function ProfessorCreateExam() {
       toast.error("Complete exam details and add at least one question.");
       return;
     }
+    if (missingAssignmentCourse) {
+      toast.error("Select at least one eligible student in every selected course.");
+      return;
+    }
+    if (groupId && !window.confirm(`Apply changes and submit all ${selectedCourseIds.length} courses for review?`)) return;
 
     if (!hasSupabaseConfig || !user?.id) {
       toast.success("Exam saved locally for preview.");
@@ -963,16 +1087,42 @@ export default function ProfessorCreateExam() {
     }
 
     savingRef.current = true;
+    finalPublishRef.current = true;
+    autosavePendingRef.current = false;
+    window.clearTimeout(autosaveTimerRef.current);
     setSaving(true);
     try {
+      while (autosaveInFlightRef.current) await wait(100);
+      const sourceExamId = draftExamIdRef.current || editId || null;
       const status = "Pending Review";
       const { examPayload, questionRows } = buildSavePayload(status);
 
-      const { data: savedId, error: saveError } = await supabase.rpc("save_exam", { p_id: draftExamId || editId || null, p_exam: examPayload, p_questions: questionRows });
-      if (saveError) throw saveError;
-      await saveAssignmentsForExam(savedId || draftExamId || editId, examPayload.assignment_mode);
+      let savedId;
+      if (groupId) {
+        const { data: updated, error: editError } = await supabase.rpc("save_exam_group", {
+          p_group_id: groupId, p_exam: examPayload, p_questions: questionRows,
+          p_assignments: courseAssignmentMap(), p_expected_revision: groupRevision,
+        });
+        if (editError) throw editError;
+        savedId = updated.members?.[0]?.exam_id;
+      } else if (selectedCourseIds.length > 1) {
+        const { data: published, error: publishError } = await supabase.rpc("publish_exam_group", {
+          p_source_exam_id: sourceExamId,
+          p_exam: examPayload, p_questions: questionRows, p_course_ids: selectedCourseIds,
+          p_assignments: courseAssignmentMap(), p_request_key: publishKeyRef.current,
+        });
+        if (publishError) throw publishError;
+        savedId = published.members?.[0]?.exam_id;
+      } else {
+        const { data, error: saveError } = await supabase.rpc("save_exam", {
+          p_id: sourceExamId, p_exam: examPayload, p_questions: questionRows,
+        });
+        if (saveError) throw saveError;
+        savedId = data || sourceExamId;
+        await saveAssignmentsForExam(savedId, examPayload.assignment_mode);
+      }
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
-      clearActiveCreateRecovery(savedId || draftExamId || editId);
+      clearActiveCreateRecovery(sourceExamId || savedId);
       if (status === "Pending Review") {
         const { data: clusterRows, error: clusterError } = await supabase
           .from("profiles")
@@ -997,10 +1147,10 @@ export default function ProfessorCreateExam() {
             p_title: notification.title,
             p_message: notification.message,
             p_type: notification.type,
-            p_context_id: savedId || draftExamId || editId,
+            p_context_id: savedId || sourceExamId,
             p_entity_type: "exam",
-            p_entity_id: savedId || draftExamId || editId,
-            p_action_path: `/cluster/exams/${savedId || draftExamId || editId}`,
+            p_entity_id: savedId || sourceExamId,
+            p_action_path: `/cluster/exams/${savedId || sourceExamId}`,
           })));
           const notificationError = notificationResults.find((result) => result.error)?.error;
           if (notificationError) toast.error(`Exam saved, but the review notification failed: ${notificationError.message}`);
@@ -1012,19 +1162,24 @@ export default function ProfessorCreateExam() {
     } catch (error) {
       toast.error(error.message);
     } finally {
+      finalPublishRef.current = false;
       savingRef.current = false;
       setSaving(false);
     }
   }
 
   function handlePublishExam() {
+    if (groupId && groupHasReviewHistory) {
+      toast.error("Submit shared changes for Cluster Professor review before publishing.");
+      return;
+    }
     const validationError = validateExam(examForm, questions);
     if (validationError) {
       toast.error(validationError);
       return;
     }
-    if (normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS && selectedStudentIds.size === 0) {
-      toast.error("Select at least one student before publishing this exam.");
+    if (missingAssignmentCourse) {
+      toast.error("Select at least one eligible student in every selected course.");
       return;
     }
     setPublishConfirmOpen(true);
@@ -1032,6 +1187,11 @@ export default function ProfessorCreateExam() {
 
   async function confirmPublishExam() {
     if (savingRef.current) return;
+    if (groupId && groupHasReviewHistory) {
+      setPublishConfirmOpen(false);
+      toast.error("Submit shared changes for Cluster Professor review before publishing.");
+      return;
+    }
     const validationError = validateExam(examForm, questions);
     if (validationError) {
       toast.error(validationError);
@@ -1043,8 +1203,8 @@ export default function ProfessorCreateExam() {
       toast.error("Complete exam details and add at least one question.");
       return;
     }
-    if (normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS && selectedStudentIds.size === 0) {
-      toast.error("Select at least one student before publishing this exam.");
+    if (missingAssignmentCourse) {
+      toast.error("Select at least one eligible student in every selected course.");
       setPublishConfirmOpen(false);
       return;
     }
@@ -1065,23 +1225,41 @@ export default function ProfessorCreateExam() {
       while (autosaveInFlightRef.current) {
         await wait(100);
       }
-      const { examPayload, questionRows } = buildSavePayload("Draft");
-      const { data: savedId, error: saveError } = await supabase.rpc("save_exam", {
-        p_id: draftExamId || editId || null,
-        p_exam: examPayload,
-        p_questions: questionRows,
-      });
-      if (saveError) throw saveError;
-      const examId = savedId || draftExamId || editId;
-      if (!examId) throw new Error("Exam was saved, but its record could not be identified for publishing.");
-      await saveAssignmentsForExam(examId, examPayload.assignment_mode);
-
-      const { error: publishError } = await supabase.rpc("publish_exam", { p_exam_id: examId });
-      if (publishError) throw publishError;
+      const sourceExamId = draftExamIdRef.current || editId || null;
+      const { examPayload, questionRows } = buildSavePayload("Published");
+      let examId;
+      if (groupId) {
+        const { data: updated, error: editError } = await supabase.rpc("save_exam_group", {
+          p_group_id: groupId, p_exam: examPayload, p_questions: questionRows,
+          p_assignments: courseAssignmentMap(), p_expected_revision: groupRevision,
+        });
+        if (editError) throw editError;
+        examId = updated.members?.[0]?.exam_id;
+      } else if (selectedCourseIds.length > 1) {
+        const { data: published, error: publishError } = await supabase.rpc("publish_exam_group", {
+          p_source_exam_id: sourceExamId,
+          p_exam: examPayload, p_questions: questionRows, p_course_ids: selectedCourseIds,
+          p_assignments: courseAssignmentMap(), p_request_key: publishKeyRef.current,
+        });
+        if (publishError) throw publishError;
+        examId = published.members?.[0]?.exam_id;
+      } else {
+        const { data: savedId, error: saveError } = await supabase.rpc("save_exam", {
+          p_id: sourceExamId,
+          p_exam: { ...examPayload, status: "Draft" },
+          p_questions: questionRows,
+        });
+        if (saveError) throw saveError;
+        examId = savedId || sourceExamId;
+        if (!examId) throw new Error("Exam was saved, but its record could not be identified for publishing.");
+        await saveAssignmentsForExam(examId, examPayload.assignment_mode);
+        const { error: publishError } = await supabase.rpc("publish_exam", { p_exam_id: examId });
+        if (publishError) throw publishError;
+      }
 
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
-      clearActiveCreateRecovery(examId);
-      toast.success("Exam published for students.");
+      clearActiveCreateRecovery(sourceExamId || examId);
+      toast.success(selectedCourseIds.length > 1 ? `Exam published across ${selectedCourseIds.length} courses.` : "Exam published for students.");
       setPublishConfirmOpen(false);
       navigate("/professor/exams");
     } catch (error) {
@@ -1245,6 +1423,10 @@ export default function ProfessorCreateExam() {
       <header className="professor-create-header">
         <h1>{isEditingExam ? "Edit Exam" : "Create Exam"}</h1>
         <p>{isEditingExam ? "Revise the rejected exam, save it, then submit it again for cluster approval." : "Build exam details, security settings, deadline, and questions."}</p>
+        {groupId ? <p className="professor-shared-banner">Shared across {selectedCourseIds.length} courses: {selectedCourseIds.map((id) => {
+          const course = courses.find((item) => item.id === id);
+          return course ? `${course.courseCode} - ${course.section}` : id;
+        }).join(", ")}</p> : null}
       </header>
 
       <form className="professor-create-form" onSubmit={(event) => event.preventDefault()}>
@@ -1255,13 +1437,29 @@ export default function ProfessorCreateExam() {
               <p>Create a new exam, configure the schedule, and describe what students need to know.</p>
             </div>
             <div className="professor-details-grid">
-              <label className="professor-field-label">
-                <span>Course</span>
-                <SelectInput onChange={(event) => setExamValue("courseId", event.target.value)} value={examForm.courseId}>
-                  <option value="" disabled>Select Course</option>
-                  {courses.map((course) => <option key={course.id} value={course.id}>{course.courseCode} - {course.section}</option>)}
-                </SelectInput>
-              </label>
+              <div className="professor-field-label professor-course-picker">
+                <span>Courses</span>
+                <details>
+                  <summary>{selectedCourseIds.length ? `${selectedCourseIds.length} course${selectedCourseIds.length === 1 ? "" : "s"} selected` : "Select courses"}<FiChevronDown aria-hidden="true" /></summary>
+                  <div className="professor-course-picker-options">
+                    <input aria-label="Search courses" className="professor-create-input" onChange={(event) => setCourseSearch(event.target.value)} placeholder="Search courses or sections" type="search" value={courseSearch} />
+                    {courses.filter((course) => `${course.courseCode} ${course.section} ${course.courseName || ""}`.toLowerCase().includes(courseSearch.toLowerCase())).map((course) => (
+                      <label key={course.id}>
+                        <input checked={selectedCourseIds.includes(course.id)} disabled={Boolean(groupId) || (isEditingExam && existingExamStatus !== "Draft")}
+                          onChange={(event) => toggleCourse(course.id, event.target.checked)} type="checkbox" />
+                        <span>{course.courseCode} - {course.section}</span>
+                      </label>
+                    ))}
+                  </div>
+                </details>
+                {selectedCourseIds.length > 1 ? <div className="professor-selected-course-chips">{selectedCourseIds.map((id) => {
+                  const course = courses.find((item) => item.id === id);
+                  return <span className="professor-selected-course-chip" key={id}>
+                    {course ? `${course.courseCode} - ${course.section}` : id}
+                    {!groupId ? <button aria-label={`Remove ${course?.courseCode || "course"} ${course?.section || ""}`} onClick={() => toggleCourse(id, false)} title="Remove course" type="button"><FiX /></button> : null}
+                  </span>;
+                })}</div> : null}
+              </div>
               <label className="professor-field-label">
                 <span>Exam Title</span>
                 <TextInput onChange={(event) => setExamValue("title", event.target.value)} placeholder="Exam Title" type="text" value={examForm.title} />
@@ -1330,6 +1528,7 @@ export default function ProfessorCreateExam() {
               <label>
                 <input
                   checked={normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.ENTIRE_COURSE}
+                  disabled={Boolean(groupId)}
                   onChange={() => setExamValue("assignmentMode", ASSIGNMENT_MODES.ENTIRE_COURSE)}
                   type="radio"
                 />
@@ -1338,6 +1537,7 @@ export default function ProfessorCreateExam() {
               <label>
                 <input
                   checked={normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS}
+                  disabled={Boolean(groupId)}
                   onChange={() => setExamValue("assignmentMode", ASSIGNMENT_MODES.SELECTED_STUDENTS)}
                   type="radio"
                 />
@@ -1347,6 +1547,17 @@ export default function ProfessorCreateExam() {
 
             {normalizeAssignmentMode(examForm.assignmentMode) === ASSIGNMENT_MODES.SELECTED_STUDENTS ? (
               <div className="professor-assignment-table-panel">
+                {selectedCourseIds.length > 1 ? (
+                  <label className="professor-field-label professor-assignment-course">
+                    <span>Students for course</span>
+                    <select className="professor-create-input" onChange={(event) => { setAssignmentCourseId(event.target.value); setStudentPage(1); }} value={activeAssignmentCourseId}>
+                      {selectedCourseIds.map((id) => {
+                        const course = courses.find((item) => item.id === id);
+                        return <option key={id} value={id}>{course ? `${course.courseCode} - ${course.section}` : id} ({(selectedStudentsByCourse[id] || []).length} selected)</option>;
+                      })}
+                    </select>
+                  </label>
+                ) : null}
                 <div className="professor-assignment-tools">
                   <input
                     aria-label="Search students"
@@ -1439,7 +1650,7 @@ export default function ProfessorCreateExam() {
               <button className="professor-add-question" onClick={handleAddQuestion} type="button"><FiPlus /> {editingQuestionId ? "Update Question" : "Add Question"}</button>
               <button className="professor-save-draft" disabled={saving} onClick={handleSaveDraft} type="button"><FiSave /> {saving ? "Saving..." : "Save as Draft"}</button>
               <button className="professor-submit-review" disabled={saving} onClick={handleSaveExam} title="Send this exam to the Cluster Professor for review before publishing." type="button"><FiSave /> {saving ? "Saving..." : "Submit for Review"}</button>
-              <button className="professor-save-exam" disabled={saving} onClick={handlePublishExam} title="Publish directly without Cluster Professor review." type="button"><FiSave /> Publish</button>
+              <button className="professor-save-exam" disabled={saving || (groupId && groupHasReviewHistory)} onClick={handlePublishExam} title={groupId && groupHasReviewHistory ? "Submit this edited shared exam for review first" : "Publish directly without Cluster Professor review."} type="button"><FiSave /> {groupId && groupHasReviewHistory ? "Review required" : "Publish"}</button>
             </div>
           </div>
 
@@ -1490,7 +1701,9 @@ export default function ProfessorCreateExam() {
             <div className="professor-share-header">
               <div>
                 <h2 id="create-publish-title">Publish Exam?</h2>
-                <p>This will publish the exam directly without submitting it for Cluster Professor review.</p>
+                <p>{selectedCourseIds.length > 1
+                  ? `This will publish the same questionnaire to all ${selectedCourseIds.length} selected courses without Cluster Professor review.`
+                  : "This will publish the exam directly without submitting it for Cluster Professor review."}</p>
               </div>
               <button aria-label="Close publish confirmation" disabled={saving} onClick={() => setPublishConfirmOpen(false)} type="button">
                 <FiX />
@@ -1498,7 +1711,10 @@ export default function ProfessorCreateExam() {
             </div>
             <div className="professor-delete-summary">
               <strong>{examForm.title || "Untitled Exam"}</strong>
-              <span>{selectedCourse ? `${selectedCourse.courseCode} - ${selectedCourse.section}` : "No course selected"} - {examForm.examType || "Exam"} - {examForm.period || "No period"}</span>
+              <span>{selectedCourseIds.map((id) => {
+                const course = courses.find((item) => item.id === id);
+                return course ? `${course.courseCode} - ${course.section}` : id;
+              }).join(", ") || "No course selected"} - {examForm.examType || "Exam"} - {examForm.period || "No period"}</span>
               <p>Eligible students may be able to access the exam according to its schedule and availability settings. Do you want to continue?</p>
             </div>
             <div className="professor-delete-actions">

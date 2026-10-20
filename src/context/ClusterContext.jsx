@@ -218,9 +218,32 @@ export function ClusterProvider({ children }) {
       return;
     }
 
-    const liveExamRows = (examRows || []).filter((exam) => (
+    let liveExamRows = (examRows || []).filter((exam) => (
       ["Pending Review", "Approved", "Rejected", "Published"].includes(normalizeClusterStatus(exam.status))
     ));
+    const candidateIds = liveExamRows.map((exam) => exam.id);
+    const { data: groupMemberRows, error: groupMemberError } = candidateIds.length
+      ? await supabase.from("exam_publish_group_members")
+        .select("group_id, exam_id, course_id")
+        .in("exam_id", candidateIds)
+      : { data: [], error: null };
+    if (groupMemberError) {
+      toast.error(groupMemberError.message);
+      return;
+    }
+    const membersByGroup = new Map();
+    for (const member of groupMemberRows || []) {
+      membersByGroup.set(member.group_id, [...(membersByGroup.get(member.group_id) || []), member]);
+    }
+    const groupByExam = new Map();
+    for (const members of membersByGroup.values()) {
+      members.sort((a, b) => a.course_id.localeCompare(b.course_id));
+      for (const member of members) groupByExam.set(member.exam_id, members);
+    }
+    liveExamRows = liveExamRows.filter((exam) => {
+      const members = groupByExam.get(exam.id);
+      return !members || members[0].exam_id === exam.id;
+    });
     const examIds = liveExamRows.map((exam) => exam.id);
     const professorIds = [...new Set(liveExamRows.flatMap((exam) => [exam.professor_id, exam.created_by]).filter(Boolean))];
 
@@ -229,7 +252,7 @@ export function ClusterProvider({ children }) {
         ? supabase.from("profiles").select("id, full_name, email").in("id", professorIds)
         : Promise.resolve({ data: [], error: null }),
       examIds.length
-        ? supabase.from("exam_questions").select("id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points").in("exam_id", examIds)
+        ? supabase.from("exam_questions").select("id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order").in("exam_id", examIds).order("sort_order", { ascending: true, nullsFirst: false }).order("id", { ascending: true })
         : Promise.resolve({ data: [], error: null }),
       examIds.length
         ? supabase.from("exam_reviews").select("id, exam_id, decision, remarks, review_date, cluster_professor_id").in("exam_id", examIds).order("review_date", { ascending: false })
@@ -266,7 +289,12 @@ export function ClusterProvider({ children }) {
       return items;
     }, new Map());
 
-    const mappedExams = liveExamRows.map((exam) => mapLiveExam(exam, profileMap, questionMap, reviewMap));
+    const mappedExams = liveExamRows.map((exam) => {
+      const mapped = mapLiveExam(exam, profileMap, questionMap, reviewMap);
+      const members = groupByExam.get(exam.id);
+      return members ? { ...mapped, sharedCourseCount: members.length,
+        course: `${mapped.course} (Shared across ${members.length} courses)` } : mapped;
+    });
 
     setExams(mappedExams);
     setFilterOptions(buildFilterOptions(
