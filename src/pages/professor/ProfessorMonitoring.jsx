@@ -419,6 +419,7 @@ export default function ProfessorMonitoring() {
 
   return (
     <>
+      <section className="professor-monitoring-page">
       <PageHeader title="Monitoring Center" subtitle="Review student activity and proctoring alerts across your exams." />
 
       <div className="professor-stats-grid">
@@ -508,6 +509,7 @@ export default function ProfessorMonitoring() {
         )}
         <ListPagination count={filteredStudentsWithCounts.length} page={studentPageData.page} pageSize={studentListView.pageSize} onPage={setStudentPage} />
       </Card>
+      </section>
 
       {selectedStudent ? (
         <div className="professor-monitoring-backdrop" onClick={() => setSelectedStudent(null)} role="presentation">

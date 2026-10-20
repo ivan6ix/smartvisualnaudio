@@ -5612,6 +5612,74 @@ html[data-theme="light"] .professor-course-list-card:hover {
   white-space: nowrap;
   vertical-align: middle;
 }
+/* Monitoring Center layout: 24px between sections, 16px between cards, 20-24px inside cards. */
+.professor-monitoring-page {
+  display: grid;
+  gap: 24px;
+  align-content: start;
+  min-width: 0;
+}
+.professor-monitoring-page > * {
+  min-width: 0;
+}
+.professor-monitoring-page .professor-stats-grid {
+  gap: 16px;
+}
+.professor-monitoring-page .stat-card {
+  min-height: 116px;
+  padding: 20px 24px;
+  gap: 16px;
+}
+.professor-monitoring-page .professor-courses-header {
+  margin-bottom: 20px;
+}
+.professor-monitoring-page .list-view-toolbar {
+  margin: 0 0 20px;
+}
+.professor-monitoring-page .professor-monitoring-student-filters {
+  gap: 16px;
+  margin: 0 0 24px;
+}
+.professor-monitoring-page .professor-monitoring-grid {
+  gap: 16px;
+  align-items: stretch;
+}
+.professor-monitoring-page .professor-monitoring-grid > article {
+  min-height: 0;
+  padding: 20px;
+  gap: 16px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-rows: auto 1fr;
+  align-items: start;
+}
+.professor-monitoring-page .professor-monitoring-grid > article > div:nth-child(2) {
+  min-width: 0;
+}
+.professor-monitoring-page .professor-monitoring-grid > article > .badge {
+  position: static;
+  grid-column: 3;
+  grid-row: 1;
+  margin: 0;
+  white-space: nowrap;
+}
+.professor-monitoring-page .professor-monitoring-grid > article > .btn {
+  grid-row: 2;
+  margin: 0;
+}
+@media (max-width: 480px) {
+  .professor-monitoring-page .professor-monitoring-grid > article {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .professor-monitoring-page .professor-monitoring-grid > article > .badge {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: start;
+    align-self: center;
+  }
+  .professor-monitoring-page .professor-monitoring-grid > article > .btn {
+    grid-row: 2;
+  }
+}
 .professor-monitoring-table td:first-child span {
   color: var(--app-text-muted);
   display: block;
