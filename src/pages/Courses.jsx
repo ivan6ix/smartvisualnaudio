@@ -499,7 +499,7 @@ export default function Courses() {
         </div>
       ) : null}
       {archiveCandidate ? (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget && archiveActionId !== archiveCandidate.id) setArchiveCandidate(null); }}>
           <Card className="modal course-confirmation-modal">
             <h2>Archive Course?</h2>
             <p><strong>{archiveCandidate.courseName}</strong> will be moved to Archives. Its existing academic records will be preserved.</p>
@@ -511,7 +511,7 @@ export default function Courses() {
         </div>
       ) : null}
       {restoreCandidate ? (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget && archiveActionId !== restoreCandidate.id) setRestoreCandidate(null); }}>
           <Card className="modal course-confirmation-modal">
             <h2>Restore Course?</h2>
             <p><strong>{restoreCandidate.courseName}</strong> will return to active Course Records.</p>
@@ -523,7 +523,7 @@ export default function Courses() {
         </div>
       ) : null}
       {deleteCandidate ? (
-        <div className="modal-backdrop">
+        <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget && deletingCourseId !== deleteCandidate.id) { setDeleteCandidate(null); setDeleteConfirmationText(""); } }}>
           <Card className="modal course-confirmation-modal">
             <h2>Delete Permanently</h2>
             <p><strong>{deleteCandidate.courseName}</strong> ({deleteCandidate.courseCode}{deleteCandidate.section ? ` - ${deleteCandidate.section}` : ""}) and related academic records will be permanently removed.</p>

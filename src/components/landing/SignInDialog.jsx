@@ -51,8 +51,15 @@ export default function SignInDialog({ open, onClose }) {
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
   }
 
+  // A click on the native ::backdrop targets the dialog itself, outside its box; padding clicks are inside the box.
+  function closeOnBackdropClick(event) {
+    if (event.target !== event.currentTarget) return;
+    const box = event.currentTarget.getBoundingClientRect();
+    if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) onClose();
+  }
+
   return (
-    <dialog ref={dialogRef} className={styles.dialog} aria-labelledby="sign-in-title" aria-describedby="sign-in-description" onKeyDown={trapFocus} onCancel={(event) => { event.preventDefault(); onClose(); }}>
+    <dialog ref={dialogRef} className={styles.dialog} aria-labelledby="sign-in-title" aria-describedby="sign-in-description" onClick={closeOnBackdropClick} onKeyDown={trapFocus} onCancel={(event) => { event.preventDefault(); onClose(); }}>
       <button type="button" className={`${styles.iconButton} ${styles.dialogClose}`} aria-label="Close sign in" onClick={onClose}><X size={20} /></button>
       <span className={styles.dialogEmblem}><LockKeyhole size={23} /></span>
       <p className={styles.eyebrow}>YOUR WORKSPACE AWAITS</p><h2 id="sign-in-title">Welcome back.</h2>

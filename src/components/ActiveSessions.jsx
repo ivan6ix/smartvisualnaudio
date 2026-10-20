@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { FiRefreshCw } from "react-icons/fi";
 import { toast } from "sonner";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
@@ -97,8 +98,9 @@ export default function ActiveSessions() {
         onRequestLogoutOthers={() => setConfirmOpen(true)}
         session={session}
       />
-      {confirmOpen ? (
-        <div className="session-confirm-backdrop" onClick={() => setConfirmOpen(false)} role="presentation">
+      {/* Portaled to body: the portal pages' cards use backdrop-filter, which would otherwise confine this fixed backdrop to the card. */}
+      {confirmOpen ? createPortal(
+        <div className="session-confirm-backdrop" onClick={() => loggingOutOthers ? null : setConfirmOpen(false)} role="presentation">
           <section aria-modal="true" className="session-confirm-modal" onClick={(event) => event.stopPropagation()} role="dialog">
             <h2>Log out all other sessions?</h2>
             <p>You will remain signed in on this device, but your other sessions will be signed out.</p>
@@ -109,7 +111,8 @@ export default function ActiveSessions() {
               </Button>
             </div>
           </section>
-        </div>
+        </div>,
+        document.body,
       ) : null}
     </>
   );
