@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ListPagination, ListViewToolbar } from "../../components/ListViewControls";
 import { Badge, Button, Card, PageHeader, SearchBox, SelectField } from "../../components/ui";
@@ -7,6 +7,7 @@ import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
 import { getListPageSlice } from "../../lib/listView";
+import { canGradeManually, needsGradingPath } from "../../lib/manualGrading";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const PAGE_SIZE = 20;
@@ -171,6 +172,7 @@ export default function ProfessorScores() {
   const { user } = useAuth();
   const navigate = useNavigate();
   const { examId, attemptId, questionId } = useParams();
+  const [searchParams] = useSearchParams();
   const [data, setData] = useState(() => hasSupabaseConfig ? { courses: [], exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [] } : { ...buildDemoData(), reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [] });
   const [loading, setLoading] = useState(hasSupabaseConfig);
   const [search, setSearch] = useState("");
@@ -300,6 +302,15 @@ export default function ProfessorScores() {
     setPage(1);
   }, [answerFilter, courseFilter, examId, questionId, search, sectionFilter, sort, statusFilter, tab, typeFilter]);
 
+  // Deep links such as "Needs Grading" open a specific exam tab and question filter.
+  const requestedTab = searchParams.get("tab");
+  const requestedFilter = searchParams.get("filter");
+  useEffect(() => {
+    if (!examId || questionId || attemptId) return;
+    if (requestedTab === "questions") setTab("questions");
+    if (["All", "Needs Grading", "Complete", "Auto-Graded", "Manual"].includes(requestedFilter)) setAnswerFilter(requestedFilter);
+  }, [attemptId, examId, questionId, requestedFilter, requestedTab]);
+
   const courseById = useMemo(() => new Map(data.courses.map((course) => [course.id, course])), [data.courses]);
   const examById = useMemo(() => new Map(data.exams.map((exam) => [exam.id, exam])), [data.exams]);
   const questionById = useMemo(() => new Map(data.questions.map((question) => [question.id, question])), [data.questions]);
@@ -344,9 +355,10 @@ export default function ProfessorScores() {
       attempts: examAttempts,
       students: assignedPopulation || new Set(examAttempts.map((attempt) => attempt.student_id)).size,
       pending: examAttempts.filter((attempt) => attempt.pendingManual).length,
+      pendingAnswers: examAttempts.reduce((total, attempt) => total + (answersByAttempt[attempt.id] || []).filter((answer) => answer.needs_manual_grading).length, 0),
       totalPoints,
     };
-  }), [attempts, courseById, data.assignments, data.enrollments, data.exams, data.questions]);
+  }), [answersByAttempt, attempts, courseById, data.assignments, data.enrollments, data.exams, data.questions]);
 
   const selectedExam = examId ? examSummaries.find((exam) => exam.id === examId) : null;
   const examQuestions = useMemo(() => data.questions.filter((question) => question.exam_id === examId), [data.questions, examId]);
@@ -667,9 +679,14 @@ function ExamList({ density, rows, view }) {
               <td><Link to={`/professor/scores/${exam.id}`}><strong>{exam.exam_title || exam.title}</strong></Link><span>{exam.course?.courseCode} - {exam.course?.section}</span></td>
               <td>{exam.exam_type || "Exam"}</td>
               <td>{exam.students}</td>
-              <td>{exam.pending}</td>
+              <td>{exam.pendingAnswers}</td>
               <td><CompactBadge tone={statusTone(exam.status)}>{exam.status || "Draft"}</CompactBadge></td>
-              <td><Link className="professor-score-action" to={`/professor/scores/${exam.id}`}>View</Link></td>
+              <td>
+                <span className="professor-score-row-actions">
+                  {exam.pendingAnswers > 0 ? <Link className="professor-score-action professor-score-needs-grading" to={needsGradingPath(exam.id)}>Needs Grading ({exam.pendingAnswers})</Link> : null}
+                  <Link className="professor-score-action" to={`/professor/scores/${exam.id}`}>View</Link>
+                </span>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -704,9 +721,10 @@ function ProfessorScoreExamCards({ density, rows }) {
             <dl>
               <ScoreMetric label="Type">{exam.exam_type || "Exam"}</ScoreMetric>
               <ScoreMetric label="Students">{exam.students}</ScoreMetric>
-              <ScoreMetric label="Pending Grading">{exam.pending}</ScoreMetric>
+              <ScoreMetric label="Pending Grading">{exam.pendingAnswers}</ScoreMetric>
               <ScoreMetric label="Status"><CompactBadge tone={statusTone(exam.status)}>{exam.status || "Draft"}</CompactBadge></ScoreMetric>
             </dl>
+            {exam.pendingAnswers > 0 ? <Link className="professor-score-action professor-score-needs-grading" to={needsGradingPath(exam.id)}>Needs Grading ({exam.pendingAnswers})</Link> : null}
           </article>
         ))}
       </div>
@@ -903,7 +921,7 @@ function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeIn
                     <td>{answer?.earned_points === null || answer?.earned_points === undefined ? "-" : formatPoints(answer.earned_points)} / {formatPoints(answer?.max_points ?? question.points)}</td>
                     <td><CompactBadge tone={answer?.needs_manual_grading ? "warn" : "success"}>{answer?.needs_manual_grading ? "Pending" : answer ? "Graded" : "No Answer"}</CompactBadge></td>
                     <td>{allowsPartialMatch(question) ? "Enabled" : "-"}</td>
-                    <td>{answer && question.manual_grading ? <GradeControl answer={answer} question={question} gradeInputs={gradeInputs} onGradeInput={onGradeInput} onSaveGrade={onSaveGrade} /> : null}</td>
+                    <td>{canGradeManually(question, answer) ? <GradeControl answer={answer} question={question} gradeInputs={gradeInputs} onGradeInput={onGradeInput} onSaveGrade={onSaveGrade} /> : null}</td>
                   </tr>
                 );
               })}
@@ -951,7 +969,7 @@ function QuestionReviewView({ exam, question, questionIndex, questions, rows, se
                   <td><FileAnswerCell answer={row.answer} limit={120} onOpenFile={onOpenFile} /></td>
                   <td>{row.answer?.earned_points === null || row.answer?.earned_points === undefined ? "-" : formatPoints(row.answer.earned_points)} / {formatPoints(row.answer?.max_points ?? question.points)}</td>
                   <td><CompactBadge tone={row.answer?.needs_manual_grading ? "warn" : row.answer ? "success" : "neutral"}>{row.answer?.needs_manual_grading ? "Pending" : row.answer ? "Graded" : "No Answer"}</CompactBadge></td>
-                  <td>{row.answer && question.manual_grading ? <GradeControl answer={row.answer} question={question} gradeInputs={gradeInputs} onGradeInput={onGradeInput} onSaveGrade={onSaveGrade} /> : <Link className="professor-score-action" to={`/professor/scores/${currentExamId}/attempt/${row.attempt.id}`}>View Attempt</Link>}</td>
+                  <td>{canGradeManually(question, row.answer) ? <GradeControl answer={row.answer} question={question} gradeInputs={gradeInputs} onGradeInput={onGradeInput} onSaveGrade={onSaveGrade} /> : <Link className="professor-score-action" to={`/professor/scores/${currentExamId}/attempt/${row.attempt.id}`}>View Attempt</Link>}</td>
                 </tr>
               ))}
             </tbody>

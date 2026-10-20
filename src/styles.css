@@ -5845,6 +5845,21 @@ html[data-theme="light"] .professor-course-list-card:hover {
   background: rgba(37, 99, 235, 0.18);
   color: var(--app-text);
 }
+.professor-score-row-actions {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.professor-score-action.professor-score-needs-grading {
+  border-color: rgba(245, 158, 11, 0.5);
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--app-text);
+  white-space: nowrap;
+}
+.professor-score-exam-card > .professor-score-needs-grading {
+  margin-top: 12px;
+  width: 100%;
+}
 .professor-score-pagination {
   display: flex;
   align-items: center;
