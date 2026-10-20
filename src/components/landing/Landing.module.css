@@ -14,18 +14,18 @@
 }
 
 .page {
-  --lp-bg: #f7f8f2;
+  --lp-bg: #f4f7fb;
   --lp-surface: #ffffff;
-  --lp-ink: #182d2b;
-  --lp-muted: #62716c;
-  --lp-line: #dbe2d9;
-  --lp-accent: #187665;
-  --lp-soft: #e5eee4;
-  --lp-card: #edf2e9;
-  --lp-button: #193d34;
-  --lp-on-button: #f6f9f1;
+  --lp-ink: #1e293b;
+  --lp-muted: #64748b;
+  --lp-line: #cbd5e1;
+  --lp-accent: #2563eb;
+  --lp-soft: #dbeafe;
+  --lp-card: #eaf0f7;
+  --lp-button: #2563eb;
+  --lp-on-button: #ffffff;
   --lp-glass: rgba(255, 255, 255, .88);
-  --lp-shadow: 0 18px 45px #193d3410;
+  --lp-shadow: 0 18px 45px #0f172a14;
   --app-text: var(--lp-ink);
   --app-text-muted: var(--lp-muted);
   --text-primary: var(--lp-ink);
@@ -43,18 +43,18 @@
   -webkit-font-smoothing: antialiased;
 }
 .page[data-theme="dark"] {
-  --lp-bg: #101b19;
-  --lp-surface: #182723;
-  --lp-ink: #eef2e8;
-  --lp-muted: #a2b3aa;
-  --lp-line: #2e4238;
-  --lp-accent: #a8dab6;
-  --lp-soft: #253a30;
-  --lp-card: #1b2e26;
-  --lp-button: #d1e8ba;
-  --lp-on-button: #1a3328;
-  --lp-glass: rgba(25, 43, 35, .9);
-  --lp-shadow: 0 18px 45px #00000020;
+  --lp-bg: #0b1220;
+  --lp-surface: #162238;
+  --lp-ink: #e6edf7;
+  --lp-muted: #94a3b8;
+  --lp-line: #2d3e59;
+  --lp-accent: #60a5fa;
+  --lp-soft: #1b2b4a;
+  --lp-card: #111b2e;
+  --lp-button: #2563eb;
+  --lp-on-button: #ffffff;
+  --lp-glass: rgba(22, 34, 56, .9);
+  --lp-shadow: 0 18px 45px #00000030;
 }
 .page h1, .page h2, .page h3, .page h4, .brand { font-family: "Landing Manrope", sans-serif; }
 .page h1, .page h2, .page h3, .page h4, .page p { margin: 0; }
@@ -98,7 +98,7 @@
 .heroDescription { max-width: 400px; color: var(--lp-muted); font-size: 14px; line-height: 1.85; margin-top: 28px !important; }
 .heroActions { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; margin-top: 29px; }
 .primaryButton { display: inline-flex; align-items: center; justify-content: center; gap: 23px; padding: 16px 23px; border-radius: 7px; border: 1px solid transparent; background: var(--lp-button); color: var(--lp-on-button); font-size: 12px; font-weight: 600; line-height: 1.5; transition: transform .25s, box-shadow .25s, opacity .25s; }
-.primaryButton:hover { transform: translateY(-3px); box-shadow: 0 8px 20px #102d3020; }
+.primaryButton:hover { transform: translateY(-3px); box-shadow: 0 8px 20px #0f172a24; }
 .primaryButton:disabled { opacity: .6; transform: none; }
 .primaryButton svg { transition: transform .25s; }
 .primaryButton:hover svg { transform: translate(2px, -2px); }
@@ -232,7 +232,7 @@
 .footerRight a:hover { color: var(--lp-accent); }
 .dialog { margin: auto; padding: 39px; border: 1px solid var(--lp-line); border-radius: 18px; width: min(440px, calc(100% - 32px)); max-height: calc(100dvh - 32px); overflow-y: auto; background: var(--lp-bg); color: var(--lp-ink); box-shadow: 0 30px 100px #0005; }
 .page .dialog { background: var(--lp-bg) !important; color: var(--lp-ink) !important; border-color: var(--lp-line) !important; }
-.dialog::backdrop { background: #081510a6; backdrop-filter: blur(8px); }
+.dialog::backdrop { background: #020617a6; backdrop-filter: blur(8px); }
 .dialog[open] { animation: enter .25s ease-out; }
 .dialogClose { position: absolute; right: 13px; top: 13px; }
 .dialogEmblem { width: 48px; height: 48px; border-radius: 13px; display: grid; place-items: center; background: var(--lp-soft); color: var(--lp-accent); margin-bottom: 25px; }
@@ -274,11 +274,11 @@
 .tickerGroup > span { display: inline-flex; align-items: center; gap: 10px; font-family: "Landing Manrope", sans-serif; font-size: 14px; font-weight: 550; white-space: nowrap; }
 .tickerViewport:hover .tickerTrack { animation-play-state: paused; }
 .monitorGrid { perspective: 1200px; }
-.depthCard { position: relative; isolation: isolate; transform-style: preserve-3d; box-shadow: 0 5px 0 color-mix(in srgb, var(--lp-line) 75%, transparent), 0 18px 40px #071b1a0f; transition: transform .35s ease-out, box-shadow .35s; }
-.depthCard::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(circle at var(--shine-x, 50%) var(--shine-y, 10%), #d7f7cb18, transparent 50%); border: 1px solid color-mix(in srgb, var(--lp-accent) 12%, transparent); }
+.depthCard { position: relative; isolation: isolate; transform-style: preserve-3d; box-shadow: 0 5px 0 color-mix(in srgb, var(--lp-line) 75%, transparent), 0 18px 40px #0f172a0f; transition: transform .35s ease-out, box-shadow .35s; }
+.depthCard::after { content: ""; position: absolute; inset: 0; border-radius: inherit; pointer-events: none; background: radial-gradient(circle at var(--shine-x, 50%) var(--shine-y, 10%), #93c5fd18, transparent 50%); border: 1px solid color-mix(in srgb, var(--lp-accent) 12%, transparent); }
 .depthCard > :not(.goo) { position: relative; z-index: 1; }
 .page .depthCard[data-revealed="true"] { transform: perspective(1200px) rotateX(var(--tilt-y, 0deg)) rotateY(var(--tilt-x, 0deg)); }
-.depthCard:hover { box-shadow: 0 7px 0 color-mix(in srgb, var(--lp-line) 80%, transparent), 0 28px 60px #071b1a25; }
+.depthCard:hover { box-shadow: 0 7px 0 color-mix(in srgb, var(--lp-line) 80%, transparent), 0 28px 60px #0f172a25; }
 .goo { position: absolute; inset: 0; overflow: hidden; z-index: 0; pointer-events: none; opacity: .15; filter: url(#landing-goo); }
 .goo span { position: absolute; width: 55%; aspect-ratio: 1; background: var(--lp-accent); border-radius: 48% 52% 69% 31% / 39% 45% 55% 61%; animation: liquid 13s ease-in-out infinite alternate; }
 .goo span:nth-child(1) { left: -19%; top: -18%; }
@@ -292,7 +292,7 @@
 .stepNumber::before { content: ""; position: absolute; top: -1px; left: 0; right: 0; height: 2px; transform: scaleX(0); transform-origin: left; background: var(--lp-accent); box-shadow: 0 0 12px color-mix(in srgb, var(--lp-accent) 40%, transparent); animation: stepLine 12s var(--step-delay) linear infinite; }
 .stepNumber > span { animation: stepNumber 12s var(--step-delay) ease-in-out infinite; }
 .stepNumber > svg { animation: stepArrow 12s var(--step-delay) ease-in-out infinite; }
-.closing { background: linear-gradient(115deg, var(--lp-soft), color-mix(in srgb, var(--lp-soft) 70%, var(--lp-accent))); box-shadow: inset 0 1px 0 #d7f7cb22, 0 20px 65px color-mix(in srgb, var(--lp-accent) 10%, transparent); }
+.closing { background: linear-gradient(115deg, var(--lp-soft), color-mix(in srgb, var(--lp-soft) 70%, var(--lp-accent))); box-shadow: inset 0 1px 0 #93c5fd22, 0 20px 65px color-mix(in srgb, var(--lp-accent) 10%, transparent); }
 .closing::before { content: ""; position: absolute; inset: -50%; background: radial-gradient(ellipse at 70% 40%, color-mix(in srgb, var(--lp-accent) 35%, transparent), transparent 45%); animation: closingGlow 12s ease-in-out infinite alternate; pointer-events: none; }
 .closing > .eyebrow { position: relative; }
 .page [data-reveal="left"] { transform: translate(-32px, 24px); }
@@ -326,6 +326,7 @@
 .registerCard h2 { font-size: 31px; margin-bottom: 12px; }
 .registerCard .eyebrow { font-size: 8px; margin-bottom: 11px !important; }
 .registerCard .dialogEmblem { margin-bottom: 24px; }
+.registerFields + .primaryButton { margin-top: 24px; }
 .registerForm { margin-top: 27px; }
 .registerFields { display: grid; grid-template-columns: 1fr 1fr; gap: 19px 15px; }
 .fullWidth { grid-column: 1 / -1; }
