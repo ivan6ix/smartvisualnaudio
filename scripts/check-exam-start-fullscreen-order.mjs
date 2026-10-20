@@ -29,11 +29,28 @@ assert.doesNotMatch(start.slice(0, authorizeAt), /recordManualViolation|recordIn
 // A late fullscreen grant after the timeout returns the intro screen to normal and never authorizes.
 assert.match(start.slice(0, authorizeAt), /lock\.then\(\(\) => \{\s*if \(abandoned && !examStartInFlightRef\.current && !examModeReadyRef\.current\) void leavePreStartFullscreen\(\);/, "A fullscreen grant arriving after the timeout must leave pre-start fullscreen.");
 assert.match(start.slice(0, authorizeAt), /\} catch \{\s*abandoned = true;/, "A timed-out or refused fullscreen request must be marked abandoned.");
-// Leaving the page while fullscreen is pending must not create a start session.
-assert.match(start.slice(0, authorizeAt), /if \(!mountedRef\.current\) \{\s*await leavePreStartFullscreen\(\);\s*return;\s*\}/, "An unmounted exam page must not authorize a start.");
+// Leaving the page or abandoning the start must not create a start session.
+assert.match(enter, /examStartGenerationRef\.current \+= 1;[\s\S]*startAuthorizedExamMode\(examStartGenerationRef\.current\)/, "Each start must carry its own generation.");
+assert.match(start, /const isCurrentStart = \(\) => mountedRef\.current && examStartGenerationRef\.current === generation;/, "Start must check the page is mounted and the start is current.");
+assert.match(start.slice(0, authorizeAt), /if \(!isCurrentStart\(\)\) \{\s*await leavePreStartFullscreen\(\);\s*return;\s*\}/, "An unmounted exam page must not authorize a start.");
+
+// Required devices are acquired after fullscreen and before authorization; monitoring starts after it.
+const acquireAt = start.indexOf("await acquireProctorStream()");
+const activateAt = start.indexOf("activateProctoring(stream)");
+assert.ok(acquireAt > lockAt && acquireAt < authorizeAt, "Media must be acquired after fullscreen and before authorize_exam_start.");
+assert.ok(activateAt > authorizeAt, "Monitoring must be activated only after authorization.");
+assert.match(start.slice(0, authorizeAt), /stream = await acquireProctorStream\(\);\s*\} catch \(mediaError\) \{\s*await leavePreStartFullscreen\(\);\s*if \(isCurrentStart\(\)\) toast\.error\(describeMediaStartError\(mediaError\)\);\s*return;/, "Failed media acquisition must stop before authorization.");
+assert.match(start.slice(acquireAt, authorizeAt), /if \(!isCurrentStart\(\)\) \{\s*releaseStream\(\);[\s\S]*if \(!getFullscreenElement\(\)\) \{\s*releaseStream\(\);/, "Late media after an abandoned start, or lost fullscreen, must release tracks without authorizing.");
+assert.doesNotMatch(start.slice(0, authorizeAt), /startFaceMonitoring|startObjectMonitoring|startRoboflowMonitoring|audioMonitoring\.start/, "External monitoring must not start before authorization.");
+const acquireStart = source.indexOf("async function acquireProctorStream(");
+const acquire = source.slice(acquireStart, source.indexOf("\n  }\n", acquireStart) + 4);
+assert.match(acquire, /getUserMedia[\s\S]*if \(unusable\) \{\s*stream\.getTracks\(\)\.forEach\(\(track\) => track\.stop\(\)\);/, "Unusable devices must release the acquired stream.");
+assert.doesNotMatch(acquire, /startFaceMonitoring|startObjectMonitoring|startRoboflowMonitoring|audioMonitoring\.start|authorize_exam_start/, "Acquisition must not start monitoring or authorize.");
+assert.match(source, /function activateProctoring\(stream\) \{[\s\S]*proctorStreamRef\.current = stream;[\s\S]*startFaceMonitoring\(\);[\s\S]*audioMonitoring\.start\(stream\);/, "Activation must reuse the acquired stream for existing monitoring.");
+assert.doesNotMatch(source, /async function startProctorCamera/, "The combined acquire-and-monitor helper must not return.");
 
 // Authorization failure after fullscreen restores the pre-exam screen without a violation.
-assert.match(start, /if \(error\) \{\s*await leavePreStartFullscreen\(\);\s*toast\.error\(error\.message\);\s*return;/, "Authorization failure must leave pre-start fullscreen and stay on the introduction.");
+assert.match(start, /if \(error\) \{\s*releaseStream\(\);\s*await leavePreStartFullscreen\(\);\s*toast\.error\(error\.message\);\s*return;/, "Authorization failure must release devices, leave pre-start fullscreen and stay on the introduction.");
 assert.doesNotMatch(start, /recordManualViolation\("FULLSCREEN_EXIT"/, "Exam start must not record a false FULLSCREEN_EXIT violation.");
 
 // Timer and running state begin only after authorization.

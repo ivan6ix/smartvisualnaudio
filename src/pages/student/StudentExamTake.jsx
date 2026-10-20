@@ -457,6 +457,7 @@ export default function StudentExamTake() {
   const examSubmittedRef = useRef(false);
   const examModeReadyRef = useRef(false);
   const examStartInFlightRef = useRef(false);
+  const examStartGenerationRef = useRef(0);
   const timerExpiredRef = useRef(false);
   const microphoneBlockedRef = useRef(false);
   const microphoneInterruptionRecordedRef = useRef(false);
@@ -2611,13 +2612,13 @@ export default function StudentExamTake() {
     }, OBJECT_SCAN_INTERVAL_MS);
   }
 
-  async function startProctorCamera() {
-    if (!liveCameraMonitoringEnabled && !examSettings.liveAudioMonitoring) {
-      stopProctoring();
-      setFaceStatus("Live camera monitoring disabled");
-      setRoboflowStatus("Roboflow detector off");
-      return;
-    }
+  const requiredDevicesLabel = liveCameraMonitoringEnabled && examSettings.liveAudioMonitoring
+    ? "Camera and microphone"
+    : liveCameraMonitoringEnabled ? "Camera" : "Microphone";
+
+  // Opens and validates the required devices only. Monitoring starts in activateProctoring after authorization.
+  async function acquireProctorStream() {
+    if (!liveCameraMonitoringEnabled && !examSettings.liveAudioMonitoring) return null;
 
     const stream = await window.navigator.mediaDevices.getUserMedia({
       video: liveCameraMonitoringEnabled ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 360 } } : false,
@@ -2627,8 +2628,36 @@ export default function StudentExamTake() {
         autoGainControl: true,
       } : false,
     });
-    if (!mountedRef.current || violationLimitReachedRef.current || examSubmittedRef.current) {
+    const required = [
+      ...(liveCameraMonitoringEnabled ? [["Camera", stream.getVideoTracks()[0]]] : []),
+      ...(examSettings.liveAudioMonitoring ? [["Microphone", stream.getAudioTracks()[0]]] : []),
+    ];
+    const unusable = required.find(([, track]) => !track || track.readyState !== "live" || !track.enabled || track.muted);
+    if (unusable) {
       stream.getTracks().forEach((track) => track.stop());
+      const error = new Error(`${unusable[0]} device is not available.`);
+      error.name = "NotFoundError";
+      throw error;
+    }
+    return stream;
+  }
+
+  function describeMediaStartError(error) {
+    const text = `${error?.name || ""} ${error?.message || ""}`;
+    if (/NotAllowed|Security|permission|denied/i.test(text)) {
+      return `${requiredDevicesLabel} permission is required for this exam. Allow access and try again.`;
+    }
+    if (/NotReadable|TrackStart|AbortError/i.test(text)) {
+      return `${requiredDevicesLabel} could not be opened. Close other apps using it and try again.`;
+    }
+    return `No usable ${requiredDevicesLabel.toLowerCase()} was found. Connect a device and try again.`;
+  }
+
+  function activateProctoring(stream) {
+    if (!stream) {
+      stopProctoring();
+      setFaceStatus("Live camera monitoring disabled");
+      setRoboflowStatus("Roboflow detector off");
       return;
     }
     stopProctoring();
@@ -2675,16 +2704,17 @@ export default function StudentExamTake() {
       return;
     }
     examStartInFlightRef.current = true;
+    examStartGenerationRef.current += 1;
     setExamStarting(true);
     try {
-      await startAuthorizedExamMode();
+      await startAuthorizedExamMode(examStartGenerationRef.current);
     } finally {
       examStartInFlightRef.current = false;
-      setExamStarting(false);
+      if (mountedRef.current) setExamStarting(false);
     }
   }
 
-  async function startAuthorizedExamMode() {
+  async function startAuthorizedExamMode(generation) {
     // Fullscreen is requested first, inside the Start click's user activation, so a refused
     // request never authorizes a server start, starts the timer, or locks the exam content.
     let abandoned = false;
@@ -2707,15 +2737,42 @@ export default function StudentExamTake() {
       toast.error("Fullscreen is required before taking the exam. Allow fullscreen mode and try again.");
       return;
     }
-    if (!mountedRef.current) {
+    const isCurrentStart = () => mountedRef.current && examStartGenerationRef.current === generation;
+    if (!isCurrentStart()) {
       await leavePreStartFullscreen();
       return;
     }
+
+    // Required devices are opened and validated before the server start is authorized,
+    // so a denied or missing camera/microphone never creates a start session.
+    let stream = null;
+    const releaseStream = () => stream?.getTracks().forEach((track) => track.stop());
+    if (secureModeRequired) {
+      try {
+        stream = await acquireProctorStream();
+      } catch (mediaError) {
+        await leavePreStartFullscreen();
+        if (isCurrentStart()) toast.error(describeMediaStartError(mediaError));
+        return;
+      }
+    }
+    if (!isCurrentStart()) {
+      releaseStream();
+      await leavePreStartFullscreen();
+      return;
+    }
+    if (!getFullscreenElement()) {
+      releaseStream();
+      toast.error("Fullscreen was closed while devices were being checked. Click Start Exam to try again.");
+      return;
+    }
+
     const interruptionStateRequestId = interruptionStateRequestRef.current + 1;
     interruptionStateRequestRef.current = interruptionStateRequestId;
     if (hasSupabaseConfig) {
       const { data: serverStart, error } = await supabase.rpc("authorize_exam_start", { p_exam_id: examId });
       if (error) {
+        releaseStream();
         await leavePreStartFullscreen();
         toast.error(error.message);
         return;
@@ -2724,10 +2781,15 @@ export default function StudentExamTake() {
       try {
         await refreshAuthorizedInterruptionState(interruptionStateRequestId);
       } catch (stateError) {
+        releaseStream();
         await leavePreStartFullscreen();
         toast.error(`Unable to refresh interruption state: ${stateError.message}`);
         return;
       }
+    }
+    if (!isCurrentStart()) {
+      releaseStream();
+      return;
     }
     function startTimerIfNeeded() {
       const start = startedAtRef.current || new Date().toISOString();
@@ -2744,7 +2806,7 @@ export default function StudentExamTake() {
 
     try {
       if (secureModeRequired) {
-        await startProctorCamera();
+        activateProctoring(stream);
       } else {
         stopProctoring();
       }
@@ -2755,19 +2817,12 @@ export default function StudentExamTake() {
       setScanOpen(false);
       saveCurrentProgress();
       toast.success(secureModeRequired ? "Secure exam mode started" : "Exam started in fullscreen");
-    } catch (error) {
+    } catch {
+      stopProctoring();
       examModeReadyRef.current = false;
       setExamModeReady(false);
       setExamLocked(false);
-      const errorMessage = error instanceof Error ? error.message : "";
-      const message = /notallowed|permission|denied|security/i.test(errorMessage)
-        ? examSettings.liveAudioMonitoring
-          ? "Microphone permission is required for this exam. Please allow microphone access and retry."
-          : "Camera permission is required for this exam. Please allow camera access and retry."
-        : examSettings.liveAudioMonitoring && /audio|microphone|mic|device|mediarecorder/i.test(errorMessage)
-        ? "Microphone access is required to continue the exam."
-        : "Secure exam mode could not start. Check camera and microphone access and try again.";
-      toast.error(message);
+      toast.error("Secure exam mode could not start. Check camera and microphone access and try again.");
     }
   }
 
