@@ -36,5 +36,11 @@ assert.match(grants, new RegExp(String.raw`revoke insert, update, delete, trunca
 assert.match(grants, new RegExp(String.raw`grant select on table ${groupTables} to authenticated;`), "Authenticated clients keep RLS-filtered reads.");
 assert.doesNotMatch(grants, /(?:create|drop|alter) policy|disable row level security/i, "Grant hardening must not change RLS policies.");
 
+const resubmit = readFileSync("supabase/migrations/20261020150000_allow_rejected_group_resubmission.sql", "utf8");
+assert.match(resubmit, /p_action = 'submit_review' and \(v_archived or v_status not in \('Unpublished', 'Rejected'\)\)/, "Rejected shared exams must be resubmittable for review.");
+assert.match(resubmit, /p_action = 'publish' and \(v_archived or v_status <> 'Unpublished'\)/, "Rejected shared exams must still not publish directly.");
+assert.match(resubmit, /if v_group\.revision <> p_expected_revision then[\s\S]*Group members diverged/, "Resubmission must keep revision and divergence checks.");
+assert.match(list, /clusterStatus === "rejected" \? "Resubmit for Approval"[\s\S]*transitionGroupAction\(exam, "submit_review"\)/, "Resubmit for Approval must use the group submit_review transition.");
+
 assert.match(styles, /\.professor-course-picker-options[\s\S]*max-height: 260px/, "Course picker should remain compact on narrow screens.");
 assert.match(styles, /\.professor-shared-label/, "Shared labels need visible styling.");
