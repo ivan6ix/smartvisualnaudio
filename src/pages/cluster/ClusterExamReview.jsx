@@ -180,7 +180,7 @@ export default function ClusterExamReview() {
   if (!exam) return <Navigate to="/cluster/pending" replace />;
 
   async function handleApprove() {
-    await approveExam(exam.id);
+    await approveExam(exam.id, notes);
     setApproveOpen(false);
     navigate("/cluster/approved");
   }
@@ -305,6 +305,7 @@ export default function ClusterExamReview() {
           <Card className="cluster-modal">
             <h2>Approve Examination</h2>
             <p>Are you sure you want to approve this examination?</p>
+            {notes.trim() ? <p>Your review notes will be saved with this approval.</p> : null}
             <div className="header-actions"><Button onClick={handleApprove}>Approve</Button><Button variant="light" onClick={() => setApproveOpen(false)}>Cancel</Button></div>
           </Card>
         </div>

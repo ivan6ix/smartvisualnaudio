@@ -183,3 +183,9 @@ assert.match(styles, /\.cluster-kpi-grid\s*\{[\s\S]*grid-template-columns:\s*rep
 assert.match(styles, /\.cluster-kpi-card,\s*\.cluster-review-panel\s*\{[\s\S]*border-radius:\s*8px/, "Cluster cards and panels should use boxed system styling.");
 assert.match(styles, /\.cluster-app-shell \.cluster-review-actions\s*\{[\s\S]*gap:\s*12px;[\s\S]*margin-top:\s*20px/, "Cluster review actions need stable spacing below the notes textarea.");
 assert.match(styles, /@media \(max-width: 720px\)[\s\S]*\.cluster-review-table/, "Cluster dashboard table should retain responsive overflow behavior.");
+// Approval remarks never reuse an earlier review's remarks.
+const clusterContext = readFileSync("src/context/ClusterContext.jsx", "utf8");
+assert.match(clusterContext, /reviewNotes: latestReview\?\.decision === "Revision Needed" \? latestReview\.remarks \|\| "" : ""/, "Only unsent current-review notes may prefill reviewer notes.");
+assert.match(clusterContext, /async function approveExam\(examId, approvalRemarks = ""\) \{\s*const enteredRemarks = String\(approvalRemarks \|\| ""\)\.trim\(\);\s*const remarks = enteredRemarks \|\| "Approved for publishing\.";/, "Approval must use only the remarks entered for it.");
+assert.doesNotMatch(clusterContext.slice(clusterContext.indexOf("async function approveExam"), clusterContext.indexOf("async function rejectExam")), /exam\??\.reviewNotes/, "Approval must not reuse stored review notes or rejection reasons.");
+assert.match(review, /await approveExam\(exam\.id, notes\);/, "Review page approval must send the reviewer's current notes.");

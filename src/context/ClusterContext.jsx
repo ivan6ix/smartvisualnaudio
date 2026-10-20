@@ -151,7 +151,8 @@ function mapLiveExam(exam, profileMap, questionMap, reviewMap) {
     approvedAt: formatDate(exam.approved_at),
     rejectedAt: formatDate(exam.rejected_at),
     rejectionReason: latestReview?.decision === "Rejected" ? latestReview.remarks || "" : "",
-    reviewNotes: latestReview?.remarks || "",
+    // Only unsent notes for the current review; past decisions keep their own remarks.
+    reviewNotes: latestReview?.decision === "Revision Needed" ? latestReview.remarks || "" : "",
     questions: questionMap.get(exam.id) || [],
   });
 }
@@ -428,10 +429,11 @@ export function ClusterProvider({ children }) {
     toast.success("Review notes saved");
   }
 
-  async function approveExam(examId) {
+  async function approveExam(examId, approvalRemarks = "") {
+    const enteredRemarks = String(approvalRemarks || "").trim();
+    const remarks = enteredRemarks || "Approved for publishing.";
     if (hasSupabaseConfig && user?.id) {
       const exam = exams.find((item) => item.id === examId);
-      const remarks = exam?.reviewNotes || "Approved for publishing.";
 
       setExams((current) => updateExamDecisionState(current, examId, "Approved", remarks));
       setReviews((items) => [{
@@ -469,7 +471,7 @@ export function ClusterProvider({ children }) {
         status: "unpublished",
         clusterStatus: "approved",
       } : item));
-      setReviews((items) => [{ id: `RV-${Date.now()}`, examId: exam.id, examTitle: exam.examTitle, professorName: exam.professorName, course: exam.course, reviewDate: today(), decision: "Approved", remarks: exam.reviewNotes || "Approved for publishing." }, ...items]);
+      setReviews((items) => [{ id: `RV-${Date.now()}`, examId: exam.id, examTitle: exam.examTitle, professorName: exam.professorName, course: exam.course, reviewDate: today(), decision: "Approved", remarks }, ...items]);
       addNotification("Exam approved successfully", `${exam.examTitle} has been approved.`, "Approval");
       toast.success("Exam approved and professor notified");
       return updated;
