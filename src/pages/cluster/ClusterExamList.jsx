@@ -143,7 +143,7 @@ export default function ClusterExamList({ status }) {
     { key: "professorName", label: "Professor Name", width: "19%" },
     { key: "course", label: "Course", width: "16%" },
     { key: "approvedAt", label: "Approved Date", width: "13%" },
-    { key: "approvedBy", label: "Approved By", width: "14%", render: () => "Prof. Nolan Lim" },
+    { key: "approvedBy", label: "Approved By", width: "14%", render: (row) => row.approvedBy || "Cluster Professor" },
     { key: "status", label: "Status", width: "8%", render: (row) => <StatusBadge status={row.status} /> },
   ] : status === "Rejected" ? [
     { key: "examTitle", label: "Exam Title", width: "21%" },
@@ -189,7 +189,8 @@ export default function ClusterExamList({ status }) {
       return (
         <RowActionMenu
           actions={[
-            { label: "View", onClick: () => navigate(`/cluster/exams/${row.id}`) },
+            // Approved exams outside review are history-only; their content is not readable here.
+            ...(row.historyOnly ? [] : [{ label: "View", onClick: () => navigate(`/cluster/exams/${row.id}`) }]),
             { label: "Download Review", onClick: () => {} },
             { label: "Generate Report", onClick: () => {} },
           ]}

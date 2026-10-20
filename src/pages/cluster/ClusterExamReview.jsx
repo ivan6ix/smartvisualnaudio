@@ -177,7 +177,7 @@ export default function ClusterExamReview() {
     }
   }, [filteredQuestions, selectedQuestionId]);
 
-  if (!exam) return <Navigate to="/cluster/pending" replace />;
+  if (!exam || exam.historyOnly) return <Navigate to="/cluster/pending" replace />;
 
   async function handleApprove() {
     await approveExam(exam.id, notes);

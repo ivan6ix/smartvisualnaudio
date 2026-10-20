@@ -14,6 +14,7 @@ import {
   normalizeClusterReviews,
 } from "../lib/clusterReview";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
+import { collapseReviewHistory, currentApprovals } from "../lib/clusterReviewHistory";
 
 const ClusterContext = createContext(null);
 
@@ -248,7 +249,7 @@ export function ClusterProvider({ children }) {
     const examIds = liveExamRows.map((exam) => exam.id);
     const professorIds = [...new Set(liveExamRows.flatMap((exam) => [exam.professor_id, exam.created_by]).filter(Boolean))];
 
-    const [{ data: profileRows, error: profileError }, { data: questionRows, error: questionError }, { data: reviewRows, error: reviewError }, { data: messageRows, error: messageError }, { data: courseOptionRows, error: courseOptionError }, { data: professorOptionRows, error: professorOptionError }] = await Promise.all([
+    const [{ data: profileRows, error: profileError }, { data: questionRows, error: questionError }, { data: reviewRows, error: reviewError }, { data: messageRows, error: messageError }, { data: courseOptionRows, error: courseOptionError }, { data: professorOptionRows, error: professorOptionError }, { data: historyRows, error: historyError }] = await Promise.all([
       professorIds.length
         ? supabase.from("profiles").select("id, full_name, email").in("id", professorIds)
         : Promise.resolve({ data: [], error: null }),
@@ -261,6 +262,8 @@ export function ClusterProvider({ children }) {
       supabase.from("messages").select("id, sender_id, receiver_id, message, is_read, created_at").eq("receiver_id", user.id).eq("is_read", false),
       supabase.from("courses").select("id, course_name, course_code, program_id, year_level, section, programs(program_code, program_name, is_active)").eq("archived", false).order("created_at", { ascending: false }),
       supabase.from("profiles").select("id, full_name, email").eq("role", "Professor").eq("status", "Active").order("full_name", { ascending: true }),
+      // The reviewer's own decisions stay visible after the exam leaves review.
+      supabase.rpc("get_cluster_review_history"),
     ]);
 
     if (profileError) {
@@ -297,12 +300,32 @@ export function ClusterProvider({ children }) {
         course: `${mapped.course} (Shared across ${members.length} courses)` } : mapped;
     });
 
-    setExams(mappedExams);
+    const history = historyError ? null : historyRows || [];
+    const visibleIds = new Set(liveExamRows.flatMap((exam) => [exam.id, ...(groupByExam.get(exam.id) || []).map((member) => member.exam_id)]));
+    const approvedFromHistory = history
+      ? currentApprovals(history).filter((approval) => !visibleIds.has(approval.id)).map((approval) => ({
+        ...approval,
+        approvedAt: formatDate(approval.approvedAt),
+        approvedBy: user.fullName || user.email || "You",
+        status: "Approved",
+        historyOnly: true,
+      }))
+      : [];
+    const clusterExams = [...mappedExams, ...approvedFromHistory];
+
+    setExams(clusterExams);
     setFilterOptions(buildFilterOptions(
-      mappedExams,
+      clusterExams,
       courseOptionError ? [] : courseOptionRows,
       professorOptionError ? [] : professorOptionRows,
     ));
+    if (history) {
+      setReviews(collapseReviewHistory(history).map((entry) => ({ ...entry, reviewDate: formatDate(entry.reviewDate) })));
+      setMessages([{ id: "live-unread", unread: (messageRows || []).length, lastMessage: "", messages: [] }]);
+      setReportsGenerated(history.length);
+      return;
+    }
+    // Fallback until the history lookup migration is applied.
     setReviews((reviewRows || []).map((review) => {
       const exam = liveExamRows.find((item) => item.id === review.exam_id);
       const mappedExam = exam ? mapLiveExam(exam, profileMap, questionMap, reviewMap) : null;
@@ -321,7 +344,7 @@ export function ClusterProvider({ children }) {
     setMessages([{ id: "live-unread", unread: (messageRows || []).length, lastMessage: "", messages: [] }]);
 
     setReportsGenerated((reviewRows || []).length);
-  }, [setExams, setMessages, setReportsGenerated, setReviews, user?.id, user?.role]);
+  }, [setExams, setMessages, setReportsGenerated, setReviews, user?.id, user?.role, user?.fullName, user?.email]);
 
   useEffect(() => {
     loadLiveClusterData();

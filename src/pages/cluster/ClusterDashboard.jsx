@@ -6,6 +6,7 @@ import { RowActionMenu } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
+import { currentApprovals } from "../../lib/clusterReviewHistory";
 import { StatusBadge } from "./helpers";
 
 function normalizeStatus(status) {
@@ -37,7 +38,7 @@ export default function ClusterDashboard() {
     if (!hasSupabaseConfig || !user?.id) return;
 
     try {
-      const [{ data: examRows, error: examsError }, { data: reviewRows, error: reviewsError }, { data: messageRows, error: messagesError }] = await Promise.all([
+      const [{ data: examRows, error: examsError }, { data: reviewRows, error: reviewsError }, { data: messageRows, error: messagesError }, { data: historyRows, error: historyError }] = await Promise.all([
         supabase
           .from("exams")
           .select("id, title, exam_title, course, course_id, professor_id, created_by, status, submitted_at, approved_at, rejected_at, created_at, courses(course_name, course_code, section)")
@@ -54,6 +55,7 @@ export default function ClusterDashboard() {
           .select("id")
           .eq("receiver_id", user.id)
           .eq("is_read", false),
+        supabase.rpc("get_cluster_review_history"),
       ]);
 
       if (examsError) throw examsError;
@@ -86,7 +88,10 @@ export default function ClusterDashboard() {
       setLiveRecent(mappedExams.slice(0, 8));
       setLiveStats({
         pending: mappedExams.filter((exam) => exam.status === "Pending Review").length,
-        approved: mappedExams.filter((exam) => exam.status === "Approved" || exam.status === "Published").length,
+        // Current approvals by this reviewer, one per shared exam; falls back before the lookup migration.
+        approved: historyError
+          ? mappedExams.filter((exam) => exam.status === "Approved" || exam.status === "Published").length
+          : currentApprovals(historyRows).length,
         rejected: mappedExams.filter((exam) => exam.status === "Rejected").length,
         reviews: (reviewRows || []).length,
         reports: (reviewRows || []).length,
