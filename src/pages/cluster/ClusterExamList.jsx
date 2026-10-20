@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiClock, FiDownload, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { ListPagination } from "../../components/ListViewControls";
-import { Field, RowActionMenu, SearchBox, SelectField, Table } from "../../components/ui";
+import { Button, Card, Field, RowActionMenu, SearchBox, SelectField, Table, TextArea } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { DENSITIES, getListPageSlice, TABLE_PAGE_SIZE } from "../../lib/listView";
@@ -40,6 +40,9 @@ export default function ClusterExamList({ status }) {
   const [loadingActionId, setLoadingActionId] = useState("");
   const [openActionMenuId, setOpenActionMenuId] = useState("");
   const [historyExam, setHistoryExam] = useState(null);
+  const [rejectTarget, setRejectTarget] = useState(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectError, setRejectError] = useState("");
   const [page, setPage] = useState(1);
   const listView = useListViewPreference({ role: "cluster", page: "exam-review", defaultView: "table" });
   const courses = useMemo(() => ["All Courses", ...new Set([...(filterOptions?.courses || []), ...exams.map((exam) => exam.course)].filter(Boolean))], [exams, filterOptions]);
@@ -55,10 +58,27 @@ export default function ClusterExamList({ status }) {
     setLoadingActionId("");
   }
 
-  async function handleReject(examId) {
-    setLoadingActionId(examId);
-    await rejectExam(examId, "Incorrect answer key");
+  function openReject(exam) {
+    setRejectTarget(exam);
+    setRejectReason("");
+    setRejectError("");
+  }
+
+  function closeReject() {
+    if (loadingActionId === rejectTarget?.id) return;
+    setRejectTarget(null);
+  }
+
+  async function handleReject() {
+    const reason = rejectReason.trim();
+    if (!reason) {
+      setRejectError("Reason for rejection is required.");
+      return;
+    }
+    setLoadingActionId(rejectTarget.id);
+    const saved = await rejectExam(rejectTarget.id, reason);
     setLoadingActionId("");
+    if (saved !== false) setRejectTarget(null);
   }
 
   function downloadFeedback(exam) {
@@ -153,7 +173,7 @@ export default function ClusterExamList({ status }) {
             { label: "View Exam", onClick: () => navigate(`/cluster/exams/${row.id}`) },
             { label: "Review Exam", onClick: () => navigate(`/cluster/exams/${row.id}`) },
             { label: loadingActionId === row.id ? "Saving..." : "Approve", disabled: loadingActionId === row.id, onClick: () => handleApprove(row.id) },
-            { danger: true, label: "Reject", disabled: loadingActionId === row.id, onClick: () => handleReject(row.id) },
+            { danger: true, label: "Reject", disabled: loadingActionId === row.id, onClick: () => openReject(row) },
             { label: "Send Feedback", onClick: () => navigate(`/cluster/exams/${row.id}`) },
           ]}
           label={`Actions for ${row.examTitle || "exam"}`}
@@ -271,6 +291,32 @@ export default function ClusterExamList({ status }) {
               {!historyEntries.length ? <p className="cluster-resubmission-empty">No resubmission or review history recorded yet.</p> : null}
             </div>
           </section>
+        </div>
+      ) : null}
+      {rejectTarget ? (
+        <div className="modal-backdrop" onClick={(event) => { if (event.target === event.currentTarget) closeReject(); }} onKeyDown={(event) => { if (event.key === "Escape") closeReject(); }} role="presentation">
+          <Card aria-labelledby="cluster-quick-reject-title" aria-modal="true" className="cluster-modal" role="dialog">
+            <h2 id="cluster-quick-reject-title">Reject Examination</h2>
+            <p>
+              {rejectTarget.examTitle}
+              {rejectTarget.sharedCourseCount ? ` - this reason applies to all ${rejectTarget.sharedCourseCount} courses in the shared exam.` : ""}
+            </p>
+            <TextArea
+              autoFocus
+              disabled={loadingActionId === rejectTarget.id}
+              error={rejectError}
+              label="Reason for rejection"
+              maxLength={1000}
+              onChange={(event) => { setRejectReason(event.target.value); setRejectError(""); }}
+              placeholder="Enter reason for rejecting this examination..."
+              rows={5}
+              value={rejectReason}
+            />
+            <div className="header-actions reject-modal-actions">
+              <Button disabled={loadingActionId === rejectTarget.id} onClick={handleReject} type="button">{loadingActionId === rejectTarget.id ? "Rejecting..." : "Reject Exam"}</Button>
+              <Button disabled={loadingActionId === rejectTarget.id} onClick={closeReject} type="button" variant="light">Cancel</Button>
+            </div>
+          </Card>
         </div>
       ) : null}
     </section>

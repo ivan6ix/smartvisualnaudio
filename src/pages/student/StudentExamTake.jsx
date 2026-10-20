@@ -35,6 +35,7 @@ const TAB_INACTIVE_GRACE_MS = 1000;
 const MAX_CAPTURE_RETRIES = 3;
 const SCAN_SAMPLE_MS = 500;
 const ENV_SCAN_TIMEOUT_MS = 12000;
+const FULLSCREEN_START_TIMEOUT_MS = 4000;
 const MIN_FRAME_CHANGE_DISTANCE = 16;
 const MIN_UNIQUE_SCENE_DISTANCE = 26;
 const MIN_UNIQUE_VIEW_INTERVAL_MS = 650;
@@ -443,6 +444,7 @@ export default function StudentExamTake() {
   const [scanFacingMode, setScanFacingMode] = useState("user");
   const [cameraError, setCameraError] = useState("");
   const [examModeReady, setExamModeReady] = useState(false);
+  const [examStarting, setExamStarting] = useState(false);
   const [examLocked, setExamLocked] = useState(false);
   const [examLockMessage, setExamLockMessage] = useState("Fullscreen was exited or the exam window lost focus. Return to secure exam mode to continue.");
   const [isMicrophoneBlocked, setIsMicrophoneBlocked] = useState(false);
@@ -454,6 +456,7 @@ export default function StudentExamTake() {
   const examSubmittingRef = useRef(false);
   const examSubmittedRef = useRef(false);
   const examModeReadyRef = useRef(false);
+  const examStartInFlightRef = useRef(false);
   const timerExpiredRef = useRef(false);
   const microphoneBlockedRef = useRef(false);
   const microphoneInterruptionRecordedRef = useRef(false);
@@ -2656,21 +2659,72 @@ export default function StudentExamTake() {
     }
   }
 
+  async function leavePreStartFullscreen() {
+    try {
+      await exitFullscreen();
+    } catch {
+      // The student stays on the introduction screen either way.
+    }
+  }
+
   async function enterExamMode() {
+    if (examStartInFlightRef.current) return;
     if (!progressReady || violationLimitReachedRef.current || interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
     if (!examCompatibility.supported) {
       toast.error("This browser cannot meet the requirements for this exam.");
+      return;
+    }
+    examStartInFlightRef.current = true;
+    setExamStarting(true);
+    try {
+      await startAuthorizedExamMode();
+    } finally {
+      examStartInFlightRef.current = false;
+      setExamStarting(false);
+    }
+  }
+
+  async function startAuthorizedExamMode() {
+    // Fullscreen is requested first, inside the Start click's user activation, so a refused
+    // request never authorizes a server start, starts the timer, or locks the exam content.
+    let abandoned = false;
+    try {
+      // Some embedded browsers never settle the fullscreen promise; treat that as a refusal.
+      const lock = requestExamLock();
+      // A fullscreen grant that arrives after the timeout must not leave the intro screen in fullscreen.
+      lock.then(() => {
+        if (abandoned && !examStartInFlightRef.current && !examModeReadyRef.current) void leavePreStartFullscreen();
+      }, () => {});
+      await Promise.race([
+        lock,
+        wait(FULLSCREEN_START_TIMEOUT_MS).then(() => {
+          if (!getFullscreenElement()) throw new Error("Fullscreen request timed out.");
+        }),
+      ]);
+      if (!getFullscreenElement()) throw new Error("Fullscreen did not start.");
+    } catch {
+      abandoned = true;
+      toast.error("Fullscreen is required before taking the exam. Allow fullscreen mode and try again.");
+      return;
+    }
+    if (!mountedRef.current) {
+      await leavePreStartFullscreen();
       return;
     }
     const interruptionStateRequestId = interruptionStateRequestRef.current + 1;
     interruptionStateRequestRef.current = interruptionStateRequestId;
     if (hasSupabaseConfig) {
       const { data: serverStart, error } = await supabase.rpc("authorize_exam_start", { p_exam_id: examId });
-      if (error) { toast.error(error.message); return; }
+      if (error) {
+        await leavePreStartFullscreen();
+        toast.error(error.message);
+        return;
+      }
       if (!startedAtRef.current) startedAtRef.current = serverStart;
       try {
         await refreshAuthorizedInterruptionState(interruptionStateRequestId);
       } catch (stateError) {
+        await leavePreStartFullscreen();
         toast.error(`Unable to refresh interruption state: ${stateError.message}`);
         return;
       }
@@ -2689,7 +2743,6 @@ export default function StudentExamTake() {
     }
 
     try {
-      await requestExamLock();
       if (secureModeRequired) {
         await startProctorCamera();
       } else {
@@ -2706,7 +2759,6 @@ export default function StudentExamTake() {
       examModeReadyRef.current = false;
       setExamModeReady(false);
       setExamLocked(false);
-      recordManualViolation("FULLSCREEN_EXIT", error instanceof Error ? error.message : "Secure exam mode failed to start.", "High");
       const errorMessage = error instanceof Error ? error.message : "";
       const message = /notallowed|permission|denied|security/i.test(errorMessage)
         ? examSettings.liveAudioMonitoring
@@ -2714,7 +2766,7 @@ export default function StudentExamTake() {
           : "Camera permission is required for this exam. Please allow camera access and retry."
         : examSettings.liveAudioMonitoring && /audio|microphone|mic|device|mediarecorder/i.test(errorMessage)
         ? "Microphone access is required to continue the exam."
-        : "Fullscreen is required before taking the exam. Please use a browser/device that supports fullscreen mode.";
+        : "Secure exam mode could not start. Check camera and microphone access and try again.";
       toast.error(message);
     }
   }
@@ -3270,7 +3322,7 @@ export default function StudentExamTake() {
             {scanStatus === "scanning" ? <Button disabled><FiCamera /> Keep Scanning...</Button> : null}
             {scanStatus === "analyzing" ? <Button disabled><FiRefreshCw /> Analyzing...</Button> : null}
             {scanStatus === "failed" || scanStatus === "passed" ? <Button onClick={retakeEnvironmentScan} type="button"><FiRefreshCw /> Retake</Button> : null}
-            {scanStatus === "passed" ? <Button onClick={enterExamMode}><FiCheckCircle /> Use Photo / {secureModeRequired ? "Continue to Secure Exam" : "Start Exam"}</Button> : null}
+            {scanStatus === "passed" ? <Button disabled={examStarting} onClick={enterExamMode}><FiCheckCircle /> Use Photo / {secureModeRequired ? "Continue to Secure Exam" : "Start Exam"}</Button> : null}
           </div>
         </Card>
       </section>
@@ -3295,8 +3347,8 @@ export default function StudentExamTake() {
             </div>
           ) : null}
           <div className="student-exam-start-actions">
-            {savedProgress ? <Button disabled={!scanPassed || attemptsExhausted} onClick={resumeExamMode}>Resume Exam</Button> : null}
-            <Button disabled={!scanPassed || attemptsExhausted} onClick={enterExamMode}>Start Exam</Button>
+            {savedProgress ? <Button disabled={!scanPassed || attemptsExhausted || examStarting} onClick={resumeExamMode}>Resume Exam</Button> : null}
+            <Button disabled={!scanPassed || attemptsExhausted || examStarting} onClick={enterExamMode}>{examStarting ? "Starting..." : "Start Exam"}</Button>
           </div>
         </div>
       </section>

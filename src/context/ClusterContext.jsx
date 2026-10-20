@@ -500,12 +500,12 @@ export function ClusterProvider({ children }) {
       if (error || data?.error) {
         toast.error(error?.message || data.error);
         await loadLiveClusterData();
-        return;
+        return false;
       }
 
       await loadLiveClusterData();
       toast.success("Exam rejected and feedback was saved");
-      return;
+      return true;
     }
 
     setExams((current) => current.map((exam) => {

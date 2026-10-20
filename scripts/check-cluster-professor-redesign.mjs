@@ -58,7 +58,10 @@ assert.match(examList, /matchesSearch = `\$\{exam\.id\} \$\{exam\.examTitle\} \$
 assert.match(examList, /matchesCourse[\s\S]*matchesProfessor[\s\S]*matchesDate/, "Existing Course, Professor, and Date filters must be preserved.");
 assert.match(examList, /useListViewPreference\(\{ role: "cluster", page: "exam-review", defaultView: "table" \}\)/, "Cards/Table preference must remain table-first and cluster-scoped.");
 assert.match(examList, /getListPageSlice\(filtered, page, TABLE_PAGE_SIZE\)/, "Cluster exam queue pagination must stay table-sized and ignore stale card-view preferences.");
-assert.match(examList, /import \{ Field, RowActionMenu, SearchBox, SelectField, Table \} from "\.\.\/\.\.\/components\/ui"/, "Pending Exams should reuse the shared RowActionMenu for row actions.");
+assert.match(examList, /import \{[^}]*\bRowActionMenu\b[^}]*\} from "\.\.\/\.\.\/components\/ui"/, "Pending Exams should reuse the shared RowActionMenu for row actions.");
+assert.doesNotMatch(examList, /rejectExam\([^)]*"[^"]+"\)/, "Quick Reject must not send a hard-coded rejection reason.");
+assert.match(examList, /onClick: \(\) => openReject\(row\)/, "Quick Reject must open the rejection dialog first.");
+assert.match(examList, /Reason for rejection is required\.[\s\S]*rejectExam\(rejectTarget\.id, reason\)/, "Quick Reject must require a non-empty reviewer reason.");
 assert.match(examList, /const \[openActionMenuId, setOpenActionMenuId\] = useState\(""\)/, "Pending Exams should allow only one row action menu open at a time.");
 assert.doesNotMatch(examList, /RecordCardList|ListViewToolbar|listView\.view|switchViewPreservingPage|setCardDensity|cardDensity/, "ClusterExamList should be table-only with no Cards/Table selector or card branch.");
 assert.match(examList, /function TableDensityControls\(\{ tableDensity, onTableDensity \}\)/, "ClusterExamList should keep scoped table density controls.");
