@@ -9466,6 +9466,10 @@ html[data-theme="light"] .professor-course-list-card:hover {
   background: #ecfdf5;
   color: #047857;
 }
+.student-scan-alert.warning {
+  background: #fffbeb;
+  color: #92400e;
+}
 .student-camera-frame {
   position: relative;
   min-height: 360px;
@@ -9583,6 +9587,42 @@ html[data-theme="light"] .professor-course-list-card:hover {
   border-color: rgba(16, 185, 129, 0.32);
   background: rgba(16, 185, 129, 0.16);
   color: #86efac;
+}
+.student-scan-steps span.rejected {
+  border-color: rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.14);
+  color: #fca5a5;
+}
+.student-scan-steps span.warning {
+  border-color: rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.14);
+  color: #fcd34d;
+}
+.student-scan-step-select,
+.student-scan-step-action {
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+.student-scan-step-select {
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.student-scan-step-action {
+  margin-top: 6px;
+  min-height: 32px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 0.78rem;
+}
+.student-scan-step-select:focus-visible,
+.student-scan-step-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .student-scan-actions {
   display: flex;

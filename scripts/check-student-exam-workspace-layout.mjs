@@ -21,7 +21,9 @@ assert.match(exam, /moveOrderingAnswer\(question\.id, itemIndex, itemIndex - 1\)
 assert.match(exam, /moveOrderingAnswer\(question\.id, itemIndex, itemIndex \+ 1\)/, "Ordering must expose a non-drag Move Down fallback.");
 assert.match(exam, /switchEnvironmentCamera/, "Environment scan must support front/rear camera switching where the browser allows it.");
 assert.match(exam, /Use Photo/, "Environment scan must expose a Use Photo action after a successful capture flow.");
-assert.match(exam, /Front View[\s\S]*Left Side[\s\S]*Right Side[\s\S]*Upper Surroundings[\s\S]*Desk View/, "Environment scan must expose the required responsive scan checkpoints.");
+// Scan checkpoints live in the shared scan helper and are rendered from SCAN_ANGLES.
+assert.match(readFileSync("src/lib/environmentScan.js", "utf8"), /Front View[\s\S]*Left Side[\s\S]*Right Side[\s\S]*Upper Surroundings[\s\S]*Desk View/, "Environment scan must expose the required responsive scan checkpoints.");
+assert.match(exam, /SCAN_ANGLES\.map\(\(angle, index\)/, "Environment scan must render every scan checkpoint.");
 
 assert.match(styles, /\.student-exam-workspace\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(280px,\s*320px\)/, "Desktop workspace must use separate questionnaire and monitoring columns.");
 assert.match(styles, /\.student-exam-question-list\s*\{[\s\S]*min-width:\s*0/, "Questionnaire column must be allowed to shrink without horizontal overflow.");

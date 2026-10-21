@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FiArrowDown, FiArrowUp, FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiRepeat, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
 import { useNavigate, useParams } from "react-router-dom";
@@ -7,7 +7,23 @@ import AudioMonitoringTimeline from "../../components/exam/AudioMonitoringTimeli
 import { Button, Card, PageHeader } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useLiveAudioMonitoring } from "../../hooks/useLiveAudioMonitoring";
+import {
+  ANGLE_STATUS,
+  SCAN_ANGLES,
+  SCAN_FRAMES_PER_ANGLE,
+  SCAN_OUTCOME,
+  SCAN_REQUEST_CONFIDENCE,
+  analyzeAngleCapture,
+  assessCaptureQuality,
+  createScanState,
+  findDuplicateAngle,
+  isAngleCaptured,
+  parseDetectorResponse,
+  scanReducer,
+  summarizeScan,
+} from "../../lib/environmentScan";
 import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../../lib/examCompatibility";
+import { createLiveObjectMonitor } from "../../lib/liveObjectMonitor";
 import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
 import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig, normalizeChoiceItems } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -21,28 +37,23 @@ function moveItemToIndex(items, fromIndex, toIndex) {
   return next;
 }
 
-const scanCheckpoints = [
-  { id: "front", title: "Front View", instruction: "Face the camera forward and show the front of your exam environment.", message: "Front view captured." },
-  { id: "left", title: "Left Side", instruction: "Slowly show the left side of your environment.", message: "Left side captured." },
-  { id: "right", title: "Right Side", instruction: "Slowly show the right side of your environment.", message: "Right side captured." },
-  { id: "upper", title: "Upper Surroundings", instruction: "Tilt the camera upward and show the upper surroundings.", message: "Upper surroundings captured." },
-  { id: "desk", title: "Desk View", instruction: "Point the camera down and show your desk or work surface.", message: "Desk view captured." },
-];
+const SCAN_ANGLE_STATUS_LABELS = {
+  [ANGLE_STATUS.PENDING]: "Not captured",
+  [ANGLE_STATUS.CAPTURING]: "Capturing...",
+  [ANGLE_STATUS.ANALYZING]: "Captured - analyzing",
+  [ANGLE_STATUS.APPROVED]: "Approved",
+  [ANGLE_STATUS.REJECTED]: "Item detected",
+  [ANGLE_STATUS.RECAPTURE]: "Recapture needed",
+  [ANGLE_STATUS.ERROR]: "Check failed - retry",
+};
 
-const MIN_SCAN_DURATION_MS = 5000;
-const MAX_SCAN_DURATION_MS = 20000;
 const TAB_INACTIVE_GRACE_MS = 1000;
 const MAX_CAPTURE_RETRIES = 3;
-const SCAN_SAMPLE_MS = 500;
+const SCAN_BURST_INTERVAL_MS = 250;
 const ENV_SCAN_TIMEOUT_MS = 12000;
+// Covers the first COCO-SSD model download on slow connections; a timeout is a retryable technical failure.
+const ENV_SCAN_ANALYSIS_TIMEOUT_MS = 25000;
 const FULLSCREEN_START_TIMEOUT_MS = 4000;
-const MIN_FRAME_CHANGE_DISTANCE = 16;
-const MIN_UNIQUE_SCENE_DISTANCE = 26;
-const MIN_UNIQUE_VIEW_INTERVAL_MS = 650;
-const MAX_REPEATED_FRAME_SAMPLES = 12;
-const MIN_FRAME_TEXTURE_SCORE = 10;
-const CHECKPOINT_FRAMES_REQUIRED = 3;
-const CHECKPOINT_PROGRESS = 100 / (scanCheckpoints.length * CHECKPOINT_FRAMES_REQUIRED);
 const LOOKING_AWAY_LIMIT_MS = 5000;
 const LOOKING_DOWN_LIMIT_MS = 1500;
 const EYE_GAZE_LIMIT_MS = 3000;
@@ -55,17 +66,12 @@ const GAZE_REQUIRED_AWAY_SAMPLES = 3;
 const BASIC_FACE_SAMPLE_WIDTH = 160;
 const BASIC_FACE_SAMPLE_HEIGHT = 100;
 const OBJECT_SCAN_INTERVAL_MS = 1000;
-const ENV_SCAN_OBJECT_CONFIDENCE = 0.62;
-const ENV_SCAN_PHONE_CONFIDENCE = 0.25;
 const FILE_PICKER_SETTLE_MS = 350;
 const EXAM_INTERRUPTION_LIMIT = 3;
 const ROBOFLOW_OBJECT_CONFIDENCE = Number(import.meta.env.VITE_ROBOFLOW_OBJECT_CONFIDENCE || 0.35);
 const ROBOFLOW_MODEL_ID = import.meta.env.VITE_ROBOFLOW_MODEL || "spare-gadget-detection";
 const ROBOFLOW_MODEL_VERSION = import.meta.env.VITE_ROBOFLOW_MODEL_VERSION || "16";
 const ROBOFLOW_API_BASE = import.meta.env.VITE_ROBOFLOW_API_BASE || "https://detect.roboflow.com";
-const PHONE_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "cellular phone", "iphone", "android phone", "handphone", "mobile"]);
-const GADGET_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "cellular phone", "iphone", "android phone", "handphone", "mobile", "laptop", "tablet"]);
-const ROBOFLOW_GADGET_LABELS = new Set(["cell phone", "mobile phone", "phone", "smartphone", "cellphone", "cellular phone", "iphone", "android phone", "handphone", "mobile", "laptop", "tablet", "ipad"]);
 const SNAPSHOT_VIOLATION_TYPES = new Set(["MULTIPLE_FACE", "NO_FACE", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED"]);
 const FACE_LANDMARKER_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
 const VISION_WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
@@ -106,11 +112,6 @@ function normalizeDetectionLabel(value) {
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
-}
-
-function isPhoneDetectionLabel(value) {
-  const label = normalizeDetectionLabel(value);
-  return PHONE_LABELS.has(label) || label.includes("phone") || label.includes("iphone") || label.includes("mobile");
 }
 
 function normalizeExamSettings(settings) {
@@ -358,19 +359,6 @@ function getFrameSignature(context, width, height) {
   return signature;
 }
 
-function getSignatureDifference(previous, next) {
-  if (!previous?.length || !next?.length || previous.length !== next.length) return 0;
-  const total = next.reduce((sum, value, index) => sum + Math.abs(value - previous[index]), 0);
-  return total / next.length;
-}
-
-function getSignatureTextureScore(signature) {
-  if (!signature?.length) return 0;
-  const average = signature.reduce((sum, value) => sum + value, 0) / signature.length;
-  const variance = signature.reduce((sum, value) => sum + ((value - average) ** 2), 0) / signature.length;
-  return Math.sqrt(variance);
-}
-
 export default function StudentExamTake() {
   const { examId } = useParams();
   const { user } = useAuth();
@@ -425,22 +413,26 @@ export default function StudentExamTake() {
   const gazeCalibrationRef = useRef({ samples: [], baseline: null });
   const gazeHistoryRef = useRef([]);
   const objectMonitorRef = useRef(null);
-  const objectAlertCooldownRef = useRef(0);
-  const phoneAlertCooldownRef = useRef(0);
+  const liveObjectMonitorRef = useRef(createLiveObjectMonitor());
+  const objectDetectionInFlightRef = useRef(false);
   const objectDetectorRef = useRef(null);
   const orderingDragRef = useRef(null);
   const roboflowConnectionRef = useRef(null);
-  const roboflowAlertCooldownRef = useRef(0);
-  const orientationRef = useRef({ available: false, alpha: null, centerAlpha: null, samples: 0 });
   const scanCancelledRef = useRef(false);
   const scanInactiveTimerRef = useRef(null);
+  const scanCaptureInFlightRef = useRef(false);
+  const scanRequestCounterRef = useRef(0);
+  const scanDetectorLoadRef = useRef(null);
   const [scanOpen, setScanOpen] = useState(true);
   const [scanStatus, setScanStatus] = useState("idle");
-  const [scanStepIndex, setScanStepIndex] = useState(0);
-  const [scanMotion, setScanMotion] = useState({});
-  const [scanProgress, setScanProgress] = useState({});
+  const [scanState, dispatchScan] = useReducer(scanReducer, undefined, () => createScanState());
+  const scanStateRef = useRef(scanState);
+  scanStateRef.current = scanState;
+  const scanSummary = useMemo(() => summarizeScan(scanState), [scanState]);
+  const [selectedScanAngleId, setSelectedScanAngleId] = useState(null);
+  const [scanCameraReady, setScanCameraReady] = useState(false);
+  const [scanCapturing, setScanCapturing] = useState(false);
   const [scanFindings, setScanFindings] = useState([]);
-  const [scanSensorStatus, setScanSensorStatus] = useState("Motion sensor pending");
   const [scanFacingMode, setScanFacingMode] = useState("user");
   const [cameraError, setCameraError] = useState("");
   const [examModeReady, setExamModeReady] = useState(false);
@@ -846,6 +838,16 @@ export default function StudentExamTake() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanStatus]);
 
+  // The scan passes only when all five angles are captured and approved; exam entry still
+  // goes through fullscreen, device checks and authorize_exam_start.
+  useEffect(() => {
+    if (!(scanSummary.canEnterExam && scanStatus === "scanning")) return;
+    setScanFindings([]);
+    setScanStatus("passed");
+    stopEnvironmentCamera();
+    toast.success("Environment scan passed. You may now take the exam.");
+  }, [scanSummary.canEnterExam, scanStatus]);
+
   useEffect(() => {
     if (examModeReady && proctorStreamRef.current && proctorVideoRef.current) {
       proctorVideoRef.current.srcObject = proctorStreamRef.current;
@@ -1242,66 +1244,23 @@ export default function StudentExamTake() {
   }
 
   function resetEnvironmentScan(message) {
+    stopEnvironmentCamera();
+    dispatchScan({ type: "reset" });
+    setSelectedScanAngleId(null);
     setScanStatus("failed");
     setScanFindings([{ label: message, instruction: message }]);
-    setScanProgress({});
-    setScanMotion({});
-    setScanStepIndex(0);
-    stopEnvironmentCamera();
-  }
-
-  function handleDeviceOrientation(event) {
-    if (!Number.isFinite(event.alpha)) return;
-    orientationRef.current.available = true;
-    orientationRef.current.alpha = Number(event.alpha);
-    orientationRef.current.samples += 1;
-    if (!Number.isFinite(orientationRef.current.centerAlpha)) {
-      orientationRef.current.centerAlpha = Number(event.alpha);
-    }
-    setScanSensorStatus("Motion sensor active with visual coverage check");
-  }
-
-  async function startOrientationTracking() {
-    orientationRef.current = { available: false, alpha: null, centerAlpha: null, samples: 0 };
-    setScanSensorStatus("Checking camera movement");
-
-    try {
-      if (typeof window.DeviceOrientationEvent?.requestPermission === "function") {
-        const permission = await window.DeviceOrientationEvent.requestPermission();
-        if (permission !== "granted") {
-          setScanSensorStatus("Visual coverage mode active");
-          return;
-        }
-      }
-
-      window.addEventListener("deviceorientation", handleDeviceOrientation, true);
-      window.setTimeout(() => {
-        if (!orientationRef.current.available) {
-          setScanSensorStatus("Visual coverage mode active");
-        }
-      }, 1600);
-    } catch {
-      setScanSensorStatus("Visual coverage mode active");
-    }
-  }
-
-  function stopOrientationTracking() {
-    window.removeEventListener("deviceorientation", handleDeviceOrientation, true);
-    orientationRef.current = { available: false, alpha: null, centerAlpha: null, samples: 0 };
   }
 
   async function startEnvironmentScan() {
+    if (scanStatus === "scanning") return;
     setCameraError("");
     setScanFindings([]);
-    setScanMotion({});
-    setScanProgress({});
-    setScanSensorStatus("Checking camera movement");
-    setScanStepIndex(0);
+    dispatchScan({ type: "reset" });
+    setSelectedScanAngleId(null);
     setScanStatus("scanning");
     scanCancelledRef.current = false;
 
     try {
-      await startOrientationTracking();
       const stream = await window.navigator.mediaDevices.getUserMedia({
         video: { facingMode: scanFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
         audio: false,
@@ -1314,7 +1273,10 @@ export default function StudentExamTake() {
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       await waitForVideoReady();
-      await runLiveEnvironmentScan();
+      if (scanCancelledRef.current) return;
+      setScanCameraReady(true);
+      // Warm up the local detector so the first angle check does not wait for the model download.
+      void loadScanObjectDetector().catch((error) => window.console.warn("[EnvironmentScan] Local detector unavailable.", error));
     } catch (error) {
       window.console.error("[EnvironmentScan]", error);
       setScanStatus("idle");
@@ -1325,12 +1287,10 @@ export default function StudentExamTake() {
 
   function retakeEnvironmentScan() {
     stopEnvironmentCamera();
+    dispatchScan({ type: "reset" });
+    setSelectedScanAngleId(null);
     setCameraError("");
     setScanFindings([]);
-    setScanMotion({});
-    setScanProgress({});
-    setScanSensorStatus("Motion sensor pending");
-    setScanStepIndex(0);
     setScanStatus("idle");
   }
 
@@ -1342,7 +1302,7 @@ export default function StudentExamTake() {
 
   function stopEnvironmentCamera() {
     scanCancelledRef.current = true;
-    stopOrientationTracking();
+    setScanCameraReady(false);
     streamRef.current?.getTracks().forEach((track) => {
       track.onended = null;
       track.stop();
@@ -1382,11 +1342,9 @@ export default function StudentExamTake() {
     canvas.height = video.videoHeight;
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const signature = getFrameSignature(context, canvas.width, canvas.height);
     return {
       image: canvas.toDataURL("image/jpeg", 0.82),
-      signature,
-      textureScore: getSignatureTextureScore(signature),
+      signature: getFrameSignature(context, canvas.width, canvas.height),
       timestamp: Date.now(),
     };
   }
@@ -1400,163 +1358,144 @@ export default function StudentExamTake() {
     throw new Error("Image capture failed. Please try again.");
   }
 
-  async function runLiveEnvironmentScan() {
-    const collectedFrames = Object.fromEntries(scanCheckpoints.map((step) => [step.id, []]));
-    const progressScores = Object.fromEntries(scanCheckpoints.map((step) => [step.id, 0]));
-    const acceptedSignatures = Object.fromEntries(scanCheckpoints.map((step) => [step.id, []]));
-    const allAcceptedSignatures = [];
-    const captured = Object.fromEntries(scanCheckpoints.map((step) => [step.id, false]));
-    let previousSignature = null;
-    let repeatedSamples = 0;
-    let lastAcceptedAt = 0;
-    let checkpointIndex = 0;
-    const scanStartedAt = Date.now();
+  function getScanAngleTitle(angleId) {
+    return SCAN_ANGLES.find((angle) => angle.id === angleId)?.title || "previous angle";
+  }
 
-    while (checkpointIndex < scanCheckpoints.length) {
-      if (scanCancelledRef.current) return;
-      const checkpoint = scanCheckpoints[checkpointIndex];
-      setScanStepIndex(checkpointIndex);
-
-      if (Date.now() - scanStartedAt > MAX_SCAN_DURATION_MS) break;
-
-      const frame = await captureCurrentFrameWithRetry();
-      if (frame) {
-        const phoneFinding = await detectPhoneInScanFrame(frame.image, checkpoint.id);
-        if (phoneFinding) {
-          setScanFindings([phoneFinding]);
-          setScanStatus("failed");
-          setScanSensorStatus("Phone detected. Remove it and scan again.");
-          stopEnvironmentCamera();
-          toast.error("Phone detected during environment scan. Please remove it and scan again.");
-          return;
-        }
-
-        const frameChange = previousSignature ? getSignatureDifference(previousSignature, frame.signature) : MIN_FRAME_CHANGE_DISTANCE;
-        previousSignature = frame.signature;
-        repeatedSamples = frameChange < MIN_FRAME_CHANGE_DISTANCE ? repeatedSamples + 1 : 0;
-
-        if (repeatedSamples >= MAX_REPEATED_FRAME_SAMPLES) {
-          setScanSensorStatus("Progress paused. Slowly show a different side of your environment.");
-        }
-
-        const nearestSceneDistance = allAcceptedSignatures.length
-          ? Math.min(...allAcceptedSignatures.map((signature) => getSignatureDifference(signature, frame.signature)))
-          : Number.POSITIVE_INFINITY;
-        const nearestCheckpointDistance = acceptedSignatures[checkpoint.id].length
-          ? Math.min(...acceptedSignatures[checkpoint.id].map((signature) => getSignatureDifference(signature, frame.signature)))
-          : Number.POSITIVE_INFINITY;
-        const imageChanged = frameChange >= MIN_FRAME_CHANGE_DISTANCE;
-        const isUsefulFrame = frame.textureScore >= MIN_FRAME_TEXTURE_SCORE;
-        const isUniqueScene = !allAcceptedSignatures.length || nearestSceneDistance >= MIN_UNIQUE_SCENE_DISTANCE;
-        const isUniqueForCheckpoint = !acceptedSignatures[checkpoint.id].length || nearestCheckpointDistance >= MIN_UNIQUE_SCENE_DISTANCE;
-        const enoughTimePassed = Date.now() - lastAcceptedAt >= MIN_UNIQUE_VIEW_INTERVAL_MS;
-        const canAcceptFrame = isUsefulFrame && enoughTimePassed && (
-          !acceptedSignatures[checkpoint.id].length
-          || (imageChanged && isUniqueForCheckpoint && isUniqueScene)
-        );
-
-        if (canAcceptFrame) {
-          acceptedSignatures[checkpoint.id].push(frame.signature);
-          allAcceptedSignatures.push(frame.signature);
-          collectedFrames[checkpoint.id].push({
-            image: frame.image,
-            timestamp: frame.timestamp,
-            angle: checkpoint.id,
-          });
-          lastAcceptedAt = Date.now();
-
-          if (collectedFrames[checkpoint.id].length >= CHECKPOINT_FRAMES_REQUIRED) {
-            captured[checkpoint.id] = true;
-            checkpointIndex += 1;
-          }
-
-          const acceptedFrameCount = scanCheckpoints.reduce((total, step) => total + Math.min(CHECKPOINT_FRAMES_REQUIRED, collectedFrames[step.id].length), 0);
-          const totalProgress = Math.min(100, Math.round(acceptedFrameCount * CHECKPOINT_PROGRESS));
-          scanCheckpoints.forEach((step) => {
-            progressScores[step.id] = Math.min(100, Math.round((collectedFrames[step.id].length / CHECKPOINT_FRAMES_REQUIRED) * 100));
-          });
-          setScanProgress({ surroundings: totalProgress, ...progressScores });
-          setScanSensorStatus(captured[checkpoint.id] ? checkpoint.message : `Capturing ${checkpoint.title.toLowerCase()} ${progressScores[checkpoint.id]}%.`);
-        } else if (imageChanged && (!isUniqueScene || !isUniqueForCheckpoint)) {
-          setScanSensorStatus("This spot was already captured. Show a different part of your environment.");
-        } else if (!isUsefulFrame) {
-          setScanSensorStatus("Frame is too blurry or plain. Move slowly and show a clearer surrounding view.");
-        } else if (!imageChanged) {
-          setScanSensorStatus("Camera movement is too small. Slowly show a wider view of your environment.");
-        }
-
-        setScanMotion({
-          ...Object.fromEntries(scanCheckpoints.map((step) => [step.id, captured[step.id] ? 1 : 0])),
-          surroundings: Number.isFinite(nearestSceneDistance) ? nearestSceneDistance : MIN_UNIQUE_SCENE_DISTANCE,
-        });
-      }
-
-      await wait(SCAN_SAMPLE_MS);
-    }
-
-    if (scanCancelledRef.current) return;
-    if (Date.now() - scanStartedAt < MIN_SCAN_DURATION_MS) {
-      await wait(MIN_SCAN_DURATION_MS - (Date.now() - scanStartedAt));
-    }
-
-    const incompleteSide = scanCheckpoints.find((step) => !captured[step.id] || !collectedFrames[step.id].length);
-    if (incompleteSide) {
-      setScanStatus("failed");
-      setScanFindings([{ label: `${incompleteSide.title} not captured`, instruction: `Please show the ${incompleteSide.id} side of your environment.` }]);
-      stopEnvironmentCamera();
-      return;
-    }
-
-    setScanStatus("analyzing");
+  // Captures a short burst for one angle. Each angle keeps its own capture, so retaking one
+  // angle never touches the others; stale results are dropped by the scan reducer's ids.
+  async function captureScanAngle(angleId) {
+    if (scanCaptureInFlightRef.current || scanStatus !== "scanning" || !scanCameraReady) return;
+    scanCaptureInFlightRef.current = true;
+    setScanCapturing(true);
+    scanRequestCounterRef.current += 1;
+    const captureId = `${scanStateRef.current.sessionId}:${angleId}:capture:${scanRequestCounterRef.current}`;
+    dispatchScan({ type: "capture_started", angleId, captureId });
 
     try {
-      const result = await analyzeEnvironment(collectedFrames, progressScores);
-      const findings = result.findings || [];
-      if (result.passed === false || findings.length) {
-        setScanFindings(findings);
-        setScanStatus("failed");
-        stopEnvironmentCamera();
+      const shots = [];
+      for (let index = 0; index < SCAN_FRAMES_PER_ANGLE; index += 1) {
+        if (index) await wait(SCAN_BURST_INTERVAL_MS);
+        if (scanCancelledRef.current) return;
+        shots.push(await captureCurrentFrameWithRetry());
+      }
+
+      const quality = assessCaptureQuality(shots.map((shot) => shot.signature));
+      if (!quality.ok) {
+        dispatchScan({ type: "capture_failed", angleId, captureId, reason: quality.reason });
         return;
       }
 
-      setScanFindings([]);
-      setScanStatus("passed");
-      stopEnvironmentCamera();
-      toast.success("Environment scan passed. You may now take the exam.");
+      const signature = shots[Math.floor(shots.length / 2)].signature;
+      const capturedSignatures = Object.fromEntries(Object.values(scanStateRef.current.angles)
+        .filter((angle) => isAngleCaptured(angle))
+        .map((angle) => [angle.id, angle.signature]));
+      const duplicateOf = findDuplicateAngle(angleId, signature, capturedSignatures);
+      if (duplicateOf) {
+        dispatchScan({
+          type: "capture_failed",
+          angleId,
+          captureId,
+          reason: `This looks the same as the ${getScanAngleTitle(duplicateOf)} capture. Turn the camera to show the ${getScanAngleTitle(angleId).toLowerCase()}, then capture again.`,
+        });
+        return;
+      }
+
+      const frames = shots.map((shot) => ({ image: shot.image, timestamp: shot.timestamp, angle: angleId }));
+      dispatchScan({ type: "capture_succeeded", angleId, captureId, frames, signature });
+      setSelectedScanAngleId(null);
+      void runScanAngleAnalysis(angleId, frames);
     } catch (error) {
       window.console.error("[EnvironmentScan]", error);
-      setScanStatus("failed");
-      setScanFindings([{ label: getEnvironmentScanError(error), instruction: getEnvironmentScanError(error) }]);
-      stopEnvironmentCamera();
+      dispatchScan({ type: "capture_failed", angleId, captureId, reason: getEnvironmentScanError(error) });
+    } finally {
+      scanCaptureInFlightRef.current = false;
+      setScanCapturing(false);
     }
   }
 
-  async function analyzeEnvironment(frames, progressScores = {}) {
-    const capturedCount = scanCheckpoints.reduce((total, step) => total + (frames[step.id] || []).length, 0);
-    if (!capturedCount) throw new Error("No scan image was captured.");
+  async function runScanAngleAnalysis(angleId, frames) {
+    scanRequestCounterRef.current += 1;
+    const requestId = `${scanStateRef.current.sessionId}:${angleId}:analysis:${scanRequestCounterRef.current}`;
+    dispatchScan({ type: "analysis_started", angleId, requestId });
+    const result = await analyzeAngleCapture({
+      angleId,
+      frames,
+      detectors: [detectScanFramesWithRoboflow, detectScanFramesWithCocoSsd],
+      fallbackDetectors: [detectScanFramesWithScanEndpoint],
+      timeoutMs: ENV_SCAN_ANALYSIS_TIMEOUT_MS,
+    });
+    if (result.outcome === SCAN_OUTCOME.TECHNICAL) window.console.warn("[EnvironmentScan] Angle check failed.", angleId, result.reason);
+    dispatchScan({ type: "analysis_resolved", angleId, requestId, outcome: result.outcome, findings: result.findings, reason: result.reason });
+  }
 
-    try {
-      const roboflowResult = await analyzeEnvironmentWithRoboflow(frames, progressScores);
-      if (roboflowResult) {
-        return roboflowResult;
-      }
-    } catch (error) {
-      window.console.warn("[EnvironmentScan] Roboflow scan unavailable, using fallback analysis.", error);
-    }
+  function retryScanAngleAnalysis(angleId) {
+    const angle = scanStateRef.current.angles[angleId];
+    if (angle?.status !== ANGLE_STATUS.ERROR || !angle.frames.length) return;
+    void runScanAngleAnalysis(angleId, angle.frames);
+  }
 
-    const localFindings = await detectEnvironmentGadgets(frames);
-    if (localFindings.length) {
-      return { passed: false, findings: localFindings };
-    }
+  function retakeScanAngle(angleId) {
+    dispatchScan({ type: "retake", angleId });
+    setSelectedScanAngleId(angleId);
+  }
 
-    const endpoint = getUsableScanEndpoint(import.meta.env.VITE_ENV_SCAN_ENDPOINT);
+  async function detectScanFramesWithRoboflow(frames) {
+    const endpoint = getRoboflowImageScanEndpoint();
+    const images = frames.map((frame) => dataUrlToPayload(frame.image));
+
     if (!endpoint) {
-      return { passed: true, findings: [] };
+      if (!import.meta.env.VITE_ROBOFLOW_API_KEY) return null;
+      const results = await Promise.all(images.map((image) => runDirectRoboflowImageDetection(image, SCAN_REQUEST_CONFIDENCE)));
+      return { frames: results.map((result) => ({ predictions: result?.predictions, image: result?.image })) };
     }
+
+    const response = await fetchWithTimeout(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        examId,
+        studentId: user?.id,
+        frames: [{ angle: frames[0]?.angle, images }],
+      }),
+    });
+    const result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(result?.error || `Roboflow analysis server error (${response.status}).`);
+    return result;
+  }
+
+  function loadScanObjectDetector() {
+    if (objectDetectorRef.current) return Promise.resolve(objectDetectorRef.current);
+    scanDetectorLoadRef.current ||= loadCocoSsd()
+      .then((cocoSsd) => cocoSsd.load())
+      .then((model) => {
+        objectDetectorRef.current ||= model;
+        return objectDetectorRef.current;
+      })
+      .finally(() => {
+        scanDetectorLoadRef.current = null;
+      });
+    return scanDetectorLoadRef.current;
+  }
+
+  async function detectScanFramesWithCocoSsd(frames) {
+    const detector = await loadScanObjectDetector();
+    const results = [];
+    for (const frame of frames) {
+      const image = await loadScanImage(frame.image);
+      const predictions = await detector.detect(image);
+      results.push({ predictions, image: { width: image.naturalWidth, height: image.naturalHeight } });
+    }
+    return { frames: results };
+  }
+
+  // Used only when neither Roboflow nor the local detector produced a result.
+  async function detectScanFramesWithScanEndpoint(frames) {
+    const endpoint = getUsableScanEndpoint(import.meta.env.VITE_ENV_SCAN_ENDPOINT);
+    if (!endpoint || !hasSupabaseConfig) return null;
 
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
-
     const response = await fetchWithTimeout(endpoint, {
       method: "POST",
       headers: {
@@ -1566,56 +1505,12 @@ export default function StudentExamTake() {
       body: JSON.stringify({
         examId,
         studentId: user?.id,
-        frames: scanCheckpoints.map((step) => ({
-          angle: step.id,
-          images: (frames[step.id] || []).map((frame) => dataUrlToPayload(frame.image || frame)),
-          captures: (frames[step.id] || []).map((frame) => ({
-            timestamp: frame.timestamp,
-            angle: frame.angle,
-          })),
-          movementScore: Number((progressScores[step.id] || 0).toFixed(2)),
-        })),
+        frames: [{ angle: frames[0]?.angle, images: frames.map((frame) => dataUrlToPayload(frame.image)) }],
       }),
     });
-
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || `Analysis server error (${response.status}). Please try again.`);
+    const result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(result?.error || `Analysis server error (${response.status}).`);
     return result;
-  }
-
-  async function analyzeEnvironmentWithRoboflow(frames, progressScores = {}) {
-    const proxyUrl = import.meta.env.VITE_ROBOFLOW_PROXY_URL;
-    const endpoint = getUsableScanEndpoint(import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT || (proxyUrl ? `${proxyUrl.replace(/\/$/, "")}/api/environment-scan` : ""));
-    const framePayload = scanCheckpoints.map((step) => ({
-      angle: step.id,
-      images: (frames[step.id] || []).map((frame) => dataUrlToPayload(frame.image || frame)),
-      captures: (frames[step.id] || []).map((frame) => ({
-        timestamp: frame.timestamp,
-        angle: frame.angle,
-      })),
-      movementScore: Number((progressScores[step.id] || 0).toFixed(2)),
-    }));
-
-    if (!endpoint) {
-      return analyzeEnvironmentWithDirectRoboflow(framePayload);
-    }
-
-    const response = await fetchWithTimeout(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        examId,
-        studentId: user?.id,
-        frames: framePayload,
-      }),
-    });
-
-    if (!response.ok) {
-      const result = await response.json().catch(() => ({}));
-      throw new Error(result.error || `Roboflow analysis server error (${response.status}). Please try again.`);
-    }
-
-    return response.json();
   }
 
   async function runDirectRoboflowImageDetection(image, confidence = ROBOFLOW_OBJECT_CONFIDENCE) {
@@ -1639,36 +1534,6 @@ export default function StudentExamTake() {
     return response.json();
   }
 
-  async function analyzeEnvironmentWithDirectRoboflow(framePayload) {
-    if (!import.meta.env.VITE_ROBOFLOW_API_KEY) return null;
-
-    const findings = [];
-    const detectedLabels = new Set();
-    for (const frame of framePayload) {
-      for (const image of frame.images || []) {
-        const result = await runDirectRoboflowImageDetection(image);
-        const prediction = collectRoboflowPredictions(result).find((item) => (
-          (ROBOFLOW_GADGET_LABELS.has(item.label) || isPhoneDetectionLabel(item.label))
-          && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE
-          && !detectedLabels.has(item.label)
-        ));
-        if (!prediction) continue;
-        detectedLabels.add(prediction.label);
-        findings.push({
-          angle: frame.angle,
-          class: prediction.label,
-          name: prediction.label,
-          label: `${getDetectedGadgetLabel(prediction)} detected by Roboflow`,
-          detected: true,
-          confidence: prediction.confidence,
-          instruction: `Remove the detected item from your exam area and scan again. Confidence: ${Math.round(prediction.confidence * 100)}%.`,
-        });
-      }
-    }
-
-    return { passed: findings.length === 0, findings };
-  }
-
   function loadScanImage(dataUrl) {
     return new Promise((resolve, reject) => {
       const image = new window.Image();
@@ -1676,99 +1541,6 @@ export default function StudentExamTake() {
       image.onerror = () => reject(new Error("Unable to read scan frame."));
       image.src = dataUrl;
     });
-  }
-
-  function getSampledScanFrames(images = []) {
-    if (images.length <= 4) return images;
-    const indexes = new Set([0, Math.floor(images.length / 3), Math.floor(images.length / 2), images.length - 1]);
-    return [...indexes].map((index) => images[index]).filter(Boolean);
-  }
-
-  function buildGadgetFinding(prediction) {
-    const label = normalizeDetectionLabel(prediction.class || prediction.label || prediction.name || "gadget");
-    const readableLabel = isPhoneDetectionLabel(label) ? "Phone detected. Please remove it and scan again." : `${label} detected. Please remove it and scan again.`;
-    return {
-      label: readableLabel,
-      detected: true,
-      confidence: Number(prediction.score ?? prediction.confidence ?? 0),
-      instruction: "Remove extra gadgets from the exam area and scan again.",
-    };
-  }
-
-  async function detectPhoneInScanFrame(dataUrl, angle) {
-    try {
-      const roboflowResult = await runDirectRoboflowImageDetection(dataUrlToPayload(dataUrl), ENV_SCAN_PHONE_CONFIDENCE);
-      const roboflowPhone = collectRoboflowPredictions(roboflowResult).find((item) => (
-        isPhoneDetectionLabel(item.label)
-        && item.confidence >= ENV_SCAN_PHONE_CONFIDENCE
-      ));
-
-      if (roboflowPhone) {
-        return {
-          angle,
-          class: roboflowPhone.label,
-          name: roboflowPhone.label,
-          label: "Phone detected by Roboflow. Please remove it and scan again.",
-          detected: true,
-          confidence: roboflowPhone.confidence,
-          instruction: "Phone detected. Remove it from the exam area and scan again.",
-        };
-      }
-
-      if (!objectDetectorRef.current) {
-        const cocoSsd = await loadCocoSsd();
-        objectDetectorRef.current = await cocoSsd.load();
-      }
-
-      const image = await loadScanImage(dataUrl);
-      const predictions = await objectDetectorRef.current.detect(image);
-      const phone = predictions.find((item) => (
-        isPhoneDetectionLabel(item.class || item.label || item.name)
-        && Number(item.score ?? item.confidence ?? 0) >= ENV_SCAN_PHONE_CONFIDENCE
-      ));
-
-      if (!phone) return null;
-
-      return {
-        ...buildGadgetFinding(phone),
-        angle,
-        instruction: "Phone detected. Remove it from the exam area and scan again.",
-      };
-    } catch (error) {
-      window.console.warn("[EnvironmentScan] Phone frame check unavailable.", error);
-      return null;
-    }
-  }
-
-  async function detectEnvironmentGadgets(frames) {
-    try {
-      if (!objectDetectorRef.current) {
-        const cocoSsd = await loadCocoSsd();
-        objectDetectorRef.current = await cocoSsd.load();
-      }
-
-      const findings = [];
-    for (const step of scanCheckpoints) {
-        const sampledFrames = getSampledScanFrames(frames[step.id] || []);
-        for (const frame of sampledFrames) {
-          const image = await loadScanImage(frame.image || frame);
-          const predictions = await objectDetectorRef.current.detect(image);
-          const detected = predictions.find((item) => (
-            GADGET_LABELS.has(normalizeDetectionLabel(item.class))
-            && Number(item.score || 0) >= ENV_SCAN_OBJECT_CONFIDENCE
-          ));
-          if (detected) {
-            findings.push(buildGadgetFinding(detected, step.id));
-            break;
-          }
-        }
-      }
-
-      return findings;
-    } catch (error) {
-      window.console.error("[EnvironmentScan]", error);
-      return [];
-    }
   }
 
   function recordManualViolation(type, message, severity = "Medium") {
@@ -2079,8 +1851,7 @@ export default function StudentExamTake() {
       window.clearInterval(objectMonitorRef.current);
       objectMonitorRef.current = null;
     }
-    objectAlertCooldownRef.current = 0;
-    phoneAlertCooldownRef.current = 0;
+    liveObjectMonitorRef.current = createLiveObjectMonitor();
     objectDetectorRef.current = null;
     setRoboflowStatus("Roboflow detector off");
     setFaceStatus("Checking face position");
@@ -2405,10 +2176,9 @@ export default function StudentExamTake() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ image: dataUrlToPayload(image), examId, studentId: user?.id }),
     });
-    if (!response.ok) return null;
-    const result = await response.json();
-    const predictions = result.predictions || result.objects || [];
-    return predictions.find((item) => GADGET_LABELS.has(normalizeDetectionLabel(item.class || item.label || item.name)) && Number(item.confidence ?? item.score ?? 1) >= 0.45);
+    const result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(result?.error || `Object detector error (${response.status}).`);
+    return parseDetectorResponse({ predictions: result?.predictions ?? result?.objects }).frames[0].predictions;
   }
 
   function getRoboflowImageScanEndpoint() {
@@ -2428,11 +2198,8 @@ export default function StudentExamTake() {
     const image = dataUrlToPayload(canvas.toDataURL("image/jpeg", 0.78));
 
     if (!endpoint) {
-      const result = await runDirectRoboflowImageDetection(image);
-      return collectRoboflowPredictions(result).find((item) => (
-        (ROBOFLOW_GADGET_LABELS.has(item.label) || isPhoneDetectionLabel(item.label))
-        && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE
-      )) || null;
+      const result = await runDirectRoboflowImageDetection(image, SCAN_REQUEST_CONFIDENCE);
+      return result ? parseDetectorResponse(result).frames[0].predictions : null;
     }
 
     const response = await fetchWithTimeout(endpoint, {
@@ -2444,10 +2211,9 @@ export default function StudentExamTake() {
         frames: [{ angle: "live camera", images: [image] }],
       }),
     });
-    if (!response.ok) return null;
-
-    const result = await response.json();
-    return (result.findings || []).find((item) => item.detected);
+    const result = await response.json().catch(() => null);
+    if (!response.ok) throw new Error(result?.error || `Roboflow analysis server error (${response.status}).`);
+    return parseDetectorResponse(result).frames.flatMap((frame) => frame.predictions);
   }
 
   async function detectWithCocoSsd(video) {
@@ -2456,7 +2222,7 @@ export default function StudentExamTake() {
       objectDetectorRef.current = await cocoSsd.load();
     }
     const predictions = await objectDetectorRef.current.detect(video);
-    return predictions.find((item) => GADGET_LABELS.has(normalizeDetectionLabel(item.class)) && Number(item.score || 0) >= 0.5);
+    return predictions.map((item) => ({ ...item, imageWidth: video.videoWidth, imageHeight: video.videoHeight }));
   }
 
   function getRoboflowConfig() {
@@ -2502,34 +2268,20 @@ export default function StudentExamTake() {
     return items;
   }
 
-  function getDetectedGadgetLabel(item) {
-    const rawLabel = normalizeDetectionLabel(item.class || item.label || item.name || item.class_name || "gadget");
-    if (isPhoneDetectionLabel(rawLabel)) return "phone";
-    if (rawLabel.includes("tablet") || rawLabel.includes("ipad")) return "tablet";
-    if (rawLabel.includes("laptop")) return "laptop";
-    return rawLabel;
+  // Confirmed events record one violation each; uncertain detections only warn; a continuous event
+  // stays latched until the monitor sees it clear, so it cannot count toward the limit twice.
+  function applyLiveObjectActions(actions) {
+    actions.forEach((action) => {
+      if (action.type === "violation") recordManualViolation(action.violationType, action.message, "High");
+      else if (action.type === "uncertain") toast.warning(action.message, { id: `live-object-${action.category}` });
+      else if (action.type === "cleared" && !liveObjectMonitorRef.current.activeTypes().has(action.violationType)) {
+        incidentTrackerRef.current.clear(action.violationType);
+      }
+    });
   }
 
   function handleRoboflowData(data) {
-    const predictions = collectRoboflowPredictions(data);
-    const detected = predictions.find((item) => (ROBOFLOW_GADGET_LABELS.has(item.label) || isPhoneDetectionLabel(item.label)) && item.confidence >= ROBOFLOW_OBJECT_CONFIDENCE);
-    if (!detected) {
-      if (roboflowConnectionRef.current) {
-        incidentTrackerRef.current.clear("PHONE_DETECTED");
-        incidentTrackerRef.current.clear("GADGET_DETECTED");
-      }
-      return;
-    }
-
-    const isPhone = isPhoneDetectionLabel(detected.label) || detected.label === "tablet" || detected.label === "ipad";
-    const cooldownRef = isPhone ? phoneAlertCooldownRef : roboflowAlertCooldownRef;
-    if (Date.now() - cooldownRef.current < 8000) return;
-
-    cooldownRef.current = Date.now();
-    const message = isPhone
-      ? `Phone or tablet detected by Roboflow live camera (${Math.round(detected.confidence * 100)}%).`
-      : `Spare gadget detected by Roboflow live camera (${Math.round(detected.confidence * 100)}%).`;
-    recordManualViolation(isPhone ? "PHONE_DETECTED" : "GADGET_DETECTED", message, "High");
+    applyLiveObjectActions(liveObjectMonitorRef.current.observe({ ok: true, predictions: collectRoboflowPredictions(data) }));
   }
 
   async function startRoboflowMonitoring(stream) {
@@ -2571,37 +2323,30 @@ export default function StudentExamTake() {
 
   async function detectProctorObjects() {
     const video = proctorVideoRef.current;
-    if (!video?.videoWidth) return;
+    if (!video?.videoWidth || objectDetectionInFlightRef.current) return;
+    objectDetectionInFlightRef.current = true;
 
     try {
-      let detected = null;
+      // Every available detector contributes to one sample; if all of them fail the sample is a
+      // technical failure, which never confirms, extends or clears a detection.
+      const predictions = [];
+      let succeeded = false;
       for (const detector of [detectWithRoboflowImage, detectWithEndpoint, detectWithCocoSsd]) {
         try {
-          detected = await detector(video);
+          const result = await detector(video);
+          if (result) {
+            predictions.push(...result);
+            succeeded = true;
+          }
         } catch (error) {
           window.console.warn("[ObjectDetection] Detector unavailable.", error);
         }
-        if (detected) break;
       }
-
-      if (detected) {
-        const label = getDetectedGadgetLabel(detected);
-        const isPhone = label === "phone";
-        const isTablet = label === "tablet" || label === "ipad";
-        const isLaptop = label === "laptop";
-        const readableLabel = isPhone ? "Phone" : isTablet ? "Tablet" : isLaptop ? "Laptop" : "Gadget";
-        const violationType = isPhone || isTablet ? "PHONE_DETECTED" : "GADGET_DETECTED";
-        const cooldownRef = violationType === "PHONE_DETECTED" ? phoneAlertCooldownRef : objectAlertCooldownRef;
-        if (Date.now() - cooldownRef.current < 8000) return;
-
-        cooldownRef.current = Date.now();
-        recordManualViolation(violationType, `${readableLabel} detected in camera view.`, "High");
-      } else if (!roboflowConnectionRef.current) {
-        incidentTrackerRef.current.clear("PHONE_DETECTED");
-        incidentTrackerRef.current.clear("GADGET_DETECTED");
-      }
+      applyLiveObjectActions(liveObjectMonitorRef.current.observe({ ok: succeeded, predictions }));
     } catch {
       // Keep exam proctoring active even if the optional object detector is unreachable.
+    } finally {
+      objectDetectionInFlightRef.current = false;
     }
   }
 
@@ -3280,11 +3025,25 @@ export default function StudentExamTake() {
   }
 
   if (!scanPassed || scanOpen) {
-    const currentStep = scanCheckpoints[scanStepIndex] || scanCheckpoints[0];
-    const currentStepProgress = Math.min(100, scanProgress.surroundings || 0);
-    const scanProgressSummary = scanCheckpoints
-      .map((step) => `${step.title.replace(" View", "")} ${Math.round(scanProgress[step.id] || 0)}%`)
-      .join(" - ");
+    const scanActive = scanStatus === "scanning";
+    const activeScanAngleId = selectedScanAngleId || scanSummary.nextAngleId;
+    const activeScanAngle = SCAN_ANGLES.find((angle) => angle.id === activeScanAngleId) || null;
+    const capturedPercent = Math.round((scanSummary.capturedCount / scanSummary.total) * 100);
+    const scanIssues = SCAN_ANGLES
+      .map((angle) => scanState.angles[angle.id])
+      .filter((angle) => angle.reason && [ANGLE_STATUS.REJECTED, ANGLE_STATUS.RECAPTURE, ANGLE_STATUS.ERROR].includes(angle.status));
+    const outcomeAlert = scanActive ? {
+      [SCAN_OUTCOME.RISK]: { tone: "danger", title: "Prohibited item detected", text: "Remove the item from your exam area, then retake the affected angle." },
+      [SCAN_OUTCOME.RESCAN]: { tone: "warning", title: "Some angles need to be retaken", text: "Only the listed angles need a new capture." },
+      [SCAN_OUTCOME.TECHNICAL]: { tone: "warning", title: "The environment check could not finish", text: "This is a connection or service problem, not a violation. Retry the check for the listed angle." },
+    }[scanSummary.outcome] : null;
+    const captureLabel = !scanCameraReady
+      ? "Starting camera..."
+      : scanCapturing
+        ? "Capturing..."
+        : activeScanAngle
+          ? `Capture ${activeScanAngle.title}`
+          : scanSummary.outcome === "analyzing" ? "Checking captures..." : "All angles captured";
 
     return (
       <section className="student-exam-take-page">
@@ -3297,24 +3056,37 @@ export default function StudentExamTake() {
           <div className="student-scan-hero">
             <div>
               <FiShield />
-              <h2>{scanStatus === "passed" ? "Scan Passed" : currentStep.title}</h2>
-              <p>{scanStatus === "passed" ? "Your environment scan is complete. You can proceed to the exam." : scanStatus === "scanning" ? `Scanning... ${Math.round(currentStepProgress)}%` : currentStep.instruction}</p>
+              <h2>{scanStatus === "passed" ? "Scan Passed" : scanActive && activeScanAngle ? activeScanAngle.title : "Environment Scan"}</h2>
+              <p>
+                {scanStatus === "passed"
+                  ? "Your environment scan is complete. You can proceed to the exam."
+                  : scanActive
+                    ? activeScanAngle ? `${activeScanAngle.instruction} Then press Capture.` : "All five angles are captured. Waiting for the environment check to finish."
+                    : "Start the camera, then capture the front, left, right, upper and desk views one at a time."}
+              </p>
             </div>
-            <span>{scanStatus === "scanning" ? `${currentStep.title}` : scanStatus === "analyzing" ? "Checking" : "Required"}</span>
+            <span>{scanSummary.capturedCount} of {scanSummary.total} captured</span>
           </div>
 
           {cameraError ? <div className="student-scan-alert danger"><FiXCircle /> {cameraError}</div> : null}
-          {scanStatus === "failed" ? (
-            <div className="student-scan-alert danger">
+          {scanStatus === "failed" && scanFindings.length ? (
+            <div className="student-scan-alert danger" role="alert">
               <FiXCircle />
               <div>
-                <strong>{scanFindings.some((finding) => finding.detected) ? "Environment Check Failed" : "Environment scan needs to be repeated."}</strong>
-                <p>{scanFindings[0]?.instruction || (scanFindings.some((finding) => finding.detected) ? "Remove all unauthorized devices and perform the scan again." : "Please show the left, center, and right side of your environment.")}</p>
-                {scanFindings.length ? (
-                  <ul>
-                    {scanFindings.map((finding, index) => <li key={`${finding.label}-${index}`}>{finding.label || "Suspicious item"}{finding.confidence ? ` - ${Math.round(finding.confidence * 100)}%` : ""}</li>)}
-                  </ul>
-                ) : null}
+                <strong>Environment scan needs to be repeated.</strong>
+                <p>{scanFindings[0].instruction || scanFindings[0].label}</p>
+              </div>
+            </div>
+          ) : null}
+          {outcomeAlert ? (
+            <div className={`student-scan-alert ${outcomeAlert.tone}`} role="alert">
+              <FiXCircle />
+              <div>
+                <strong>{outcomeAlert.title}</strong>
+                <p>{outcomeAlert.text}</p>
+                <ul>
+                  {scanIssues.map((angle) => <li key={angle.id}>{getScanAngleTitle(angle.id)}: {angle.reason}</li>)}
+                </ul>
               </div>
             </div>
           ) : null}
@@ -3334,49 +3106,57 @@ export default function StudentExamTake() {
             <canvas ref={canvasRef} />
           </div>
 
-          {scanStatus === "scanning" ? (
-            <div className="student-scan-progress">
-              <span style={{ width: `${currentStepProgress}%` }} />
-            </div>
-          ) : null}
-
-          {scanStatus === "scanning" ? (
-            <div className="student-scan-meter">
+          {scanActive ? (
+            <div className="student-scan-meter" aria-live="polite">
               <div>
-                <strong>Surroundings coverage</strong>
-                <span>{Math.round(currentStepProgress)}%</span>
+                <strong>{scanSummary.capturedCount} of {scanSummary.total} captured</strong>
+                <span>{scanSummary.approvedCount} approved</span>
               </div>
               <div>
-                <span style={{ width: `${currentStepProgress}%` }} />
+                <span style={{ width: `${capturedPercent}%` }} />
               </div>
-              <small>{scanProgressSummary}</small>
-              <small>{scanSensorStatus}</small>
-              <small>
-                {(scanMotion.surroundings || 0) >= MIN_UNIQUE_SCENE_DISTANCE
-                  ? scanSensorStatus
-                  : "Progress pauses when the camera is still, repeated, blurry, or pointed at the same area."}
-              </small>
+              <small>Each angle is checked separately. Retaking one angle keeps the others.</small>
             </div>
           ) : null}
 
           <div className="student-scan-steps">
-            {scanCheckpoints.map((step, index) => (
-              <span className={(scanProgress[step.id] || 0) >= 100 ? "done" : index === scanStepIndex && scanStatus === "scanning" ? "active" : ""} key={step.id}>
-                {index + 1}. {step.title}
-                <small>{Math.round(scanProgress[step.id] || 0)}% captured</small>
-              </span>
-            ))}
-            <span className={scanStatus === "analyzing" || scanStatus === "passed" ? "active" : ""}>
-              {scanCheckpoints.length + 1}. Keep the tab active until scan completes.
+            {SCAN_ANGLES.map((angle, index) => {
+              const angleState = scanState.angles[angle.id];
+              const status = angleState.status;
+              const tone = status === ANGLE_STATUS.APPROVED
+                ? "done"
+                : status === ANGLE_STATUS.REJECTED
+                  ? "rejected"
+                  : [ANGLE_STATUS.RECAPTURE, ANGLE_STATUS.ERROR].includes(status)
+                    ? "warning"
+                    : scanActive && angle.id === activeScanAngleId ? "active" : "";
+              const canSelect = scanActive && !scanCapturing && angle.id !== activeScanAngleId && [ANGLE_STATUS.PENDING, ANGLE_STATUS.RECAPTURE, ANGLE_STATUS.REJECTED].includes(status);
+              const canRetake = scanActive && !scanCapturing && [ANGLE_STATUS.ANALYZING, ANGLE_STATUS.APPROVED, ANGLE_STATUS.ERROR].includes(status);
+              return (
+                <span className={tone} key={angle.id}>
+                  {canSelect ? (
+                    <button className="student-scan-step-select" onClick={() => setSelectedScanAngleId(angle.id)} type="button">{index + 1}. {angle.title}</button>
+                  ) : <>{index + 1}. {angle.title}</>}
+                  <small>{scanStatus === "passed" ? "Approved" : SCAN_ANGLE_STATUS_LABELS[status]}</small>
+                  {scanActive && status === ANGLE_STATUS.ERROR ? (
+                    <button className="student-scan-step-action" onClick={() => retryScanAngleAnalysis(angle.id)} type="button">Retry check</button>
+                  ) : null}
+                  {canRetake ? (
+                    <button className="student-scan-step-action" onClick={() => retakeScanAngle(angle.id)} type="button">Retake</button>
+                  ) : null}
+                </span>
+              );
+            })}
+            <span className={scanStatus === "passed" ? "done" : ""}>
+              {SCAN_ANGLES.length + 1}. Keep the tab active until the scan completes.
             </span>
           </div>
 
           <div className="student-scan-actions">
-            <Button disabled={scanStatus === "scanning" || scanStatus === "analyzing"} onClick={switchEnvironmentCamera} type="button"><FiRepeat /> {scanFacingMode === "user" ? "Use Rear Camera" : "Use Front Camera"}</Button>
-            {scanStatus === "idle" || scanStatus === "failed" ? <Button onClick={startEnvironmentScan}><FiCamera /> Start Live Scan</Button> : null}
-            {scanStatus === "scanning" ? <Button disabled><FiCamera /> Keep Scanning...</Button> : null}
-            {scanStatus === "analyzing" ? <Button disabled><FiRefreshCw /> Analyzing...</Button> : null}
-            {scanStatus === "failed" || scanStatus === "passed" ? <Button onClick={retakeEnvironmentScan} type="button"><FiRefreshCw /> Retake</Button> : null}
+            <Button disabled={scanActive} onClick={switchEnvironmentCamera} type="button"><FiRepeat /> {scanFacingMode === "user" ? "Use Rear Camera" : "Use Front Camera"}</Button>
+            {scanStatus === "idle" || scanStatus === "failed" ? <Button onClick={startEnvironmentScan}><FiCamera /> Start Scan</Button> : null}
+            {scanActive ? <Button disabled={!scanCameraReady || scanCapturing || !activeScanAngle} onClick={() => captureScanAngle(activeScanAngle.id)} type="button"><FiCamera /> {captureLabel}</Button> : null}
+            {scanActive || scanStatus === "failed" || scanStatus === "passed" ? <Button onClick={retakeEnvironmentScan} type="button"><FiRefreshCw /> {scanStatus === "passed" ? "Retake" : "Restart Scan"}</Button> : null}
             {scanStatus === "passed" ? <Button disabled={examStarting} onClick={enterExamMode}><FiCheckCircle /> Use Photo / {secureModeRequired ? "Continue to Secure Exam" : "Start Exam"}</Button> : null}
           </div>
         </Card>

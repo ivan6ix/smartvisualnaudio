@@ -5,9 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-const requiredAngles = new Set(["left", "center", "right"]);
-const minimumFramesPerAngle = 3;
-const minimumPanProgress = 100;
+// Must match SCAN_ANGLES in src/lib/environmentScan.js. The browser sends one angle per request.
+const scanAngles = new Set(["front", "left", "right", "upper", "desk"]);
+const maximumImagesPerAngle = 5;
+// Legacy summary only; the browser classifies the per-frame predictions returned in `frames`.
 const suspiciousLabels = [
   "phone",
   "cell phone",
@@ -42,11 +43,11 @@ function isSuspiciousPrediction(prediction: Record<string, unknown>) {
   return confidence >= 0.45 && suspiciousLabels.some((item) => label.includes(item));
 }
 
-async function callExternalDetector(frame: { angle: string; image: string }) {
+async function callExternalDetector(frame: { angle: string; image: string; frameIndex: number }) {
   const endpoint = Deno.env.get("ENV_SCAN_DETECTOR_ENDPOINT");
   const apiKey = Deno.env.get("ENV_SCAN_DETECTOR_API_KEY");
 
-  if (!endpoint) return [];
+  if (!endpoint) return { ...frame, image: undefined, predictions: [] };
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -62,10 +63,15 @@ async function callExternalDetector(frame: { angle: string; image: string }) {
   }
 
   const result = await response.json();
-  const predictions = Array.isArray(result.predictions) ? result.predictions : Array.isArray(result.objects) ? result.objects : [];
-  return predictions
-    .filter((prediction: Record<string, unknown>) => isSuspiciousPrediction(prediction))
-    .map((prediction: Record<string, unknown>) => ({
+  const predictions = Array.isArray(result.predictions) ? result.predictions : Array.isArray(result.objects) ? result.objects : null;
+  if (!predictions) throw new Error(`Detector returned an unexpected response for ${frame.angle} scan.`);
+  return { angle: frame.angle, frameIndex: frame.frameIndex, image: result.image, predictions };
+}
+
+function toLegacyFindings(frame: { angle: string; predictions: Record<string, unknown>[] }) {
+  return frame.predictions
+    .filter((prediction) => isSuspiciousPrediction(prediction))
+    .map((prediction) => ({
       angle: frame.angle,
       label: prediction.class || prediction.label || prediction.name || "Suspicious item",
       confidence: Number(prediction.confidence || prediction.score || 0),
@@ -104,55 +110,34 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const frames = Array.isArray(body.frames) ? body.frames : [];
 
-    if (frames.length !== 3) {
-      return json({ error: "Environment scan requires left, center, and right frames." }, 400);
-    }
-
-    const missingAngles = [...requiredAngles].filter((angle) => {
-      const frame = frames.find((item) => item.angle === angle);
-      return !frame || normalizeFrameBatch(frame).length < minimumFramesPerAngle;
-    });
-
-    if (missingAngles.length) {
-      return json({ error: `Incomplete live scan for: ${missingAngles.join(", ")}.` }, 400);
-    }
-
-    const lowMovementAngles = ["left", "right"].filter((angle) => {
-      const frame = frames.find((item) => item.angle === angle);
-      return Number(frame?.movementScore || 0) < minimumPanProgress;
-    });
-
-    if (lowMovementAngles.length) {
-      return json({
-        passed: false,
-        findings: lowMovementAngles.map((angle) => ({
-          angle,
-          label: `${angle} scan movement too low`,
-          confidence: 1,
-        })),
-      });
+    // Each request carries one or more of the five scan angles; completeness is tracked per angle
+    // in the browser, so a partial request is valid and never reported as an incomplete scan.
+    const invalidFrame = !frames.length || frames.length > scanAngles.size || frames.some((frame) => (
+      !scanAngles.has(String(frame?.angle)) || !normalizeFrameBatch(frame).length || normalizeFrameBatch(frame).length > maximumImagesPerAngle
+    ));
+    if (invalidFrame) {
+      return json({ error: "Environment scan frames must name a scan angle and include 1-5 images." }, 400);
     }
 
     if (Deno.env.get("ENV_SCAN_FORCE_FINDINGS") === "true") {
       return json({
         passed: false,
-        findings: [{ angle: "center", label: "Demo suspicious item", confidence: 0.92 }],
+        findings: [{ angle: String(frames[0].angle), label: "Demo suspicious item", confidence: 0.92 }],
+        frames: [{ angle: String(frames[0].angle), frameIndex: 0, predictions: [{ class: "cell phone", confidence: 0.92 }] }],
       });
     }
 
-    const sampledFrames = frames.flatMap((frame) => {
-      const images = normalizeFrameBatch(frame);
-      const first = images[0];
-      const middle = images[Math.floor(images.length / 2)];
-      const last = images[images.length - 1];
-      return [...new Set([first, middle, last].filter(Boolean))].map((image) => ({ angle: frame.angle, image }));
-    });
+    let frameIndex = 0;
+    const sampledFrames = frames.flatMap((frame) => normalizeFrameBatch(frame)
+      .map((image) => ({ angle: String(frame.angle), image, frameIndex: frameIndex++ })));
 
-    const detectorFindings = (await Promise.all(sampledFrames.map(callExternalDetector))).flat();
+    const detectorFrames = await Promise.all(sampledFrames.map(callExternalDetector));
+    const detectorFindings = detectorFrames.flatMap(toLegacyFindings);
 
     return json({
       passed: detectorFindings.length === 0,
       findings: detectorFindings,
+      frames: detectorFrames,
     });
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : "Unexpected scan error." }, 500);

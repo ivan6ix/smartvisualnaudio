@@ -2,6 +2,7 @@
 import express from "express";
 import { existsSync, readFileSync } from "fs";
 import { InferenceHTTPClient, WorkflowError } from "@roboflow/inference-sdk";
+import { SCAN_REQUEST_CONFIDENCE } from "../src/lib/environmentScan.js";
 
 function loadLocalEnv() {
   if (!existsSync(".env")) return;
@@ -105,10 +106,9 @@ function getRoboflowImageEndpoint() {
   return `${apiBase.replace(/\/$/, "")}/${modelId}/${modelVersion}`;
 }
 
-async function runRoboflowImageDetection(image) {
+async function runRoboflowImageDetection(image, confidence) {
   const endpoint = getRoboflowImageEndpoint();
   const apiKey = process.env.ROBOFLOW_API_KEY;
-  const confidence = Number(process.env.ROBOFLOW_ENV_CONFIDENCE || 0.7);
 
   if (!apiKey) throw new Error("ROBOFLOW_API_KEY is not configured.");
   if (!endpoint) throw new Error("ROBOFLOW_ENV_MODEL_ID and ROBOFLOW_ENV_MODEL_VERSION are required.");
@@ -134,32 +134,36 @@ async function runRoboflowImageDetection(image) {
 app.post("/api/environment-scan", async (req, res) => {
   try {
     const { frames = [] } = req.body || {};
+    // findings keep the live-monitor threshold; frames carry raw predictions down to the scan
+    // classifier floor so the browser decides clear / risk / rescan with one shared rule set.
     const confidence = Number(process.env.ROBOFLOW_ENV_CONFIDENCE || 0.7);
+    const requestConfidence = Math.min(confidence, SCAN_REQUEST_CONFIDENCE);
     const detectedLabels = new Set();
 
     if (!Array.isArray(frames) || !frames.length) {
       return res.status(400).json({ error: "frames are required." });
     }
 
-    const findings = [];
-    for (const frameGroup of frames) {
-      const images = Array.isArray(frameGroup?.images) ? frameGroup.images : [];
-      for (const image of images) {
-        const result = await runRoboflowImageDetection(image);
-        const detectedPredictions = collectPredictions(result).filter((prediction) => (
-          roboflowGadgetLabels.has(prediction.label)
-          && prediction.confidence >= confidence
-        ));
+    const jobs = frames.flatMap((frameGroup) => (Array.isArray(frameGroup?.images) ? frameGroup.images : [])
+      .map((image) => ({ angle: frameGroup.angle || "environment scan", image })));
+    const results = await Promise.all(jobs.map((job) => runRoboflowImageDetection(job.image, requestConfidence)));
 
-        detectedPredictions.forEach((prediction) => {
+    const findings = [];
+    const framePredictions = results.map((result, index) => {
+      const { angle } = jobs[index];
+      collectPredictions(result)
+        .filter((prediction) => roboflowGadgetLabels.has(prediction.label) && prediction.confidence >= confidence)
+        .forEach((prediction) => {
           if (detectedLabels.has(prediction.label)) return;
           detectedLabels.add(prediction.label);
-          findings.push(formatFinding(prediction, frameGroup.angle || "environment scan"));
+          findings.push(formatFinding(prediction, angle));
         });
-      }
-    }
+      // A malformed upstream response must surface as an error, never as "no objects found".
+      if (!Array.isArray(result?.predictions)) throw new Error("Roboflow returned an unexpected response.");
+      return { angle, frameIndex: index, image: result.image, predictions: result.predictions };
+    });
 
-    return res.json({ passed: findings.length === 0, findings });
+    return res.json({ passed: findings.length === 0, findings, frames: framePredictions });
   } catch (error) {
     console.error("[RoboflowProxy] environment-scan", error);
     return res.status(500).json({
