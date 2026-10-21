@@ -24,6 +24,7 @@ import {
 } from "../../lib/environmentScan";
 import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../../lib/examCompatibility";
 import { createLiveObjectMonitor } from "../../lib/liveObjectMonitor";
+import { MICROPHONE_VIOLATION_CONFIRM_MS, classifyMicrophoneState, createMicrophoneInterruptionGate, isMicrophonePermissionRevoked } from "../../lib/microphoneSignal";
 import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
 import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig, normalizeChoiceItems } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -452,11 +453,11 @@ export default function StudentExamTake() {
   const examStartGenerationRef = useRef(0);
   const timerExpiredRef = useRef(false);
   const microphoneBlockedRef = useRef(false);
-  const microphoneInterruptionRecordedRef = useRef(false);
+  const microphoneInterruptionRef = useRef(createMicrophoneInterruptionGate());
+  const microphoneConfirmTimerRef = useRef(null);
   const microphonePauseStartedAtRef = useRef(null);
   const microphoneTrackCleanupRef = useRef(null);
   const microphoneRecoveryRef = useRef({ inFlight: false, lastAttemptAt: 0 });
-  const microphoneSignalBlockedRef = useRef(false);
   const microphonePermissionDeniedRef = useRef(false);
   const interruptionStateRequestRef = useRef(0);
   const [faceStatus, setFaceStatus] = useState("Checking face position");
@@ -498,8 +499,7 @@ export default function StudentExamTake() {
     student: user,
     canRecordViolation: () => examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current && !violationLimitReachedRef.current && !interruptionLimitExceededRef.current,
     onViolation: acceptRecordedViolation,
-    onMicrophoneIssue: handleMicrophoneIssue,
-    onMicrophoneRestored: handleMicrophoneSignalRestored,
+    onSilenceNotice: () => toast.warning("No sound is reaching your microphone. If it is muted in your system or on the device, unmute it.", { id: "microphone-silence" }),
   });
 
   useEffect(() => {
@@ -987,26 +987,15 @@ export default function StudentExamTake() {
 
     function checkMicrophone() {
       const track = proctorStreamRef.current?.getAudioTracks?.()[0];
-      if (!track) {
-        handleMicrophoneIssue("No microphone audio track is available.", "MICROPHONE_UNAVAILABLE");
-        void recoverMicrophone();
+      const issue = classifyMicrophoneState({ track });
+      if (issue) {
+        handleMicrophoneIssue(issue.reason, issue.type);
+        if (issue.type === "MICROPHONE_UNAVAILABLE" || issue.type === "MICROPHONE_DISCONNECTED") void recoverMicrophone();
+        else if (!track.enabled) track.enabled = true;
         return;
       }
-      if (track.readyState !== "live") {
-        handleMicrophoneIssue("The microphone track ended or became unavailable.", "MICROPHONE_DISCONNECTED");
-        void recoverMicrophone();
-        return;
-      }
-      if (!track.enabled) {
-        handleMicrophoneIssue("The microphone track was disabled.", "MICROPHONE_MUTED");
-        track.enabled = true;
-        return;
-      }
-      if (track.muted) {
-        handleMicrophoneIssue("The microphone track is muted or receiving no data.", "MICROPHONE_MUTED");
-        return;
-      }
-      if (microphoneBlockedRef.current && !microphoneSignalBlockedRef.current && !microphonePermissionDeniedRef.current) {
+      confirmMicrophoneInterruption();
+      if (microphoneBlockedRef.current && !microphonePermissionDeniedRef.current) {
         audioMonitoring.start(proctorStreamRef.current);
         restoreMicrophoneAccess();
       }
@@ -1014,12 +1003,15 @@ export default function StudentExamTake() {
 
     function handleDeviceChange() {
       checkMicrophone();
-      if (microphoneBlockedRef.current && !microphoneSignalBlockedRef.current) void recoverMicrophone();
+      if (microphoneBlockedRef.current) void recoverMicrophone();
     }
 
     let permissionStatus;
+    let previousPermissionState = null;
     function handlePermissionChange() {
-      if (permissionStatus?.state === "denied") {
+      const revoked = isMicrophonePermissionRevoked(previousPermissionState, permissionStatus?.state);
+      previousPermissionState = permissionStatus?.state ?? previousPermissionState;
+      if (revoked) {
         microphonePermissionDeniedRef.current = true;
         handleMicrophoneIssue("Microphone permission was lost.", "MICROPHONE_ACCESS_LOST");
       } else if (permissionStatus?.state === "granted" && microphonePermissionDeniedRef.current) {
@@ -1030,7 +1022,8 @@ export default function StudentExamTake() {
 
     const interval = window.setInterval(() => {
       checkMicrophone();
-      if (microphoneBlockedRef.current && !microphoneSignalBlockedRef.current) void recoverMicrophone();
+      confirmMicrophoneInterruption();
+      if (microphoneBlockedRef.current) void recoverMicrophone();
     }, 2000);
     window.navigator.mediaDevices?.addEventListener?.("devicechange", handleDeviceChange);
     void window.navigator.permissions?.query?.({ name: "microphone" }).then((status) => {
@@ -1734,23 +1727,23 @@ export default function StudentExamTake() {
         : current);
     }
     microphoneBlockedRef.current = false;
-    microphoneInterruptionRecordedRef.current = false;
+    microphoneInterruptionRef.current.restore();
+    if (microphoneConfirmTimerRef.current) {
+      window.clearTimeout(microphoneConfirmTimerRef.current);
+      microphoneConfirmTimerRef.current = null;
+    }
     for (const type of ["MICROPHONE_UNAVAILABLE", "MICROPHONE_DISCONNECTED", "MICROPHONE_MUTED", "MICROPHONE_ACCESS_LOST"]) incidentTrackerRef.current.clear(type);
-    microphoneSignalBlockedRef.current = false;
     microphonePermissionDeniedRef.current = false;
     setIsMicrophoneBlocked(false);
     setMicrophoneBlockReason("");
   }
 
-  function handleMicrophoneSignalRestored() {
-    const track = proctorStreamRef.current?.getAudioTracks?.()[0];
-    if (track?.readyState === "live" && track.enabled && !track.muted) restoreMicrophoneAccess();
-  }
-
+  // Pauses immediately; the interruption becomes one violation only if it lasts
+  // MICROPHONE_VIOLATION_CONFIRM_MS, so a momentary mute or glitch is never counted.
   function handleMicrophoneIssue(reason, type = "MICROPHONE_UNAVAILABLE") {
     if (!examModeReadyRef.current || !examSettings.liveAudioMonitoring || examSubmittingRef.current || examSubmittedRef.current) return;
-    if (type === "MICROPHONE_MUTED" && reason.includes("No audio input signal")) {
-      microphoneSignalBlockedRef.current = true;
+    if (microphoneInterruptionRef.current.report({ type, reason }, Date.now())) {
+      microphoneConfirmTimerRef.current = window.setTimeout(confirmMicrophoneInterruption, MICROPHONE_VIOLATION_CONFIRM_MS);
     }
     if (!microphoneBlockedRef.current) {
       microphoneBlockedRef.current = true;
@@ -1759,10 +1752,12 @@ export default function StudentExamTake() {
       setIsMicrophoneBlocked(true);
     }
     setMicrophoneBlockReason(reason);
-    if (!microphoneInterruptionRecordedRef.current) {
-      microphoneInterruptionRecordedRef.current = true;
-      recordManualViolation(type, reason, "High");
-    }
+  }
+
+  function confirmMicrophoneInterruption() {
+    if (!microphoneBlockedRef.current) return;
+    const due = microphoneInterruptionRef.current.due(Date.now());
+    if (due) recordManualViolation(due.type, due.reason, "High");
   }
 
   function attachMicrophoneTrackListeners(track) {
@@ -1771,7 +1766,7 @@ export default function StudentExamTake() {
 
     const handleMute = () => handleMicrophoneIssue("The microphone track was muted by the browser or audio device.", "MICROPHONE_MUTED");
     const handleUnmute = () => {
-      if (!microphoneSignalBlockedRef.current && track.readyState === "live" && track.enabled && !track.muted) {
+      if (track.readyState === "live" && track.enabled && !track.muted) {
         audioMonitoring.start(proctorStreamRef.current);
         restoreMicrophoneAccess();
       }

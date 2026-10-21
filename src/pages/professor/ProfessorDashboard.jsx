@@ -23,6 +23,10 @@ const violationLabels = {
   LOOKING_AWAY: "Looking away repeatedly",
   PHONE_DETECTED: "Cellphone detected",
   GADGET_DETECTED: "Spare gadget detected",
+  MICROPHONE_UNAVAILABLE: "Microphone unavailable",
+  MICROPHONE_DISCONNECTED: "Microphone disconnected",
+  MICROPHONE_MUTED: "Microphone muted or silent",
+  MICROPHONE_ACCESS_LOST: "Microphone access lost",
 };
 
 const violationChartLabels = {

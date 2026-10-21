@@ -32,6 +32,14 @@ const violationLabels = {
   GADGET_DETECTED: "Spare Gadget Detected",
 };
 
+// Activity labels only; not chart categories.
+const deviceViolationLabels = {
+  MICROPHONE_UNAVAILABLE: "Microphone Unavailable",
+  MICROPHONE_DISCONNECTED: "Microphone Disconnected",
+  MICROPHONE_MUTED: "Microphone Muted or Silent",
+  MICROPHONE_ACCESS_LOST: "Microphone Access Lost",
+};
+
 const dateRanges = ["All Time", "Today", "Last 7 Days", "Last 30 Days"];
 const emptyViolations = [];
 
@@ -128,7 +136,7 @@ export default function DeanDashboard() {
           courseId: course?.id || "",
           exam: exam?.exam_title || exam?.title || "Unknown exam",
           examId: exam?.id || "",
-          violationType: violationLabels[violation.violation_type] || violation.violation_type || "Monitoring Alert",
+          violationType: violationLabels[violation.violation_type] || deviceViolationLabels[violation.violation_type] || violation.violation_type || "Monitoring Alert",
           violationKey: violation.violation_type || "",
           description: violation.description || "-",
           severity: violation.severity || "Low",

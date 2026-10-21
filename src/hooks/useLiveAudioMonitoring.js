@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { createSilenceTracker, measureRms } from "../lib/microphoneSignal";
 import { uploadAudioViolation } from "../services/audioViolationService";
 
 const QUIET_THRESHOLD = 8;
@@ -10,8 +11,6 @@ const LOUD_NOISE_COOLDOWN_MS = 0;
 const AUDIO_LEVEL_GAIN = 16;
 const AUDIO_EVIDENCE_MS = 10000;
 const MIN_AUDIO_EVIDENCE_BYTES = 2048;
-const DIGITAL_SILENCE_RMS = 0.00001;
-const DIGITAL_SILENCE_BLOCK_MS = 45000;
 
 function getRecorderOptions() {
   if (!window.MediaRecorder) return {};
@@ -27,7 +26,7 @@ function classifyAudio(level) {
   return "Loud Noise";
 }
 
-export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, canRecordViolation, onMicrophoneIssue, onMicrophoneRestored }) {
+export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, canRecordViolation, onSilenceNotice }) {
   const [audioLevel, setAudioLevel] = useState(0);
   const [audioStatus, setAudioStatus] = useState("Quiet");
   const [micStatus, setMicStatus] = useState("Inactive");
@@ -48,13 +47,12 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
   const evidenceRecordersRef = useRef(new Set());
   const violationCallbacksRef = useRef({ onViolation, canRecordViolation });
   violationCallbacksRef.current = { onViolation, canRecordViolation };
-  const digitalSilenceStartedAtRef = useRef(null);
-  const digitalSilenceReportedRef = useRef(false);
-  const microphoneCallbacksRef = useRef({ onMicrophoneIssue, onMicrophoneRestored });
+  const silenceTrackerRef = useRef(createSilenceTracker());
+  const silenceNoticeRef = useRef(onSilenceNotice);
 
   useEffect(() => {
-    microphoneCallbacksRef.current = { onMicrophoneIssue, onMicrophoneRestored };
-  }, [onMicrophoneIssue, onMicrophoneRestored]);
+    silenceNoticeRef.current = onSilenceNotice;
+  }, [onSilenceNotice]);
 
   const addTimelineItem = useCallback((status, level, message = status, force = false) => {
     const now = Date.now();
@@ -82,8 +80,7 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
     loudStartedAtRef.current = null;
     loudLastAtRef.current = null;
     loudPeakRef.current = 0;
-    digitalSilenceStartedAtRef.current = null;
-    digitalSilenceReportedRef.current = false;
+    silenceTrackerRef.current.reset();
     setMicStatus("Inactive");
     setAudioLevel(0);
     setAudioStatus("Quiet");
@@ -176,7 +173,9 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
     const source = context.createMediaStreamSource(stream);
     const analyser = context.createAnalyser();
     analyser.fftSize = 1024;
-    const samples = new Uint8Array(analyser.fftSize);
+    // Float samples resolve a quiet room's noise floor; 8-bit samples round it to exact zero.
+    const precise = typeof analyser.getFloatTimeDomainData === "function";
+    const samples = precise ? new Float32Array(analyser.fftSize) : new Uint8Array(analyser.fftSize);
     source.connect(analyser);
     audioContextRef.current = context;
     void context.resume?.();
@@ -186,26 +185,13 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
 
     function monitorAudio() {
       if (!activeRef.current) return;
-      analyser.getByteTimeDomainData(samples);
-      const rms = Math.sqrt(samples.reduce((sum, value) => {
-        const normalized = (value - 128) / 128;
-        return sum + (normalized * normalized);
-      }, 0) / samples.length);
+      if (precise) analyser.getFloatTimeDomainData(samples);
+      else analyser.getByteTimeDomainData(samples);
+      const rms = measureRms(samples, { byteSamples: !precise });
       const level = Math.min(100, Math.round(rms * 160 * AUDIO_LEVEL_GAIN));
 
-      if (rms <= DIGITAL_SILENCE_RMS) {
-        digitalSilenceStartedAtRef.current ??= Date.now();
-        if (!digitalSilenceReportedRef.current && Date.now() - digitalSilenceStartedAtRef.current >= DIGITAL_SILENCE_BLOCK_MS) {
-          digitalSilenceReportedRef.current = true;
-          microphoneCallbacksRef.current.onMicrophoneIssue?.("No audio input signal has been received for an extended period.", "MICROPHONE_MUTED");
-        }
-      } else {
-        digitalSilenceStartedAtRef.current = null;
-        if (digitalSilenceReportedRef.current) {
-          digitalSilenceReportedRef.current = false;
-          microphoneCallbacksRef.current.onMicrophoneRestored?.();
-        }
-      }
+      // Silence is never a violation or a pause; exact digital silence only prompts the student.
+      if (silenceTrackerRef.current.observe({ rms, precise, now: Date.now() }) === "notice") silenceNoticeRef.current?.();
       const status = classifyAudio(level);
       setAudioLevel(level);
       setAudioStatus(status);

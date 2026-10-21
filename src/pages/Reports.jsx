@@ -8,7 +8,7 @@ import { getListPageSlice } from "../lib/listView";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const tabs = ["Overview", "All Users", "Students", "Violations", "Courses", "Exams", "Professors", "Deans"];
-const violationTypes = ["MULTIPLE_FACE", "NO_FACE", "BACKGROUND_VOICE", "LOUD_NOISE_DETECTED", "AUDIO_DETECTED", "LOUD_AUDIO", "TAB_SWITCH", "COPY_ATTEMPT", "FULLSCREEN_EXIT", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED"];
+const violationTypes = ["MULTIPLE_FACE", "NO_FACE", "BACKGROUND_VOICE", "LOUD_NOISE_DETECTED", "AUDIO_DETECTED", "LOUD_AUDIO", "TAB_SWITCH", "COPY_ATTEMPT", "FULLSCREEN_EXIT", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED", "MICROPHONE_UNAVAILABLE", "MICROPHONE_DISCONNECTED", "MICROPHONE_MUTED", "MICROPHONE_ACCESS_LOST"];
 const audioViolationAliases = new Set(["BACKGROUND_VOICE", "BACKGROUND_VOICE_DETECTED", "CONVERSATION_DETECTED", "AUDIO_DETECTED", "LOUD_AUDIO", "LOUD_NOISE_DETECTED"]);
 
 function normalizeViolationType(value) {
