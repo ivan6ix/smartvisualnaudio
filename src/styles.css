@@ -9409,6 +9409,40 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .student-exam-take-page .page-header p {
   color: var(--app-text-muted);
 }
+/* The exam header sits on the page background, aligned with the question cards. */
+html[data-appearance] .student-exam-take-page .page-header,
+.student-exam-take-page .page-header {
+  align-items: center;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none;
+  padding: 4px 0 0;
+}
+.student-exam-take-page .page-header h1 {
+  font-size: clamp(1.5rem, 2.6vw, 2.1rem);
+  line-height: 1.15;
+}
+.student-exam-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.student-exam-meta > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(125, 211, 252, 0.22);
+  border-radius: 999px;
+  padding: 4px 10px;
+  color: var(--app-text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+/* The fullscreen exam shell has no padding, so the portal's negative page margin would overflow the screen. */
+.student-exam-shell > .student-exam-take-page,
+.student-exam-shell > .student-exam-start-page {
+  margin: 0;
+}
 .student-scan-hero {
   display: flex;
   justify-content: space-between;
@@ -9636,20 +9670,38 @@ html[data-theme="light"] .professor-course-list-card:hover {
   color: #fff;
   box-shadow: 0 14px 28px rgba(37, 99, 235, 0.24);
 }
+/* Choices are a plain radio/checkbox dot and text; the row keeps a large click target. */
 .student-answer-option {
-  min-height: 46px;
+  min-height: 44px;
   display: flex;
   align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(125, 211, 252, 0.18);
-  border-radius: 12px;
-  background: var(--app-surface);
+  gap: 12px;
+  margin-inline: -10px;
+  border-radius: 10px;
+  background: transparent;
   color: var(--app-text);
-  padding: 12px 14px;
+  padding: 8px 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+.student-answer-option:hover {
+  background: rgba(125, 211, 252, 0.06);
+}
+.student-answer-option:has(input:checked) {
   font-weight: 800;
 }
+.student-answer-option:has(input:focus-visible) {
+  outline: 2px solid #06b6d4;
+  outline-offset: 2px;
+}
 .student-answer-option input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex: none;
   accent-color: #06b6d4;
+  cursor: pointer;
 }
 .student-question-image {
   border: 1px solid rgba(125, 211, 252, 0.18);

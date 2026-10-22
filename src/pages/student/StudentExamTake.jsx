@@ -3219,7 +3219,13 @@ export default function StudentExamTake() {
     <section className="student-exam-take-page with-proctor-dock">
       <PageHeader
         title={exam.exam_title || exam.title}
-        subtitle={`${exam.courses?.course_code || ""} ${exam.courses?.section || ""} - Duration: ${formatDurationLabel(exam.time_limit || exam.duration)} - ${totalPoints} points`}
+        subtitle={(
+          <span className="student-exam-meta">
+            {exam.courses?.course_code ? <span>{[exam.courses.course_code, exam.courses.section].filter(Boolean).join(" ")}</span> : null}
+            <span><FiClock aria-hidden="true" /> {formatDurationLabel(exam.time_limit || exam.duration)}</span>
+            <span>{totalPoints} {Number(totalPoints) === 1 ? "point" : "points"}</span>
+          </span>
+        )}
         actions={<Button disabled={submitting || !scanPassed || examLocked || isMicrophoneBlocked || attemptsExhausted || interruptionLimitExceededRef.current} onClick={() => handleSubmit("manual")}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
       />
 
