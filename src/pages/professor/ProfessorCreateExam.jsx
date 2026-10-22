@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiChevronDown, FiEdit2, FiFileText, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
-import AiQuestionGeneratorModal from "../../components/exam/AiQuestionGeneratorModal";
+import PdfQuestionGeneratorModal from "../../components/exam/PdfQuestionGeneratorModal";
 import { useAuth } from "../../context/AuthContext";
 import { professorCourses } from "../../data/professorData";
 import { ASSIGNMENT_MODES, filterAssignmentStudents, normalizeAssignmentMode, toggleFilteredStudentSelection } from "../../lib/examAssignments";
@@ -241,7 +241,7 @@ export default function ProfessorCreateExam() {
   const [studentSectionFilter, setStudentSectionFilter] = useState("All Sections");
   const [studentPage, setStudentPage] = useState(1);
   const [autosaveStatus, setAutosaveStatus] = useState("Saved locally");
-  const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
+  const [pdfGeneratorOpen, setPdfGeneratorOpen] = useState(false);
   const savingRef = useRef(false);
   const hydratedRef = useRef(false);
   const createSessionIdRef = useRef("");
@@ -1661,9 +1661,9 @@ export default function ProfessorCreateExam() {
             </div>
           </div>
 
-          <div className="professor-ai-entry">
+          <div className="professor-pdfq-entry">
             <span>Have lecture notes or a module? Create Multiple Choice questions from a PDF, then review them before adding.</span>
-            <button className="professor-generate-questions" onClick={() => setAiGeneratorOpen(true)} type="button"><FiFileText /> Generate from PDF</button>
+            <button className="professor-generate-questions" onClick={() => setPdfGeneratorOpen(true)} type="button"><FiFileText /> Generate from PDF</button>
           </div>
 
           <div className="professor-question-fields">
@@ -1707,9 +1707,9 @@ export default function ProfessorCreateExam() {
           )}
         </aside>
       </form>
-      {aiGeneratorOpen ? (
-        <AiQuestionGeneratorModal
-          onClose={() => setAiGeneratorOpen(false)}
+      {pdfGeneratorOpen ? (
+        <PdfQuestionGeneratorModal
+          onClose={() => setPdfGeneratorOpen(false)}
           onInsert={handleInsertGeneratedQuestions}
         />
       ) : null}

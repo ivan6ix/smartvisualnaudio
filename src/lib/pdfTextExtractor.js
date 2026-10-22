@@ -5,7 +5,7 @@ import {
   parsePageRange,
   removeRepeatedLines,
   validatePdfFile,
-} from "./aiQuestionGenerator.js";
+} from "./pdfQuestionGenerator.js";
 
 export class PdfReadError extends Error {
   constructor(message) {

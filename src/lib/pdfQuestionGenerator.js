@@ -6,7 +6,6 @@ export const PDF_MIN_TEXT_CHARS = 200;
 export const PDF_MAX_TEXT_CHARS = 240000;
 export const MIN_QUESTION_COUNT = 1;
 export const MAX_QUESTION_COUNT = 50;
-export const MAX_QUESTIONS_PER_REQUEST = 20;
 export const QUESTION_COUNT_OPTIONS = [5, 10, 20, 30, 50];
 export const DIFFICULTY_OPTIONS = ["Easy", "Moderate", "Hard", "Mixed"];
 export const QUESTION_DIFFICULTIES = ["Easy", "Moderate", "Hard"];
@@ -128,15 +127,7 @@ export function normalizeQuestionCount(value) {
   return { count, error: "" };
 }
 
-export function planQuestionBatches(count, difficulty) {
-  const batches = [];
-  for (let remaining = count; remaining > 0; remaining -= MAX_QUESTIONS_PER_REQUEST) {
-    batches.push({ count: Math.min(remaining, MAX_QUESTIONS_PER_REQUEST), difficulty });
-  }
-  return batches;
-}
-
-function comparableText(value) {
+export function comparableText(value) {
   return String(value || "")
     .normalize("NFKC")
     .replace(/[‘’‚‛]/g, "'")
@@ -158,7 +149,7 @@ export function normalizeGeneratedQuestion(raw, pages, { points = "1" } = {}) {
   const evidence = String(raw?.evidence || "").trim();
   return {
     id: makeId(),
-    source: "ai",
+    source: "generated",
     question: String(raw?.question || "").trim(),
     choices,
     correct: CHOICE_KEYS.includes(raw?.correct) ? raw.correct : "",
@@ -218,7 +209,7 @@ export function moveItem(list, index, delta) {
   return next;
 }
 
-// Models tend to favour one answer position, so the order is shuffled after generation.
+// Spreads correct answers across A-D so the answer position gives nothing away.
 export function shuffleChoices(item, random = Math.random) {
   const values = CHOICE_KEYS.map((key) => item.choices[key]);
   const correctValue = item.choices[item.correct];

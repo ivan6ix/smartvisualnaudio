@@ -13,13 +13,12 @@ import {
   moveItem,
   normalizeGeneratedQuestion,
   normalizeQuestionCount,
-  planQuestionBatches,
   toBuilderQuestion,
   validatePdfFile,
   validatePreviewQuestions,
-} from "../../lib/aiQuestionGenerator";
-import { GenerationRequestError, requestGeneratedQuestions } from "../../lib/aiQuestionClient";
+} from "../../lib/pdfQuestionGenerator";
 import { PdfReadError, extractPdfPages } from "../../lib/pdfTextExtractor";
+import { generateQuestionsInBrowser } from "../../lib/questionBuilder";
 
 const CUSTOM_COUNT = "custom";
 
@@ -28,7 +27,7 @@ function formatFileSize(bytes) {
 }
 
 function errorMessage(error, fallback) {
-  return error instanceof PdfReadError || error instanceof GenerationRequestError ? error.message : fallback;
+  return error instanceof PdfReadError ? error.message : fallback;
 }
 
 function isValidPoints(value) {
@@ -36,7 +35,7 @@ function isValidPoints(value) {
   return Number.isFinite(points) && points >= 0.01 && points <= 1000;
 }
 
-export default function AiQuestionGeneratorModal({ onClose, onInsert, generate = requestGeneratedQuestions }) {
+export default function PdfQuestionGeneratorModal({ onClose, onInsert, generate = generateQuestionsInBrowser }) {
   const [step, setStep] = useState("setup");
   const [file, setFile] = useState(null);
   const [pageRange, setPageRange] = useState("");
@@ -48,12 +47,13 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
   const [progress, setProgress] = useState("");
   const [pages, setPages] = useState([]);
   const [lastRequest, setLastRequest] = useState(null);
-  const [sampleResult, setSampleResult] = useState(false);
   const [items, setItems] = useState([]);
   const [busyItemId, setBusyItemId] = useState("");
   const [errorItemId, setErrorItemId] = useState("");
   const [confirmAction, setConfirmAction] = useState("");
   const abortRef = useRef(null);
+  // Each run uses a new seed so regenerating picks different sentences and wrong choices.
+  const seedRef = useRef(0);
   const busy = step === "working" || Boolean(busyItemId);
 
   useEffect(() => () => abortRef.current?.abort(), []);
@@ -87,26 +87,18 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  async function generateBatches(sourcePages, request, signal, onBatch) {
-    const batches = planQuestionBatches(request.count, request.difficulty);
-    const generated = [];
-    for (const [index, batch] of batches.entries()) {
-      onBatch?.(index + 1, batches.length);
-      const result = await generate({
-        pages: sourcePages,
-        count: batch.count,
-        difficulty: batch.difficulty,
-        avoidStems: generated.map((item) => item.question),
-        signal,
-      });
-      if (result?.sample) setSampleResult(true);
-      generated.push(...(result?.questions || []).map((raw) => normalizeGeneratedQuestion(raw, sourcePages, { points: request.points })));
-    }
-    return generated;
-  }
-
-  function batchProgress(current, total) {
-    setProgress(total > 1 ? `Generating questions (batch ${current} of ${total})...` : "Generating questions...");
+  async function runGenerator(sourcePages, request, signal, avoidStems = []) {
+    setProgress("Creating questions...");
+    seedRef.current += 1;
+    const result = await generate({
+      pages: sourcePages,
+      count: request.count,
+      difficulty: request.difficulty,
+      avoidStems,
+      seed: seedRef.current,
+      signal,
+    });
+    return (result?.questions || []).map((raw) => normalizeGeneratedQuestion(raw, sourcePages, { points: request.points }));
   }
 
   function selectFile(nextFile) {
@@ -137,9 +129,9 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
       const assessment = assessExtractedText(extracted.pages);
       if (assessment.status !== "ok") throw new PdfReadError(assessment.message);
 
-      const generated = await generateBatches(extracted.pages, request, signal, batchProgress);
-      if (!generated.length) throw new PdfReadError("No questions could be generated from this PDF.");
-      if (generated.length < count) toast.warning(`Only ${generated.length} of ${count} questions could be generated from this PDF.`);
+      const generated = await runGenerator(extracted.pages, request, signal);
+      if (!generated.length) throw new PdfReadError("No questions could be made from this PDF. It needs full sentences of text, not only headings, lists or tables.");
+      if (generated.length < count) toast.warning(`Only ${generated.length} of ${count} questions could be made from this PDF's text.`);
       setPages(extracted.pages);
       setLastRequest(request);
       setItems(generated);
@@ -160,12 +152,17 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
     const signal = startRequest();
     setStep("working");
     try {
-      const generated = await generateBatches(pages, lastRequest, signal, batchProgress);
+      // New questions first; earlier ones only fill the gap when the PDF has run out of new material.
+      const fresh = await runGenerator(pages, lastRequest, signal, items.map((item) => item.question));
+      const fill = fresh.length < lastRequest.count
+        ? await runGenerator(pages, { ...lastRequest, count: lastRequest.count - fresh.length }, signal, fresh.map((item) => item.question))
+        : [];
+      const generated = [...fresh, ...fill];
       if (generated.length) {
         setItems(generated);
         setErrorItemId("");
       } else {
-        toast.error("No new questions could be generated.");
+        toast.error("No new questions could be made.");
       }
     } catch (error) {
       if (error?.name !== "AbortError") toast.error(errorMessage(error, "Questions could not be regenerated. Try again."));
@@ -179,19 +176,11 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
     const signal = startRequest();
     setBusyItemId(item.id);
     try {
-      const result = await generate({
-        pages,
-        count: 1,
-        difficulty: item.difficulty,
-        avoidStems: items.map((entry) => entry.question),
-        signal,
-      });
-      const raw = result?.questions?.[0];
-      if (!raw) {
-        toast.error("No new question could be generated. Edit this one instead.");
+      const [next] = await runGenerator(pages, { count: 1, difficulty: item.difficulty, points: item.points }, signal, items.map((entry) => entry.question));
+      if (!next) {
+        toast.error("No other question could be made from this PDF. Edit this one instead.");
         return;
       }
-      const next = normalizeGeneratedQuestion(raw, pages, { points: item.points });
       setItems((current) => current.map((entry) => entry.id === item.id ? next : entry));
       if (errorItemId === item.id) setErrorItemId("");
     } catch (error) {
@@ -212,7 +201,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
   function addManualQuestion() {
     const blank = createBlankPreviewQuestion(lastRequest?.points || points);
     setItems((current) => [...current, blank]);
-    window.requestAnimationFrame(() => document.getElementById(`ai-question-${blank.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
+    window.requestAnimationFrame(() => document.getElementById(`pdf-question-${blank.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
   }
 
   function handleInsert() {
@@ -221,7 +210,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
       const invalid = items[index];
       setErrorItemId(invalid?.id || "");
       toast.error(message);
-      if (invalid) document.getElementById(`ai-question-${invalid.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
+      if (invalid) document.getElementById(`pdf-question-${invalid.id}`)?.scrollIntoView({ block: "center", behavior: "smooth" });
       return;
     }
     onInsert(items.map(toBuilderQuestion));
@@ -231,26 +220,22 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
   const totalPoints = items.reduce((total, item) => total + (Number(item.points) || 0), 0);
 
   return createPortal(
-    <div className="professor-share-backdrop professor-ai-backdrop" onClick={(event) => { if (event.target === event.currentTarget) requestClose(); }} role="presentation">
-      <section aria-labelledby="ai-generator-title" aria-modal="true" className="professor-share-modal professor-ai-modal" role="dialog">
+    <div className="professor-share-backdrop professor-pdfq-backdrop" onClick={(event) => { if (event.target === event.currentTarget) requestClose(); }} role="presentation">
+      <section aria-labelledby="pdf-generator-title" aria-modal="true" className="professor-share-modal professor-pdfq-modal" role="dialog">
         <div className="professor-share-header">
           <div>
-            <h2 id="ai-generator-title">Generate Questions from PDF</h2>
-            <p>Creates Multiple Choice questions from your PDF. Review every question before adding it to the exam.</p>
+            <h2 id="pdf-generator-title">Generate Questions from PDF</h2>
+            <p>Builds Multiple Choice questions from your PDF&apos;s text. Review and edit every question before adding it.</p>
           </div>
           <button aria-label="Close question generator" onClick={requestClose} type="button">
             <FiX />
           </button>
         </div>
 
-        {sampleResult && step === "preview" ? (
-          <p className="professor-ai-notice">Sample mode: the server built these questions directly from the PDF text without AI.</p>
-        ) : null}
-
         {step === "setup" ? (
-          <form className="professor-ai-setup" noValidate onSubmit={handleGenerate}>
+          <form className="professor-pdfq-setup" noValidate onSubmit={handleGenerate}>
             <label
-              className={`professor-ai-dropzone${file ? " has-file" : ""}`}
+              className={`professor-pdfq-dropzone${file ? " has-file" : ""}`}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
@@ -263,7 +248,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
               <input accept=".pdf,application/pdf" onChange={(event) => selectFile(event.target.files?.[0])} type="file" />
             </label>
 
-            <div className="professor-ai-options">
+            <div className="professor-pdfq-options">
               <label className="professor-field-label">
                 <span>Page range (optional)</span>
                 <input className="professor-create-input" onChange={(event) => setPageRange(event.target.value)} placeholder="All pages, e.g. 1-40" type="text" value={pageRange} />
@@ -293,18 +278,18 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
               </label>
             </div>
 
-            {setupError ? <p className="professor-ai-error" role="alert">{setupError}</p> : null}
+            {setupError ? <p className="professor-pdfq-error" role="alert">{setupError}</p> : null}
 
             <div className="professor-delete-actions">
               <button onClick={requestClose} type="button">Cancel</button>
-              <button className="professor-ai-primary" type="submit">Generate Questions</button>
+              <button className="professor-pdfq-primary" type="submit">Generate Questions</button>
             </div>
           </form>
         ) : null}
 
         {step === "working" ? (
-          <div className="professor-ai-working" role="status">
-            <span className="professor-ai-spinner" aria-hidden="true" />
+          <div className="professor-pdfq-working" role="status">
+            <span className="professor-pdfq-spinner" aria-hidden="true" />
             <strong>{progress || "Preparing..."}</strong>
             <span>Keep this window open. You can cancel at any time.</span>
             <div className="professor-delete-actions">
@@ -314,25 +299,25 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
         ) : null}
 
         {step === "preview" ? (
-          <div className="professor-ai-preview">
-            <div className="professor-ai-summary">
+          <div className="professor-pdfq-preview">
+            <div className="professor-pdfq-summary">
               <strong>{items.length} question{items.length === 1 ? "" : "s"}</strong>
               <span>Total points: {totalPoints.toFixed(2)}</span>
             </div>
 
-            <div className="professor-ai-list">
+            <div className="professor-pdfq-list">
               {items.map((item, index) => (
-                <article className={`professor-ai-card${errorItemId === item.id ? " has-error" : ""}`} id={`ai-question-${item.id}`} key={item.id}>
+                <article className={`professor-pdfq-card${errorItemId === item.id ? " has-error" : ""}`} id={`pdf-question-${item.id}`} key={item.id}>
                   <header>
                     <strong>Question {index + 1}</strong>
                     {item.source === "manual" ? (
-                      <span className="professor-ai-source">Added manually</span>
+                      <span className="professor-pdfq-source">Added manually</span>
                     ) : item.verified ? (
-                      <span className="professor-ai-source is-verified"><FiCheckCircle aria-hidden="true" /> Page {item.sourcePage}</span>
+                      <span className="professor-pdfq-source is-verified"><FiCheckCircle aria-hidden="true" /> Page {item.sourcePage}</span>
                     ) : (
-                      <span className="professor-ai-source is-unverified"><FiAlertTriangle aria-hidden="true" /> Source not verified - check carefully</span>
+                      <span className="professor-pdfq-source is-unverified"><FiAlertTriangle aria-hidden="true" /> Page not found - check carefully</span>
                     )}
-                    <div className="professor-ai-card-actions">
+                    <div className="professor-pdfq-card-actions">
                       <button aria-label={`Move question ${index + 1} up`} disabled={busy || index === 0} onClick={() => setItems((current) => moveItem(current, index, -1))} type="button"><FiArrowUp /></button>
                       <button aria-label={`Move question ${index + 1} down`} disabled={busy || index === items.length - 1} onClick={() => setItems((current) => moveItem(current, index, 1))} type="button"><FiArrowDown /></button>
                       <button aria-label={`Regenerate question ${index + 1}`} disabled={busy} onClick={() => regenerateItem(item)} type="button"><FiRefreshCw className={busyItemId === item.id ? "is-spinning" : ""} /></button>
@@ -342,11 +327,11 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
 
                   <textarea aria-label={`Question ${index + 1} text`} className="professor-create-textarea" maxLength={1000} onChange={(event) => updateItem(item.id, { question: event.target.value })} placeholder="Question text" value={item.question} />
 
-                  <div className="professor-ai-choices" role="radiogroup" aria-label={`Correct answer for question ${index + 1}`}>
+                  <div className="professor-pdfq-choices" role="radiogroup" aria-label={`Correct answer for question ${index + 1}`}>
                     {CHOICE_KEYS.map((key) => (
-                      <div className={`professor-ai-choice${item.correct === key ? " is-correct" : ""}`} key={key}>
+                      <div className={`professor-pdfq-choice${item.correct === key ? " is-correct" : ""}`} key={key}>
                         <label>
-                          <input aria-label={`Mark choice ${key} as the correct answer`} checked={item.correct === key} name={`ai-correct-${item.id}`} onChange={() => updateItem(item.id, { correct: key })} type="radio" />
+                          <input aria-label={`Mark choice ${key} as the correct answer`} checked={item.correct === key} name={`pdf-correct-${item.id}`} onChange={() => updateItem(item.id, { correct: key })} type="radio" />
                           <span>{key}</span>
                         </label>
                         <input aria-label={`Question ${index + 1} choice ${key}`} className="professor-create-input" maxLength={300} onChange={(event) => updateChoice(item.id, key, event.target.value)} placeholder={`Choice ${key}`} type="text" value={item.choices[key]} />
@@ -354,7 +339,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
                     ))}
                   </div>
 
-                  <div className="professor-ai-meta">
+                  <div className="professor-pdfq-meta">
                     <label className="professor-field-label">
                       <span>Difficulty</span>
                       <select className="professor-create-input" onChange={(event) => updateItem(item.id, { difficulty: event.target.value })} value={item.difficulty}>
@@ -367,11 +352,11 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
                     </label>
                   </div>
 
-                  {item.source === "ai" && (item.explanation || item.evidence) ? (
-                    <details className="professor-ai-explanation">
-                      <summary>Why this answer (for your review only, not saved)</summary>
-                      {item.explanation ? <p>{item.explanation}</p> : null}
-                      {item.evidence ? <blockquote>{item.evidence}</blockquote> : null}
+                  {item.source === "generated" && item.evidence ? (
+                    <details className="professor-pdfq-explanation">
+                      <summary>Where this comes from (for your review only, not saved)</summary>
+                      <p>Page {item.sourcePage}:</p>
+                      <blockquote>{item.evidence}</blockquote>
                     </details>
                   ) : null}
                 </article>
@@ -380,7 +365,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
             </div>
 
             {confirmAction ? (
-              <div className="professor-ai-confirm" role="alert">
+              <div className="professor-pdfq-confirm" role="alert">
                 <span>{confirmAction === "close" ? "Discard the generated questions?" : "Replace every question with a new set? Your edits will be lost."}</span>
                 <div className="professor-delete-actions">
                   <button onClick={() => setConfirmAction("")} type="button">Keep editing</button>
@@ -390,12 +375,12 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
                 </div>
               </div>
             ) : (
-              <div className="professor-ai-footer">
+              <div className="professor-pdfq-footer">
                 <div className="professor-delete-actions">
                   <button disabled={busy} onClick={addManualQuestion} type="button"><FiPlus /> Add Manual Question</button>
                   <button disabled={busy} onClick={() => setConfirmAction("regenerate")} type="button"><FiRefreshCw /> Regenerate All</button>
                 </div>
-                <button className="professor-ai-primary" disabled={busy || !items.length} onClick={handleInsert} type="button">
+                <button className="professor-pdfq-primary" disabled={busy || !items.length} onClick={handleInsert} type="button">
                   Insert {items.length} Question{items.length === 1 ? "" : "s"}
                 </button>
               </div>
