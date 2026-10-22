@@ -9059,6 +9059,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   width: 100%;
   z-index: 5;
 }
+.student-proctor-status-card,
 .student-proctor-camera-card,
 .student-proctor-alert-card {
   border: 1px solid rgba(125, 211, 252, 0.2);
@@ -9074,6 +9075,94 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .student-proctor-camera-card {
   display: grid;
   gap: 10px;
+}
+/* Compact status: time, violations and interruptions in one row with pip meters. */
+.student-proctor-status-card {
+  display: grid;
+  gap: 8px;
+}
+.student-proctor-stats {
+  display: grid;
+  grid-template-columns: 1.25fr 1fr 1fr;
+  gap: 10px;
+}
+.student-proctor-stat {
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  min-width: 0;
+}
+.student-proctor-stat > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--app-text-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.student-proctor-stat > span svg {
+  color: var(--accent);
+  flex: none;
+}
+.student-proctor-stat strong {
+  color: var(--app-text);
+  font-size: 1.2rem;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.student-proctor-stat.urgent strong,
+.student-proctor-stat.urgent > span svg {
+  color: #fca5a5;
+}
+.student-proctor-pips {
+  display: flex;
+  gap: 3px;
+}
+.student-proctor-pips i {
+  width: 12px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(148, 163, 184, 0.28);
+}
+.student-proctor-pips i.on {
+  background: #22d3ee;
+}
+.student-proctor-stat.urgent .student-proctor-pips i.on {
+  background: #f87171;
+}
+.student-proctor-status-warning {
+  margin: 0;
+  border-radius: 8px;
+  background: rgba(127, 29, 29, 0.24);
+  color: #fecaca;
+  padding: 6px 8px;
+  font-size: 0.76rem;
+  font-weight: 700;
+  line-height: 1.35;
+}
+.student-proctor-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.student-proctor-pills span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 100%;
+  border: 1px solid rgba(125, 211, 252, 0.18);
+  border-radius: 999px;
+  background: rgba(6, 182, 212, 0.1);
+  color: var(--app-text);
+  padding: 3px 9px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.student-proctor-pills svg {
+  color: var(--accent);
+  flex: none;
 }
 .student-proctor-title {
   display: flex;
@@ -9275,7 +9364,49 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .student-audio-monitoring-card {
   display: grid;
-  gap: 10px;
+  gap: 6px;
+}
+.student-audio-monitoring-card .student-audio-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.student-audio-monitoring-card .student-audio-meter > svg {
+  color: var(--accent);
+  flex: none;
+}
+.student-audio-monitoring-card .student-audio-meter > span {
+  min-width: 0;
+  white-space: nowrap;
+  font-size: 0.78rem;
+}
+.student-audio-monitoring-card .student-audio-meter > div {
+  flex: 1;
+  height: 6px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.2);
+}
+.student-audio-monitoring-card .student-audio-meter > div > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #2563eb, #06b6d4);
+  transition: width 0.12s ease;
+}
+.student-audio-monitoring-card .student-audio-meter > strong {
+  min-width: 34px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.student-audio-history summary {
+  cursor: pointer;
+  color: var(--app-text-muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+.student-audio-history[open] summary {
+  margin-bottom: 6px;
 }
 .student-audio-timeline {
   display: grid;
@@ -9306,7 +9437,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .student-proctor-alert-card {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 .student-proctor-alert-heading span {
   min-width: 28px;
@@ -9321,22 +9452,24 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .student-proctor-alert-list {
   display: grid;
-  gap: 8px;
-  max-height: 232px;
-  overflow-y: auto;
-  padding-right: 2px;
+  gap: 0;
 }
 .student-proctor-alert-list article {
   display: grid;
-  gap: 4px;
-  border: 1px solid rgba(248, 113, 113, 0.22);
-  border-radius: 12px;
-  background: rgba(127, 29, 29, 0.16);
-  padding: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 8px;
+  border-top: 1px solid rgba(125, 211, 252, 0.12);
+  padding: 6px 0;
+}
+.student-proctor-alert-list article:first-child {
+  border-top: 0;
+  padding-top: 0;
 }
 .student-proctor-alert-list article strong {
   color: var(--app-text);
-  font-size: 0.84rem;
+  font-size: 0.8rem;
+  font-weight: 700;
   line-height: 1.35;
 }
 .student-proctor-alert-list article span,
@@ -13099,6 +13232,7 @@ html[data-appearance] .professor-score-table-wrap,
 html[data-appearance] .student-card,
 html[data-appearance] .student-dashboard-card,
 html[data-appearance] .student-course-card,
+html[data-appearance] .student-proctor-status-card,
 html[data-appearance] .student-proctor-camera-card,
 html[data-appearance] .student-proctor-alert-card,
 html[data-appearance] .professor-course-card-grid > button,
@@ -15044,6 +15178,10 @@ html[data-theme="light"] :is(
   .student-exam-workspace {
     grid-template-columns: minmax(0, 1fr);
   }
+  .student-proctor-status-card {
+    grid-column: 1 / -1;
+  }
+
   .student-proctor-dock {
     max-height: none;
     overflow: visible;
@@ -16119,6 +16257,12 @@ svg {
   .student-camera-frame video {
     height: clamp(220px, 48dvh, 420px);
     min-height: 0;
+  }
+
+  .student-proctor-status-card {
+    position: sticky;
+    top: 0;
+    z-index: 2;
   }
 
   .student-proctor-dock {

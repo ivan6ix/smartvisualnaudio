@@ -263,6 +263,14 @@ function interruptionWarning(state) {
   return "Recoverable technical interruptions are tracked separately from violations.";
 }
 
+function renderStatusPips(count, limit) {
+  return (
+    <span className="student-proctor-pips" aria-hidden="true">
+      {Array.from({ length: limit }, (_, index) => <i className={index < count ? "on" : ""} key={index} />)}
+    </span>
+  );
+}
+
 function buildRecoveryEventKey(reason, startedAt, savedAt = "") {
   return `${reason}:${new Date(startedAt || 0).getTime() || "pending"}:${new Date(savedAt || Date.now()).getTime() || Date.now()}`;
 }
@@ -3235,15 +3243,30 @@ export default function StudentExamTake() {
         </div>
 
         <aside className="student-proctor-dock" aria-label="Live proctoring panel">
+          {/* Time, violations and interruptions stay at the top so they never need scrolling. */}
+          <section className="student-proctor-status-card" aria-label="Exam status">
+            <div className="student-proctor-stats">
+              <div className={`student-proctor-stat ${hasTimer && remainingMs !== null && remainingMs <= 60000 ? "urgent" : ""}`} role="timer" aria-live="polite">
+                <span><FiClock aria-hidden="true" /> Time left</span>
+                <strong>{hasTimer ? formatRemainingTime(remainingMs ?? (timerEndsAt ? new Date(timerEndsAt).getTime() - Date.now() : durationMinutes * 60 * 1000)) : "No timer"}</strong>
+              </div>
+              <div className={`student-proctor-stat ${violations.length >= 3 ? "urgent" : ""}`} role="status" aria-live="polite" title={violations.length ? violationWarning(violations.length) : `Auto-submit after ${EXAM_VIOLATION_LIMIT} violations.`}>
+                <span><FiShield aria-hidden="true" /> Violations</span>
+                <strong>{violations.length} / {EXAM_VIOLATION_LIMIT}</strong>
+                {renderStatusPips(violations.length, EXAM_VIOLATION_LIMIT)}
+              </div>
+              <div className={`student-proctor-stat ${interruptionState.count >= interruptionState.limit ? "urgent" : ""}`} role="status" aria-live="polite" title={interruptionWarning(interruptionState)}>
+                <span><FiRefreshCw aria-hidden="true" /> Interruptions</span>
+                <strong>{interruptionState.count} / {interruptionState.limit}</strong>
+                {renderStatusPips(interruptionState.count, interruptionState.limit)}
+              </div>
+            </div>
+            {violations.length >= 3 ? <p className="student-proctor-status-warning">{violationWarning(violations.length)}</p> : null}
+            {interruptionState.count >= interruptionState.limit ? <p className="student-proctor-status-warning">{interruptionWarning(interruptionState)}</p> : null}
+          </section>
+
           {proctoringEnabled ? (
             <section className="student-proctor-camera-card">
-              <div className="student-proctor-title">
-                {liveCameraMonitoringEnabled ? <FiCamera /> : <FiMic />}
-                <div>
-                  <strong>{liveCameraMonitoringEnabled ? "Live Camera" : "Live Audio"}</strong>
-                  <span>{liveCameraMonitoringEnabled ? (roboflowMonitoringEnabled ? "Roboflow detection active" : "Camera monitoring active") : "Audio monitoring only"}</span>
-                </div>
-              </div>
               {liveCameraMonitoringEnabled ? (
                 <>
                   <div className="student-proctor-video-frame">
@@ -3255,13 +3278,9 @@ export default function StudentExamTake() {
                       <span />
                     </div>
                   </div>
-                  <div className="student-face-status">
-                    <FiShield />
-                    <span>{faceStatus}</span>
-                  </div>
-                  <div className="student-face-status">
-                    <FiCamera />
-                    <span>{roboflowStatus}</span>
+                  <div className="student-proctor-pills">
+                    <span title="Face tracking"><FiShield aria-hidden="true" /> {faceStatus}</span>
+                    <span title={roboflowMonitoringEnabled ? "Roboflow detection active" : "Camera monitoring active"}><FiCamera aria-hidden="true" /> {roboflowStatus}</span>
                   </div>
                 </>
               ) : null}
@@ -3278,42 +3297,16 @@ export default function StudentExamTake() {
 
           <section className="student-proctor-alert-card">
             <div className="student-proctor-alert-heading">
-              <strong>Live Alerts</strong>
+              <strong>Live alerts</strong>
               <span>{violations.length}</span>
             </div>
             <div className="student-proctor-alert-list">
-              {violations.length ? violations.slice(-5).reverse().map((violation, index) => (
-                <article key={`${violation.timestamp}-${index}`}>
+              {violations.length ? violations.slice(-3).reverse().map((violation, index) => (
+                <article key={`${violation.timestamp}-${index}`} title={`${violation.severity} severity`}>
                   <strong>{violation.message}</strong>
-                  <span>{violation.severity} - {new Date(violation.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+                  <span>{new Date(violation.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
                 </article>
               )) : <p>No alerts yet.</p>}
-            </div>
-          </section>
-
-          <section className={`student-exam-timer ${hasTimer && remainingMs !== null && remainingMs <= 60000 ? "urgent" : ""}`} role="timer" aria-live="polite">
-            <FiClock />
-            <div>
-              <span>Time Remaining</span>
-              <strong>{hasTimer ? formatRemainingTime(remainingMs ?? (timerEndsAt ? new Date(timerEndsAt).getTime() - Date.now() : durationMinutes * 60 * 1000)) : "No timer"}</strong>
-            </div>
-          </section>
-
-          <section className={`student-exam-timer ${interruptionState.count >= interruptionState.limit ? "urgent" : ""}`} role="status" aria-live="polite">
-            <FiRefreshCw />
-            <div>
-              <span>Interruptions</span>
-              <strong>{interruptionState.count} / {interruptionState.limit}</strong>
-              <small>{interruptionWarning(interruptionState)}</small>
-            </div>
-          </section>
-
-          <section className={`student-exam-timer ${violations.length >= 3 ? "urgent" : ""}`} role="status" aria-live="polite">
-            <FiShield />
-            <div>
-              <span>Violations</span>
-              <strong>{violations.length} / {EXAM_VIOLATION_LIMIT}</strong>
-              <small>{violations.length ? violationWarning(violations.length) : "Auto-submit after 5 violations."}</small>
             </div>
           </section>
         </aside>

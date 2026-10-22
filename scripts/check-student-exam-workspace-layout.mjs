@@ -10,8 +10,9 @@ assert.match(app, /<Route path="exams\/:examId" element=\{<StudentExamTake \/>\}
 assert.match(exam, /className="student-exam-workspace"[\s\S]*className="student-exam-question-list"[\s\S]*<aside className="student-proctor-dock"/, "Questionnaire and monitoring rail must share one workspace.");
 assert.match(exam, /<video autoPlay muted playsInline ref=\{proctorVideoRef\} \/>/, "Camera stream must remain mounted once through the existing ref.");
 assert.equal((exam.match(/<AudioMonitoringTimeline/g) || []).length, 1, "Audio monitoring must remain mounted once.");
-assert.equal((exam.match(/Time Remaining/g) || []).length, 1, "Only one visual Time Remaining timer should render.");
-assert.match(exam, /Live Alerts[\s\S]*Time Remaining[\s\S]*Interruptions[\s\S]*Violations/, "Monitoring rail order must be alerts, timer, interruptions, violations after camera/audio.");
+assert.equal((exam.match(/> Time left</g) || []).length, 1, "Only one visual time-left timer should render.");
+// Time, violations and interruptions sit in one status card at the top, so they never need scrolling.
+assert.match(exam, /className="student-proctor-status-card"[\s\S]*Time left[\s\S]*Violations[\s\S]*Interruptions[\s\S]*ref=\{proctorVideoRef\}[\s\S]*Live alerts/, "Monitoring rail order must be status card (time, violations, interruptions), then camera/audio, then alerts.");
 assert.match(exam, /handleSubmit\("manual"\)/, "Submit Exam action must remain wired.");
 assert.match(exam, /beginAuthorizedFilePicker\(question\.id\)/, "File picker recovery authorization must remain wired.");
 assert.match(exam, /question\.question_type === "Matching Type"[\s\S]*connectMatchingAnswer/, "Matching interaction must remain wired.");
