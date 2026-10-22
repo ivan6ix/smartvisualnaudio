@@ -1,7 +1,8 @@
 -- Read-only pre-deployment checks for the hosted project (PR #2). Safe to run in the SQL Editor:
--- it only reads catalogs, runs in a read-only transaction, and changes nothing.
+-- it only reads catalogs and tables, and the first statement makes the transaction read-only, so any
+-- write would fail. Run the whole file as one query; the final SELECT is the result.
 -- Returns one row per check: section, item, status (ok | missing | review), detail.
-begin read only;
+set transaction read only;
 
 with expected_migrations(version) as (
   values ('20261010142803'), ('20261020120000'), ('20261020150000'),
@@ -98,9 +99,9 @@ checks as (
   from pg_policies p
   where p.schemaname = 'storage' and p.tablename = 'objects' and p.policyname = 'exam_submissions_professor_read'
 
-  -- 7. Rows the submission file_url backfill in 20261020190000 would update
+  -- 7. Rows the file_url backfill in 20261020190000 would update (same conditions as the migration)
   union all
-  select 'data', 'file_url backfill candidates', 'review', count(*)::text
+  select 'data', 'file_url backfill rows (only file_url changes)', 'review', count(*)::text
   from public.exam_attempt_answers aa
   join public.exam_attempts a on a.id = aa.attempt_id
   join public.exam_questions q on q.id = aa.question_id and q.exam_id = a.exam_id
@@ -108,7 +109,7 @@ checks as (
     and nullif(aa.file_url, '') is null
     and jsonb_typeof(aa.answer) = 'object'
     and nullif(aa.answer->>'path', '') is not null
+    and starts_with(aa.answer->>'path', a.student_id::text || '/' || a.exam_id::text || '/' || q.id::text || '/')
+    and exists (select 1 from storage.objects o where o.bucket_id = 'exam-submissions' and o.name = aa.answer->>'path')
 )
 select * from checks order by section, status desc, item;
-
-rollback;
