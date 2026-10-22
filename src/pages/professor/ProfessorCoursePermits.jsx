@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiCalendar, FiDownload, FiEye, FiFileText, FiFolder, FiSend, FiUsers, FiX } from "react-icons/fi";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Badge, Button } from "../../components/ui";
+import { Badge, Button, ListSkeleton, SkeletonValue } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -240,17 +240,17 @@ export default function ProfessorCoursePermits() {
       <div className="professor-permit-toolbar">
         <article>
           <FiFolder />
-          <strong>{submittedStudentIds.size}/{members.length}</strong>
+          <strong>{loading ? <SkeletonValue /> : `${submittedStudentIds.size}/${members.length}`}</strong>
           <span>Student folders with permit files</span>
         </article>
         <article>
           <FiUsers />
-          <strong>{submittedStudentIds.size}/{members.length}</strong>
+          <strong>{loading ? <SkeletonValue /> : `${submittedStudentIds.size}/${members.length}`}</strong>
           <span>Students submitted</span>
         </article>
         <article>
           <FiCalendar />
-          <strong>{latestRequest ? formatDate(latestRequest.deadline) : "No deadline"}</strong>
+          <strong>{loading ? <SkeletonValue /> : latestRequest ? formatDate(latestRequest.deadline) : "No deadline"}</strong>
           <span>Latest permit deadline</span>
         </article>
         <Button onClick={() => setRequestOpen(true)}><FiSend /> Request Permit</Button>
@@ -286,6 +286,7 @@ export default function ProfessorCoursePermits() {
           </div>
 
           <div className="professor-permit-folder-grid">
+            {loading ? <ListSkeleton columns={2} count={4} header={false} label="Loading student folders..." variant="table" /> : null}
             {filteredMembers.map((member) => {
               const fileCount = filesByStudent[member.id]?.length || 0;
               return (
@@ -325,7 +326,8 @@ export default function ProfessorCoursePermits() {
                 {file.fileUrl ? <a href={file.fileUrl} rel="noreferrer" target="_blank"><FiDownload /> Open</a> : null}
               </article>
             ))}
-            {!selectedFiles.length ? <div className="professor-exams-empty">No permit files submitted by this student.</div> : null}
+            {loading ? <ListSkeleton columns={2} count={3} header={false} label="Loading permit files..." variant="table" /> : null}
+            {!loading && !selectedFiles.length ? <div className="professor-exams-empty">No permit files submitted by this student.</div> : null}
           </div>
         </section>
       </div>

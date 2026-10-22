@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiFileText, FiPrinter, FiShield, FiUsers } from "react-icons/fi";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
-import { Button, Card, EmptyState, SearchBox, SelectField, Table } from "../components/ui";
+import { Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonValue, Table } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import useListViewPreference from "../hooks/useListViewPreference";
 import { getListPageSlice } from "../lib/listView";
@@ -350,7 +350,7 @@ export default function Reports() {
           <h1>Reports Center</h1>
           <p>Search, filter, review, and print operational reports from users, courses, exams, violations, attempts, grades, and logs.</p>
         </div>
-        <strong>{filteredRows.length}</strong>
+        <strong>{loading ? <SkeletonValue /> : filteredRows.length}</strong>
         </div>
       )}
       <div className={isDean ? "dean-kpi-grid dean-reports-kpi-grid" : "admin-stats-grid"}>
@@ -360,7 +360,7 @@ export default function Reports() {
               <>
                 <div>
                   <span>{label}</span>
-                  <strong>{value.toLocaleString()}</strong>
+                  <strong>{loading ? <SkeletonValue /> : value.toLocaleString()}</strong>
                 </div>
                 <Icon aria-hidden="true" />
               </>
@@ -368,7 +368,7 @@ export default function Reports() {
               <>
                 <Icon />
                 <div>
-                  <strong>{value.toLocaleString()}</strong>
+                  <strong>{loading ? <SkeletonValue /> : value.toLocaleString()}</strong>
                   <span>{label}</span>
                 </div>
               </>
@@ -464,10 +464,11 @@ export default function Reports() {
             <span>{loadError}</span>
           </div>
         ) : loading ? (
-          <div className="dean-reports-state" aria-busy="true">
-            <strong>Loading reports...</strong>
-            <span>Fetching report counts and records.</span>
-          </div>
+          <ListSkeleton
+            columns={listView.view === "cards" ? 4 : Math.min((columnsByTab[tab] || columnsByTab.Overview).length, 6)}
+            label="Loading reports..."
+            variant={listView.view === "cards" ? "records" : "table"}
+          />
         ) : (
           <div className={isDean ? "dean-reports-table-scroll" : ""}>
             {listView.view === "cards" ? (

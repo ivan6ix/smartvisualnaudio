@@ -4,7 +4,7 @@ import { FiBookOpen, FiFileText, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
-import { Badge, Card } from "../../components/ui";
+import { Badge, Card, ListSkeleton, SkeletonValue } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
@@ -129,6 +129,8 @@ export default function ProfessorCourses() {
   const courses = useMemo(() => hasSupabaseConfig ? coursesQuery.data?.courses || [] : demoCourses, [coursesQuery.data, demoCourses]);
   const exams = useMemo(() => hasSupabaseConfig ? coursesQuery.data?.exams || [] : demoExams, [coursesQuery.data, demoExams]);
   const uniqueEnrolledStudents = hasSupabaseConfig ? coursesQuery.data?.uniqueStudentCount ?? null : null;
+  const coursesLoading = hasSupabaseConfig && coursesQuery.isLoading;
+  const kpiValue = (value) => coursesLoading ? <SkeletonValue /> : value;
 
   useEffect(() => {
     setSelectedCourseId((current) => current && courses.some((course) => course.id === current) ? current : courses[0]?.id || "");
@@ -158,19 +160,19 @@ export default function ProfessorCourses() {
       <div className="professor-stats-grid professor-courses-stats">
         <Card className="professor-kpi-card">
           <FiBookOpen aria-hidden="true" />
-          <div><span>My Courses</span><strong>{courses.length}</strong></div>
+          <div><span>My Courses</span><strong>{kpiValue(courses.length)}</strong></div>
         </Card>
         <Card className="professor-kpi-card">
           <FiFileText aria-hidden="true" />
-          <div><span>Course Exams</span><strong>{exams.length}</strong></div>
+          <div><span>Course Exams</span><strong>{kpiValue(exams.length)}</strong></div>
         </Card>
         <Card className="professor-kpi-card">
           <FiFileText aria-hidden="true" />
-          <div><span>Published Exams</span><strong>{exams.filter((exam) => ["Published", "published", "Active"].includes(exam.status)).length}</strong></div>
+          <div><span>Published Exams</span><strong>{kpiValue(exams.filter((exam) => ["Published", "published", "Active"].includes(exam.status)).length)}</strong></div>
         </Card>
         <Card className="professor-kpi-card">
           <FiUsers aria-hidden="true" />
-          <div><span>Enrolled Students</span><strong>{totalStudents}</strong></div>
+          <div><span>Enrolled Students</span><strong>{kpiValue(totalStudents)}</strong></div>
         </Card>
       </div>
 
@@ -180,11 +182,11 @@ export default function ProfessorCourses() {
             <h2>My Courses</h2>
             <p>Open a course to manage materials, exams, and members.</p>
           </div>
-          <span>{courses.length} {courses.length === 1 ? "course" : "courses"}</span>
+          <span>{coursesLoading ? <SkeletonValue /> : `${courses.length} ${courses.length === 1 ? "course" : "courses"}`}</span>
         </div>
         <div className="professor-courses-toolbar">
           <div className="professor-courses-toolbar-summary">
-            <strong>{coursePageData.rows.length}</strong>
+            <strong>{kpiValue(coursePageData.rows.length)}</strong>
             <span>shown on this page</span>
           </div>
           <ListViewToolbar
@@ -199,7 +201,8 @@ export default function ProfessorCourses() {
           />
         </div>
 
-        {courseView.view === "cards" ? (
+        {coursesLoading ? <ListSkeleton columns={courseView.view === "cards" ? 4 : 6} label="Loading courses..." variant={courseView.view === "cards" ? "records" : "table"} /> : null}
+        {!coursesLoading && courseView.view === "cards" ? (
           <ListCardGrid density={courseView.cardDensity}>
             {coursePageData.rows.map((course) => (
               <article className="professor-course-record-card" key={course.id}>
@@ -232,7 +235,8 @@ export default function ProfessorCourses() {
               </article>
             ))}
           </ListCardGrid>
-        ) : (
+        ) : null}
+        {!coursesLoading && courseView.view !== "cards" ? (
           <ResponsiveTable density={courseView.tableDensity} className="professor-courses-table-card">
             <table className="professor-courses-table">
               <colgroup>
@@ -258,8 +262,8 @@ export default function ProfessorCourses() {
               </tbody>
             </table>
           </ResponsiveTable>
-        )}
-        {!courses.length ? (
+        ) : null}
+        {!coursesLoading && !courses.length ? (
           <div className="professor-courses-empty">
             <strong>No assigned courses found.</strong>
             <span>Your assigned courses will appear here.</span>
@@ -274,10 +278,11 @@ export default function ProfessorCourses() {
             <h2>{selectedCourse ? `${selectedCourse.courseCode} Exams` : "Course Exams"}</h2>
             <p>{selectedCourse ? `${selectedCourse.courseName} - ${selectedCourse.section}` : "Select a course to view exams."}</p>
           </div>
-          <span>{selectedExams.length} exams</span>
+          <span>{coursesLoading ? <SkeletonValue /> : `${selectedExams.length} exams`}</span>
         </div>
 
         <div className="professor-course-exam-list">
+          {coursesLoading ? <ListSkeleton columns={2} count={3} header={false} label="Loading course exams..." variant="table" /> : null}
           {selectedExams.map((exam) => (
             <article key={exam.id}>
               <div>
@@ -290,7 +295,7 @@ export default function ProfessorCourses() {
               </div>
             </article>
           ))}
-          {!selectedExams.length ? <div className="professor-exams-empty">No exams created for this course yet.</div> : null}
+          {!coursesLoading && !selectedExams.length ? <div className="professor-exams-empty">No exams created for this course yet.</div> : null}
         </div>
       </Card>
     </section>

@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { FiFileText } from "react-icons/fi";
 import { toast } from "sonner";
-import { Button, Field, SelectField, Table } from "../../components/ui";
+import { Button, Field, ListSkeleton, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import { StatusBadge } from "./helpers";
 
@@ -101,7 +101,7 @@ function downloadBlob(blob, fileName) {
 }
 
 export default function ClusterReports() {
-  const { exams, setReportsGenerated } = useCluster();
+  const { clusterReady, exams, setReportsGenerated } = useCluster();
   const [reportType, setReportType] = useState("Exam Approval Report");
   const [date, setDate] = useState("");
   const [course, setCourse] = useState("All Courses");
@@ -150,13 +150,14 @@ export default function ClusterReports() {
           <h2>{reportType}</h2>
           <Button onClick={exportReport}><FiFileText /> Generate Report</Button>
         </div>
-        <Table className="cluster-reports-table" columns={[
+        {!clusterReady ? <ListSkeleton columns={5} label="Loading report records..." variant="table" /> : null}
+        {clusterReady ? <Table className="cluster-reports-table" columns={[
           { key: "examTitle", label: "Exam Title" },
           { key: "professorName", label: "Professor Name" },
           { key: "course", label: "Course" },
           { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
           { key: "submittedAt", label: "Submitted" },
-        ]} rows={rows} />
+        ]} rows={rows} /> : null}
       </section>
     </section>
   );

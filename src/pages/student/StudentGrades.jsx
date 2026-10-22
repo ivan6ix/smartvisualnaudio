@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FiChevronUp } from "react-icons/fi";
 import { toast } from "sonner";
 import { ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
+import { ListSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { studentCourses, studentGrades } from "../../data/studentData";
 import useListViewPreference from "../../hooks/useListViewPreference";
@@ -131,6 +132,7 @@ export default function StudentGrades() {
   const [joinedCourses] = useLocalStorageState("smartproctor.student.courses", studentCourses);
   const [courses, setCourses] = useState(() => joinedCourses.map(mapCourse).filter(Boolean));
   const [grades, setGrades] = useState(() => studentGrades.map((grade) => ({ ...grade, academicYear: "2025-2026" })));
+  const [gradesReady, setGradesReady] = useState(() => !hasSupabaseConfig || Boolean(queryClient.getQueryData(["student-grades", user?.id])));
   const [openCourseId, setOpenCourseId] = useState(null);
   const [page, setPage] = useState(1);
   const listView = useListViewPreference({ role: "student", page: "grades", defaultView: "cards" });
@@ -228,7 +230,7 @@ export default function StudentGrades() {
   }, [queryClient, user?.id]);
 
   useEffect(() => {
-    void loadGrades();
+    void loadGrades().finally(() => setGradesReady(true));
   }, [loadGrades]);
 
   useEffect(() => {
@@ -282,7 +284,8 @@ export default function StudentGrades() {
         }}
       />
 
-      {listView.view === "cards" ? (
+      {!gradesReady ? <ListSkeleton columns={5} count={3} label="Loading grades..." variant={listView.view === "cards" ? "cards" : "table"} /> : null}
+      {gradesReady && listView.view === "cards" ? (
         <div className={`list-card-grid list-card-grid-${listView.cardDensity} student-grade-course-list`}>
         {pageData.rows.map((course) => {
           const isOpen = openCourseId === course.id;
@@ -305,7 +308,8 @@ export default function StudentGrades() {
           );
         })}
         </div>
-      ) : (
+      ) : null}
+      {gradesReady && listView.view !== "cards" ? (
         <ResponsiveTable density={listView.tableDensity} className="student-grades-table-wrap">
           <table className="professor-score-table compact student-grades-table">
             <thead><tr><th>Course</th><th>Section</th><th>Records</th><th>Average</th><th>Action</th></tr></thead>
@@ -331,8 +335,8 @@ export default function StudentGrades() {
             </tbody>
           </table>
         </ResponsiveTable>
-      )}
-      {!visibleCourses.length ? <div className="student-empty-box">No joined courses found.</div> : null}
+      ) : null}
+      {gradesReady && !visibleCourses.length ? <div className="student-empty-box">No joined courses found.</div> : null}
       <ListPagination count={visibleCourses.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
     </section>
   );

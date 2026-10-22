@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FiArchive, FiEdit2, FiFileText, FiGrid, FiPlus, FiRotateCcw, FiTrash2, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Button, RowActionMenu } from "../../components/ui";
+import { Button, ListSkeleton, RowActionMenu, SkeletonValue } from "../../components/ui";
 import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
@@ -146,6 +146,7 @@ export default function ProfessorExams() {
   const [shareCourses, setShareCourses] = useState([]);
   const [shareStudents, setShareStudents] = useState([]);
   const [liveExams, setLiveExams] = useState([]);
+  const [examsReady, setExamsReady] = useState(() => !hasSupabaseConfig || Boolean(queryClient.getQueryData(["professor-exams", user?.id])));
   const [loadingActionId, setLoadingActionId] = useState("");
   const [sharingTargetId, setSharingTargetId] = useState("");
   const [sectionFilters, setSectionFilters] = useState(initialSectionFilters);
@@ -305,7 +306,7 @@ export default function ProfessorExams() {
   }, [queryClient, user?.id]);
 
   useEffect(() => {
-    loadExams();
+    loadExams().finally(() => setExamsReady(true));
   }, [loadExams]);
 
   useEffect(() => {
@@ -763,6 +764,11 @@ export default function ProfessorExams() {
     );
   }
 
+  function renderSectionSkeleton(label) {
+    if (examsReady) return null;
+    return <ListSkeleton columns={6} count={2} label={label} variant={listView.view === "cards" ? "cards" : "table"} />;
+  }
+
   function renderDraftsSection() {
     const page = sectionPages.drafts || 1;
     const pageData = getListPageSlice(draftExams, page, listView.pageSize);
@@ -773,10 +779,11 @@ export default function ProfessorExams() {
             <h2>Drafts</h2>
             <p>Unfinished exams saved locally and in Supabase when possible.</p>
           </div>
-          <span>{draftExams.length} {draftExams.length === 1 ? "exam" : "exams"}</span>
+          <span>{examsReady ? `${draftExams.length} ${draftExams.length === 1 ? "exam" : "exams"}` : <SkeletonValue />}</span>
         </div>
-        {listView.view === "cards" ? renderExamCards(pageData.rows, getDraftActions, "draft") : renderExamTable(pageData.rows, getDraftActions, "draft")}
-        {!draftExams.length ? <div className="professor-exams-empty">No draft exams.</div> : null}
+        {renderSectionSkeleton("Loading draft exams...")}
+        {examsReady ? (listView.view === "cards" ? renderExamCards(pageData.rows, getDraftActions, "draft") : renderExamTable(pageData.rows, getDraftActions, "draft")) : null}
+        {examsReady && !draftExams.length ? <div className="professor-exams-empty">No draft exams.</div> : null}
         <ListPagination count={draftExams.length} page={pageData.page} pageSize={listView.pageSize} onPage={(nextPage) => updateSectionPage("drafts", nextPage)} />
       </section>
     );
@@ -1074,7 +1081,7 @@ export default function ProfessorExams() {
             <h2>{title}</h2>
             <p>{description}</p>
           </div>
-          <span>{filteredRows.length} {filteredRows.length === 1 ? "exam" : "exams"}</span>
+          <span>{examsReady ? `${filteredRows.length} ${filteredRows.length === 1 ? "exam" : "exams"}` : <SkeletonValue />}</span>
         </div>
 
         <div className="professor-exam-section-filters">
@@ -1102,8 +1109,9 @@ export default function ProfessorExams() {
           </select>
         </div>
 
-        {listView.view === "cards" ? renderExamCards(pageData.rows, getExamActions, sectionKey) : renderExamTable(pageData.rows, getExamActions, sectionKey)}
-        {!filteredRows.length ? <div className="professor-exams-empty">{rows.length ? "No exams match your filters." : "No exams in this section."}</div> : null}
+        {renderSectionSkeleton(`Loading ${title.toLowerCase()}...`)}
+        {examsReady ? (listView.view === "cards" ? renderExamCards(pageData.rows, getExamActions, sectionKey) : renderExamTable(pageData.rows, getExamActions, sectionKey)) : null}
+        {examsReady && !filteredRows.length ? <div className="professor-exams-empty">{rows.length ? "No exams match your filters." : "No exams in this section."}</div> : null}
         <ListPagination count={filteredRows.length} page={pageData.page} pageSize={listView.pageSize} onPage={(nextPage) => updateSectionPage(sectionKey, nextPage)} />
       </section>
     );
@@ -1130,7 +1138,7 @@ export default function ProfessorExams() {
           return (
             <article className="professor-kpi-card" key={summary.key}>
               <Icon aria-hidden="true" />
-              <div><span>{summary.label}</span><strong>{summary.value}</strong></div>
+              <div><span>{summary.label}</span><strong>{examsReady ? summary.value : <SkeletonValue />}</strong></div>
             </article>
           );
         })}
@@ -1138,7 +1146,7 @@ export default function ProfessorExams() {
 
       <div className="professor-exams-toolbar">
         <div className="professor-exams-toolbar-summary">
-          <strong>{activeExams.length}</strong>
+          <strong>{examsReady ? activeExams.length : <SkeletonValue />}</strong>
           <span>{activeExams.length === 1 ? "active exam" : "active exams"}</span>
         </div>
         <ListViewToolbar

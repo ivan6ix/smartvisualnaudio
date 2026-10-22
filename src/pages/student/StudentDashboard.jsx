@@ -4,7 +4,7 @@ import { FiArrowRight, FiBookOpen, FiFileText, FiPlus, FiX } from "react-icons/f
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
-import { Card } from "../../components/ui";
+import { Card, ListSkeleton, SkeletonValue } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { studentCourses } from "../../data/studentData";
@@ -134,7 +134,7 @@ export default function StudentDashboard() {
   });
 
   const availableExams = dashboardQuery.data?.availableExams || [];
-  const examsLoading = hasSupabaseConfig && dashboardQuery.isFetching;
+  const examsLoading = hasSupabaseConfig && dashboardQuery.isLoading;
   const coursePageData = getListPageSlice(courses, coursePage, coursesView.pageSize);
   const examPageData = getListPageSlice(availableExams, examPage, examsView.pageSize);
   const dashboardSummaries = [
@@ -209,7 +209,7 @@ export default function StudentDashboard() {
           return (
             <article className="student-kpi-card" key={summary.key}>
               <Icon aria-hidden="true" />
-              <div><span>{summary.label}</span><strong>{summary.value}</strong></div>
+              <div><span>{summary.label}</span><strong>{examsLoading ? <SkeletonValue /> : summary.value}</strong></div>
             </article>
           );
         })}
@@ -219,7 +219,7 @@ export default function StudentDashboard() {
         <Card className="student-dashboard-card">
           <div className="student-card-title">
             <h2>My Courses</h2>
-            <span>{courses.length} joined</span>
+            <span>{examsLoading ? <SkeletonValue /> : `${courses.length} joined`}</span>
           </div>
           <ListViewToolbar
             controls={{
@@ -231,7 +231,8 @@ export default function StudentDashboard() {
               view: coursesView.view,
             }}
           />
-          {coursesView.view === "cards" ? (
+          {examsLoading ? <ListSkeleton count={2} label="Loading courses..." variant={coursesView.view === "cards" ? "cards" : "table"} /> : null}
+          {!examsLoading && coursesView.view === "cards" ? (
             <ListCardGrid density={coursesView.cardDensity}>
             {coursePageData.rows.map((course) => (
               <button className="student-course-card student-dashboard-record-card" key={course.id} onClick={() => navigate(`/student/courses/${course.id}/materials`)} type="button">
@@ -244,7 +245,8 @@ export default function StudentDashboard() {
               </button>
             ))}
             </ListCardGrid>
-          ) : (
+          ) : null}
+          {!examsLoading && coursesView.view !== "cards" ? (
             <ResponsiveTable density={coursesView.tableDensity}>
               <table className="professor-score-table compact">
                 <thead><tr><th>Course</th><th>Section</th><th>Program</th><th>Action</th></tr></thead>
@@ -260,15 +262,15 @@ export default function StudentDashboard() {
                 </tbody>
               </table>
             </ResponsiveTable>
-          )}
-          {!courses.length ? <div className="student-empty-box">No joined courses yet.</div> : null}
+          ) : null}
+          {!examsLoading && !courses.length ? <div className="student-empty-box">No joined courses yet.</div> : null}
           <ListPagination count={courses.length} page={coursePageData.page} pageSize={coursesView.pageSize} onPage={setCoursePage} />
         </Card>
 
         <Card className="student-dashboard-card student-exams-card">
           <div className="student-card-title">
             <h2>Available Exams</h2>
-            <span>{availableExams.length}</span>
+            <span>{examsLoading ? <SkeletonValue /> : availableExams.length}</span>
           </div>
           <ListViewToolbar
             controls={{
@@ -280,7 +282,7 @@ export default function StudentDashboard() {
               view: examsView.view,
             }}
           />
-          {examsLoading ? <div className="student-empty-box">Loading available exams...</div> : null}
+          {examsLoading ? <ListSkeleton columns={3} count={2} label="Loading available exams..." variant={examsView.view === "cards" ? "cards" : "table"} /> : null}
           {!examsLoading && examsView.view === "cards" ? (
             <ListCardGrid density={examsView.cardDensity}>
             {examPageData.rows.map((exam) => (

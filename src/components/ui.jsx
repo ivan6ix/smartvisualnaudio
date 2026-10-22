@@ -84,13 +84,24 @@ export function SkeletonBlock({ className = "" }) {
   return <div className={`skeleton-block ${className}`} />;
 }
 
+// Inline stand-in for a single number (KPI or stat value) while it loads.
+export function SkeletonValue({ className = "" }) {
+  return <span className={`skeleton-block skeleton-value ${className}`} role="status" aria-label="Loading" />;
+}
+
+export function HeaderSkeleton() {
+  return (
+    <div className="skeleton-header" aria-hidden="true">
+      <SkeletonBlock className="skeleton-title" />
+      <SkeletonBlock className="skeleton-subtitle" />
+    </div>
+  );
+}
+
 export function PageSkeleton({ cards = 4, rows = 5 }) {
   return (
     <main className="app-shell page-skeleton" aria-busy="true">
-      <div className="skeleton-header">
-        <SkeletonBlock className="skeleton-title" />
-        <SkeletonBlock className="skeleton-subtitle" />
-      </div>
+      <HeaderSkeleton />
       <div className="stats-grid">
         {Array.from({ length: cards }).map((_, index) => <SkeletonBlock key={index} className="skeleton-stat-card" />)}
       </div>
@@ -99,6 +110,74 @@ export function PageSkeleton({ cards = 4, rows = 5 }) {
         {Array.from({ length: rows }).map((_, index) => <SkeletonBlock key={index} className="skeleton-row" />)}
       </Card>
     </main>
+  );
+}
+
+const SKELETON_DEFAULT_COUNTS = { cards: 4, records: 4, stats: 4, table: 5 };
+const SKELETON_WIDTHS = ["82%", "64%", "74%", "58%", "70%", "88%"];
+
+function skeletonWidth(index, offset = 0) {
+  return SKELETON_WIDTHS[(index + offset) % SKELETON_WIDTHS.length];
+}
+
+// First-load placeholder shaped like the list it stands in for. Pages render it only while no data exists yet.
+export function ListSkeleton({ variant = "table", count, columns = 4, header = true, label = "Loading...", className = "" }) {
+  const total = count ?? SKELETON_DEFAULT_COUNTS[variant] ?? 4;
+  const items = Array.from({ length: total }, (_, index) => index);
+  const cells = Array.from({ length: columns }, (_, index) => index);
+
+  return (
+    <div className={`list-skeleton list-skeleton--${variant} ${className}`} role="status" aria-busy="true" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      {variant === "table" ? (
+        <div className="list-skeleton__table" aria-hidden="true" style={{ "--skeleton-template": columns > 1 ? `minmax(0, 2fr) repeat(${columns - 1}, minmax(0, 1fr))` : "minmax(0, 1fr)" }}>
+          {header ? (
+            <div className="list-skeleton__row list-skeleton__row--head">
+              {cells.map((cell) => <SkeletonBlock key={cell} className="skeleton-line skeleton-line--sm" />)}
+            </div>
+          ) : null}
+          {items.map((item) => (
+            <div className="list-skeleton__row" key={item}>
+              {cells.map((cell) => (
+                <span className="list-skeleton__cell" key={cell} style={{ width: skeletonWidth(item, cell) }}>
+                  <SkeletonBlock className={cell === columns - 1 && columns > 2 ? "skeleton-pill" : "skeleton-line"} />
+                </span>
+              ))}
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {variant === "cards" ? items.map((item) => (
+        <div className="list-skeleton__card" key={item} aria-hidden="true">
+          <SkeletonBlock className="skeleton-line skeleton-line--lg" />
+          <SkeletonBlock className="skeleton-line" />
+          <SkeletonBlock className="skeleton-line skeleton-line--short" />
+          <SkeletonBlock className="skeleton-pill list-skeleton__action" />
+        </div>
+      )) : null}
+      {variant === "records" ? items.map((item) => (
+        <div className="list-skeleton__record" key={item} aria-hidden="true">
+          <div className="list-skeleton__record-header">
+            <SkeletonBlock className="skeleton-line skeleton-line--lg" />
+          </div>
+          <div className="list-skeleton__record-body">
+            {cells.map((cell) => (
+              <span className="list-skeleton__field" key={cell}>
+                <SkeletonBlock className="skeleton-line skeleton-line--sm skeleton-line--short" />
+                <SkeletonBlock className="skeleton-line" />
+              </span>
+            ))}
+          </div>
+        </div>
+      )) : null}
+      {variant === "stats" ? items.map((item) => (
+        <div className="list-skeleton__stat" key={item} aria-hidden="true">
+          <SkeletonBlock className="skeleton-icon" />
+          <SkeletonBlock className="skeleton-line skeleton-line--xl skeleton-line--short" />
+          <SkeletonBlock className="skeleton-line skeleton-line--sm" />
+        </div>
+      )) : null}
+    </div>
   );
 }
 

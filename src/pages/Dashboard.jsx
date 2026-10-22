@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { FiActivity, FiBookOpen, FiDatabase, FiFileText, FiUsers } from "react-icons/fi";
-import { Card, Table, Badge } from "../components/ui";
+import { Card, ListSkeleton, SkeletonBlock, SkeletonValue, Table, Badge } from "../components/ui";
 import { useChartTheme } from "../context/ThemeContext";
 import { logs, violationChart } from "../data/mockData";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
@@ -155,6 +155,8 @@ export default function Dashboard() {
     },
   });
 
+  const statsLoading = hasSupabaseConfig && statsQuery.isLoading;
+  const detailsLoading = hasSupabaseConfig && detailsQuery.isLoading;
   const liveStats = hasSupabaseConfig ? statsQuery.data || defaultStats : defaultStats;
   const liveViolationChart = hasSupabaseConfig ? detailsQuery.data?.violationChart || violationChart : violationChart;
   const liveLogs = hasSupabaseConfig ? detailsQuery.data?.logs || logs : logs;
@@ -183,7 +185,7 @@ export default function Dashboard() {
           <article className="admin-stat-card" key={label}>
             <Icon />
             <div>
-              <strong>{Number(value).toLocaleString()}</strong>
+              <strong>{statsLoading ? <SkeletonValue /> : Number(value).toLocaleString()}</strong>
               <span>{label}</span>
             </div>
           </article>
@@ -197,7 +199,7 @@ export default function Dashboard() {
             <small>Face, audio, fullscreen, and device alerts</small>
           </div>
           <div className="chart-box">
-            <ResponsiveContainer width="100%" height={280}>
+            {detailsLoading ? <SkeletonBlock className="skeleton-chart" /> : <ResponsiveContainer width="100%" height={280}>
               <BarChart data={liveViolationChart}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
                 <XAxis dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
@@ -205,7 +207,7 @@ export default function Dashboard() {
                 <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
                 <Bar dataKey="count" fill="var(--primary)" radius={[6, 6, 0, 0]} />
               </BarChart>
-            </ResponsiveContainer>
+            </ResponsiveContainer>}
           </div>
         </Card>
 
@@ -239,7 +241,9 @@ export default function Dashboard() {
           <span><FiUsers /> Recent Account Activity</span>
           <small>Admin, course, account, and password events</small>
         </div>
-        <Table columns={[{ key: "action", label: "Action" }, { key: "description", label: "Description" }, { key: "createdAt", label: "Date" }]} rows={liveLogs} />
+        {detailsLoading ? <ListSkeleton columns={3} label="Loading recent account activity..." variant="table" /> : (
+          <Table columns={[{ key: "action", label: "Action" }, { key: "description", label: "Description" }, { key: "createdAt", label: "Date" }]} rows={liveLogs} />
+        )}
       </Card>
     </section>
   );

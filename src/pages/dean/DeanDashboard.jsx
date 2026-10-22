@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiFileText, FiUsers, FiX } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
-import { Badge, Button, Card, EmptyState, SearchBox, SelectField, Table } from "../../components/ui";
+import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
 import { useChartTheme } from "../../context/ThemeContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { violationChart } from "../../data/mockData";
@@ -152,6 +152,7 @@ export default function DeanDashboard() {
       };
     },
   });
+  const dashboardLoading = hasSupabaseConfig && dashboardQuery.isLoading;
   const stats = hasSupabaseConfig ? dashboardQuery.data?.stats || defaultStats : defaultStats;
   const violations = hasSupabaseConfig ? dashboardQuery.data?.violations || emptyViolations : emptyViolations;
 
@@ -231,7 +232,7 @@ export default function DeanDashboard() {
           <Card className="dean-kpi-card" key={label}>
             <div>
               <span>{label}</span>
-              <strong>{value}</strong>
+              <strong>{dashboardLoading ? <SkeletonValue /> : value}</strong>
             </div>
             <Icon />
           </Card>
@@ -271,10 +272,10 @@ export default function DeanDashboard() {
             <h2>Violation Analytics</h2>
             <p>Filtered proctoring records from the current Dean dashboard sample.</p>
           </div>
-          <span>{filteredViolations.length} matching records</span>
+          <span>{dashboardLoading ? <SkeletonValue /> : `${filteredViolations.length} matching records`}</span>
         </div>
         <div className="chart-box dean-chart-box">
-          {filteredViolations.length || !hasSupabaseConfig ? (
+          {dashboardLoading ? <SkeletonBlock className="skeleton-chart" /> : filteredViolations.length || !hasSupabaseConfig ? (
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={violationData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
@@ -298,7 +299,9 @@ export default function DeanDashboard() {
                 view: listView.view,
               }}
             />
-            {listView.view === "cards" ? (
+            {dashboardLoading ? (
+              <ListSkeleton columns={listView.view === "cards" ? 4 : 8} label="Loading violation records..." variant={listView.view === "cards" ? "records" : "table"} />
+            ) : listView.view === "cards" ? (
               <RecordCardList columns={violationColumns} density={listView.cardDensity} rows={pageData.rows} titleKey="student" />
             ) : (
               <Table className={`dean-dashboard-violations-table list-table-${listView.tableDensity}`} columns={violationColumns} rows={pageData.rows} emptyTitle="No matching records found." emptyDescription="Adjust the search or filters to show violation records." />

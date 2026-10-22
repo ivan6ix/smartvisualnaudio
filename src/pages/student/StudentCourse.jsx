@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiBookOpen, FiChevronDown, FiDownload, FiEye, FiFileText, FiFolder, FiUpload, FiUsers, FiX } from "react-icons/fi";
 import { NavLink, Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Badge, Button, TextArea } from "../../components/ui";
+import { Badge, Button, HeaderSkeleton, ListSkeleton, TextArea } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { studentCourses, studentGrades, studentMembers } from "../../data/studentData";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
@@ -644,7 +644,8 @@ export default function StudentCourse() {
   if (hasSupabaseConfig && loadingCourse && !course) {
     return (
       <section className="student-page">
-        <div className="student-empty-box">Loading course...</div>
+        <HeaderSkeleton />
+        <ListSkeleton columns={2} count={3} header={false} label="Loading course..." variant="table" />
       </section>
     );
   }

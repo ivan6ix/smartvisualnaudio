@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ListPagination, ListViewToolbar } from "../../components/ListViewControls";
-import { Badge, Button, Card, PageHeader, SearchBox, SelectField } from "../../components/ui";
+import { Badge, Button, Card, ListSkeleton, PageHeader, SearchBox, SelectField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
@@ -175,6 +175,7 @@ export default function ProfessorScores() {
   const [searchParams] = useSearchParams();
   const [data, setData] = useState(() => hasSupabaseConfig ? { courses: [], exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [] } : { ...buildDemoData(), reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [] });
   const [loading, setLoading] = useState(hasSupabaseConfig);
+  const [scoresReady, setScoresReady] = useState(!hasSupabaseConfig);
   const [search, setSearch] = useState("");
   const [courseFilter, setCourseFilter] = useState("All Courses");
   const [sectionFilter, setSectionFilter] = useState("All Sections");
@@ -291,6 +292,7 @@ export default function ProfessorScores() {
       toast.error(error.message);
     } finally {
       setLoading(false);
+      setScoresReady(true);
     }
   }, [user?.id]);
 
@@ -525,7 +527,16 @@ export default function ProfessorScores() {
     window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
   }
 
-  if (loading) return <section className="professor-scores-page"><PageHeader title="Scores" subtitle="Loading exam results..." /></section>;
+  if (loading && !scoresReady) {
+    return (
+      <section className="professor-scores-page">
+        <PageHeader title="Scores" subtitle="Loading exam results..." />
+        <Card>
+          <ListSkeleton columns={5} label="Loading exam results..." variant={listView.view === "cards" ? "records" : "table"} />
+        </Card>
+      </section>
+    );
+  }
 
   if (attemptId) {
     return (

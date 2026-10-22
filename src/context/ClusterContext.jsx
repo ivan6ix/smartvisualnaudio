@@ -189,6 +189,8 @@ export function ClusterProvider({ children }) {
   const [storedNotifications, setStoredNotifications] = useLocalStorageState("smartproctor.cluster.notifications", clusterNotifications);
   const [reportsGenerated, setReportsGenerated] = useLocalStorageState("smartproctor.cluster.reportsGenerated", 8);
   const [filterOptions, setFilterOptions] = useState(() => buildFilterOptions(clusterExams));
+  // Stored exams/reviews may be demo seeds or a previous session's data, so lists wait for the first live load.
+  const [clusterReady, setClusterReady] = useState(!hasSupabaseConfig);
   const exams = useMemo(() => normalizeClusterExams(storedExams), [storedExams]);
   const reviews = useMemo(() => normalizeClusterReviews(storedReviews), [storedReviews]);
   const messages = useMemo(() => normalizeClusterMessages(storedMessages), [storedMessages]);
@@ -347,7 +349,7 @@ export function ClusterProvider({ children }) {
   }, [setExams, setMessages, setReportsGenerated, setReviews, user?.id, user?.role, user?.fullName, user?.email]);
 
   useEffect(() => {
-    loadLiveClusterData();
+    loadLiveClusterData().finally(() => setClusterReady(true));
   }, [loadLiveClusterData]);
 
   useEffect(() => {
@@ -602,6 +604,7 @@ export function ClusterProvider({ children }) {
     unreadNotificationCount: hasSupabaseConfig ? liveNotifications.unreadCount : notifications.filter(item => !item.isRead).length,
     reportsGenerated,
     filterOptions,
+    clusterReady,
     setReportsGenerated,
     refreshClusterData: loadLiveClusterData,
     saveReview,

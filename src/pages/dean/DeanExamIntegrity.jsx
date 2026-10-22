@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { FiActivity, FiAlertTriangle, FiCamera, FiShield } from "react-icons/fi";
 import { toast } from "sonner";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
-import { Badge, Card, EmptyState, SearchBox, SelectField, Table } from "../../components/ui";
+import { Badge, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonValue, Table } from "../../components/ui";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -225,7 +225,7 @@ export default function DeanExamIntegrity() {
           <Card className="dean-kpi-card" key={label}>
             <div>
               <span>{label}</span>
-              <strong>{value}</strong>
+              <strong>{loading ? <SkeletonValue /> : value}</strong>
             </div>
             <Icon aria-hidden="true" />
           </Card>
@@ -256,7 +256,7 @@ export default function DeanExamIntegrity() {
             <h2>Integrity Records</h2>
             <p>Showing the latest capped monitoring records with evidence available on request.</p>
           </div>
-          <span>{filteredViolations.length} records</span>
+          <span>{loading ? <SkeletonValue /> : `${filteredViolations.length} records`}</span>
         </div>
         <ListViewToolbar
           controls={{
@@ -274,10 +274,11 @@ export default function DeanExamIntegrity() {
             <span>{loadError}</span>
           </div>
         ) : loading ? (
-          <div className="dean-integrity-state" aria-busy="true">
-            <strong>Loading integrity records...</strong>
-            <span>Fetching the latest monitoring metadata.</span>
-          </div>
+          <ListSkeleton
+            columns={listView.view === "cards" ? 4 : Math.min(columns.length, 6)}
+            label="Loading integrity records..."
+            variant={listView.view === "cards" ? "records" : "table"}
+          />
         ) : (
           <div className="dean-integrity-table-scroll">
           {listView.view === "cards" ? (

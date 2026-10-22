@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FiArchive, FiEdit2, FiPlus, FiRefreshCw, FiTrash2 } from "react-icons/fi";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
-import { Badge, Button, Card, EmptyState, Field, PageHeader, SearchBox, SelectField, Table } from "../components/ui";
+import { Badge, Button, Card, EmptyState, Field, ListSkeleton, PageHeader, SearchBox, SelectField, Table } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import useListViewPreference from "../hooks/useListViewPreference";
 import { courses as seedCourses, professors } from "../data/mockData";
@@ -416,7 +416,9 @@ export default function Courses() {
           <h2>Course Records</h2>
           <Button variant="light" onClick={() => setShowArchived(true)}><FiArchive /> Archives</Button>
         </div>
-        {listView.view === "cards" ? (
+        {hasSupabaseConfig && coursesQuery.isLoading ? (
+          <ListSkeleton columns={listView.view === "cards" ? 4 : 6} label="Loading course records..." variant={listView.view === "cards" ? "records" : "table"} />
+        ) : listView.view === "cards" ? (
           <RecordCardList
             columns={columns}
             density={listView.cardDensity}
@@ -455,10 +457,7 @@ export default function Courses() {
               <span>{coursesQuery.error.message}</span>
             </div>
           ) : coursesQuery.isLoading ? (
-            <div className="dean-courses-state" aria-busy="true">
-              <strong>Loading courses...</strong>
-              <span>Fetching the current academic course records.</span>
-            </div>
+            <ListSkeleton columns={listView.view === "cards" ? 4 : 6} label="Loading courses..." variant={listView.view === "cards" ? "records" : "table"} />
           ) : (
             <div className="dean-courses-table-scroll">
               {listView.view === "cards" ? (

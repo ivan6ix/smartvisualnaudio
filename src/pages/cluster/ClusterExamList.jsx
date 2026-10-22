@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiClock, FiDownload, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { ListPagination } from "../../components/ListViewControls";
-import { Button, Card, Field, RowActionMenu, SearchBox, SelectField, Table, TextArea } from "../../components/ui";
+import { Button, Card, Field, ListSkeleton, RowActionMenu, SearchBox, SelectField, SkeletonValue, Table, TextArea } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { DENSITIES, getListPageSlice, TABLE_PAGE_SIZE } from "../../lib/listView";
@@ -30,7 +30,7 @@ function TableDensityControls({ tableDensity, onTableDensity }) {
 }
 
 export default function ClusterExamList({ status }) {
-  const { exams, filterOptions, reviews, approveExam, rejectExam } = useCluster();
+  const { clusterReady, exams, filterOptions, reviews, approveExam, rejectExam } = useCluster();
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [course, setCourse] = useState("All Courses");
@@ -251,14 +251,16 @@ export default function ClusterExamList({ status }) {
         <div className="cluster-exam-list-panel-header">
           <div>
             <h2>Exam Queue</h2>
-            <p>{filtered.length} {filtered.length === 1 ? "exam" : "exams"} {status === "Pending Review" ? "awaiting review." : "found."}</p>
+            <p>{clusterReady ? `${filtered.length} ${filtered.length === 1 ? "exam" : "exams"} ${status === "Pending Review" ? "awaiting review." : "found."}` : <SkeletonValue />}</p>
           </div>
           <TableDensityControls tableDensity={listView.tableDensity} onTableDensity={listView.setTableDensity} />
         </div>
-        <div className="cluster-exam-table-scroll">
-          <Table className={`cluster-exam-list-table list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderTableActions} emptyTitle="No exams are currently awaiting review." emptyDescription="Submitted exams that need cluster review will appear here." />
-        </div>
-        <ListPagination count={filtered.length} page={pageData.page} pageSize={TABLE_PAGE_SIZE} onPage={setPage} />
+        {clusterReady ? (
+          <div className="cluster-exam-table-scroll">
+            <Table className={`cluster-exam-list-table list-table-${listView.tableDensity}`} columns={columns} rows={pageData.rows} renderActions={renderTableActions} emptyTitle="No exams are currently awaiting review." emptyDescription="Submitted exams that need cluster review will appear here." />
+          </div>
+        ) : <ListSkeleton columns={6} label="Loading exams..." variant="table" />}
+        {clusterReady ? <ListPagination count={filtered.length} page={pageData.page} pageSize={TABLE_PAGE_SIZE} onPage={setPage} /> : null}
       </section>
       {historyExam ? (
         <div className="cluster-history-backdrop" onClick={() => setHistoryExam(null)} role="presentation">

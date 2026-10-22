@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiX } from "react-icons/fi";
-import { Button, Card, Field, SelectField, Table } from "../../components/ui";
+import { Button, Card, Field, ListSkeleton, SelectField, Table } from "../../components/ui";
 import { useCluster } from "../../context/ClusterContext";
 import { StatusBadge } from "./helpers";
 
 export default function ClusterHistory() {
-  const { reviews } = useCluster();
+  const { clusterReady, reviews } = useCluster();
   const [decision, setDecision] = useState("All Decisions");
   const [professor, setProfessor] = useState("All Professors");
   const [course, setCourse] = useState("All Courses");
@@ -49,7 +49,8 @@ export default function ClusterHistory() {
         <SelectField label="Course" value={course} onChange={(event) => setCourse(event.target.value)}>{courses.map((item) => <option key={item}>{item}</option>)}</SelectField>
       </div>
       <Card>
-        <Table columns={[
+        {!clusterReady ? <ListSkeleton columns={7} label="Loading review history..." variant="table" /> : null}
+        {clusterReady ? <Table columns={[
           { key: "id", label: "Review ID" },
           { key: "examTitle", label: "Exam Title" },
           { key: "professorName", label: "Professor Name" },
@@ -57,7 +58,7 @@ export default function ClusterHistory() {
           { key: "reviewDate", label: "Review Date" },
           { key: "decision", label: "Decision" },
           { key: "remarks", label: "Remarks" },
-        ]} className="cluster-history-table" rows={rows} renderActions={(row) => <Button variant="light" onClick={() => setSelectedReview(row)}>View</Button>} />
+        ]} className="cluster-history-table" rows={rows} renderActions={(row) => <Button variant="light" onClick={() => setSelectedReview(row)}>View</Button>} /> : null}
       </Card>
       {selectedReview ? (
         <div className="cluster-history-backdrop" onClick={(event) => { if (event.target === event.currentTarget) closeSelectedReview(); }} role="presentation">

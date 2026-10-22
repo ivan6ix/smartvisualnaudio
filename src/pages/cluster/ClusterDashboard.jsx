@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FiCheckCircle, FiFileText, FiInbox, FiMessageCircle, FiXCircle } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { RowActionMenu } from "../../components/ui";
+import { ListSkeleton, RowActionMenu, SkeletonValue } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -33,6 +33,7 @@ export default function ClusterDashboard() {
   const [openActionMenuId, setOpenActionMenuId] = useState("");
   const [liveStats, setLiveStats] = useState(null);
   const [liveRecent, setLiveRecent] = useState([]);
+  const [dashboardReady, setDashboardReady] = useState(!hasSupabaseConfig);
 
   const loadLiveDashboard = useCallback(async () => {
     if (!hasSupabaseConfig || !user?.id) return;
@@ -103,7 +104,7 @@ export default function ClusterDashboard() {
   }, [user?.id]);
 
   useEffect(() => {
-    void loadLiveDashboard();
+    void loadLiveDashboard().finally(() => setDashboardReady(true));
   }, [loadLiveDashboard]);
 
   useEffect(() => {
@@ -160,7 +161,7 @@ export default function ClusterDashboard() {
           <article className="cluster-kpi-card" key={label}>
             <div>
               <span>{label}</span>
-              <strong>{value}</strong>
+              <strong>{dashboardReady ? value : <SkeletonValue />}</strong>
             </div>
             <Icon aria-hidden="true" />
           </article>
@@ -173,7 +174,8 @@ export default function ClusterDashboard() {
             <p>Latest submitted exams and review decisions.</p>
           </div>
         </div>
-        <div className="cluster-table-scroll">
+        {!dashboardReady ? <ListSkeleton columns={6} label="Loading recent activity..." variant="table" /> : null}
+        {dashboardReady ? <div className="cluster-table-scroll">
           <table className="cluster-review-table">
             <thead>
               <tr>
@@ -218,7 +220,7 @@ export default function ClusterDashboard() {
               ) : null}
             </tbody>
           </table>
-        </div>
+        </div> : null}
       </section>
     </section>
   );

@@ -40,7 +40,7 @@ assert.match(dashboard, /filter: `receiver_id=eq\.\$\{user\.id\}`/, "Cluster das
 assert.match(dashboard, /handleApprove\(row\.id\)/, "Dashboard approve action must remain wired.");
 assert.match(dashboard, /navigate\(`\/cluster\/exams\/\$\{row\.id\}`\)/, "Dashboard review action must navigate to the review workflow.");
 assert.match(dashboard, /handleReject\(row\.id\)/, "Dashboard reject action must remain wired.");
-assert.match(dashboard, /import \{ RowActionMenu \} from "\.\.\/\.\.\/components\/ui"/, "Cluster Recent Activity should reuse the shared RowActionMenu.");
+assert.match(dashboard, /import \{[^}]*\bRowActionMenu\b[^}]*\} from "\.\.\/\.\.\/components\/ui"/, "Cluster Recent Activity should reuse the shared RowActionMenu.");
 assert.match(dashboard, /const \[openActionMenuId, setOpenActionMenuId\] = useState\(""\)/, "Cluster Recent Activity should allow only one shared row action menu open at a time.");
 assert.match(dashboard, /<RowActionMenu[\s\S]*label=\{`Actions for \$\{row\.examTitle \|\| "exam"\}`\}[\s\S]*menuId=\{`cluster-review-actions-\$\{row\.id\}`\}/, "Each Recent Activity row should expose one accessible kebab trigger.");
 assert.match(dashboard, /actions=\{\[[\s\S]*label: "Review"[\s\S]*onClick: \(\) => navigate\(`\/cluster\/exams\/\$\{row\.id\}`\)[\s\S]*row\.status === "Pending Review" \? \{[\s\S]*label: loadingActionId === row\.id \? "Saving\.\.\." : "Approve Exam"[\s\S]*onClick: \(\) => handleApprove\(row\.id\)[\s\S]*row\.status === "Pending Review" \? \{[\s\S]*danger: true[\s\S]*label: "Reject"[\s\S]*onClick: \(\) => handleReject\(row\.id\)/, "Pending Review menu should preserve Review, Approve Exam, and Reject handlers.");
@@ -51,7 +51,7 @@ assert.match(styles, /\.cluster-review-table \.badge\s*\{[\s\S]*width:\s*fit-con
 assert.match(styles, /\.cluster-review-table th:nth-child\(5\)\s*\{\s*width:\s*13%;\s*\}/, "Cluster Recent Activity Status column should fit Pending Review without oversized pills.");
 
 assert.match(examList, /export default function ClusterExamList\(\{ status \}\)/, "Cluster exam list route component must remain status-driven.");
-assert.match(examList, /const \{ exams, filterOptions, reviews, approveExam, rejectExam \} = useCluster\(\)/, "Cluster exam list must keep its existing data source and handlers.");
+assert.match(examList, /const \{ (?:clusterReady, )?exams, filterOptions, reviews, approveExam, rejectExam \} = useCluster\(\)/, "Cluster exam list must keep its existing data source and handlers.");
 assert.match(examList, /setStatusFilter\(status\)/, "Pending/Approved/Rejected route status filter must remain driven by route props.");
 assert.match(examList, /exam\.status === statusFilter/, "Existing pending-status filtering must remain exact.");
 assert.match(examList, /matchesSearch = `\$\{exam\.id\} \$\{exam\.examTitle\} \$\{exam\.professorName\} \$\{exam\.course\}`/, "Existing search fields must be preserved.");

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiArchive, FiCopy, FiFolder, FiFolderPlus, FiMoreVertical, FiRefreshCw, FiTrash2, FiUpload, FiX } from "react-icons/fi";
 import { toast } from "sonner";
+import { ListSkeleton } from "../../components/ui";
 import { studentFiles, studentFolders } from "../../data/studentData";
 import { useAuth } from "../../context/AuthContext";
 import useLocalStorageState from "../../hooks/useLocalStorageState";
@@ -524,7 +525,7 @@ export default function StudentResources() {
         <div className="student-empty-box">Resources are using local storage until the Supabase student resources SQL is applied.</div>
       ) : null}
       {loadingSupabaseResources ? (
-        <div className="student-empty-box">Loading resources...</div>
+        <ListSkeleton count={4} label="Loading resources..." variant="cards" />
       ) : null}
 
       {!loadingSupabaseResources ? <div className="student-resources-layout">

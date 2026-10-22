@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { FiActivity, FiBookOpen, FiFileText, FiMonitor } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
-import { Badge, Card } from "../../components/ui";
+import { Badge, Card, ListSkeleton, SkeletonValue } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useChartTheme } from "../../context/ThemeContext";
 import { professorAlerts, professorCourses, professorExams } from "../../data/professorData";
@@ -90,6 +90,7 @@ export default function ProfessorDashboard() {
     alerts: hasSupabaseConfig ? 0 : professorAlerts.length,
   });
   const [liveAlerts, setLiveAlerts] = useState(hasSupabaseConfig ? [] : professorAlerts);
+  const [dashboardReady, setDashboardReady] = useState(() => !hasSupabaseConfig || Boolean(queryClient.getQueryData(["professor-dashboard", user?.id])));
   const [professorExamRows, setProfessorExamRows] = useState([]);
   const [violationRows, setViolationRows] = useState([]);
   const [analyticsFilters, setAnalyticsFilters] = useState({
@@ -164,7 +165,7 @@ export default function ProfessorDashboard() {
       }
     }
 
-    loadDashboard();
+    loadDashboard().finally(() => setDashboardReady(true));
     const channel = supabase
       .channel(`professor-dashboard-${user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => {
@@ -236,7 +237,7 @@ export default function ProfessorDashboard() {
           <Card className="professor-kpi-card" key={label}>
             <div>
               <span>{label}</span>
-              <strong>{value}</strong>
+              <strong>{dashboardReady ? value : <SkeletonValue />}</strong>
             </div>
             <Icon />
           </Card>
@@ -303,7 +304,8 @@ export default function ProfessorDashboard() {
                 </div>
               </article>
             ))}
-            {!liveAlerts.length ? <div className="empty-state">No monitoring alerts yet.</div> : null}
+            {!dashboardReady ? <ListSkeleton columns={2} count={4} header={false} label="Loading monitoring alerts..." variant="table" /> : null}
+            {dashboardReady && !liveAlerts.length ? <div className="empty-state">No monitoring alerts yet.</div> : null}
           </div>
         </Card>
       </div>

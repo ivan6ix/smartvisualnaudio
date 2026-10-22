@@ -3,7 +3,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { FiUsers } from "react-icons/fi";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../components/ListViewControls";
-import { Button, Card, PageHeader, SearchBox, SelectField, Table, Badge } from "../components/ui";
+import { Button, Card, ListSkeleton, PageHeader, SearchBox, SelectField, SkeletonValue, Table, Badge } from "../components/ui";
 import { accounts as seedAccounts, roles } from "../data/mockData";
 import { useAuth } from "../context/AuthContext";
 import useListViewPreference from "../hooks/useListViewPreference";
@@ -118,7 +118,12 @@ export default function Accounts() {
   const activePageData = getListPageSlice(activeRows, activePage, listView.pageSize);
   const deactivatedPageData = getListPageSlice(deactivatedRows, deactivatedPage, listView.pageSize);
 
-  function renderAccounts(rows, action, pageData, setPage) {
+  const accountsLoading = hasSupabaseConfig && accountsQuery.isLoading;
+
+  function renderAccounts(rows, action, pageData, setPage, loadingLabel) {
+    if (accountsLoading) {
+      return <ListSkeleton columns={listView.view === "cards" ? 4 : 6} count={3} label={loadingLabel} variant={listView.view === "cards" ? "records" : "table"} />;
+    }
     return (
       <>
         {listView.view === "cards" ? (
@@ -139,7 +144,7 @@ export default function Accounts() {
           <h1>Manage Accounts</h1>
           <p>Filter, deactivate, and reactivate users across Admin, Professor, Dean, Cluster Professor, and Student roles.</p>
         </div>
-        <strong>{filtered.length}</strong>
+        <strong>{accountsLoading ? <SkeletonValue /> : filtered.length}</strong>
       </div>
       <PageHeader title="Manage Accounts" subtitle="Filter, deactivate, and reactivate users across all roles." />
       <div className="toolbar">
@@ -164,12 +169,11 @@ export default function Accounts() {
       />
       <Card className="admin-panel admin-activity-panel">
         <h2>Active Accounts</h2>
-        {accountsQuery.isPending && !accounts.length ? <p className="muted">Loading live accounts...</p> : null}
-        {renderAccounts(activeRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>, { width: "17.5%", tableClassName: "admin-account-table-active" }), activePageData, setActivePage)}
+        {renderAccounts(activeRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>, { width: "17.5%", tableClassName: "admin-account-table-active" }), activePageData, setActivePage, "Loading live accounts...")}
       </Card>
       <Card className="admin-panel admin-activity-panel">
         <h2>Deactivated Accounts</h2>
-        {renderAccounts(deactivatedRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "17.5%", tableClassName: "admin-account-table-deactivated" }), deactivatedPageData, setDeactivatedPage)}
+        {renderAccounts(deactivatedRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Active")}>Reactivate</Button>, { width: "17.5%", tableClassName: "admin-account-table-deactivated" }), deactivatedPageData, setDeactivatedPage, "Loading deactivated accounts...")}
       </Card>
     </section>
   );

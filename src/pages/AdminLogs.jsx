@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { FiClock, FiEye, FiRefreshCw, FiShield } from "react-icons/fi";
 import { ListPagination } from "../components/ListViewControls";
-import { Badge, Button, Card, Field, PageHeader, SearchBox, SelectField, Table } from "../components/ui";
+import { Badge, Button, Card, Field, ListSkeleton, PageHeader, SearchBox, SelectField, SkeletonValue, Table } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import {
   AUDIT_LOG_PAGE_SIZE,
@@ -184,7 +184,7 @@ export default function AdminLogs() {
           <h1>Admin Logs</h1>
           <p>Review state-changing account, course, program, exam, attempt, and grading events.</p>
         </div>
-        <strong>{count.toLocaleString()}</strong>
+        <strong>{logsQuery.isLoading ? <SkeletonValue /> : count.toLocaleString()}</strong>
       </div>
       <PageHeader
         title="Admin Logs"
@@ -221,15 +221,17 @@ export default function AdminLogs() {
           <Button variant="light" onClick={refreshLogs}><FiRefreshCw /> Refresh</Button>
         </div>
         {logsQuery.isError ? <p className="muted">Unable to load logs: {logsQuery.error.message}</p> : null}
-        {logsQuery.isFetching ? <p className="muted">Loading audit records...</p> : null}
-        <Table
-          className="admin-logs-table"
-          columns={columns}
-          emptyDescription="Try adjusting the date range, search, or filters."
-          emptyTitle="No audit logs found"
-          rows={rows}
-          renderActions={Object.assign((row) => <Button variant="light" onClick={() => setSelectedLog(row)}><FiEye /> Details</Button>, { width: "10%" })}
-        />
+        {logsQuery.isFetching && !logsQuery.isLoading ? <p className="muted">Refreshing audit records...</p> : null}
+        {logsQuery.isLoading ? <ListSkeleton columns={6} label="Loading audit records..." variant="table" /> : (
+          <Table
+            className="admin-logs-table"
+            columns={columns}
+            emptyDescription="Try adjusting the date range, search, or filters."
+            emptyTitle="No audit logs found"
+            rows={rows}
+            renderActions={Object.assign((row) => <Button variant="light" onClick={() => setSelectedLog(row)}><FiEye /> Details</Button>, { width: "10%" })}
+          />
+        )}
         <ListPagination count={count} page={page} pageSize={AUDIT_LOG_PAGE_SIZE} onPage={setPage} />
       </Card>
       {selectedLog ? (

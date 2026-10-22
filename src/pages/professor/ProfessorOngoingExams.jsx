@@ -2,7 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { FiArrowLeft, FiEye, FiVolume2, FiVolumeX, FiWifi, FiWifiOff } from "react-icons/fi";
 import { toast } from "sonner";
 import { ListPagination } from "../../components/ListViewControls";
-import { Badge, Button, Card, SearchBox } from "../../components/ui";
+import { Badge, Button, Card, ListSkeleton, SearchBox, SkeletonValue } from "../../components/ui";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import { playViolationAlertSound } from "../../lib/violationAlerts";
@@ -65,7 +65,7 @@ function examCounters(exam) {
 export default function ProfessorOngoingExams() {
   const [activeExams, setActiveExams] = useState([]);
   const [upcomingExams, setUpcomingExams] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [ongoingReady, setOngoingReady] = useState(!hasSupabaseConfig);
   const [examPage, setExamPage] = useState(1);
   const [connectionState, setConnectionState] = useState("Live");
   const [soundMuted, setSoundMuted] = useState(false);
@@ -83,7 +83,6 @@ export default function ProfessorOngoingExams() {
 
   const loadOngoing = useCallback(async ({ initial = false } = {}) => {
     if (!hasSupabaseConfig) return;
-    setLoading(true);
     try {
       const { data, error } = await supabase.rpc("get_professor_ongoing_exams");
       if (error) throw error;
@@ -117,7 +116,7 @@ export default function ProfessorOngoingExams() {
     } catch (error) {
       toast.error(error.message);
     } finally {
-      setLoading(false);
+      setOngoingReady(true);
     }
   }, [soundMuted]);
 
@@ -201,11 +200,11 @@ export default function ProfessorOngoingExams() {
             ["In Progress", summary.inProgress],
             ["Submitted", summary.submitted],
             ["Violations", summary.violations],
-          ].map(([label, value]) => <div key={label}><strong>{value}</strong><span>{label}</span></div>)}
+          ].map(([label, value]) => <div key={label}><strong>{ongoingReady ? value : <SkeletonValue />}</strong><span>{label}</span></div>)}
         </div>
 
         {!selectedExam ? (
-          <ActiveExamList exams={activeExams} loading={loading} page={examPage} onPage={setExamPage} onView={openExam} />
+          <ActiveExamList exams={activeExams} loading={!ongoingReady} page={examPage} onPage={setExamPage} onView={openExam} />
         ) : (
           <ExamDetail
             exam={selectedExam}
@@ -247,7 +246,9 @@ function ActiveExamList({ exams, loading, page, onPage, onView }) {
   )), [exams]);
   const pageData = getListPageSlice(sortedExams, page, EXAM_LIST_PAGE_SIZE);
 
-  if (!loading && !sortedExams.length) {
+  if (loading) return <ListSkeleton columns={6} count={3} label="Loading ongoing exams..." variant="table" />;
+
+  if (!sortedExams.length) {
     return (
       <div className="professor-exams-empty">
         <strong>No ongoing exams.</strong>

@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { FiArchive, FiBookOpen, FiChevronDown, FiDownload, FiEye, FiFileText, FiFolder, FiPlus, FiRefreshCw, FiUpload, FiUsers, FiX } from "react-icons/fi";
 import { NavLink, Navigate, useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
-import { Badge, Button } from "../../components/ui";
+import { Badge, Button, ListSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { professorCourses, professorExams } from "../../data/professorData";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -1073,7 +1073,7 @@ export default function ProfessorCourseDetail() {
             </div>
 
             {loadingStats ? (
-              <div className="professor-exams-empty">Loading question analytics...</div>
+              <ListSkeleton columns={2} count={3} header={false} label="Loading question analytics..." variant="table" />
             ) : (
               <div className="assessment-question-stats">
                 {assessmentStats.questions.map((question, index) => (
