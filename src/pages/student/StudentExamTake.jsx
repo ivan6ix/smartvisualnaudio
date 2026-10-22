@@ -12,7 +12,6 @@ import {
   SCAN_ANGLES,
   SCAN_FRAMES_PER_ANGLE,
   SCAN_OUTCOME,
-  SCAN_REQUEST_CONFIDENCE,
   analyzeAngleCapture,
   assessCaptureQuality,
   createScanState,
@@ -24,7 +23,7 @@ import {
 } from "../../lib/environmentScan";
 import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../../lib/examCompatibility";
 import { createLiveObjectMonitor } from "../../lib/liveObjectMonitor";
-import { MICROPHONE_VIOLATION_CONFIRM_MS, SILENCE_RESUME_LEVEL, classifyMicrophoneState, createMicrophoneInterruptionGate, isMicrophonePermissionRevoked } from "../../lib/microphoneSignal";
+import { MICROPHONE_VIOLATION_CONFIRM_MS, classifyMicrophoneState, createMicrophoneInterruptionGate, isMicrophonePermissionRevoked } from "../../lib/microphoneSignal";
 import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
 import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig, normalizeChoiceItems } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -69,10 +68,7 @@ const BASIC_FACE_SAMPLE_HEIGHT = 100;
 const OBJECT_SCAN_INTERVAL_MS = 1000;
 const FILE_PICKER_SETTLE_MS = 350;
 const EXAM_INTERRUPTION_LIMIT = 3;
-const ROBOFLOW_OBJECT_CONFIDENCE = Number(import.meta.env.VITE_ROBOFLOW_OBJECT_CONFIDENCE || 0.35);
-const ROBOFLOW_MODEL_ID = import.meta.env.VITE_ROBOFLOW_MODEL || "spare-gadget-detection";
-const ROBOFLOW_MODEL_VERSION = import.meta.env.VITE_ROBOFLOW_MODEL_VERSION || "16";
-const ROBOFLOW_API_BASE = import.meta.env.VITE_ROBOFLOW_API_BASE || "https://detect.roboflow.com";
+
 const SNAPSHOT_VIOLATION_TYPES = new Set(["MULTIPLE_FACE", "NO_FACE", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED"]);
 const FACE_LANDMARKER_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
 const VISION_WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
@@ -351,6 +347,9 @@ function getUsableScanEndpoint(endpoint) {
   return endpoint;
 }
 
+// The authenticated environment-scan Edge Function. When configured, every angle must pass through it.
+const SERVER_SCAN_ENDPOINT = hasSupabaseConfig ? getUsableScanEndpoint(import.meta.env.VITE_ENV_SCAN_ENDPOINT) : "";
+
 function getFrameSignature(context, width, height) {
   const signature = [];
   const columns = 12;
@@ -469,7 +468,6 @@ export default function StudentExamTake() {
   const microphoneTrackCleanupRef = useRef(null);
   const microphoneRecoveryRef = useRef({ inFlight: false, lastAttemptAt: 0 });
   const microphonePermissionDeniedRef = useRef(false);
-  const microphoneSilencePausedRef = useRef(false);
   const interruptionStateRequestRef = useRef(0);
   const [faceStatus, setFaceStatus] = useState("Checking face position");
   const [roboflowStatus, setRoboflowStatus] = useState("Roboflow detector off");
@@ -487,11 +485,8 @@ export default function StudentExamTake() {
   const durationMinutes = getDurationMinutes(exam);
   const hasTimer = durationMinutes > 0;
   const attemptsExhausted = attemptEligibility.reason === "Attempts Exhausted" && !reopenedAttempt;
-  const roboflowConfigured = Boolean(
-    import.meta.env.VITE_ROBOFLOW_API_KEY
-    || import.meta.env.VITE_ROBOFLOW_PROXY_URL
-    || import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT,
-  );
+  // Roboflow is reached only through a server (proxy or Edge Function); the browser never holds its key.
+  const roboflowConfigured = Boolean(import.meta.env.VITE_ROBOFLOW_PROXY_URL || import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT);
   const liveCameraMonitoringEnabled = examSettings.liveCameraMonitoring;
   const roboflowMonitoringEnabled = liveCameraMonitoringEnabled && roboflowConfigured;
   const proctoringEnabled = liveCameraMonitoringEnabled || examSettings.liveAudioMonitoring;
@@ -510,17 +505,8 @@ export default function StudentExamTake() {
     student: user,
     canRecordViolation: () => examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current && !violationLimitReachedRef.current && !interruptionLimitExceededRef.current,
     onViolation: acceptRecordedViolation,
-    onSilenceNotice: () => toast.warning("No sound is reaching your microphone. If it is muted in your system or on the device, unmute it. The exam will pause in 15 seconds.", { id: "microphone-silence" }),
-    onSilencePause: handleMicrophoneSilencePause,
-    onSilenceResume: resumeFromMicrophoneSilence,
+    onSilenceNotice: () => toast.warning("No sound is reaching your microphone. If it is muted in your system or on the device, unmute it.", { id: "microphone-silence" }),
   });
-
-  // A silence pause lifts only once the audio bar reaches SILENCE_RESUME_LEVEL.
-  useEffect(() => {
-    if (isMicrophoneBlocked && microphoneSilencePausedRef.current && audioMonitoring.audioLevel >= SILENCE_RESUME_LEVEL) resumeFromMicrophoneSilence();
-  // resumeFromMicrophoneSilence only reads refs and state setters.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audioMonitoring.audioLevel, isMicrophoneBlocked]);
 
   useEffect(() => {
     if (!hasSupabaseConfig || !examId || !user?.id) return;
@@ -1021,7 +1007,7 @@ export default function StudentExamTake() {
         return;
       }
       confirmMicrophoneInterruption();
-      if (microphoneBlockedRef.current && !microphonePermissionDeniedRef.current && !microphoneSilencePausedRef.current) {
+      if (microphoneBlockedRef.current && !microphonePermissionDeniedRef.current) {
         audioMonitoring.start(proctorStreamRef.current);
         restoreMicrophoneAccess();
       }
@@ -1029,7 +1015,7 @@ export default function StudentExamTake() {
 
     function handleDeviceChange() {
       checkMicrophone();
-      if (microphoneBlockedRef.current && !microphoneSilencePausedRef.current) void recoverMicrophone();
+      if (microphoneBlockedRef.current) void recoverMicrophone();
     }
 
     let permissionStatus;
@@ -1049,7 +1035,7 @@ export default function StudentExamTake() {
     const interval = window.setInterval(() => {
       checkMicrophone();
       confirmMicrophoneInterruption();
-      if (microphoneBlockedRef.current && !microphoneSilencePausedRef.current) void recoverMicrophone();
+      if (microphoneBlockedRef.current) void recoverMicrophone();
     }, 2000);
     window.navigator.mediaDevices?.addEventListener?.("devicechange", handleDeviceChange);
     void window.navigator.permissions?.query?.({ name: "microphone" }).then((status) => {
@@ -1440,8 +1426,8 @@ export default function StudentExamTake() {
     const result = await analyzeAngleCapture({
       angleId,
       frames,
+      requiredDetectors: SERVER_SCAN_ENDPOINT ? [detectScanFramesWithScanEndpoint] : [],
       detectors: [detectScanFramesWithRoboflow, detectScanFramesWithCocoSsd],
-      fallbackDetectors: [detectScanFramesWithScanEndpoint],
       timeoutMs: ENV_SCAN_ANALYSIS_TIMEOUT_MS,
     });
     if (result.outcome === SCAN_OUTCOME.TECHNICAL) window.console.warn("[EnvironmentScan] Angle check failed.", angleId, result.reason);
@@ -1461,13 +1447,8 @@ export default function StudentExamTake() {
 
   async function detectScanFramesWithRoboflow(frames) {
     const endpoint = getRoboflowImageScanEndpoint();
+    if (!endpoint) return null;
     const images = frames.map((frame) => dataUrlToPayload(frame.image));
-
-    if (!endpoint) {
-      if (!import.meta.env.VITE_ROBOFLOW_API_KEY) return null;
-      const results = await Promise.all(images.map((image) => runDirectRoboflowImageDetection(image, SCAN_REQUEST_CONFIDENCE)));
-      return { frames: results.map((result) => ({ predictions: result?.predictions, image: result?.image })) };
-    }
 
     const response = await fetchWithTimeout(endpoint, {
       method: "POST",
@@ -1508,10 +1489,10 @@ export default function StudentExamTake() {
     return { frames: results };
   }
 
-  // Used only when neither Roboflow nor the local detector produced a result.
+  // Server-side check through the Edge Function; required for every angle when configured.
   async function detectScanFramesWithScanEndpoint(frames) {
-    const endpoint = getUsableScanEndpoint(import.meta.env.VITE_ENV_SCAN_ENDPOINT);
-    if (!endpoint || !hasSupabaseConfig) return null;
+    const endpoint = SERVER_SCAN_ENDPOINT;
+    if (!endpoint) return null;
 
     const { data: sessionData } = await supabase.auth.getSession();
     const accessToken = sessionData.session?.access_token;
@@ -1530,27 +1511,6 @@ export default function StudentExamTake() {
     const result = await response.json().catch(() => null);
     if (!response.ok) throw new Error(result?.error || `Analysis server error (${response.status}).`);
     return result;
-  }
-
-  async function runDirectRoboflowImageDetection(image, confidence = ROBOFLOW_OBJECT_CONFIDENCE) {
-    const apiKey = import.meta.env.VITE_ROBOFLOW_API_KEY;
-    if (!apiKey || !ROBOFLOW_MODEL_ID || !ROBOFLOW_MODEL_VERSION) return null;
-
-    const endpoint = `${ROBOFLOW_API_BASE.replace(/\/$/, "")}/${ROBOFLOW_MODEL_ID}/${ROBOFLOW_MODEL_VERSION}`;
-    const url = new window.URL(endpoint);
-    url.searchParams.set("api_key", apiKey);
-    url.searchParams.set("confidence", String(Math.round(confidence * 100)));
-
-    const response = await fetchWithTimeout(url.toString(), {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: image,
-    });
-    if (!response.ok) {
-      const message = await response.text().catch(() => "");
-      throw new Error(message || `Roboflow model error (${response.status}).`);
-    }
-    return response.json();
   }
 
   function loadScanImage(dataUrl) {
@@ -1751,8 +1711,6 @@ export default function StudentExamTake() {
     }
     for (const type of ["MICROPHONE_UNAVAILABLE", "MICROPHONE_DISCONNECTED", "MICROPHONE_MUTED", "MICROPHONE_ACCESS_LOST"]) incidentTrackerRef.current.clear(type);
     microphonePermissionDeniedRef.current = false;
-    // A silence pause stays until the audio level reaches SILENCE_RESUME_LEVEL.
-    if (microphoneSilencePausedRef.current) return;
     const pausedAt = microphonePauseStartedAtRef.current;
     microphonePauseStartedAtRef.current = null;
     if (pausedAt && hasTimer) {
@@ -1774,20 +1732,6 @@ export default function StudentExamTake() {
       setIsMicrophoneBlocked(true);
     }
     setMicrophoneBlockReason(reason);
-  }
-
-  // 30 s of exact digital silence pauses the exam without a violation (see microphoneSignal.js).
-  function handleMicrophoneSilencePause() {
-    if (!examModeReadyRef.current || !examSettings.liveAudioMonitoring || examSubmittingRef.current || examSubmittedRef.current) return;
-    microphoneSilencePausedRef.current = true;
-    pauseForMicrophone("No sound has reached your microphone for 30 seconds. Unmute it, then speak until the audio level reaches at least 1% to continue.");
-  }
-
-  function resumeFromMicrophoneSilence() {
-    if (!microphoneSilencePausedRef.current) return;
-    microphoneSilencePausedRef.current = false;
-    if (microphoneInterruptionRef.current.isActive()) return;
-    restoreMicrophoneAccess();
   }
 
   // Pauses immediately; the interruption becomes one violation only if it lasts
@@ -1812,7 +1756,7 @@ export default function StudentExamTake() {
 
     const handleMute = () => handleMicrophoneIssue("The microphone track was muted by the browser or audio device.", "MICROPHONE_MUTED");
     const handleUnmute = () => {
-      if (!microphoneSilencePausedRef.current && track.readyState === "live" && track.enabled && !track.muted) {
+      if (track.readyState === "live" && track.enabled && !track.muted) {
         audioMonitoring.start(proctorStreamRef.current);
         restoreMicrophoneAccess();
       }
@@ -2230,6 +2174,7 @@ export default function StudentExamTake() {
 
   async function detectWithRoboflowImage(video) {
     const endpoint = getRoboflowImageScanEndpoint();
+    if (!endpoint) return null;
 
     const canvas = window.document.createElement("canvas");
     canvas.width = video.videoWidth;
@@ -2237,11 +2182,6 @@ export default function StudentExamTake() {
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
     const image = dataUrlToPayload(canvas.toDataURL("image/jpeg", 0.78));
-
-    if (!endpoint) {
-      const result = await runDirectRoboflowImageDetection(image, SCAN_REQUEST_CONFIDENCE);
-      return result ? parseDetectorResponse(result).frames[0].predictions : null;
-    }
 
     const response = await fetchWithTimeout(endpoint, {
       method: "POST",
@@ -2328,7 +2268,7 @@ export default function StudentExamTake() {
   async function startRoboflowMonitoring(stream) {
     const config = getRoboflowConfig();
     if (!config) {
-      setRoboflowStatus(import.meta.env.VITE_ROBOFLOW_API_KEY || getRoboflowImageScanEndpoint() ? "Roboflow image detector active" : "Roboflow detector off");
+      setRoboflowStatus(getRoboflowImageScanEndpoint() ? "Roboflow image detector active" : "Roboflow detector off");
       return;
     }
 
@@ -2358,7 +2298,7 @@ export default function StudentExamTake() {
       setRoboflowStatus("Roboflow detector active");
     } catch (error) {
       window.console.error("[RoboflowLive]", error);
-      setRoboflowStatus(import.meta.env.VITE_ROBOFLOW_API_KEY || getRoboflowImageScanEndpoint() ? "Roboflow image detector active" : "Roboflow detector unavailable");
+      setRoboflowStatus(getRoboflowImageScanEndpoint() ? "Roboflow image detector active" : "Roboflow detector unavailable");
     }
   }
 
@@ -3343,7 +3283,6 @@ export default function StudentExamTake() {
             <p>Your microphone appears to be muted, disabled, disconnected, or unavailable. Microphone access is required during the exam.</p>
             <p>Please unmute or reconnect your microphone to continue.</p>
             {microphoneBlockReason ? <small>{microphoneBlockReason}</small> : null}
-            {microphoneSilencePausedRef.current ? <strong>Audio level: {audioMonitoring.audioLevel}% (at least {SILENCE_RESUME_LEVEL}% needed)</strong> : null}
             <span>Checking microphone automatically…</span>
           </Card>
         </div>

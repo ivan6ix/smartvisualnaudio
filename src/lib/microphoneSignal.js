@@ -5,16 +5,13 @@
 // Silence never counts. 8-bit analyser samples cannot tell a quiet room from a dead input (one step
 // is ~-42 dBFS, louder than a quiet room's noise floor), and even exact digital silence from float
 // samples is ambiguous: an OS-level or hardware mute switch and a noise-gated headset both deliver
-// zeros while the track stays "live" and unmuted, and no browser API distinguishes them. Exact
-// digital silence therefore never records a violation: after 15 s it shows a notice, and after 15 s
-// more it pauses the exam until the audio level reaches SILENCE_RESUME_LEVEL. A quiet room never
-// reaches exact digital silence on a working microphone, so it is never paused.
+// zeros while the track stays "live" and unmuted, and no browser API distinguishes them. A noise
+// gate or virtual microphone (Krisp, NVIDIA Broadcast) also outputs exact zeros in a normal quiet
+// room. Exact digital silence therefore never pauses the exam or records a violation: after 15 s it
+// shows a non-blocking notice, once per silent stretch.
 
 export const DIGITAL_SILENCE_RMS = 0.00001;
 export const DIGITAL_SILENCE_NOTICE_MS = 15000;
-export const DIGITAL_SILENCE_PAUSE_MS = 30000;
-// Audio bar percent (0-100) the student must reach to resume after a silence pause.
-export const SILENCE_RESUME_LEVEL = 1;
 export const MICROPHONE_VIOLATION_CONFIRM_MS = 3000;
 
 // RMS of one analyser frame. Byte samples are centred on 128.
@@ -28,34 +25,22 @@ export function measureRms(samples, { byteSamples = false } = {}) {
   return Math.sqrt(sum / samples.length);
 }
 
-// Tracks continuous exact digital silence: "notice" at noticeMs, "pause" at pauseMs, then "resume"
-// once the audio level reaches resumeLevel. Only precise (float) measurements can notice or pause.
-export function createSilenceTracker({ noticeMs = DIGITAL_SILENCE_NOTICE_MS, pauseMs = DIGITAL_SILENCE_PAUSE_MS, resumeLevel = SILENCE_RESUME_LEVEL } = {}) {
+// Tracks continuous exact digital silence and returns "notice" once at noticeMs. Only precise
+// (float) measurements can notice; any sound starts a new stretch.
+export function createSilenceTracker({ noticeMs = DIGITAL_SILENCE_NOTICE_MS } = {}) {
   let silentSince = null;
   let noticed = false;
-  let paused = false;
   const reset = () => {
     silentSince = null;
     noticed = false;
-    paused = false;
   };
   return {
-    observe({ rms, level = 0, precise, now }) {
-      if (paused) {
-        if (level < resumeLevel) return null;
-        reset();
-        return "resume";
-      }
+    observe({ rms, precise, now }) {
       if (!precise || rms > DIGITAL_SILENCE_RMS) {
-        silentSince = null;
-        noticed = false;
+        reset();
         return null;
       }
       silentSince ??= now;
-      if (now - silentSince >= pauseMs) {
-        paused = true;
-        return "pause";
-      }
       if (!noticed && now - silentSince >= noticeMs) {
         noticed = true;
         return "notice";

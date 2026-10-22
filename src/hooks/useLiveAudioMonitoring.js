@@ -26,7 +26,7 @@ function classifyAudio(level) {
   return "Loud Noise";
 }
 
-export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, canRecordViolation, onSilenceNotice, onSilencePause, onSilenceResume }) {
+export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, canRecordViolation, onSilenceNotice }) {
   const [audioLevel, setAudioLevel] = useState(0);
   const [audioStatus, setAudioStatus] = useState("Quiet");
   const [micStatus, setMicStatus] = useState("Inactive");
@@ -48,11 +48,11 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
   const violationCallbacksRef = useRef({ onViolation, canRecordViolation });
   violationCallbacksRef.current = { onViolation, canRecordViolation };
   const silenceTrackerRef = useRef(createSilenceTracker());
-  const silenceCallbacksRef = useRef({ onSilenceNotice, onSilencePause, onSilenceResume });
+  const silenceCallbacksRef = useRef({ onSilenceNotice });
 
   useEffect(() => {
-    silenceCallbacksRef.current = { onSilenceNotice, onSilencePause, onSilenceResume };
-  }, [onSilenceNotice, onSilencePause, onSilenceResume]);
+    silenceCallbacksRef.current = { onSilenceNotice };
+  }, [onSilenceNotice]);
 
   const addTimelineItem = useCallback((status, level, message = status, force = false) => {
     const now = Date.now();
@@ -190,10 +190,8 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
       const rms = measureRms(samples, { byteSamples: !precise });
       const level = Math.min(100, Math.round(rms * 160 * AUDIO_LEVEL_GAIN));
 
-      // Exact digital silence never records a violation: notice, then pause until the level reaches 1%.
-      const silenceEvent = silenceTrackerRef.current.observe({ rms, level, precise, now: Date.now() });      if (silenceEvent === "notice") silenceCallbacksRef.current.onSilenceNotice?.();
-      else if (silenceEvent === "pause") silenceCallbacksRef.current.onSilencePause?.();
-      else if (silenceEvent === "resume") silenceCallbacksRef.current.onSilenceResume?.();
+      // Exact digital silence never pauses the exam or records a violation; it only shows a notice.
+      if (silenceTrackerRef.current.observe({ rms, precise, now: Date.now() }) === "notice") silenceCallbacksRef.current.onSilenceNotice?.();
       const status = classifyAudio(level);
       setAudioLevel(level);
       setAudioStatus(status);

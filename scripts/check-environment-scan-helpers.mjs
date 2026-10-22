@@ -187,6 +187,18 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
   });
   assert.equal(fallback.outcome, SCAN_OUTCOME.CLEAR);
   assert.equal(fallbackCalls, 1);
+  // A required (server-side) detector cannot be bypassed: if it fails or is unavailable, browser-only
+  // results never approve the angle, but a server result still counts with the others.
+  const browserOnly = { frames: sameFrames([prediction("chair", 0.9)]) };
+  const serverDown = await analyzeAngleCapture({ angleId: "front", frames, requiredDetectors: [async () => { throw new Error("Detector request failed for front scan."); }], detectors: [async () => browserOnly] });
+  assert.equal(serverDown.outcome, SCAN_OUTCOME.TECHNICAL, "Browser detectors must not pass an angle the server could not check.");
+  assert.match(serverDown.reason, /not a violation/);
+  const serverMissing = await analyzeAngleCapture({ angleId: "front", frames, requiredDetectors: [async () => null], detectors: [async () => browserOnly] });
+  assert.equal(serverMissing.outcome, SCAN_OUTCOME.TECHNICAL);
+  const serverPhone = await analyzeAngleCapture({ angleId: "desk", frames, requiredDetectors: [async () => ({ frames: sameFrames([prediction("cell phone", 0.9, { areaRatio: 0.2 })]) })], detectors: [async () => browserOnly] });
+  assert.equal(serverPhone.outcome, SCAN_OUTCOME.RISK, "A server finding must count even when browser detectors see nothing.");
+  const serverClear = await analyzeAngleCapture({ angleId: "front", frames, requiredDetectors: [async () => browserOnly], detectors: [async () => { throw new Error("offline"); }] });
+  assert.equal(serverClear.outcome, SCAN_OUTCOME.CLEAR);
   // Every detector unavailable (not configured, or failed) -> retry state, never approval.
   const unchecked = await analyzeAngleCapture({ angleId: "front", frames, detectors: [async () => null], fallbackDetectors: [async () => null] });
   assert.equal(unchecked.outcome, SCAN_OUTCOME.TECHNICAL, "An angle no detector checked must not be approved.");
@@ -199,7 +211,7 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
   });
   assert.equal(noFallbackDetector.outcome, SCAN_OUTCOME.TECHNICAL);
   const edge = readFileSync("supabase/functions/environment-scan/index.ts", "utf8");
-  assert.ok(/if \(!endpoint\) throw new DetectorUnavailableError\(\);/.test(edge) && edge.includes("json({ error: error.message }, 503)"), "Edge Function must fail, not pass, when no detector is configured.");
+  assert.ok(/Without a detector nothing was checked.*\n\s*throw new DetectorUnavailableError\(\);/.test(edge) && edge.includes("json({ error: error.message }, 503)"), "Edge Function must fail, not pass, when no detector is configured.");
   // The reducer maps a technical failure to a retryable error state, not a rejection.
   const errored = analyze(captureAngle(createScanState(), "front"), "front", SCAN_OUTCOME.TECHNICAL, "front-r1", { reason: offline.reason });
   assert.equal(errored.angles.front.status, ANGLE_STATUS.ERROR);

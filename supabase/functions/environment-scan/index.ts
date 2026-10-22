@@ -8,6 +8,9 @@ const corsHeaders = {
 // Must match SCAN_ANGLES in src/lib/environmentScan.js. The browser sends one angle per request.
 const scanAngles = new Set(["front", "left", "right", "upper", "desk"]);
 const maximumImagesPerAngle = 5;
+// Must match SCAN_REQUEST_CONFIDENCE in src/lib/environmentScan.js: predictions are returned down to
+// this level and the browser applies the shared detection rules.
+const scanRequestConfidence = 0.3;
 // Legacy summary only; the browser classifies the per-frame predictions returned in `frames`.
 const suspiciousLabels = [
   "phone",
@@ -45,25 +48,61 @@ function isSuspiciousPrediction(prediction: Record<string, unknown>) {
 
 class DetectorUnavailableError extends Error {
   constructor() {
-    super("No environment detector is configured (ENV_SCAN_DETECTOR_ENDPOINT).");
+    super("No environment detector is configured (ENV_SCAN_DETECTOR_ENDPOINT or ROBOFLOW_API_KEY with ROBOFLOW_ENV_MODEL_ID/ROBOFLOW_ENV_MODEL_VERSION).");
   }
 }
 
-async function callExternalDetector(frame: { angle: string; image: string; frameIndex: number }) {
+// Roboflow hosted inference, called server-side so its private key stays in function secrets.
+function getRoboflowUrl() {
+  const apiKey = Deno.env.get("ROBOFLOW_API_KEY");
+  const modelId = Deno.env.get("ROBOFLOW_ENV_MODEL_ID");
+  const modelVersion = Deno.env.get("ROBOFLOW_ENV_MODEL_VERSION");
+  if (!apiKey || !modelId || !modelVersion) return null;
+  const apiBase = (Deno.env.get("ROBOFLOW_ENV_API_BASE") || "https://detect.roboflow.com").replace(/\/$/, "");
+  const url = new URL(`${apiBase}/${modelId}/${modelVersion}`);
+  url.searchParams.set("api_key", apiKey);
+  url.searchParams.set("confidence", String(Math.round(scanRequestConfidence * 100)));
+  return url;
+}
+
+function buildDetectorRequest(frame: { angle: string; image: string }) {
   const endpoint = Deno.env.get("ENV_SCAN_DETECTOR_ENDPOINT");
-  const apiKey = Deno.env.get("ENV_SCAN_DETECTOR_API_KEY");
-
+  if (endpoint) {
+    const apiKey = Deno.env.get("ENV_SCAN_DETECTOR_API_KEY");
+    return {
+      url: endpoint,
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}) },
+        body: JSON.stringify({ image: frame.image, angle: frame.angle }),
+      },
+    };
+  }
+  const roboflowUrl = getRoboflowUrl();
+  if (roboflowUrl) {
+    return {
+      url: roboflowUrl,
+      init: {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: frame.image.replace(/^data:[^,]*,/, ""),
+      },
+    };
+  }
   // Without a detector nothing was checked; report it as an error so the scan cannot pass unchecked.
-  if (!endpoint) throw new DetectorUnavailableError();
+  throw new DetectorUnavailableError();
+}
 
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-    },
-    body: JSON.stringify({ image: frame.image, angle: frame.angle }),
-  });
+async function callExternalDetector(frame: { angle: string; image: string; frameIndex: number }) {
+  const request = buildDetectorRequest(frame);
+
+  let response: Response;
+  try {
+    response = await fetch(request.url, request.init);
+  } catch {
+    // Fetch errors include the request URL, which can carry the detector key; never return them.
+    throw new Error(`Detector request failed for ${frame.angle} scan.`);
+  }
 
   if (!response.ok) {
     throw new Error(`Detector request failed for ${frame.angle} scan.`);

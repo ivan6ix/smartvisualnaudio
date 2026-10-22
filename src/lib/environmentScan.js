@@ -235,30 +235,42 @@ function describeTechnicalFailure(errors) {
 // produced a usable result. Never throws: detector errors, timeouts and malformed responses become
 // a technical_error outcome, which is never treated as a finding.
 // A detector is async (frames) => rawResponse | null (null = not configured).
-export async function analyzeAngleCapture({ angleId, frames, detectors = [], fallbackDetectors = [], timeoutMs = 15000 }) {
+// requiredDetectors run with the primaries and must each return a usable result, otherwise the
+// angle is unchecked: a configured server-side detector cannot be bypassed by browser-only results.
+export async function analyzeAngleCapture({ angleId, frames, requiredDetectors = [], detectors = [], fallbackDetectors = [], timeoutMs = 15000 }) {
   const frameCount = frames?.length || 0;
   if (!frameCount) return { outcome: SCAN_OUTCOME.TECHNICAL, findings: [], reason: "No image was captured for this angle. Retake it." };
 
   const errors = [];
-  async function runGroup(group) {
+  let requiredMissing = false;
+  async function runGroup(group, requiredCount = 0) {
     const settled = await Promise.allSettled(group.map((detector) => withTimeout(Promise.resolve().then(() => detector(frames)), timeoutMs)));
     const parsed = [];
-    settled.forEach((entry) => {
+    settled.forEach((entry, index) => {
+      const required = index < requiredCount;
       if (entry.status === "rejected") {
         errors.push(entry.reason);
+        if (required) requiredMissing = true;
         return;
       }
-      if (entry.value === null || entry.value === undefined) return;
+      if (entry.value === null || entry.value === undefined) {
+        if (required) requiredMissing = true;
+        return;
+      }
       try {
         parsed.push(parseDetectorResponse(entry.value));
       } catch (error) {
         errors.push(error);
+        if (required) requiredMissing = true;
       }
     });
     return parsed;
   }
 
-  let results = await runGroup(detectors);
+  let results = await runGroup([...requiredDetectors, ...detectors], requiredDetectors.length);
+  if (requiredMissing) {
+    return { outcome: SCAN_OUTCOME.TECHNICAL, findings: [], reason: errors.length ? describeTechnicalFailure(errors) : "The environment check could not be completed. This is not a violation. Retry the check." };
+  }
   if (!results.length && fallbackDetectors.length) results = await runGroup(fallbackDetectors);
   if (!results.length) {
     // No detector ran (none configured or all failed): the angle is unchecked, never approved.
