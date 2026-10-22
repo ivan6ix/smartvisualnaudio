@@ -43,11 +43,18 @@ function isSuspiciousPrediction(prediction: Record<string, unknown>) {
   return confidence >= 0.45 && suspiciousLabels.some((item) => label.includes(item));
 }
 
+class DetectorUnavailableError extends Error {
+  constructor() {
+    super("No environment detector is configured (ENV_SCAN_DETECTOR_ENDPOINT).");
+  }
+}
+
 async function callExternalDetector(frame: { angle: string; image: string; frameIndex: number }) {
   const endpoint = Deno.env.get("ENV_SCAN_DETECTOR_ENDPOINT");
   const apiKey = Deno.env.get("ENV_SCAN_DETECTOR_API_KEY");
 
-  if (!endpoint) return { ...frame, image: undefined, predictions: [] };
+  // Without a detector nothing was checked; report it as an error so the scan cannot pass unchecked.
+  if (!endpoint) throw new DetectorUnavailableError();
 
   const response = await fetch(endpoint, {
     method: "POST",
@@ -140,6 +147,7 @@ Deno.serve(async (req) => {
       frames: detectorFrames,
     });
   } catch (error) {
+    if (error instanceof DetectorUnavailableError) return json({ error: error.message }, 503);
     return json({ error: error instanceof Error ? error.message : "Unexpected scan error." }, 500);
   }
 });

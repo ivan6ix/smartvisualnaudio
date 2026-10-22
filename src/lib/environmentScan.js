@@ -261,7 +261,8 @@ export async function analyzeAngleCapture({ angleId, frames, detectors = [], fal
   let results = await runGroup(detectors);
   if (!results.length && fallbackDetectors.length) results = await runGroup(fallbackDetectors);
   if (!results.length) {
-    if (!errors.length) return { outcome: SCAN_OUTCOME.CLEAR, findings: [], reason: "", detectorCount: 0 };
+    // No detector ran (none configured or all failed): the angle is unchecked, never approved.
+    if (!errors.length) return { outcome: SCAN_OUTCOME.TECHNICAL, findings: [], reason: "No environment detector is available right now. This is not a violation. Retry the check.", detectorCount: 0 };
     return { outcome: SCAN_OUTCOME.TECHNICAL, findings: [], reason: describeTechnicalFailure(errors) };
   }
 

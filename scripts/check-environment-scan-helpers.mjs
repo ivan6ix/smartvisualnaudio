@@ -187,6 +187,19 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
   });
   assert.equal(fallback.outcome, SCAN_OUTCOME.CLEAR);
   assert.equal(fallbackCalls, 1);
+  // Every detector unavailable (not configured, or failed) -> retry state, never approval.
+  const unchecked = await analyzeAngleCapture({ angleId: "front", frames, detectors: [async () => null], fallbackDetectors: [async () => null] });
+  assert.equal(unchecked.outcome, SCAN_OUTCOME.TECHNICAL, "An angle no detector checked must not be approved.");
+  assert.match(unchecked.reason, /not a violation/);
+  const noFallbackDetector = await analyzeAngleCapture({
+    angleId: "front",
+    frames,
+    detectors: [async () => { throw new Error("Failed to fetch"); }],
+    fallbackDetectors: [async () => { throw new Error("No environment detector is configured (ENV_SCAN_DETECTOR_ENDPOINT)."); }],
+  });
+  assert.equal(noFallbackDetector.outcome, SCAN_OUTCOME.TECHNICAL);
+  const edge = readFileSync("supabase/functions/environment-scan/index.ts", "utf8");
+  assert.ok(/if \(!endpoint\) throw new DetectorUnavailableError\(\);/.test(edge) && edge.includes("json({ error: error.message }, 503)"), "Edge Function must fail, not pass, when no detector is configured.");
   // The reducer maps a technical failure to a retryable error state, not a rejection.
   const errored = analyze(captureAngle(createScanState(), "front"), "front", SCAN_OUTCOME.TECHNICAL, "front-r1", { reason: offline.reason });
   assert.equal(errored.angles.front.status, ANGLE_STATUS.ERROR);
