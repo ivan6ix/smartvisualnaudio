@@ -19,13 +19,12 @@ import {
   parsePageRange,
   planQuestionBatches,
   removeRepeatedLines,
-  shuffleChoices,
   toBuilderQuestion,
   validatePdfFile,
   validatePreviewQuestion,
   validatePreviewQuestions,
 } from "../src/lib/aiQuestionGenerator.js";
-import { createFakeQuestions } from "../src/lib/fakeMcqGenerator.js";
+import { createFakeQuestions } from "../supabase/functions/generate-mcq/mcq.js";
 import { buildQuestionStorage, gradeAnswer, sanitizeQuestionForStudent } from "../src/lib/examQuestionTypes.js";
 
 const encoder = new TextEncoder();
@@ -147,11 +146,6 @@ assert.deepEqual(moveItem(list, 0, 1), ["b", "a", "c"]);
 assert.deepEqual(moveItem(list, 0, -1), ["a", "b", "c"]);
 assert.deepEqual(list, ["a", "b", "c"]);
 
-// Shuffling keeps the correct answer text attached to the correct key.
-const shuffled = shuffleChoices(normalized, () => 0);
-assert.equal(shuffled.choices[shuffled.correct], "Mitochondrion");
-assert.deepEqual(Object.values(shuffled.choices).sort(), Object.values(raw.choices).sort());
-
 // Inserted questions are ordinary Multiple Choice builder questions with no AI metadata.
 const builderQuestion = toBuilderQuestion(normalized);
 assert.equal(builderQuestion.type, "Multiple Choice");
@@ -194,7 +188,7 @@ assert.ok(avoided.every((item) => !fake.some((other) => other.question === item.
 // The browser never calls an AI provider directly or reads an AI key.
 const sources = [
   "src/lib/aiQuestionGenerator.js",
-  "src/lib/fakeMcqGenerator.js",
+  "src/lib/aiQuestionClient.js",
   "src/lib/pdfTextExtractor.js",
   "src/components/exam/AiQuestionGeneratorModal.jsx",
   "src/pages/professor/ProfessorCreateExam.jsx",
@@ -223,5 +217,14 @@ const modal = sources.find(([path]) => path.endsWith("AiQuestionGeneratorModal.j
 assert.match(modal, /createPortal\(/, "The generator modal must render in a body portal so its backdrop covers the page.");
 assert.match(modal, /className="professor-share-backdrop professor-ai-backdrop" onClick=/);
 assert.match(modal, /toBuilderQuestion/);
+assert.match(modal, /generate = requestGeneratedQuestions/, "The modal must generate through the authenticated Edge Function.");
+assert.doesNotMatch(modal, /fakeMcqGenerator|createFakeQuestions/, "Sample questions come from the server, not the browser.");
+
+// The client calls the Edge Function with a fresh request key and surfaces the server's message.
+const client = sources.find(([path]) => path.endsWith("aiQuestionClient.js"))[1];
+assert.match(client, /supabase\.functions\.invoke\("generate-mcq"/);
+assert.match(client, /requestKey: crypto\.randomUUID\(\)/);
+assert.match(client, /signal/);
+assert.match(client, /error\.context/);
 
 console.log("AI question generator checks passed.");

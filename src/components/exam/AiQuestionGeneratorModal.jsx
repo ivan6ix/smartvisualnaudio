@@ -18,7 +18,7 @@ import {
   validatePdfFile,
   validatePreviewQuestions,
 } from "../../lib/aiQuestionGenerator";
-import { requestSampleQuestions } from "../../lib/fakeMcqGenerator";
+import { GenerationRequestError, requestGeneratedQuestions } from "../../lib/aiQuestionClient";
 import { PdfReadError, extractPdfPages } from "../../lib/pdfTextExtractor";
 
 const CUSTOM_COUNT = "custom";
@@ -27,12 +27,16 @@ function formatFileSize(bytes) {
   return bytes < 1024 * 1024 ? `${Math.max(1, Math.round(bytes / 1024))} KB` : `${(bytes / 1024 / 1024).toFixed(1)} MB`;
 }
 
+function errorMessage(error, fallback) {
+  return error instanceof PdfReadError || error instanceof GenerationRequestError ? error.message : fallback;
+}
+
 function isValidPoints(value) {
   const points = Number(value);
   return Number.isFinite(points) && points >= 0.01 && points <= 1000;
 }
 
-export default function AiQuestionGeneratorModal({ onClose, onInsert, generate = requestSampleQuestions, sampleMode = true }) {
+export default function AiQuestionGeneratorModal({ onClose, onInsert, generate = requestGeneratedQuestions }) {
   const [step, setStep] = useState("setup");
   const [file, setFile] = useState(null);
   const [pageRange, setPageRange] = useState("");
@@ -44,6 +48,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
   const [progress, setProgress] = useState("");
   const [pages, setPages] = useState([]);
   const [lastRequest, setLastRequest] = useState(null);
+  const [sampleResult, setSampleResult] = useState(false);
   const [items, setItems] = useState([]);
   const [busyItemId, setBusyItemId] = useState("");
   const [errorItemId, setErrorItemId] = useState("");
@@ -94,6 +99,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
         avoidStems: generated.map((item) => item.question),
         signal,
       });
+      if (result?.sample) setSampleResult(true);
       generated.push(...(result?.questions || []).map((raw) => normalizeGeneratedQuestion(raw, sourcePages, { points: request.points })));
     }
     return generated;
@@ -141,7 +147,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
       setStep("preview");
     } catch (error) {
       if (error?.name !== "AbortError") {
-        setSetupError(error instanceof PdfReadError ? error.message : "Questions could not be generated. Try again.");
+        setSetupError(errorMessage(error, "Questions could not be generated. Try again."));
       }
       setStep("setup");
     } finally {
@@ -162,7 +168,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
         toast.error("No new questions could be generated.");
       }
     } catch (error) {
-      if (error?.name !== "AbortError") toast.error("Questions could not be regenerated. Try again.");
+      if (error?.name !== "AbortError") toast.error(errorMessage(error, "Questions could not be regenerated. Try again."));
     } finally {
       setProgress("");
       setStep("preview");
@@ -189,7 +195,7 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
       setItems((current) => current.map((entry) => entry.id === item.id ? next : entry));
       if (errorItemId === item.id) setErrorItemId("");
     } catch (error) {
-      if (error?.name !== "AbortError") toast.error("This question could not be regenerated. Try again.");
+      if (error?.name !== "AbortError") toast.error(errorMessage(error, "This question could not be regenerated. Try again."));
     } finally {
       setBusyItemId("");
     }
@@ -237,8 +243,8 @@ export default function AiQuestionGeneratorModal({ onClose, onInsert, generate =
           </button>
         </div>
 
-        {sampleMode && step === "setup" ? (
-          <p className="professor-ai-notice">Sample mode: questions are built directly from the PDF text without AI. AI generation will be connected next.</p>
+        {sampleResult && step === "preview" ? (
+          <p className="professor-ai-notice">Sample mode: the server built these questions directly from the PDF text without AI.</p>
         ) : null}
 
         {step === "setup" ? (
