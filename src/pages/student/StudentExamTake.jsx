@@ -447,6 +447,8 @@ export default function StudentExamTake() {
   const [examModeReady, setExamModeReady] = useState(false);
   const [examStarting, setExamStarting] = useState(false);
   const [examLocked, setExamLocked] = useState(false);
+  const examLockedRef = useRef(false);
+  examLockedRef.current = examLocked;
   const [examLockMessage, setExamLockMessage] = useState("Fullscreen was exited or the exam window lost focus. Return to secure exam mode to continue.");
   const [isMicrophoneBlocked, setIsMicrophoneBlocked] = useState(false);
   const [microphoneBlockReason, setMicrophoneBlockReason] = useState("");
@@ -961,6 +963,11 @@ export default function StudentExamTake() {
     window.document.addEventListener("keydown", handleKeyDown, true);
     const fullscreenEvents = ["fullscreenchange", "webkitfullscreenchange", "mozfullscreenchange", "MSFullscreenChange"];
     fullscreenEvents.forEach((eventName) => window.document.addEventListener(eventName, handleFullscreenChange));
+    // Change events can be missed (or fullscreen lost before these listeners attach), so an
+    // unlocked exam outside fullscreen is also caught by polling.
+    const fullscreenCheck = window.setInterval(() => {
+      if (!examLockedRef.current && !getFullscreenElement()) handleFullscreenChange();
+    }, 1000);
     window.document.addEventListener("visibilitychange", handleVisibilityChange);
     window.document.addEventListener("mouseleave", handleMouseLeave);
     window.addEventListener("blur", handleWindowBlur);
@@ -971,6 +978,7 @@ export default function StudentExamTake() {
       blockedEvents.forEach((eventName) => window.document.removeEventListener(eventName, blockEvent, true));
       window.document.removeEventListener("keydown", handleKeyDown, true);
       fullscreenEvents.forEach((eventName) => window.document.removeEventListener(eventName, handleFullscreenChange));
+      window.clearInterval(fullscreenCheck);
       window.document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.document.removeEventListener("mouseleave", handleMouseLeave);
       window.removeEventListener("blur", handleWindowBlur);
@@ -2589,7 +2597,11 @@ export default function StudentExamTake() {
         stopProctoring();
       }
       startTimerIfNeeded();
-      setExamLocked(false);
+      // Fullscreen can be left while the server start is in flight; the exam then opens locked
+      // until fullscreen returns, so it is never answerable outside fullscreen.
+      const fullscreenLost = !getFullscreenElement();
+      if (fullscreenLost) setExamLockMessage("Fullscreen is required. Return to fullscreen to start answering.");
+      setExamLocked(fullscreenLost);
       examModeReadyRef.current = true;
       setExamModeReady(true);
       setScanOpen(false);

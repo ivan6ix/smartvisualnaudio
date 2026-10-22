@@ -65,3 +65,12 @@ assert.match(body("resumeExamMode"), /recordInterruptionRecovery\("saved-progres
 // Genuine fullscreen exits during an active exam stay protected.
 assert.match(source, /if \(!scanPassed \|\| scanOpen \|\| !examModeReady\) return undefined;[\s\S]*function handleFullscreenChange\(\)[\s\S]*recordGuardViolation\("FULLSCREEN_EXIT"/, "Active exams must still record fullscreen exits.");
 assert.match(restore, /recordManualViolation\("FULLSCREEN_EXIT"/, "Failing to restore fullscreen during an exam must still record a violation.");
+
+// Fullscreen lost while the server start is in flight: the exam opens locked, never answerable outside fullscreen.
+const lockAtStart = start.indexOf("const fullscreenLost = !getFullscreenElement();");
+assert.ok(lockAtStart > authorizeAt && lockAtStart < readyAt, "Fullscreen must be re-checked after authorization, before the exam opens.");
+assert.match(start, /const fullscreenLost = !getFullscreenElement\(\);[\s\S]{0,200}setExamLocked\(fullscreenLost\);/, "An exam opened outside fullscreen must start locked.");
+assert.doesNotMatch(start.slice(lockAtStart, readyAt), /recordManualViolation|recordGuardViolation/, "Losing fullscreen during the start must not record a violation.");
+// Missed change events are caught by polling while the exam is unlocked.
+assert.match(source, /const fullscreenCheck = window\.setInterval\(\(\) => \{\s*if \(!examLockedRef\.current && !getFullscreenElement\(\)\) handleFullscreenChange\(\);\s*\}, 1000\);/, "An unlocked exam outside fullscreen must be caught by polling.");
+assert.match(source, /window\.clearInterval\(fullscreenCheck\);/, "The fullscreen poll must be cleared with the exam guards.");
