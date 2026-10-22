@@ -18670,3 +18670,328 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
     padding-inline: 10px;
   }
 }
+
+/* Generate questions from PDF. */
+.professor-ai-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 16px;
+  margin-bottom: 14px;
+  border: 1px dashed var(--app-line);
+  border-radius: 8px;
+  padding: 10px 12px;
+  color: var(--app-text-muted);
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+.professor-generate-questions {
+  min-height: 42px;
+  border: 1px solid rgba(37, 99, 235, 0.45);
+  border-radius: 8px;
+  padding: 0 18px;
+  background: rgba(37, 99, 235, 0.1);
+  color: var(--app-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 0.86rem;
+  font-weight: 900;
+  white-space: nowrap;
+}
+.professor-generate-questions:hover {
+  background: rgba(37, 99, 235, 0.18);
+}
+.professor-share-modal.professor-ai-modal {
+  width: min(100%, 920px);
+  max-height: calc(100vh - 44px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.professor-ai-notice,
+.professor-ai-error {
+  margin: 0 0 14px;
+  border-radius: 8px;
+  padding: 10px 12px;
+  font-size: 0.86rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+.professor-ai-notice {
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  background: rgba(245, 158, 11, 0.12);
+  color: var(--app-text);
+}
+.professor-ai-error {
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  background: rgba(239, 68, 68, 0.12);
+  color: var(--app-text);
+}
+.professor-ai-setup {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+}
+.professor-ai-dropzone {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+  border: 2px dashed var(--app-line);
+  border-radius: 12px;
+  padding: 26px 18px;
+  background: var(--app-surface-muted);
+  color: var(--app-text);
+  text-align: center;
+  cursor: pointer;
+}
+.professor-ai-dropzone:hover,
+.professor-ai-dropzone:focus-within,
+.professor-ai-dropzone.has-file {
+  border-color: #2563eb;
+}
+.professor-ai-dropzone svg {
+  width: 30px;
+  height: 30px;
+  color: #2563eb;
+}
+.professor-ai-dropzone strong {
+  overflow-wrap: anywhere;
+}
+.professor-ai-dropzone span {
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+}
+.professor-ai-dropzone input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.professor-ai-options,
+.professor-ai-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+.professor-ai-primary {
+  border-color: #2563eb !important;
+  background: #2563eb !important;
+  color: #fff !important;
+}
+.professor-ai-primary:disabled {
+  opacity: 0.6;
+}
+.professor-ai-working {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 36px 12px;
+  color: var(--app-text);
+  text-align: center;
+}
+.professor-ai-working > span:not(.professor-ai-spinner) {
+  color: var(--app-text-muted);
+  font-size: 0.88rem;
+}
+.professor-ai-spinner {
+  width: 36px;
+  height: 36px;
+  border: 3px solid var(--app-line);
+  border-top-color: #2563eb;
+  border-radius: 999px;
+  animation: professor-ai-spin 800ms linear infinite;
+}
+.professor-ai-card-actions .is-spinning {
+  animation: professor-ai-spin 800ms linear infinite;
+}
+@keyframes professor-ai-spin {
+  to { transform: rotate(360deg); }
+}
+.professor-ai-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 0;
+}
+.professor-ai-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--app-text);
+}
+.professor-ai-summary span {
+  color: var(--app-text-muted);
+  font-weight: 700;
+}
+.professor-ai-list {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.professor-ai-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid var(--app-line);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--app-surface);
+}
+.professor-ai-card.has-error {
+  border-color: rgba(239, 68, 68, 0.7);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.14);
+}
+.professor-ai-card header {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  color: var(--app-text);
+}
+.professor-ai-source {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 3px 10px;
+  background: var(--app-surface-muted);
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+.professor-ai-source.is-verified {
+  background: rgba(34, 197, 94, 0.14);
+  color: var(--app-text);
+}
+.professor-ai-source.is-unverified {
+  background: rgba(245, 158, 11, 0.16);
+  color: var(--app-text);
+}
+.professor-ai-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+.professor-ai-card-actions button {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  display: grid;
+  place-items: center;
+}
+.professor-ai-card-actions button.danger {
+  border-color: rgba(239, 68, 68, 0.4);
+  color: #ef4444;
+}
+.professor-ai-card-actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.professor-ai-card .professor-create-textarea {
+  min-height: 76px;
+}
+.professor-ai-choices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+.professor-ai-choice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 4px;
+}
+.professor-ai-choice.is-correct {
+  border-color: rgba(34, 197, 94, 0.55);
+  background: rgba(34, 197, 94, 0.08);
+}
+.professor-ai-choice label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--app-text);
+  font-weight: 900;
+  cursor: pointer;
+}
+.professor-ai-choice label input {
+  width: 18px;
+  height: 18px;
+  accent-color: #16a34a;
+}
+.professor-ai-explanation {
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+}
+.professor-ai-explanation summary {
+  color: var(--app-text);
+  font-weight: 800;
+  cursor: pointer;
+}
+.professor-ai-explanation p {
+  margin: 8px 0;
+}
+.professor-ai-explanation blockquote {
+  margin: 0;
+  border-left: 3px solid var(--app-line);
+  padding-left: 10px;
+  font-style: italic;
+}
+.professor-ai-footer,
+.professor-ai-confirm {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  border-top: 1px solid var(--app-line);
+  padding-top: 12px;
+  color: var(--app-text);
+}
+.professor-ai-footer .professor-delete-actions button,
+.professor-ai-footer > .professor-ai-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.professor-ai-footer > .professor-ai-primary {
+  min-height: 42px;
+  border: 1px solid #2563eb;
+  border-radius: 12px;
+  padding: 0 18px;
+  font-weight: 900;
+}
+@media (max-width: 640px) {
+  .professor-share-modal.professor-ai-modal {
+    max-height: calc(100vh - 24px);
+    padding: 16px;
+  }
+  .professor-ai-choices {
+    grid-template-columns: 1fr;
+  }
+  .professor-ai-card-actions {
+    margin-left: 0;
+    width: 100%;
+  }
+  .professor-ai-footer,
+  .professor-ai-footer .professor-delete-actions,
+  .professor-ai-footer > .professor-ai-primary {
+    width: 100%;
+  }
+  .professor-ai-footer .professor-delete-actions button {
+    flex: 1 1 140px;
+    justify-content: center;
+  }
+  .professor-ai-footer > .professor-ai-primary {
+    justify-content: center;
+  }
+}

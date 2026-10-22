@@ -1,9 +1,10 @@
 import { validateExam, toLocalDateTime } from "../../lib/examValidation";
 import { queryClient } from "../../lib/queryClient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiChevronDown, FiEdit2, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
+import { FiChevronDown, FiEdit2, FiFileText, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
+import AiQuestionGeneratorModal from "../../components/exam/AiQuestionGeneratorModal";
 import { useAuth } from "../../context/AuthContext";
 import { professorCourses } from "../../data/professorData";
 import { ASSIGNMENT_MODES, filterAssignmentStudents, normalizeAssignmentMode, toggleFilteredStudentSelection } from "../../lib/examAssignments";
@@ -240,6 +241,7 @@ export default function ProfessorCreateExam() {
   const [studentSectionFilter, setStudentSectionFilter] = useState("All Sections");
   const [studentPage, setStudentPage] = useState(1);
   const [autosaveStatus, setAutosaveStatus] = useState("Saved locally");
+  const [aiGeneratorOpen, setAiGeneratorOpen] = useState(false);
   const savingRef = useRef(false);
   const hydratedRef = useRef(false);
   const createSessionIdRef = useRef("");
@@ -1013,6 +1015,11 @@ export default function ProfessorCreateExam() {
     });
   }
 
+  function handleInsertGeneratedQuestions(generated) {
+    setQuestions((current) => [...current, ...generated]);
+    toast.success(`${generated.length} question${generated.length === 1 ? "" : "s"} added to the exam.`);
+  }
+
   function handleDeleteQuestion(questionId) {
     setQuestions((current) => current.filter((question) => question.id !== questionId));
     if (editingQuestionId === questionId) resetQuestionDraft();
@@ -1654,6 +1661,11 @@ export default function ProfessorCreateExam() {
             </div>
           </div>
 
+          <div className="professor-ai-entry">
+            <span>Have lecture notes or a module? Create Multiple Choice questions from a PDF, then review them before adding.</span>
+            <button className="professor-generate-questions" onClick={() => setAiGeneratorOpen(true)} type="button"><FiFileText /> Generate from PDF</button>
+          </div>
+
           <div className="professor-question-fields">
             <TextInput onChange={(event) => setQuestionValue("title", event.target.value)} placeholder="Question Title" type="text" value={questionDraft.title} />
             <SelectInput onChange={(event) => handleQuestionTypeChange(event.target.value)} value={questionDraft.type}>
@@ -1695,6 +1707,12 @@ export default function ProfessorCreateExam() {
           )}
         </aside>
       </form>
+      {aiGeneratorOpen ? (
+        <AiQuestionGeneratorModal
+          onClose={() => setAiGeneratorOpen(false)}
+          onInsert={handleInsertGeneratedQuestions}
+        />
+      ) : null}
       {publishConfirmOpen ? (
         <div className="professor-share-backdrop professor-publish-backdrop" onClick={() => saving ? null : setPublishConfirmOpen(false)} role="presentation">
           <section aria-labelledby="create-publish-title" aria-modal="true" className="professor-share-modal professor-publish-modal" onClick={(event) => event.stopPropagation()} role="dialog">
