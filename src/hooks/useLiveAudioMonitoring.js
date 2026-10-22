@@ -26,7 +26,7 @@ function classifyAudio(level) {
   return "Loud Noise";
 }
 
-export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, canRecordViolation, onSilenceNotice }) {
+export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, canRecordViolation, onSilenceNotice, onSilencePause, onSilenceResume }) {
   const [audioLevel, setAudioLevel] = useState(0);
   const [audioStatus, setAudioStatus] = useState("Quiet");
   const [micStatus, setMicStatus] = useState("Inactive");
@@ -48,11 +48,11 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
   const violationCallbacksRef = useRef({ onViolation, canRecordViolation });
   violationCallbacksRef.current = { onViolation, canRecordViolation };
   const silenceTrackerRef = useRef(createSilenceTracker());
-  const silenceNoticeRef = useRef(onSilenceNotice);
+  const silenceCallbacksRef = useRef({ onSilenceNotice, onSilencePause, onSilenceResume });
 
   useEffect(() => {
-    silenceNoticeRef.current = onSilenceNotice;
-  }, [onSilenceNotice]);
+    silenceCallbacksRef.current = { onSilenceNotice, onSilencePause, onSilenceResume };
+  }, [onSilenceNotice, onSilencePause, onSilenceResume]);
 
   const addTimelineItem = useCallback((status, level, message = status, force = false) => {
     const now = Date.now();
@@ -190,8 +190,10 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
       const rms = measureRms(samples, { byteSamples: !precise });
       const level = Math.min(100, Math.round(rms * 160 * AUDIO_LEVEL_GAIN));
 
-      // Silence is never a violation or a pause; exact digital silence only prompts the student.
-      if (silenceTrackerRef.current.observe({ rms, precise, now: Date.now() }) === "notice") silenceNoticeRef.current?.();
+      // Exact digital silence never records a violation: notice, then pause until the level reaches 1%.
+      const silenceEvent = silenceTrackerRef.current.observe({ rms, level, precise, now: Date.now() });      if (silenceEvent === "notice") silenceCallbacksRef.current.onSilenceNotice?.();
+      else if (silenceEvent === "pause") silenceCallbacksRef.current.onSilencePause?.();
+      else if (silenceEvent === "resume") silenceCallbacksRef.current.onSilenceResume?.();
       const status = classifyAudio(level);
       setAudioLevel(level);
       setAudioStatus(status);

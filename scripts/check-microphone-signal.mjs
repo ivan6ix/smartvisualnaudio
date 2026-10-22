@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   DIGITAL_SILENCE_NOTICE_MS,
+  DIGITAL_SILENCE_PAUSE_MS,
   MICROPHONE_VIOLATION_CONFIRM_MS,
+  SILENCE_RESUME_LEVEL,
   classifyMicrophoneState,
   createMicrophoneInterruptionGate,
   createSilenceTracker,
@@ -20,12 +22,12 @@ const zeros = new Float32Array(1024);
 assert.equal(measureRms(quietBytes, { byteSamples: true }), 0, "8-bit analyser data cannot represent a quiet room's noise floor.");
 assert.ok(measureRms(quietFloat) > 0.0004);
 
-function silenceRun(rms, precise, ms) {
+function silenceRun(rms, precise, ms, level = 0) {
   const tracker = createSilenceTracker();
   const events = [];
   for (let now = 0; now <= ms; now += 1000) {
-    const event = tracker.observe({ rms, precise, now });
-    if (event) events.push(event);
+    const event = tracker.observe({ rms, level, precise, now });
+    if (event) events.push(`${event}@${now / 1000}s`);
   }
   return events;
 }
@@ -35,13 +37,29 @@ assert.deepEqual(silenceRun(measureRms(quietFloat), true, 5 * 60000), []);
 // Byte-only browsers (no float API) cannot tell silence apart, so they never raise a notice.
 assert.deepEqual(silenceRun(0, false, 5 * 60000), []);
 
-// 2. Exact digital silence (possible OS/hardware mute) only raises one non-blocking notice.
-assert.deepEqual(silenceRun(measureRms(zeros), true, DIGITAL_SILENCE_NOTICE_MS - 1000), []);
-assert.deepEqual(silenceRun(measureRms(zeros), true, 5 * 60000), ["notice"]);
+// 2. Exact digital silence (possible OS/hardware mute): notice at 15 s, pause at 30 s, nothing more.
+assert.equal(DIGITAL_SILENCE_NOTICE_MS, 15000);
+assert.equal(DIGITAL_SILENCE_PAUSE_MS, 30000);
+assert.equal(SILENCE_RESUME_LEVEL, 1);
+assert.deepEqual(silenceRun(measureRms(zeros), true, 14000), []);
+assert.deepEqual(silenceRun(measureRms(zeros), true, 5 * 60000), ["notice@15s", "pause@30s"]);
 {
+  // Sound before the pause resets the countdown.
   const tracker = createSilenceTracker();
-  for (let now = 0; now <= DIGITAL_SILENCE_NOTICE_MS; now += 1000) tracker.observe({ rms: 0, precise: true, now });
-  assert.equal(tracker.observe({ rms: 0.001, precise: true, now: DIGITAL_SILENCE_NOTICE_MS + 1000 }), "signal_restored");
+  for (let now = 0; now <= 20000; now += 1000) tracker.observe({ rms: 0, precise: true, now });
+  assert.equal(tracker.observe({ rms: 0.001, level: 3, precise: true, now: 21000 }), null);
+  const events = [];
+  for (let now = 22000; now <= 50000; now += 1000) events.push(tracker.observe({ rms: 0, precise: true, now }));
+  assert.deepEqual(events.filter(Boolean), ["notice"], "After a reset the 15 s notice starts over and no pause is due yet.");
+}
+{
+  // While paused, faint sound below 1% keeps the pause; reaching 1% resumes.
+  const tracker = createSilenceTracker();
+  for (let now = 0; now <= 30000; now += 1000) tracker.observe({ rms: 0, precise: true, now });
+  assert.equal(tracker.observe({ rms: 0.0001, level: 0, precise: true, now: 31000 }), null, "Faint sound under 1% must not resume.");
+  assert.equal(tracker.observe({ rms: 0, level: 0, precise: true, now: 32000 }), null, "No repeated pause events while paused.");
+  assert.equal(tracker.observe({ rms: 0.0005, level: SILENCE_RESUME_LEVEL, precise: true, now: 33000 }), "resume");
+  assert.equal(tracker.observe({ rms: 0, precise: true, now: 34000 }), null, "After resuming the countdown starts from zero.");
 }
 
 // 3. Browser-reported failures map to the right violation type; a healthy track is null.
@@ -88,6 +106,11 @@ assert.equal(isMicrophonePermissionRevoked("granted", "granted"), false);
   assert.ok(/function handleMicrophoneIssue[\s\S]{0,600}microphoneInterruptionRef\.current\.report/.test(page), "Microphone issues must go through the interruption gate.");
   assert.ok(/function confirmMicrophoneInterruption\(\) \{\s*if \(!microphoneBlockedRef\.current\) return;\s*const due = microphoneInterruptionRef\.current\.due\(Date\.now\(\)\);\s*if \(due\) recordManualViolation\(due\.type, due\.reason, "High"\);/.test(page));
   assert.ok(!/handleMicrophoneIssue[^;]*recordManualViolation/.test(page.match(/function handleMicrophoneIssue[\s\S]*?\n {2}\}/)[0]), "handleMicrophoneIssue must not record directly.");
+  // A silence pause records no violation, and only the 1% audio level lifts it.
+  const silencePause = page.match(/function handleMicrophoneSilencePause\(\) \{[\s\S]*?\n {2}\}/)[0];
+  assert.ok(!/recordManualViolation|microphoneInterruptionRef/.test(silencePause), "A silence pause must not record a violation.");
+  assert.ok(/microphoneSilencePausedRef\.current && audioMonitoring\.audioLevel >= SILENCE_RESUME_LEVEL\) resumeFromMicrophoneSilence\(\)/.test(page), "Resume must require the audio level threshold.");
+  assert.ok(/\/\/ A silence pause stays until the audio level reaches SILENCE_RESUME_LEVEL\.\s*if \(microphoneSilencePausedRef\.current\) return;/.test(page), "Device recovery must not lift a silence pause.");
 }
 
 console.log("microphone signal ok");
