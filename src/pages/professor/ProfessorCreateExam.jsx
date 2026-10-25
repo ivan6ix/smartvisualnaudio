@@ -1451,10 +1451,13 @@ export default function ProfessorCreateExam() {
                   <div className="professor-course-picker-options">
                     <input aria-label="Search courses" className="professor-create-input" onChange={(event) => setCourseSearch(event.target.value)} placeholder="Search courses or sections" type="search" value={courseSearch} />
                     {courses.filter((course) => `${course.courseCode} ${course.section} ${course.courseName || ""}`.toLowerCase().includes(courseSearch.toLowerCase())).map((course) => (
-                      <label key={course.id}>
+                      <label className={selectedCourseIds.includes(course.id) ? "is-selected" : ""} key={course.id}>
                         <input checked={selectedCourseIds.includes(course.id)} disabled={Boolean(groupId) || (isEditingExam && existingExamStatus !== "Draft")}
                           onChange={(event) => toggleCourse(course.id, event.target.checked)} type="checkbox" />
-                        <span>{course.courseCode} - {course.section}</span>
+                        <span>
+                          <strong>{course.courseCode} - {course.section}</strong>
+                          {course.courseName ? <small>{course.courseName}</small> : null}
+                        </span>
                       </label>
                     ))}
                   </div>

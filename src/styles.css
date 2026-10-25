@@ -7611,15 +7611,47 @@ html[data-theme="light"] .professor-course-list-card:hover {
 }
 .professor-course-picker-options label {
   align-items: center;
+  border-radius: 6px;
   color: var(--app-text);
+  cursor: pointer;
   display: flex;
-  gap: 9px;
-  min-height: 36px;
+  gap: 10px;
+  justify-content: flex-start;
+  min-height: 40px;
   min-width: 0;
-  padding: 4px;
+  padding: 6px 8px;
+  text-align: left;
+}
+.professor-course-picker-options label:hover,
+.professor-course-picker-options label.is-selected {
+  background: var(--app-surface-muted);
+}
+.professor-course-picker-options label input[type="checkbox"] {
+  accent-color: #2563eb;
+  flex: none;
+  height: 18px;
+  margin: 0;
+  width: 18px;
 }
 .professor-course-picker-options label span {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+.professor-course-picker-options label strong {
+  font-size: 0.92rem;
+  font-weight: 800;
+}
+.professor-course-picker-options label small {
+  color: var(--app-text-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  justify-self: start;
+}
+.professor-course-picker-options input[type="search"] {
+  margin-bottom: 4px;
 }
 .professor-selected-course-chips {
   display: flex;
@@ -7654,7 +7686,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   width: 100%;
 }
 .professor-assignment-course select,
-.professor-course-picker-options input {
+.professor-course-picker-options input[type="search"] {
   max-width: 100%;
   min-width: 0;
   width: 100%;
