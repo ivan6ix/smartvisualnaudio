@@ -1,6 +1,6 @@
 import NotificationBell from "../../components/NotificationBell";
 import { useEffect, useState } from "react";
-import { FiBarChart2, FiBookOpen, FiFileText, FiMenu, FiMessageCircle, FiMoon, FiSettings, FiShield, FiSun, FiX } from "react-icons/fi";
+import { FiBarChart2, FiBookOpen, FiFileText, FiMenu, FiMessageCircle, FiMoon, FiSettings, FiShield, FiSun, FiTrendingUp, FiX } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import MessageModal from "../../components/MessageModal";
 import ProfileAvatar from "../../components/ProfileAvatar";
@@ -13,6 +13,7 @@ import useMessagePreview from "../../hooks/useMessagePreview";
 const deanNavigation = [
   { label: "Dashboard", to: "/dean", icon: FiBarChart2, end: true },
   { label: "Exam Integrity", to: "/dean/integrity", icon: FiShield },
+  { label: "Analytics", to: "/dean/analytics", icon: FiTrendingUp },
   { label: "Courses", to: "/dean/courses", icon: FiBookOpen },
   { label: "Reports", to: "/dean/reports", icon: FiFileText },
 ];

@@ -19,6 +19,7 @@ const pageImports = {
   Dashboard: () => import("./pages/Dashboard"),
   DeanDashboard: () => import("./pages/dean/DeanDashboard"),
   DeanExamIntegrity: () => import("./pages/dean/DeanExamIntegrity"),
+  DeanAnalytics: () => import("./pages/dean/DeanAnalytics"),
   DeanLayout: () => import("./pages/dean/DeanLayout"),
   ForgotPassword: () => import("./pages/ForgotPassword"),
   LandingPage: () => import("./components/landing/LandingPage"),
@@ -64,6 +65,7 @@ const Courses = lazy(pageImports.Courses);
 const Dashboard = lazy(pageImports.Dashboard);
 const DeanDashboard = lazy(pageImports.DeanDashboard);
 const DeanExamIntegrity = lazy(pageImports.DeanExamIntegrity);
+const DeanAnalytics = lazy(pageImports.DeanAnalytics);
 const DeanLayout = lazy(pageImports.DeanLayout);
 const ForgotPassword = lazy(pageImports.ForgotPassword);
 const LandingPage = lazy(pageImports.LandingPage);
@@ -143,6 +145,7 @@ function getPageImportForPath(pathname) {
     "/dean/profile": pageImports.ProfileSettings,
     "/dean/security": pageImports.SecurityPrivacy,
     "/dean/integrity": pageImports.DeanExamIntegrity,
+    "/dean/analytics": pageImports.DeanAnalytics,
     "/dean/courses": pageImports.Courses,
     "/dean/reports": pageImports.Reports,
     "/dean/notifications": pageImports.Notifications,
@@ -219,6 +222,7 @@ export default function App() {
         <Route path="/dean" element={<DeanLayout />}>
           <Route index element={<DeanDashboard />} />
           <Route path="integrity" element={<DeanExamIntegrity />} />
+          <Route path="analytics" element={<DeanAnalytics />} />
           <Route path="courses" element={<Courses />} />
           <Route path="reports" element={<Reports />} />
           <Route path="notifications" element={<Notifications />} />

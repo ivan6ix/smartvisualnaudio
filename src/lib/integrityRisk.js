@@ -84,6 +84,18 @@ function key(examId, studentId) {
   return `${examId}:${studentId}`;
 }
 
+// The latest submitted attempt per exam and student; reopened attempts are replaced by their newer submission.
+export function latestSubmittedAttempts(attempts) {
+  const latest = new Map();
+  for (const attempt of attempts) {
+    if (attempt.status === "Reopened" || !attempt.submitted_at) continue;
+    const attemptKey = key(attempt.exam_id, attempt.student_id);
+    const current = latest.get(attemptKey);
+    if (!current || time(attempt.submitted_at) > time(current.submitted_at)) latest.set(attemptKey, attempt);
+  }
+  return [...latest.values()];
+}
+
 // One row per exam and student: their submitted attempt (if any) and every alert they triggered in that exam.
 export function buildRiskQueue({ attempts, violations, durationByExam = {} }) {
   const meanByExam = new Map();

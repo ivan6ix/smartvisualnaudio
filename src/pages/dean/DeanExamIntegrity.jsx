@@ -5,7 +5,7 @@ import IntegrityReview from "../../components/exam/IntegrityReview";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
 import { Badge, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonValue, Table } from "../../components/ui";
 import useListViewPreference from "../../hooks/useListViewPreference";
-import { buildRiskQueue, summarizeIntegrity } from "../../lib/integrityRisk";
+import { buildRiskQueue, latestSubmittedAttempts, summarizeIntegrity } from "../../lib/integrityRisk";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -42,18 +42,6 @@ function formatDateTime(value) {
     date: date.toLocaleDateString(),
     time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
   };
-}
-
-// The latest submitted attempt per exam and student; reopened attempts are replaced by their newer submission.
-function latestSubmittedAttempts(attempts) {
-  const latest = new Map();
-  for (const attempt of attempts) {
-    if (attempt.status === "Reopened" || !attempt.submitted_at) continue;
-    const key = `${attempt.exam_id}:${attempt.student_id}`;
-    const current = latest.get(key);
-    if (!current || new Date(attempt.submitted_at) > new Date(current.submitted_at)) latest.set(key, attempt);
-  }
-  return [...latest.values()];
 }
 
 function EvidenceCell({ row }) {

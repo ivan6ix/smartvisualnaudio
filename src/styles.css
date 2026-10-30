@@ -19434,3 +19434,48 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
     font-size: 0.6rem;
   }
 }
+
+/* Dean analytics page. */
+.dean-insights-page .dean-insights-kpis {
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+}
+.dean-insights-section {
+  display: grid;
+  gap: 2px;
+}
+.dean-insights-section small {
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+}
+.dean-insights-table table {
+  min-width: 760px;
+}
+.dean-insights-recommendations {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dean-insights-recommendations li {
+  display: grid;
+  gap: 6px;
+  border: 1px solid var(--app-line);
+  border-radius: 12px;
+  padding: 14px;
+  background: var(--app-surface);
+}
+.dean-insights-recommendations span {
+  color: #2563eb;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.dean-insights-recommendations p {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
