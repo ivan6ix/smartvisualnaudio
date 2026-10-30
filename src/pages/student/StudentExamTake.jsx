@@ -12,12 +12,18 @@ import {
   SCAN_ANGLES,
   SCAN_FRAMES_PER_ANGLE,
   SCAN_OUTCOME,
+  SWEEP_SAMPLE_INTERVAL_MS,
   analyzeAngleCapture,
   assessCaptureQuality,
   createScanState,
+  createSweep,
   findDuplicateAngle,
+  finishSweep,
+  getSweepProgress,
   isAngleCaptured,
+  isNewSweepView,
   parseDetectorResponse,
+  recordSweepSample,
   scanReducer,
   summarizeScan,
 } from "../../lib/environmentScan";
@@ -50,6 +56,8 @@ const SCAN_ANGLE_STATUS_LABELS = {
 const TAB_INACTIVE_GRACE_MS = 1000;
 const MAX_CAPTURE_RETRIES = 3;
 const SCAN_BURST_INTERVAL_MS = 250;
+// Room sweep views are sent downscaled: detectors work at about this size and the request stays small.
+const SWEEP_IMAGE_MAX_WIDTH = 640;
 const ENV_SCAN_TIMEOUT_MS = 12000;
 // Covers the first COCO-SSD model download on slow connections; a timeout is a retryable technical failure.
 const ENV_SCAN_ANALYSIS_TIMEOUT_MS = 25000;
@@ -440,6 +448,9 @@ export default function StudentExamTake() {
   const [selectedScanAngleId, setSelectedScanAngleId] = useState(null);
   const [scanCameraReady, setScanCameraReady] = useState(false);
   const [scanCapturing, setScanCapturing] = useState(false);
+  // Live progress of a running room sweep (null when no sweep is running); the ref takes Done/Cancel.
+  const [sweepProgress, setSweepProgress] = useState(null);
+  const sweepStopRef = useRef("");
   const [scanFindings, setScanFindings] = useState([]);
   const [scanFacingMode, setScanFacingMode] = useState("user");
   const [cameraError, setCameraError] = useState("");
@@ -844,7 +855,7 @@ export default function StudentExamTake() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scanStatus]);
 
-  // The scan passes only when all five angles are captured and approved; exam entry still
+  // The scan passes only when the room sweep and desk check are captured and approved; exam entry still
   // goes through fullscreen, device checks and authorize_exam_start.
   useEffect(() => {
     if (!(scanSummary.canEnterExam && scanStatus === "scanning")) return;
@@ -1367,8 +1378,47 @@ export default function StudentExamTake() {
     return SCAN_ANGLES.find((angle) => angle.id === angleId)?.title || "previous angle";
   }
 
-  // Captures a short burst for one angle. Each angle keeps its own capture, so retaking one
-  // angle never touches the others; stale results are dropped by the scan reducer's ids.
+  // One sample of a running room sweep: a downscaled frame, whose image is kept only when it shows
+  // a new part of the room.
+  function captureSweepSample(sweep) {
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    if (!video?.videoWidth || !canvas) return null;
+    const scale = Math.min(1, SWEEP_IMAGE_MAX_WIDTH / video.videoWidth);
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
+    const context = canvas.getContext("2d");
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const signature = getFrameSignature(context, canvas.width, canvas.height);
+    return { signature, timestamp: Date.now(), image: isNewSweepView(sweep, signature) ? canvas.toDataURL("image/jpeg", 0.82) : null };
+  }
+
+  // Samples the camera while the student turns. Ends on its own once the view is back at the start,
+  // or when the student presses Done (after the minimum turn) or the time limit passes.
+  // Returns finishSweep's result, or null when the whole scan was reset meanwhile.
+  async function recordRoomSweep() {
+    sweepStopRef.current = "";
+    let sweep = createSweep(Date.now());
+    setSweepProgress(getSweepProgress(sweep));
+    try {
+      for (;;) {
+        if (scanCancelledRef.current) return null;
+        if (sweepStopRef.current === "cancel") return { ok: false, reason: "The room sweep was stopped. Start it again when you are ready." };
+        const sample = captureSweepSample(sweep);
+        if (sample) sweep = recordSweepSample(sweep, sample);
+        const progress = getSweepProgress(sweep, Date.now());
+        setSweepProgress(progress);
+        if (progress.backAtStart || progress.timedOut || (sweepStopRef.current === "done" && progress.canFinish)) break;
+        await wait(SWEEP_SAMPLE_INTERVAL_MS);
+      }
+      return finishSweep(sweep, Date.now());
+    } finally {
+      setSweepProgress(null);
+    }
+  }
+
+  // Captures one step: the room sweep, or a short burst for the desk check. Each step keeps its own
+  // capture, so redoing one never touches the other; stale results are dropped by the scan reducer's ids.
   async function captureScanAngle(angleId) {
     if (scanCaptureInFlightRef.current || scanStatus !== "scanning" || !scanCameraReady) return;
     scanCaptureInFlightRef.current = true;
@@ -1378,6 +1428,19 @@ export default function StudentExamTake() {
     dispatchScan({ type: "capture_started", angleId, captureId });
 
     try {
+      if (angleId === "sweep") {
+        const sweep = await recordRoomSweep();
+        if (!sweep) return;
+        if (!sweep.ok) {
+          dispatchScan({ type: "capture_failed", angleId, captureId, reason: sweep.reason });
+          return;
+        }
+        dispatchScan({ type: "capture_succeeded", angleId, captureId, frames: sweep.frames, signature: sweep.signature });
+        setSelectedScanAngleId(null);
+        void runScanAngleAnalysis(angleId, sweep.frames);
+        return;
+      }
+
       const shots = [];
       for (let index = 0; index < SCAN_FRAMES_PER_ANGLE; index += 1) {
         if (index) await wait(SCAN_BURST_INTERVAL_MS);
@@ -1401,7 +1464,7 @@ export default function StudentExamTake() {
           type: "capture_failed",
           angleId,
           captureId,
-          reason: `This looks the same as the ${getScanAngleTitle(duplicateOf)} capture. Turn the camera to show the ${getScanAngleTitle(angleId).toLowerCase()}, then capture again.`,
+          reason: `This looks the same as the ${getScanAngleTitle(duplicateOf).toLowerCase()}. ${SCAN_ANGLES.find((angle) => angle.id === angleId)?.instruction || ""} Then capture again.`,
         });
         return;
       }
@@ -3017,18 +3080,26 @@ export default function StudentExamTake() {
     const scanIssues = SCAN_ANGLES
       .map((angle) => scanState.angles[angle.id])
       .filter((angle) => angle.reason && [ANGLE_STATUS.REJECTED, ANGLE_STATUS.RECAPTURE, ANGLE_STATUS.ERROR].includes(angle.status));
-    const outcomeAlert = scanActive ? {
-      [SCAN_OUTCOME.RISK]: { tone: "danger", title: "Prohibited item detected", text: "Remove the item from your exam area, then retake the affected angle." },
-      [SCAN_OUTCOME.RESCAN]: { tone: "warning", title: "Some angles need to be retaken", text: "Only the listed angles need a new capture." },
-      [SCAN_OUTCOME.TECHNICAL]: { tone: "warning", title: "The environment check could not finish", text: "This is a connection or service problem, not a violation. Retry the check for the listed angle." },
+    const outcomeAlert = scanActive && !sweepProgress ? {
+      [SCAN_OUTCOME.RISK]: { tone: "danger", title: "Prohibited item detected", text: "Remove the item from your exam area, then redo the affected step." },
+      [SCAN_OUTCOME.RESCAN]: { tone: "warning", title: "A step needs to be redone", text: "Only the listed step needs a new capture." },
+      [SCAN_OUTCOME.TECHNICAL]: { tone: "warning", title: "The environment check could not finish", text: "This is a connection or service problem, not a violation. Retry the check for the listed step." },
     }[scanSummary.outcome] : null;
     const captureLabel = !scanCameraReady
       ? "Starting camera..."
       : scanCapturing
         ? "Capturing..."
         : activeScanAngle
-          ? `Capture ${activeScanAngle.title}`
-          : scanSummary.outcome === "analyzing" ? "Checking captures..." : "All angles captured";
+          ? activeScanAngle.id === "sweep" ? "Start Room Sweep" : `Capture ${activeScanAngle.title}`
+          : scanSummary.outcome === "analyzing" ? "Checking captures..." : "Both steps captured";
+    const sweepPercent = sweepProgress ? Math.round(sweepProgress.coverage * 100) : 0;
+    const sweepHint = !sweepProgress
+      ? ""
+      : sweepProgress.tooFast
+        ? "Slow down. Turn more slowly so the camera can see clearly."
+        : sweepProgress.canFinish
+          ? "Almost done. Keep turning until you face where you started."
+          : "Keep turning slowly in the same direction.";
 
     return (
       <section className="student-exam-take-page">
@@ -3041,13 +3112,17 @@ export default function StudentExamTake() {
           <div className="student-scan-hero">
             <div>
               <FiShield />
-              <h2>{scanStatus === "passed" ? "Scan Passed" : scanActive && activeScanAngle ? activeScanAngle.title : "Environment Scan"}</h2>
+              <h2>{scanStatus === "passed" ? "Scan Passed" : scanActive && sweepProgress ? "Room Sweep" : scanActive && activeScanAngle ? activeScanAngle.title : "Environment Scan"}</h2>
               <p>
                 {scanStatus === "passed"
                   ? "Your environment scan is complete. You can proceed to the exam."
                   : scanActive
-                    ? activeScanAngle ? `${activeScanAngle.instruction} Then press Capture.` : "All five angles are captured. Waiting for the environment check to finish."
-                    : "Start the camera, then capture the front, left, right, upper and desk views one at a time."}
+                    ? sweepProgress
+                      ? sweepHint
+                      : activeScanAngle
+                        ? `${activeScanAngle.instruction} ${activeScanAngle.id === "sweep" ? "Press Start Room Sweep, then turn." : "Then press Capture."}`
+                        : "Both steps are captured. Waiting for the environment check to finish."
+                    : "Start the camera, turn slowly in a full circle to show your whole room, then show your desk."}
               </p>
             </div>
             <span>{scanSummary.capturedCount} of {scanSummary.total} captured</span>
@@ -3089,9 +3164,29 @@ export default function StudentExamTake() {
             ) : null}
             <video autoPlay muted playsInline ref={videoRef} />
             <canvas ref={canvasRef} />
+            {sweepProgress ? (
+              <div className="student-sweep-ring" aria-hidden="true">
+                <svg viewBox="0 0 64 64">
+                  <circle cx="32" cy="32" r="27" />
+                  <circle cx="32" cy="32" pathLength="100" r="27" strokeDasharray={`${sweepPercent} 100`} />
+                </svg>
+                <strong>{sweepPercent}%</strong>
+              </div>
+            ) : null}
           </div>
 
-          {scanActive ? (
+          {scanActive && sweepProgress ? (
+            <div className="student-scan-meter" aria-live="polite">
+              <div>
+                <strong>Room covered {sweepPercent}%</strong>
+                <span>{Math.floor(sweepProgress.elapsedMs / 1000)} s</span>
+              </div>
+              <div>
+                <span style={{ width: `${sweepPercent}%` }} />
+              </div>
+              <small className={sweepProgress.tooFast ? "warning" : ""}>{sweepHint}</small>
+            </div>
+          ) : scanActive ? (
             <div className="student-scan-meter" aria-live="polite">
               <div>
                 <strong>{scanSummary.capturedCount} of {scanSummary.total} captured</strong>
@@ -3100,7 +3195,7 @@ export default function StudentExamTake() {
               <div>
                 <span style={{ width: `${capturedPercent}%` }} />
               </div>
-              <small>Each angle is checked separately. Retaking one angle keeps the others.</small>
+              <small>Each step is checked separately. Redoing one step keeps the other.</small>
             </div>
           ) : null}
 
@@ -3122,7 +3217,7 @@ export default function StudentExamTake() {
                   {canSelect ? (
                     <button className="student-scan-step-select" onClick={() => setSelectedScanAngleId(angle.id)} type="button">{index + 1}. {angle.title}</button>
                   ) : <>{index + 1}. {angle.title}</>}
-                  <small>{scanStatus === "passed" ? "Approved" : SCAN_ANGLE_STATUS_LABELS[status]}</small>
+                  <small>{scanStatus === "passed" ? "Approved" : angle.id === "sweep" && sweepProgress ? "Sweeping..." : SCAN_ANGLE_STATUS_LABELS[status]}</small>
                   {scanActive && status === ANGLE_STATUS.ERROR ? (
                     <button className="student-scan-step-action" onClick={() => retryScanAngleAnalysis(angle.id)} type="button">Retry check</button>
                   ) : null}
@@ -3140,7 +3235,12 @@ export default function StudentExamTake() {
           <div className="student-scan-actions">
             <Button disabled={scanActive} onClick={switchEnvironmentCamera} type="button"><FiRepeat /> {scanFacingMode === "user" ? "Use Rear Camera" : "Use Front Camera"}</Button>
             {scanStatus === "idle" || scanStatus === "failed" ? <Button onClick={startEnvironmentScan}><FiCamera /> Start Scan</Button> : null}
-            {scanActive ? <Button disabled={!scanCameraReady || scanCapturing || !activeScanAngle} onClick={() => captureScanAngle(activeScanAngle.id)} type="button"><FiCamera /> {captureLabel}</Button> : null}
+            {scanActive && sweepProgress ? (
+              <>
+                <Button disabled={!sweepProgress.canFinish} onClick={() => { sweepStopRef.current = "done"; }} type="button"><FiCheckCircle /> Done</Button>
+                <Button onClick={() => { sweepStopRef.current = "cancel"; }} type="button"><FiXCircle /> Stop Sweep</Button>
+              </>
+            ) : scanActive ? <Button disabled={!scanCameraReady || scanCapturing || !activeScanAngle} onClick={() => captureScanAngle(activeScanAngle.id)} type="button"><FiCamera /> {captureLabel}</Button> : null}
             {scanActive || scanStatus === "failed" || scanStatus === "passed" ? <Button onClick={retakeEnvironmentScan} type="button"><FiRefreshCw /> {scanStatus === "passed" ? "Retake" : "Restart Scan"}</Button> : null}
             {scanStatus === "passed" ? <Button disabled={examStarting} onClick={enterExamMode}><FiCheckCircle /> Use Photo / {secureModeRequired ? "Continue to Secure Exam" : "Start Exam"}</Button> : null}
           </div>

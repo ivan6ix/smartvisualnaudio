@@ -23,7 +23,9 @@ assert.match(exam, /moveOrderingAnswer\(question\.id, itemIndex, itemIndex \+ 1\
 assert.match(exam, /switchEnvironmentCamera/, "Environment scan must support front/rear camera switching where the browser allows it.");
 assert.match(exam, /Use Photo/, "Environment scan must expose a Use Photo action after a successful capture flow.");
 // Scan checkpoints live in the shared scan helper and are rendered from SCAN_ANGLES.
-assert.match(readFileSync("src/lib/environmentScan.js", "utf8"), /Front View[\s\S]*Left Side[\s\S]*Right Side[\s\S]*Upper Surroundings[\s\S]*Desk View/, "Environment scan must expose the required responsive scan checkpoints.");
+assert.match(readFileSync("src/lib/environmentScan.js", "utf8"), /Room Sweep[\s\S]*Desk Check/, "Environment scan must expose the 360-degree room sweep and the desk check.");
+assert.match(exam, /recordRoomSweep[\s\S]*getSweepProgress[\s\S]*finishSweep/, "The room sweep must track coverage and be judged before analysis.");
+assert.match(exam, /sweepStopRef\.current = "done"[\s\S]*sweepStopRef\.current = "cancel"/, "A running sweep must offer Done and Stop Sweep.");
 assert.match(exam, /SCAN_ANGLES\.map\(\(angle, index\)/, "Environment scan must render every scan checkpoint.");
 
 assert.match(styles, /\.student-exam-workspace\s*\{[\s\S]*grid-template-columns:\s*minmax\(0,\s*1fr\) minmax\(280px,\s*320px\)/, "Desktop workspace must use separate questionnaire and monitoring columns.");

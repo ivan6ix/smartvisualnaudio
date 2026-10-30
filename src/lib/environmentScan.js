@@ -1,14 +1,13 @@
 // Pure environment-scan logic shared by the student scan page and the local Roboflow proxy.
 // No browser or import.meta APIs here so it runs in Node check scripts and server code.
 
+// The scan has two steps ("angles" in the state below): a 360-degree room sweep and a desk check.
 export const SCAN_ANGLES = [
-  { id: "front", title: "Front View", instruction: "Face the camera forward and show the front of your exam environment." },
-  { id: "left", title: "Left Side", instruction: "Turn the camera to show the left side of your environment." },
-  { id: "right", title: "Right Side", instruction: "Turn the camera to show the right side of your environment." },
-  { id: "upper", title: "Upper Surroundings", instruction: "Tilt the camera upward and show the upper surroundings." },
-  { id: "desk", title: "Desk View", instruction: "Point the camera down and show your desk or work surface." },
+  { id: "sweep", title: "Room Sweep", instruction: "Hold the camera at chest height and turn slowly in a full circle until you face where you started." },
+  { id: "desk", title: "Desk Check", instruction: "Point the camera down and show your whole desk or work surface." },
 ];
 export const SCAN_ANGLE_IDS = SCAN_ANGLES.map((angle) => angle.id);
+// Burst size for the desk check; the sweep keeps its own distinct views instead.
 export const SCAN_FRAMES_PER_ANGLE = 3;
 
 export const SCAN_OUTCOME = {
@@ -185,8 +184,8 @@ export function classifyAngleDetections({ angleId, frames = [] }) {
       detected: confirmed,
       severity: confirmed ? "risk" : "uncertain",
       reason: confirmed
-        ? `${rule.label} detected (${percent(maxConfidence)}). Remove it from your exam area, then retake this angle.`
-        : `The image was unclear (possible ${rule.label.toLowerCase()}, ${percent(maxConfidence)}). Improve the lighting or hold the camera steady, then retake this angle.`,
+        ? `${rule.label} detected (${percent(maxConfidence)}). Remove it from your exam area, then retake this step.`
+        : `The image was unclear (possible ${rule.label.toLowerCase()}, ${percent(maxConfidence)}). Improve the lighting or hold the camera steady, then retake this step.`,
     });
   });
 
@@ -239,7 +238,7 @@ function describeTechnicalFailure(errors) {
 // angle is unchecked: a configured server-side detector cannot be bypassed by browser-only results.
 export async function analyzeAngleCapture({ angleId, frames, requiredDetectors = [], detectors = [], fallbackDetectors = [], timeoutMs = 15000 }) {
   const frameCount = frames?.length || 0;
-  if (!frameCount) return { outcome: SCAN_OUTCOME.TECHNICAL, findings: [], reason: "No image was captured for this angle. Retake it." };
+  if (!frameCount) return { outcome: SCAN_OUTCOME.TECHNICAL, findings: [], reason: "No image was captured for this step. Retake it." };
 
   const errors = [];
   let requiredMissing = false;
@@ -306,15 +305,15 @@ export function getSignatureDistance(previous, next) {
 
 // Only rejects frames that cannot show anything (lens covered, very dark, blank); plain walls pass.
 export function assessCaptureQuality(signatures = []) {
-  if (!signatures.length) return { ok: false, reason: "No image was captured. Make sure the camera is on, then retake this angle." };
+  if (!signatures.length) return { ok: false, reason: "No image was captured. Make sure the camera is on, then retake this step." };
   const usable = signatures.filter((signature) => getSignatureBrightness(signature) >= MIN_FRAME_BRIGHTNESS && getSignatureTexture(signature) >= MIN_FRAME_TEXTURE);
   if (usable.length * 2 > signatures.length) return { ok: true, reason: "" };
   const dark = signatures.filter((signature) => getSignatureBrightness(signature) < MIN_FRAME_BRIGHTNESS).length * 2 > signatures.length;
   return {
     ok: false,
     reason: dark
-      ? "The image is too dark. Turn on a light, then retake this angle."
-      : "The image looks blank or covered. Uncover the camera and point it at your surroundings, then retake this angle.",
+      ? "The image is too dark. Turn on a light, then retake this step."
+      : "The image looks blank or covered. Uncover the camera and point it at your surroundings, then retake this step.",
   };
 }
 
@@ -323,6 +322,104 @@ export function findDuplicateAngle(angleId, signature, capturedSignatures = {}) 
   return Object.entries(capturedSignatures).find(([otherId, otherSignature]) => (
     otherId !== angleId && otherSignature && getSignatureDistance(otherSignature, signature) < DUPLICATE_VIEW_DISTANCE
   ))?.[0] || null;
+}
+
+// --- Room sweep --------------------------------------------------------------------------------
+// A laptop webcam has no motion sensor, so the sweep is judged from the pictures: the view must keep
+// changing (distinct views), last long enough for a slow full turn, and end back at the starting view.
+// View distances ignore overall brightness so the camera's auto exposure does not count as movement.
+
+export const SWEEP_SAMPLE_INTERVAL_MS = 500;
+export const SWEEP_MIN_MS = 20000;
+export const SWEEP_MAX_MS = 90000;
+// A sample this different from the last kept view becomes a new view.
+export const SWEEP_VIEW_DISTANCE = 14;
+export const SWEEP_MIN_VIEWS = 8;
+export const SWEEP_TARGET_VIEWS = 12;
+export const SWEEP_COVERAGE_BEFORE_RETURN = 0.9;
+// At most this many views are sent to the detectors, spread evenly over the sweep.
+export const SWEEP_MAX_FRAMES = 12;
+// Ending this close to the first view counts as being back where the sweep started.
+export const SWEEP_RETURN_DISTANCE = 16;
+// Two samples this far apart, half a second apart, mean the camera turned too fast to see clearly.
+// Only shown as a hint; the sweep's duration check is what rejects a rushed turn.
+export const SWEEP_FAST_DISTANCE = 24;
+
+function centered(signature) {
+  const average = getSignatureBrightness(signature);
+  return signature.map((value) => value - average);
+}
+
+export function getViewDistance(previous, next) {
+  if (!previous?.length || !next?.length || previous.length !== next.length) return Number.POSITIVE_INFINITY;
+  return getSignatureDistance(centered(previous), centered(next));
+}
+
+export function createSweep(startedAt) {
+  return { startedAt, views: [], lastSignature: null, lastAt: startedAt, tooFastAt: null };
+}
+
+// True when this sample shows something new, so the caller should keep its image.
+export function isNewSweepView(sweep, signature) {
+  const lastView = sweep.views.at(-1);
+  return !lastView || getViewDistance(lastView.signature, signature) >= SWEEP_VIEW_DISTANCE;
+}
+
+// Adds one sample; `image` is only given for samples that isNewSweepView accepted.
+export function recordSweepSample(sweep, { signature, timestamp, image = null }) {
+  const jump = sweep.lastSignature ? getViewDistance(sweep.lastSignature, signature) : 0;
+  return {
+    ...sweep,
+    views: image && isNewSweepView(sweep, signature) ? [...sweep.views, { signature, image, timestamp }] : sweep.views,
+    lastSignature: signature,
+    lastAt: timestamp,
+    tooFastAt: jump >= SWEEP_FAST_DISTANCE ? timestamp : sweep.tooFastAt,
+  };
+}
+
+export function getSweepProgress(sweep, now = sweep.lastAt) {
+  const elapsedMs = Math.max(0, now - sweep.startedAt);
+  const viewCount = sweep.views.length;
+  const enoughTurning = elapsedMs >= SWEEP_MIN_MS && viewCount >= SWEEP_MIN_VIEWS;
+  const startDistance = viewCount ? getViewDistance(sweep.views[0].signature, sweep.lastSignature) : Number.POSITIVE_INFINITY;
+  const backAtStart = enoughTurning && startDistance < SWEEP_RETURN_DISTANCE;
+  return {
+    elapsedMs,
+    viewCount,
+    // Distinct views only estimate how far the camera turned, so coverage stays below full until the
+    // view is back at the start.
+    coverage: backAtStart ? 1 : Math.min(SWEEP_COVERAGE_BEFORE_RETURN, viewCount / SWEEP_TARGET_VIEWS),
+    canFinish: enoughTurning,
+    backAtStart,
+    tooFast: sweep.tooFastAt !== null && sweep.lastAt - sweep.tooFastAt < 2000,
+    timedOut: elapsedMs >= SWEEP_MAX_MS,
+  };
+}
+
+function spreadEvenly(items, count) {
+  if (items.length <= count) return items;
+  return Array.from({ length: count }, (_, index) => items[Math.round((index * (items.length - 1)) / (count - 1))]);
+}
+
+// Judges a finished sweep. Returns { ok: true, frames, signature } or { ok: false, reason }.
+export function finishSweep(sweep, now = sweep.lastAt) {
+  const progress = getSweepProgress(sweep, now);
+  const quality = assessCaptureQuality(sweep.views.map((view) => view.signature));
+  if (sweep.views.length && !quality.ok) return { ok: false, reason: quality.reason.replace("retake this step", "redo the room sweep") };
+  if (progress.viewCount < SWEEP_MIN_VIEWS) {
+    return { ok: false, reason: "The sweep did not show enough of the room. Turn slowly in a full circle so the whole room is shown, then redo the room sweep." };
+  }
+  if (progress.elapsedMs < SWEEP_MIN_MS) {
+    return { ok: false, reason: "The sweep was too quick to check the room. Turn more slowly, taking about 30 seconds for the full circle." };
+  }
+  if (!progress.backAtStart) {
+    return { ok: false, reason: "The sweep did not end where it started. Turn all the way around until you face your starting view again." };
+  }
+  return {
+    ok: true,
+    frames: spreadEvenly(sweep.views, SWEEP_MAX_FRAMES).map((view) => ({ image: view.image, timestamp: view.timestamp, angle: "sweep" })),
+    signature: sweep.views[0].signature,
+  };
 }
 
 // --- Completion state ------------------------------------------------------------------------
@@ -359,7 +456,7 @@ export function scanReducer(state, action) {
       return updateAngle(state, action.angleId, { status: ANGLE_STATUS.CAPTURING, captureId: action.captureId, requestId: null, findings: [], reason: "" });
     case "capture_failed":
       if (angle.captureId !== action.captureId || angle.status !== ANGLE_STATUS.CAPTURING) return state;
-      return updateAngle(state, action.angleId, { status: ANGLE_STATUS.RECAPTURE, frames: [], signature: null, reason: action.reason || "Capture failed. Retake this angle." });
+      return updateAngle(state, action.angleId, { status: ANGLE_STATUS.RECAPTURE, frames: [], signature: null, reason: action.reason || "Capture failed. Retake this step." });
     case "capture_succeeded":
       if (angle.captureId !== action.captureId || angle.status !== ANGLE_STATUS.CAPTURING || !action.frames?.length) return state;
       return updateAngle(state, action.angleId, { status: ANGLE_STATUS.ANALYZING, frames: action.frames, signature: action.signature || null, requestId: null, reason: "" });

@@ -19621,3 +19621,42 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* 360-degree room sweep */
+.student-sweep-ring {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 76px;
+  height: 76px;
+  border-radius: 999px;
+  background: rgba(2, 6, 23, 0.62);
+  color: #f8fafc;
+}
+.student-sweep-ring svg {
+  position: absolute;
+  inset: 6px;
+  width: calc(100% - 12px);
+  height: calc(100% - 12px);
+  transform: rotate(-90deg);
+}
+.student-sweep-ring circle {
+  fill: none;
+  stroke: rgba(148, 163, 184, 0.35);
+  stroke-width: 6;
+}
+.student-sweep-ring circle + circle {
+  stroke: #22d3ee;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.3s ease;
+}
+.student-sweep-ring strong {
+  position: relative;
+  font-size: 0.95rem;
+}
+.student-scan-meter small.warning {
+  color: var(--warning, #d97706);
+}

@@ -5,9 +5,12 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
-// Must match SCAN_ANGLES in src/lib/environmentScan.js. The browser sends one angle per request.
-const scanAngles = new Set(["front", "left", "right", "upper", "desk"]);
+// Must match SCAN_ANGLES in src/lib/environmentScan.js (the sweep and desk steps). The browser sends one step
+// per request. The older five angles stay accepted so pages loaded before an update still work.
+const scanAngles = new Set(["sweep", "desk", "front", "left", "right", "upper"]);
 const maximumImagesPerAngle = 5;
+// Must match SWEEP_MAX_FRAMES: the room sweep sends its distinct views, spread over the full circle.
+const maximumSweepImages = 12;
 // Must match SCAN_REQUEST_CONFIDENCE in src/lib/environmentScan.js: predictions are returned down to
 // this level and the browser applies the shared detection rules.
 const scanRequestConfidence = 0.3;
@@ -159,10 +162,12 @@ Deno.serve(async (req) => {
     // Each request carries one or more of the five scan angles; completeness is tracked per angle
     // in the browser, so a partial request is valid and never reported as an incomplete scan.
     const invalidFrame = !frames.length || frames.length > scanAngles.size || frames.some((frame) => (
-      !scanAngles.has(String(frame?.angle)) || !normalizeFrameBatch(frame).length || normalizeFrameBatch(frame).length > maximumImagesPerAngle
+      !scanAngles.has(String(frame?.angle))
+      || !normalizeFrameBatch(frame).length
+      || normalizeFrameBatch(frame).length > (frame.angle === "sweep" ? maximumSweepImages : maximumImagesPerAngle)
     ));
     if (invalidFrame) {
-      return json({ error: "Environment scan frames must name a scan angle and include 1-5 images." }, 400);
+      return json({ error: "Environment scan frames must name a scan step and include 1-5 images (up to 12 for the room sweep)." }, 400);
     }
 
     if (Deno.env.get("ENV_SCAN_FORCE_FINDINGS") === "true") {
