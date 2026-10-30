@@ -1,6 +1,7 @@
 // College-wide exam analytics for the dean: totals, trends across academic periods, a comparison of sections,
 // and rule-based recommendations. Uses each student's latest submitted attempt on published exams.
 import { HIGH_RISK_FROM, buildRiskQueue, latestSubmittedAttempts } from "./integrityRisk.js";
+import { backtest, predictStudents } from "./riskPrediction.js";
 
 export const PERIOD_ORDER = ["Prelim", "Midterm", "Semi-Final", "Final"];
 export const OTHER_PERIOD = "Other";
@@ -54,8 +55,15 @@ function percentText(value) {
   return `${Math.round(value * 100)}%`;
 }
 
-function recommendationsFor(kpis, periods, sections) {
+function recommendationsFor(kpis, periods, sections, atRisk) {
   const list = [];
+  const atRiskBySection = new Map();
+  for (const row of atRisk) atRiskBySection.set(row.sectionLabel, (atRiskBySection.get(row.sectionLabel) || 0) + 1);
+  for (const [label, count] of atRiskBySection) list.push({
+    tag: "Students",
+    title: `Reach out to ${count} student${count === 1 ? "" : "s"} at risk in ${label}`,
+    detail: "Their recent scores and trend predict a failing or borderline score on the next exam.",
+  });
   for (const section of sections) {
     if (section.flags.lowPass) list.push({
       tag: "Students",
@@ -151,5 +159,17 @@ export function buildDeanAnalytics({ exams, courses, attempts, violations, filte
     })
     .sort((left, right) => left.label.localeCompare(right.label));
 
-  return { kpis, periods, sections, recommendations: recommendationsFor(kpis, periods, sections), options };
+  const predictions = predictStudents({ exams: scopedExams, courses: scopedCourses, attempts: finalAttempts });
+  const atRisk = predictions.filter((row) => row.level !== "Low");
+  kpis.studentsAtRisk = atRisk.length;
+
+  return {
+    kpis,
+    periods,
+    sections,
+    atRisk,
+    backtest: backtest(predictions.map((row) => ({ scores: row.scores, passingScore: row.passingScore }))),
+    recommendations: recommendationsFor(kpis, periods, sections, atRisk),
+    options,
+  };
 }

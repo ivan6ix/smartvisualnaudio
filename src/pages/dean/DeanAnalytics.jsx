@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { FiAlertTriangle, FiBarChart2, FiCheckCircle, FiFileText, FiUsers } from "react-icons/fi";
+import { FiAlertTriangle, FiBarChart2, FiCheckCircle, FiFileText, FiTrendingDown, FiUsers } from "react-icons/fi";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge, Card, EmptyState, ListSkeleton, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
 import { useChartTheme } from "../../context/ThemeContext";
@@ -19,18 +19,20 @@ function score(value) {
 }
 
 async function loadAnalyticsData() {
-  const [coursesResponse, programsResponse, examsResponse, attemptsResponse, violationsResponse] = await Promise.all([
+  const [coursesResponse, programsResponse, examsResponse, attemptsResponse, violationsResponse, studentsResponse] = await Promise.all([
     supabase.from("courses").select("id, course_code, section, course_name, semester, academic_year, program_id"),
     supabase.from("programs").select("id, program_code, program_name"),
     supabase.from("exams").select("id, course_id, status, description, passing_score").eq("status", "Published"),
     supabase.from("exam_attempts").select("id, exam_id, student_id, score, status, started_at, submitted_at").limit(20000),
     supabase.from("violations").select("exam_id, student_id, violation_type, created_at").limit(20000),
+    supabase.from("profiles").select("id, full_name, student_number, email").eq("role", "Student").limit(10000),
   ]);
-  for (const response of [coursesResponse, examsResponse, attemptsResponse, violationsResponse]) {
+  for (const response of [coursesResponse, examsResponse, attemptsResponse, violationsResponse, studentsResponse]) {
     if (response.error) throw response.error;
   }
   return {
     courses: coursesResponse.data || [],
+    students: studentsResponse.data || [],
     programs: programsResponse.error ? [] : programsResponse.data || [],
     exams: examsResponse.data || [],
     attempts: attemptsResponse.data || [],
@@ -75,6 +77,25 @@ export default function DeanAnalytics() {
     "Alerts per 100 attempts": row.alertsPer100 === null ? null : Math.round(row.alertsPer100),
   }));
   const kpis = analysis?.kpis;
+  const studentById = useMemo(() => new Map((data?.students || []).map((student) => [student.id, student])), [data?.students]);
+  const atRiskRows = (analysis?.atRisk || []).map((row) => {
+    const student = studentById.get(row.studentId);
+    return {
+      ...row,
+      id: `${row.studentId}:${row.courseId}`,
+      studentName: student?.full_name || student?.email || "Unknown student",
+      studentNumber: student?.student_number || "",
+    };
+  });
+  const backtestResult = analysis?.backtest;
+  const atRiskColumns = [
+    { key: "studentName", label: "Student", render: (row) => <span className="dean-insights-section"><strong>{row.studentName}</strong><small>{row.studentNumber}</small></span> },
+    { key: "sectionLabel", label: "Section" },
+    { key: "scores", label: "Last scores", render: (row) => row.scores.slice(-3).map((value) => Math.round(value)).join(" → ") },
+    { key: "predicted", label: "Predicted next", render: (row) => <strong>{Math.round(row.predicted)}%</strong> },
+    { key: "reasons", label: "Why", render: (row) => <span className="dean-insights-reasons">{row.reasons.join(" · ")}</span> },
+    { key: "level", label: "Risk", render: (row) => <Badge tone={row.level === "High" ? "danger" : "warn"}>{row.level}</Badge> },
+  ];
 
   const columns = [
     { key: "label", label: "Section", render: (row) => <span className="dean-insights-section"><strong>{row.label}</strong><small>{row.courseName}</small></span> },
@@ -92,6 +113,7 @@ export default function DeanAnalytics() {
     ["Average score", kpis ? score(kpis.averageScore) : "-", FiBarChart2],
     ["Pass rate", kpis ? percent(kpis.passRate) : "-", FiCheckCircle],
     ["High-risk attempts", kpis ? `${kpis.highRisk} (${percent(kpis.highRiskRate, 1)})` : "-", FiAlertTriangle],
+    ["Students at risk", kpis?.studentsAtRisk, FiTrendingDown],
   ];
 
   return (
@@ -180,6 +202,51 @@ export default function DeanAnalytics() {
           />
         )}
       </Card>
+
+      <div className="dean-insights-row">
+        <Card className="dean-dashboard-panel dean-insights-wide">
+          <div className="dean-dashboard-section-header">
+            <div>
+              <h2>Students at risk of failing the next exam</h2>
+              <p>Predicted from each student&apos;s scores in the section: the average of their last 3 scores plus a quarter of their score trend (the weight that predicted best in the accuracy test). Missed exams are not counted, because exam assignments are visible only to professors.</p>
+            </div>
+            <span>{loading ? <SkeletonValue /> : `${atRiskRows.length} student${atRiskRows.length === 1 ? "" : "s"}`}</span>
+          </div>
+          {loading ? <ListSkeleton columns={6} label="Loading predictions..." variant="table" /> : (
+            <Table
+              className="dean-insights-table"
+              columns={atRiskColumns}
+              emptyDescription="No student's recent scores predict a failing or borderline result."
+              emptyTitle="No students at risk."
+              rows={atRiskRows}
+            />
+          )}
+        </Card>
+
+        <Card className="dean-dashboard-panel dean-insights-accuracy">
+          <div className="dean-dashboard-section-header">
+            <div>
+              <h2>How accurate is this?</h2>
+              <p>We hid each student&apos;s latest exam, predicted it from their earlier exams, and compared with what actually happened.</p>
+            </div>
+          </div>
+          {loading ? <SkeletonBlock className="skeleton-chart" /> : backtestResult?.evaluated ? (
+            <>
+              <div className="dean-insights-metrics">
+                <div><span>Tested</span><strong>{backtestResult.evaluated}</strong></div>
+                <div><span>Precision</span><strong>{percent(backtestResult.precision)}</strong></div>
+                <div><span>Recall</span><strong>{percent(backtestResult.recall)}</strong></div>
+                <div><span>Accuracy</span><strong>{percent(backtestResult.accuracy)}</strong></div>
+              </div>
+              <p className="dean-insights-note">
+                Predicted to fail: {backtestResult.tp + backtestResult.fp}, of whom {backtestResult.tp} actually failed (precision).
+                Actually failed: {backtestResult.tp + backtestResult.fn}, of whom {backtestResult.tp} were predicted (recall).
+                Guessing that nobody fails would be {percent(backtestResult.baselineAccuracy)} accurate.
+              </p>
+            </>
+          ) : <EmptyState title="Not enough history yet." description="Needs students with at least 3 graded exams in the same section." />}
+        </Card>
+      </div>
 
       <Card className="dean-dashboard-panel">
         <div className="dean-dashboard-section-header">
