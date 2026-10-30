@@ -2,12 +2,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import { ListPagination, ListViewToolbar } from "../../components/ListViewControls";
+import ExamAnalytics from "../../components/exam/ExamAnalytics";
 import { Badge, Button, Card, ListSkeleton, PageHeader, SearchBox, SelectField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
 import { getListPageSlice } from "../../lib/listView";
 import { canGradeManually, needsGradingPath } from "../../lib/manualGrading";
+import { DEFAULT_PASSING_SCORE } from "../../lib/itemAnalysis";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const PAGE_SIZE = 20;
@@ -211,7 +213,7 @@ export default function ProfessorScores() {
 
       const { data: examRows, error: examsError } = await supabase
         .from("exams")
-        .select("id, title, exam_title, course_id, description, semester, exam_type, status, exam_settings, assignment_mode, questions_count, created_at")
+        .select("id, title, exam_title, course_id, description, semester, exam_type, status, exam_settings, assignment_mode, questions_count, passing_score, created_at")
         .in("course_id", courseIds)
         .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
         .order("created_at", { ascending: false });
@@ -424,6 +426,11 @@ export default function ProfessorScores() {
     });
   }, [data.assignments, data.enrollments, data.exceptions, examAttempts, selectedExam, startsByExamStudent]);
 
+  // Analytics use each student's final graded attempt, the same one the Students tab reports.
+  const analyticsAttempts = useMemo(() => students
+    .map((student) => student.finalAttempt)
+    .filter((attempt) => attempt && attempt.status !== "Reopened" && !attempt.pendingManual && attempt.score !== null && attempt.score !== undefined), [students]);
+
   const filteredStudents = useMemo(() => {
     const term = normalizeText(search);
     const rows = students
@@ -591,8 +598,16 @@ export default function ProfessorScores() {
           <div className="professor-score-tabs">
             <button className={tab === "students" ? "active" : ""} onClick={() => setTab("students")} type="button">Students</button>
             <button className={tab === "questions" ? "active" : ""} onClick={() => setTab("questions")} type="button">By Question</button>
+            <button className={tab === "analytics" ? "active" : ""} onClick={() => setTab("analytics")} type="button">Analytics</button>
           </div>
-          {tab === "students" ? (
+          {tab === "analytics" ? (
+            <ExamAnalytics
+              questions={examQuestions}
+              attempts={analyticsAttempts}
+              answers={analyticsAttempts.flatMap((attempt) => answersByAttempt[attempt.id] || [])}
+              passingScore={Number(selectedExam?.passing_score) > 0 ? Number(selectedExam.passing_score) : DEFAULT_PASSING_SCORE}
+            />
+          ) : tab === "students" ? (
             <>
               <div className="professor-score-filters compact">
                 <SearchBox value={search} onChange={setSearch} placeholder="Search student" />

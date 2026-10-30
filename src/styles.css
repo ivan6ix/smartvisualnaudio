@@ -19019,3 +19019,295 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
     justify-content: center;
   }
 }
+
+/* Professor exam analytics (item analysis). */
+.professor-score-tabs {
+  max-width: 100%;
+  flex-wrap: wrap;
+}
+.professor-score-tabs button {
+  white-space: nowrap;
+}
+.professor-analytics {
+  display: grid;
+  gap: 16px;
+  margin-top: 14px;
+  color: var(--app-text);
+}
+.professor-analytics-basis,
+.professor-analytics-muted {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+.professor-analytics-empty {
+  margin-top: 14px;
+  border: 1px dashed var(--app-line);
+  border-radius: 12px;
+  padding: 28px 18px;
+  color: var(--app-text-muted);
+  text-align: center;
+}
+.professor-analytics-kpis {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+  gap: 12px;
+}
+.professor-analytics-kpis > div,
+.professor-analytics-card {
+  border: 1px solid var(--app-line);
+  border-radius: 12px;
+  background: var(--app-surface);
+  padding: 16px;
+  min-width: 0;
+}
+.professor-analytics-kpis > div {
+  display: grid;
+  gap: 4px;
+}
+.professor-analytics-kpis span,
+.professor-analytics-kpis small {
+  color: var(--app-text-muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+.professor-analytics-kpis strong {
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.professor-analytics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.professor-analytics-row > .professor-analytics-card {
+  flex: 2 1 320px;
+}
+.professor-analytics-row > .professor-analytics-wide {
+  flex: 3 1 480px;
+}
+.professor-analytics-card {
+  display: grid;
+  gap: 12px;
+  align-content: start;
+}
+.professor-analytics-card header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 6px 12px;
+}
+.professor-analytics-card h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+.professor-analytics-card header > span {
+  color: var(--app-text-muted);
+  font-size: 0.82rem;
+}
+.professor-analytics-histogram {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 6px;
+  height: 180px;
+  border-bottom: 1px solid var(--app-line);
+}
+.professor-analytics-bin {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 4px;
+  min-height: 0;
+}
+.professor-analytics-bin > span {
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+.professor-analytics-bin > div {
+  width: 100%;
+  min-height: 2px;
+  max-height: calc(100% - 22px);
+  border-radius: 5px 5px 0 0;
+  background: #3b82f6;
+}
+.professor-analytics-bin > div.is-below {
+  background: #f59e0b;
+}
+.professor-analytics-pass-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-left: 2px dashed #d97706;
+}
+.professor-analytics-bin-labels {
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 6px;
+  color: var(--app-text-muted);
+  font-size: 0.7rem;
+  text-align: center;
+}
+.professor-analytics-stack {
+  display: flex;
+  height: 16px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--app-surface-muted);
+}
+.professor-analytics-legend {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.88rem;
+}
+.professor-analytics-legend.is-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 0.8rem;
+}
+.professor-analytics-legend li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.professor-analytics-legend li strong {
+  margin-left: auto;
+}
+.professor-analytics-legend li > span {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: none;
+}
+.professor-analytics .is-good { background: #3b82f6; }
+.professor-analytics .is-review { background: #f59e0b; }
+.professor-analytics .is-revise { background: #ef4444; }
+.professor-analytics .is-pending { background: #94a3b8; }
+.professor-analytics .is-upper { background: #3b82f6; }
+.professor-analytics .is-lower { background: #f59e0b; }
+.professor-analytics-table th:first-child,
+.professor-analytics-table td:first-child {
+  width: 40px;
+  white-space: nowrap;
+}
+.professor-analytics-table td small {
+  display: block;
+  margin-top: 2px;
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+}
+.professor-analytics-table tr.is-selected td {
+  background: var(--app-surface-muted);
+}
+.professor-analytics-table td.is-negative {
+  color: #dc2626;
+  font-weight: 800;
+}
+.professor-analytics-meter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 140px;
+}
+.professor-analytics-meter > span {
+  flex: 1;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--app-surface-muted);
+}
+.professor-analytics-meter > span > span {
+  display: block;
+  height: 100%;
+  background: #3b82f6;
+}
+.professor-analytics-link {
+  min-height: 34px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  padding: 0 12px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.professor-analytics-options {
+  display: grid;
+  gap: 12px;
+}
+.professor-analytics-option {
+  display: grid;
+  grid-template-columns: minmax(140px, 220px) minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.professor-analytics-option-label {
+  display: grid;
+  gap: 2px;
+  font-size: 0.88rem;
+}
+.professor-analytics-option-label small {
+  color: #2563eb;
+  font-weight: 700;
+}
+.professor-analytics-pair {
+  display: grid;
+  gap: 4px;
+}
+.professor-analytics-pair > div {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+.professor-analytics-pair > div > span {
+  height: 10px;
+  min-width: 2px;
+  border-radius: 999px;
+}
+.professor-analytics-warning {
+  margin: 0;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: 10px;
+  background: rgba(239, 68, 68, 0.1);
+  padding: 10px 12px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+.professor-analytics-actions {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.professor-analytics-actions li {
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+.professor-analytics-actions span {
+  color: var(--app-text-muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+@media (max-width: 640px) {
+  .professor-analytics-option {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+  .professor-analytics-bin-labels {
+    font-size: 0.6rem;
+  }
+}
