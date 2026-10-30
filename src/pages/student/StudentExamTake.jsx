@@ -29,6 +29,8 @@ import {
 } from "../../lib/environmentScan";
 import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../../lib/examCompatibility";
 import { createLiveObjectMonitor } from "../../lib/liveObjectMonitor";
+import { detectWithOwl, loadOwlDetector } from "../../lib/owlClient";
+import { OWL_FRAMES_PER_STEP, pickOwlFrameIndexes, placeOwlFrames } from "../../lib/owlDetection";
 import { MICROPHONE_VIOLATION_CONFIRM_MS, classifyMicrophoneState, createMicrophoneInterruptionGate, isMicrophonePermissionRevoked } from "../../lib/microphoneSignal";
 import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
 import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig, normalizeChoiceItems } from "../../lib/examQuestionTypes";
@@ -60,7 +62,9 @@ const SCAN_BURST_INTERVAL_MS = 250;
 const SWEEP_IMAGE_MAX_WIDTH = 640;
 const ENV_SCAN_TIMEOUT_MS = 12000;
 // Covers the first COCO-SSD model download on slow connections; a timeout is a retryable technical failure.
-const ENV_SCAN_ANALYSIS_TIMEOUT_MS = 25000;
+// Covers the first download of the browser AI (about 156 MB) and a few seconds per checked view on a slow laptop.
+// The room sweep is checked in the background while the student does the desk check.
+const ENV_SCAN_ANALYSIS_TIMEOUT_MS = 120000;
 const FULLSCREEN_START_TIMEOUT_MS = 4000;
 const LOOKING_AWAY_LIMIT_MS = 5000;
 const LOOKING_DOWN_LIMIT_MS = 1500;
@@ -451,6 +455,8 @@ export default function StudentExamTake() {
   // Live progress of a running room sweep (null when no sweep is running); the ref takes Done/Cancel.
   const [sweepProgress, setSweepProgress] = useState(null);
   const sweepStopRef = useRef("");
+  // Download percent of the browser AI while it loads for the first time (null when not downloading).
+  const [scanAiProgress, setScanAiProgress] = useState(null);
   const [scanFindings, setScanFindings] = useState([]);
   const [scanFacingMode, setScanFacingMode] = useState("user");
   const [cameraError, setCameraError] = useState("");
@@ -1293,6 +1299,10 @@ export default function StudentExamTake() {
       setScanCameraReady(true);
       // Warm up the local detector so the first angle check does not wait for the model download.
       void loadScanObjectDetector().catch((error) => window.console.warn("[EnvironmentScan] Local detector unavailable.", error));
+      // Start the browser AI download now so it is ready by the time the room sweep ends.
+      void loadOwlDetector((progress) => setScanAiProgress(progress.total ? Math.round((progress.loaded / progress.total) * 100) : 0))
+        .catch((error) => window.console.warn("[EnvironmentScan] Browser AI unavailable.", error))
+        .finally(() => setScanAiProgress(null));
     } catch (error) {
       window.console.error("[EnvironmentScan]", error);
       setScanStatus("idle");
@@ -1490,7 +1500,7 @@ export default function StudentExamTake() {
       angleId,
       frames,
       requiredDetectors: SERVER_SCAN_ENDPOINT ? [detectScanFramesWithScanEndpoint] : [],
-      detectors: [detectScanFramesWithRoboflow, detectScanFramesWithCocoSsd],
+      detectors: [detectScanFramesWithRoboflow, detectScanFramesWithCocoSsd, detectScanFramesWithOwl],
       timeoutMs: ENV_SCAN_ANALYSIS_TIMEOUT_MS,
     });
     if (result.outcome === SCAN_OUTCOME.TECHNICAL) window.console.warn("[EnvironmentScan] Angle check failed.", angleId, result.reason);
@@ -1525,6 +1535,13 @@ export default function StudentExamTake() {
     const result = await response.json().catch(() => null);
     if (!response.ok) throw new Error(result?.error || `Roboflow analysis server error (${response.status}).`);
     return result;
+  }
+
+  // The open-vocabulary browser AI (OWL-ViT): finds paper, notes and screens that COCO-SSD has no label for.
+  async function detectScanFramesWithOwl(frames) {
+    const indexes = pickOwlFrameIndexes(frames.length, OWL_FRAMES_PER_STEP[frames[0]?.angle] || OWL_FRAMES_PER_STEP.desk);
+    const result = await detectWithOwl(indexes.map((index) => frames[index].image));
+    return { frames: placeOwlFrames(frames.length, indexes, result.frames) };
   }
 
   function loadScanObjectDetector() {
@@ -3197,6 +3214,9 @@ export default function StudentExamTake() {
               </div>
               <small>Each step is checked separately. Redoing one step keeps the other.</small>
             </div>
+          ) : null}
+          {scanActive && scanAiProgress !== null ? (
+            <p className="student-scan-ai-note" aria-live="polite">Downloading the scan AI (first time only): {scanAiProgress}%. You can start the room sweep now.</p>
           ) : null}
 
           <div className="student-scan-steps">

@@ -19660,3 +19660,9 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 .student-scan-meter small.warning {
   color: var(--warning, #d97706);
 }
+.student-scan-ai-note {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}

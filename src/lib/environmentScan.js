@@ -280,7 +280,8 @@ export async function analyzeAngleCapture({ angleId, frames, requiredDetectors =
   const classification = classifyAngleDetections({ angleId, frames: mergeDetectorFrames(results, frameCount) });
   return {
     ...classification,
-    reason: classification.findings[0]?.reason || "",
+    // A confirmed item explains a rejection better than an uncertain one listed before it.
+    reason: (classification.findings.find((finding) => finding.detected) || classification.findings[0])?.reason || "",
     detectorCount: results.length,
   };
 }
