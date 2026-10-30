@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { GEMINI_DEFAULT_MODEL, GEMINI_TIMEOUT_MS, buildGeminiRequest, geminiEndpoint, parseGeminiResponse } from "./gemini.js";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -51,7 +52,7 @@ function isSuspiciousPrediction(prediction: Record<string, unknown>) {
 
 class DetectorUnavailableError extends Error {
   constructor() {
-    super("No environment detector is configured (ENV_SCAN_DETECTOR_ENDPOINT or ROBOFLOW_API_KEY with ROBOFLOW_ENV_MODEL_ID/ROBOFLOW_ENV_MODEL_VERSION).");
+    super("No environment detector is configured (GEMINI_API_KEY, ENV_SCAN_DETECTOR_ENDPOINT, or ROBOFLOW_API_KEY with ROBOFLOW_ENV_MODEL_ID/ROBOFLOW_ENV_MODEL_VERSION).");
   }
 }
 
@@ -117,6 +118,34 @@ async function callExternalDetector(frame: { angle: string; image: string; frame
   return { angle: frame.angle, frameIndex: frame.frameIndex, image: result.image, predictions };
 }
 
+// Gemini checks all photos of a step in one request (one request per step keeps within the free quota).
+// When it cannot answer (quota used up, timeout, refusal or an off-schema answer) the step is returned with no
+// predictions and `geminiChecked: false`: the browser detectors then decide, as agreed for the free tier.
+// Errors are logged by status only; the request URL and headers carry the key and are never logged or returned.
+async function checkStepWithGemini(apiKey: string, step: string, images: string[]) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+  try {
+    const response = await fetch(geminiEndpoint(Deno.env.get("GEMINI_MODEL") || GEMINI_DEFAULT_MODEL), {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(buildGeminiRequest(step, images)),
+      signal: controller.signal,
+    });
+    if (!response.ok) {
+      console.error(`[environment-scan] Gemini answered ${response.status} for the ${step} step.`);
+      return { checked: false, frames: images.map(() => ({ predictions: [] })) };
+    }
+    return { checked: true, frames: parseGeminiResponse(await response.json(), images.length) };
+  } catch (error) {
+    const reason = error instanceof Error && error.name === "AbortError" ? "timed out" : error instanceof Error ? error.message : "failed";
+    console.error(`[environment-scan] Gemini check ${reason} for the ${step} step.`);
+    return { checked: false, frames: images.map(() => ({ predictions: [] })) };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 function toLegacyFindings(frame: { angle: string; predictions: Record<string, unknown>[] }) {
   return frame.predictions
     .filter((prediction) => isSuspiciousPrediction(prediction))
@@ -176,6 +205,24 @@ Deno.serve(async (req) => {
         findings: [{ angle: String(frames[0].angle), label: "Demo suspicious item", confidence: 0.92 }],
         frames: [{ angle: String(frames[0].angle), frameIndex: 0, predictions: [{ class: "cell phone", confidence: 0.92 }] }],
       });
+    }
+
+    // Gemini is the server detector when its key is set (a custom detector endpoint still takes precedence).
+    const geminiKey = Deno.env.get("GEMINI_API_KEY");
+    if (geminiKey && !Deno.env.get("ENV_SCAN_DETECTOR_ENDPOINT")) {
+      let geminiIndex = 0;
+      let geminiChecked = true;
+      const geminiFrames = [];
+      for (const frame of frames) {
+        const step = String(frame.angle);
+        const result = await checkStepWithGemini(geminiKey, step, normalizeFrameBatch(frame));
+        geminiChecked &&= result.checked;
+        for (const checkedFrame of result.frames) {
+          geminiFrames.push({ angle: step, frameIndex: geminiIndex++, predictions: checkedFrame.predictions });
+        }
+      }
+      const geminiFindings = geminiFrames.flatMap(toLegacyFindings);
+      return json({ passed: geminiFindings.length === 0, findings: geminiFindings, frames: geminiFrames, detector: "gemini", geminiChecked });
     }
 
     let frameIndex = 0;

@@ -61,6 +61,8 @@ const SCAN_BURST_INTERVAL_MS = 250;
 // Room sweep views are sent downscaled: detectors work at about this size and the request stays small.
 const SWEEP_IMAGE_MAX_WIDTH = 640;
 const ENV_SCAN_TIMEOUT_MS = 12000;
+// The scan function asks Gemini about all of a step's photos at once and gives Gemini up to 25 s.
+const SERVER_SCAN_REQUEST_TIMEOUT_MS = 40000;
 // Covers the first COCO-SSD model download on slow connections; a timeout is a retryable technical failure.
 // Covers the first download of the browser AI (about 156 MB) and a few seconds per checked view on a slow laptop.
 // The room sweep is checked in the background while the student does the desk check.
@@ -1587,9 +1589,11 @@ export default function StudentExamTake() {
         studentId: user?.id,
         frames: [{ angle: frames[0]?.angle, images: frames.map((frame) => dataUrlToPayload(frame.image)) }],
       }),
-    });
+    }, SERVER_SCAN_REQUEST_TIMEOUT_MS);
     const result = await response.json().catch(() => null);
     if (!response.ok) throw new Error(result?.error || `Analysis server error (${response.status}).`);
+    // Gemini's free quota can run out; the step is then judged by the browser detectors alone.
+    if (result?.geminiChecked === false) window.console.warn("[EnvironmentScan] Gemini could not check this step; the browser AI decides.");
     return result;
   }
 
@@ -3214,6 +3218,9 @@ export default function StudentExamTake() {
               </div>
               <small>Each step is checked separately. Redoing one step keeps the other.</small>
             </div>
+          ) : null}
+          {scanStatus !== "passed" ? (
+            <p className="student-scan-ai-note">Scan photos are checked by an AI on your computer and may also be sent to Google Gemini for a second check. They are not saved by the exam system; on Google&apos;s free tier, Google may use them to improve its services.</p>
           ) : null}
           {scanActive && scanAiProgress !== null ? (
             <p className="student-scan-ai-note" aria-live="polite">Downloading the scan AI (first time only): {scanAiProgress}%. You can start the room sweep now.</p>
