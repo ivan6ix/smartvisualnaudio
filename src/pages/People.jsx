@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { FiRefreshCw, FiSlash, FiUserPlus, FiX } from "react-icons/fi";
+import { FiRefreshCw, FiSlash, FiUserPlus, FiUsers, FiX } from "react-icons/fi";
+import BulkRegisterModal from "../components/admin/BulkRegisterModal";
 import { Button, Card, Field, SearchBox, SelectField, Table, Badge, RowActionMenu } from "../components/ui";
 import { clusterProfessors, deans, professors } from "../data/mockData";
 import useLocalStorageState from "../hooks/useLocalStorageState";
@@ -46,6 +47,8 @@ export default function People({ type }) {
   const [form, setForm] = useState({ name: "", email: "", employeeNumber: "", password: "123456" });
   const [saving, setSaving] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const closeBulkModal = useCallback(() => setBulkModalOpen(false), []);
   const [openActionMenuId, setOpenActionMenuId] = useState("");
   const isUnified = !type;
   const accountType = type || selectedType;
@@ -137,9 +140,22 @@ export default function People({ type }) {
 
   async function callAccountFunction(body) {
     const { data, error } = await supabase.functions.invoke("create-account", { body });
-    if (error) throw error;
+    if (error) {
+      // A non-2xx reply hides the function's own message (for example a taken email) in the response body.
+      const detail = await error.context?.json?.().catch(() => null);
+      throw new Error(detail?.error || error.message);
+    }
     if (data?.error) throw new Error(data.error);
     return data;
+  }
+
+  async function createAccount({ role, fullName, email, employeeNumber, password }) {
+    if (hasSupabaseConfig) {
+      const data = await callAccountFunction({ action: "create", role, fullName, email, employeeNumber, password });
+      updateLiveProfile(data.profile);
+      return;
+    }
+    updateRows(role, (current) => [{ id: crypto.randomUUID(), name: fullName, email, employeeNumber, role, status: "Active" }, ...current]);
   }
 
   async function createPerson(event) {
@@ -147,19 +163,13 @@ export default function People({ type }) {
     setSaving(true);
 
     try {
-      if (hasSupabaseConfig) {
-        const data = await callAccountFunction({
-          action: "create",
-          role: accountType,
-          fullName: form.name,
-          email: form.email,
-          employeeNumber: form.employeeNumber,
-          password: form.password || "123456",
-        });
-        updateLiveProfile(data.profile);
-      } else {
-        updateRows(accountType, (current) => [{ id: crypto.randomUUID(), ...form, role: accountType, status: "Active" }, ...current]);
-      }
+      await createAccount({
+        role: accountType,
+        fullName: form.name,
+        email: form.email,
+        employeeNumber: form.employeeNumber,
+        password: form.password || "123456",
+      });
 
       resetForm();
       setCreateModalOpen(false);
@@ -237,6 +247,7 @@ export default function People({ type }) {
             <strong>{rows.length}</strong>
           </div>
           <Button onClick={() => setCreateModalOpen(true)}><FiUserPlus /> {isUnified ? "Create Account" : `Create ${accountType}`}</Button>
+          <Button onClick={() => setBulkModalOpen(true)} variant="light"><FiUsers /> Bulk Register</Button>
         </div>
       </div>
       <div className="account-list-toolbar">
@@ -283,6 +294,14 @@ export default function People({ type }) {
             {createForm}
           </section>
         </div>
+      ) : null}
+      {bulkModalOpen ? (
+        <BulkRegisterModal
+          createAccount={createAccount}
+          defaultRole={type || ""}
+          existingAccounts={accountTypes.flatMap((role) => rowsSource[role] || [])}
+          onClose={closeBulkModal}
+        />
       ) : null}
     </section>
   );
