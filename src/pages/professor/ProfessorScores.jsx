@@ -3,12 +3,14 @@ import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom"
 import { toast } from "sonner";
 import { ListPagination, ListViewToolbar } from "../../components/ListViewControls";
 import ExamAnalytics from "../../components/exam/ExamAnalytics";
+import IntegrityReview from "../../components/exam/IntegrityReview";
 import { Badge, Button, Card, ListSkeleton, PageHeader, SearchBox, SelectField } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
 import { getListPageSlice } from "../../lib/listView";
 import { canGradeManually, needsGradingPath } from "../../lib/manualGrading";
+import { buildRiskQueue, summarizeIntegrity } from "../../lib/integrityRisk";
 import { DEFAULT_PASSING_SCORE } from "../../lib/itemAnalysis";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -175,7 +177,7 @@ export default function ProfessorScores() {
   const navigate = useNavigate();
   const { examId, attemptId, questionId } = useParams();
   const [searchParams] = useSearchParams();
-  const [data, setData] = useState(() => hasSupabaseConfig ? { courses: [], exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [] } : { ...buildDemoData(), reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [] });
+  const [data, setData] = useState(() => hasSupabaseConfig ? { courses: [], exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [], violations: [] } : { ...buildDemoData(), reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [], violations: [] });
   const [loading, setLoading] = useState(hasSupabaseConfig);
   const [scoresReady, setScoresReady] = useState(!hasSupabaseConfig);
   const [search, setSearch] = useState("");
@@ -207,13 +209,13 @@ export default function ProfessorScores() {
       const courses = (courseRows || []).map((course) => ({ id: course.id, courseName: course.course_name, courseCode: course.course_code, section: course.section }));
       const courseIds = courses.map((course) => course.id);
       if (!courseIds.length) {
-        setData({ courses, exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [] });
+        setData({ courses, exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [], violations: [] });
         return;
       }
 
       const { data: examRows, error: examsError } = await supabase
         .from("exams")
-        .select("id, title, exam_title, course_id, description, semester, exam_type, status, exam_settings, assignment_mode, questions_count, passing_score, created_at")
+        .select("id, title, exam_title, course_id, description, semester, exam_type, status, exam_settings, assignment_mode, questions_count, passing_score, duration, time_limit, created_at")
         .in("course_id", courseIds)
         .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
         .order("created_at", { ascending: false });
@@ -222,11 +224,11 @@ export default function ProfessorScores() {
       const publishedExams = (examRows || []).filter(isPublishedExam);
       const examIds = publishedExams.map((exam) => exam.id);
       if (!examIds.length) {
-        setData({ courses, exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [] });
+        setData({ courses, exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [], violations: [] });
         return;
       }
 
-      const [{ data: attemptRows, error: attemptsError }, { data: questionRows, error: questionsError }, { data: enrollmentRows, error: enrollmentsError }, { data: assignmentRows, error: assignmentsError }, { data: exceptionRows, error: exceptionsError }, { data: startRows, error: startsError }] = await Promise.all([
+      const [{ data: attemptRows, error: attemptsError }, { data: questionRows, error: questionsError }, { data: enrollmentRows, error: enrollmentsError }, { data: assignmentRows, error: assignmentsError }, { data: exceptionRows, error: exceptionsError }, { data: startRows, error: startsError }, { data: violationRows, error: violationsError }] = await Promise.all([
         supabase
           .from("exam_attempts")
           .select("id, exam_id, score, earned_points, max_points, status, submitted_at, started_at, student_id, profiles:student_id(full_name, student_number, email)")
@@ -259,8 +261,14 @@ export default function ProfessorScores() {
           .select("exam_id, student_id, started_at")
           .in("exam_id", examIds)
           .limit(10000),
+        supabase
+          .from("violations")
+          .select("exam_id, student_id, violation_type, severity, created_at")
+          .in("exam_id", examIds)
+          .limit(20000),
       ]);
       if (attemptsError) throw attemptsError;
+      if (violationsError) throw violationsError;
       if (questionsError) throw questionsError;
       if (enrollmentsError) throw enrollmentsError;
       if (assignmentsError && !["42P01", "PGRST205"].includes(assignmentsError.code)) throw assignmentsError;
@@ -289,7 +297,7 @@ export default function ProfessorScores() {
         reopenRows = requests || [];
       }
 
-      setData({ courses, exams: publishedExams, attempts: attemptRows || [], answers: answerRows, questions: questionRows || [], reopenRequests: reopenRows, assignments: assignmentRows || [], exceptions: exceptionRows || [], enrollments: enrollmentRows || [], starts: startRows || [] });
+      setData({ courses, exams: publishedExams, attempts: attemptRows || [], answers: answerRows, questions: questionRows || [], reopenRequests: reopenRows, assignments: assignmentRows || [], exceptions: exceptionRows || [], enrollments: enrollmentRows || [], starts: startRows || [], violations: violationRows || [] });
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -430,6 +438,30 @@ export default function ProfessorScores() {
   const analyticsAttempts = useMemo(() => students
     .map((student) => student.finalAttempt)
     .filter((attempt) => attempt && attempt.status !== "Reopened" && !attempt.pendingManual && attempt.score !== null && attempt.score !== undefined), [students]);
+
+  // Integrity uses each student's final submitted attempt plus every alert they triggered in this exam.
+  const integrity = useMemo(() => {
+    if (!selectedExam) return null;
+    const submitted = students
+      .map((student) => student.finalAttempt)
+      .filter((attempt) => attempt && attempt.status !== "Reopened" && attempt.submitted_at);
+    const examViolations = data.violations.filter((violation) => violation.exam_id === selectedExam.id);
+    const durationMinutes = Number(selectedExam.duration || selectedExam.time_limit) || null;
+    const studentsById = new Map(students.map((student) => [student.studentId, student]));
+    const queue = buildRiskQueue({ attempts: submitted, violations: examViolations, durationByExam: { [selectedExam.id]: durationMinutes } });
+    return {
+      rows: queue.map((row) => {
+        const student = studentsById.get(row.studentId);
+        return {
+          ...row,
+          studentName: student?.studentName || "Unknown student",
+          studentDetail: [student?.studentNumber, student?.section].filter(Boolean).join(" · "),
+          reviewHref: row.attempt ? `/professor/scores/${selectedExam.id}/attempt/${row.attempt.id}` : "",
+        };
+      }),
+      summary: summarizeIntegrity({ queue, violations: examViolations, attempts: submitted, durationMinutes }),
+    };
+  }, [data.violations, selectedExam, students]);
 
   const filteredStudents = useMemo(() => {
     const term = normalizeText(search);
@@ -599,8 +631,11 @@ export default function ProfessorScores() {
             <button className={tab === "students" ? "active" : ""} onClick={() => setTab("students")} type="button">Students</button>
             <button className={tab === "questions" ? "active" : ""} onClick={() => setTab("questions")} type="button">By Question</button>
             <button className={tab === "analytics" ? "active" : ""} onClick={() => setTab("analytics")} type="button">Analytics</button>
+            <button className={tab === "integrity" ? "active" : ""} onClick={() => setTab("integrity")} type="button">Integrity</button>
           </div>
-          {tab === "analytics" ? (
+          {tab === "integrity" && integrity ? (
+            <IntegrityReview rows={integrity.rows} summary={integrity.summary} />
+          ) : tab === "analytics" ? (
             <ExamAnalytics
               questions={examQuestions}
               attempts={analyticsAttempts}

@@ -19302,7 +19302,130 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   font-size: 0.85rem;
   line-height: 1.45;
 }
+.integrity-review-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--app-text-muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.integrity-review-filter select {
+  min-height: 36px;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-input);
+  color: var(--app-text);
+  padding: 0 10px;
+  font: inherit;
+}
+.integrity-review .professor-score-table-wrap {
+  overflow-x: auto;
+}
+.integrity-review-table {
+  min-width: 880px;
+}
+.integrity-review-table th {
+  white-space: nowrap;
+}
+.integrity-review-table td:first-child {
+  min-width: 150px;
+}
+.integrity-review-table td strong + small {
+  display: block;
+  margin-top: 2px;
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+}
+.integrity-review-risk {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 190px;
+}
+.integrity-review-bar {
+  display: block;
+  flex: 1;
+  height: 8px;
+  min-width: 60px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--app-surface-muted);
+}
+.integrity-review-bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: #3b82f6;
+}
+.integrity-review-bar.is-high > span { background: #ef4444; }
+.integrity-review-bar.is-medium > span { background: #f59e0b; }
+.integrity-review-bar.is-low > span { background: #3b82f6; }
+.integrity-review-bar.is-type > span { background: #2563eb; }
+.integrity-review-reasons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.integrity-review-reasons span {
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 0.76rem;
+  white-space: nowrap;
+}
+.integrity-review-open {
+  display: inline-flex;
+  align-items: center;
+  text-decoration: none;
+}
+.integrity-review-more {
+  justify-self: start;
+}
+.integrity-review-types {
+  display: grid;
+  gap: 10px;
+}
+.integrity-review-types > div {
+  display: grid;
+  grid-template-columns: minmax(120px, 160px) minmax(0, 1fr) 32px;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+.integrity-review-types strong {
+  text-align: right;
+}
+.integrity-review-timeline,
+.integrity-review-timeline-labels {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+.integrity-review-rules {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 0.85rem;
+}
+.integrity-review-rules li {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--app-line);
+  padding-bottom: 6px;
+}
+.integrity-review-rules strong {
+  white-space: nowrap;
+}
 @media (max-width: 640px) {
+  .integrity-review-types > div {
+    grid-template-columns: minmax(0, 1fr) 32px;
+  }
+  .integrity-review-types > div > .integrity-review-bar {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
   .professor-analytics-option {
     grid-template-columns: 1fr;
     gap: 6px;

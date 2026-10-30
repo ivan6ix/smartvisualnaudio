@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiActivity, FiAlertTriangle, FiCamera, FiShield } from "react-icons/fi";
 import { toast } from "sonner";
+import IntegrityReview from "../../components/exam/IntegrityReview";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
 import { Badge, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonValue, Table } from "../../components/ui";
 import useListViewPreference from "../../hooks/useListViewPreference";
+import { buildRiskQueue, summarizeIntegrity } from "../../lib/integrityRisk";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -40,6 +42,18 @@ function formatDateTime(value) {
     date: date.toLocaleDateString(),
     time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
   };
+}
+
+// The latest submitted attempt per exam and student; reopened attempts are replaced by their newer submission.
+function latestSubmittedAttempts(attempts) {
+  const latest = new Map();
+  for (const attempt of attempts) {
+    if (attempt.status === "Reopened" || !attempt.submitted_at) continue;
+    const key = `${attempt.exam_id}:${attempt.student_id}`;
+    const current = latest.get(key);
+    if (!current || new Date(attempt.submitted_at) > new Date(current.submitted_at)) latest.set(key, attempt);
+  }
+  return [...latest.values()];
 }
 
 function EvidenceCell({ row }) {
@@ -94,6 +108,7 @@ function EvidenceCell({ row }) {
 
 export default function DeanExamIntegrity() {
   const [violations, setViolations] = useState([]);
+  const [risk, setRisk] = useState(null);
   const [loading, setLoading] = useState(Boolean(hasSupabaseConfig));
   const [loadError, setLoadError] = useState("");
   const [search, setSearch] = useState("");
@@ -124,20 +139,39 @@ export default function DeanExamIntegrity() {
         return;
       }
 
-      const studentIds = [...new Set((data || []).map((row) => row.student_id).filter(Boolean))];
       const examIds = [...new Set((data || []).map((row) => row.exam_id).filter(Boolean))];
 
-      const [profilesResponse, examsResponse] = await Promise.all([
-        studentIds.length
-          ? supabase.from("profiles").select("id, full_name, student_number, email").in("id", studentIds)
+      const [examsResponse, attemptsResponse] = await Promise.all([
+        examIds.length
+          ? supabase.from("exams").select("id, title, duration, time_limit").in("id", examIds)
           : Promise.resolve({ data: [] }),
         examIds.length
-          ? supabase.from("exams").select("id, title").in("id", examIds)
+          ? supabase.from("exam_attempts").select("id, exam_id, student_id, score, status, started_at, submitted_at").in("exam_id", examIds).limit(10000)
           : Promise.resolve({ data: [] }),
       ]);
+      const finalAttempts = latestSubmittedAttempts(attemptsResponse.data || []);
+      const studentIds = [...new Set([...(data || []), ...finalAttempts].map((row) => row.student_id).filter(Boolean))];
+      const profilesResponse = studentIds.length
+        ? await supabase.from("profiles").select("id, full_name, student_number, email").in("id", studentIds)
+        : { data: [] };
 
       const profilesById = new Map((profilesResponse.data || []).map((profile) => [profile.id, profile]));
       const examsById = new Map((examsResponse.data || []).map((exam) => [exam.id, exam]));
+
+      const durationByExam = Object.fromEntries((examsResponse.data || []).map((exam) => [exam.id, Number(exam.duration || exam.time_limit) || null]));
+      const queue = buildRiskQueue({ attempts: finalAttempts, violations: data || [], durationByExam });
+      setRisk({
+        rows: queue.map((row) => {
+          const profile = profilesById.get(row.studentId);
+          return {
+            ...row,
+            studentName: profile?.full_name || profile?.email || "Unknown student",
+            studentDetail: profile?.student_number || "",
+            examTitle: examsById.get(row.examId)?.title || "Unknown exam",
+          };
+        }),
+        summary: summarizeIntegrity({ queue, violations: data || [], attempts: finalAttempts }),
+      });
 
       const rows = (data || []).map((violation) => {
         const { date, time } = formatDateTime(violation.created_at);
@@ -248,6 +282,20 @@ export default function DeanExamIntegrity() {
             {[...new Set(violations.map((item) => item.violationType))].filter(Boolean).map((type) => <option key={type}>{type}</option>)}
           </SelectField>
         </div>
+      </Card>
+
+      <Card className="dean-dashboard-panel dean-integrity-risk-panel">
+        <div className="dean-dashboard-section-header">
+          <div>
+            <h2>Risk review</h2>
+            <p>Attempts in exams with recent alerts, ordered by integrity risk.</p>
+          </div>
+        </div>
+        {loadError ? null : loading || !risk ? (
+          <ListSkeleton columns={5} label="Loading risk review..." variant="table" />
+        ) : (
+          <IntegrityReview basis="Based on the latest 500 alerts." rows={risk.rows} showExam summary={risk.summary} />
+        )}
       </Card>
 
       <Card className="dean-dashboard-panel dean-integrity-records-panel">
