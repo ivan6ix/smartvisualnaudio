@@ -19488,6 +19488,10 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 .dean-insights-metrics strong {
   font-size: 1.4rem;
 }
+.dean-dashboard-filters.dean-insights-risk-filters {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 220px));
+  margin-bottom: 12px;
+}
 .dean-insights-note {
   margin: 12px 0 0;
   color: var(--app-text-muted);

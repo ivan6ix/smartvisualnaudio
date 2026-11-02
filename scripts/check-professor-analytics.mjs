@@ -2,6 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
+import { buildDeanAnalytics } from "../src/lib/deanAnalytics.js";
 import { ALL_FILTERS, VIOLATION_DATE_RANGES, countByViolationType, filterViolations, getRangeStart, violationFilterOptions } from "../src/lib/violationFilters.js";
 
 // Shared Violation Analytics filters (dean dashboard and exam integrity pages).
@@ -36,6 +37,35 @@ assert.deepEqual(violationFilterOptions(rows, "CPR2 - 4B").exams, ["Midterm"]);
 assert.deepEqual(options.severities, ["High", "Medium", "Low"]);
 assert.deepEqual(countByViolationType(rows), [{ name: "No face detected", count: 2 }, { name: "Tab switch attempt", count: 2 }]);
 
+// Analytics course and exam filters: everything follows them, except the at-risk prediction, which keeps using
+// every exam of the chosen courses because it needs each student's history.
+{
+  const courses = [
+    { id: "c1", course_code: "CPR2", section: "4A", course_name: "Programming", semester: "1st Semester", academic_year: "2026-2027" },
+    { id: "c2", course_code: "CPR2", section: "4B", course_name: "Programming", semester: "1st Semester", academic_year: "2026-2027" },
+  ];
+  const exams = [
+    { id: "e1", title: "Prelim Quiz", course_id: "c1", status: "Published", description: "Prelim" },
+    { id: "e2", title: "Midterm Exam", course_id: "c1", status: "Published", description: "Midterm" },
+    { id: "e3", title: "Semi-Final Exam", course_id: "c1", status: "Published", description: "Semi-Final" },
+    { id: "e4", title: "Prelim Quiz", course_id: "c2", status: "Published", description: "Prelim" },
+  ];
+  const at = (day) => `2026-10-${String(day).padStart(2, "0")}T08:00:00Z`;
+  const attempt = (exam, student, score, day) => ({ id: `${exam}${student}`, exam_id: exam, student_id: student, score, status: "Submitted", submitted_at: at(day) });
+  const attempts = [attempt("e1", "s1", 72, 1), attempt("e2", "s1", 61, 8), attempt("e3", "s1", 52, 15), attempt("e4", "s2", 90, 2)];
+  const all = buildDeanAnalytics({ exams, courses, attempts, violations: [] });
+  assert.deepEqual(all.options.courses, [{ id: "c1", label: "CPR2 - 4A" }, { id: "c2", label: "CPR2 - 4B" }]);
+  assert.deepEqual(all.options.exams.map((exam) => exam.id), ["e2", "e1", "e4", "e3"], "Exams are listed by title.");
+  const course = buildDeanAnalytics({ exams, courses, attempts, violations: [], filters: { courseId: "c1" } });
+  assert.deepEqual(course.sections.map((row) => row.id), ["c1"]);
+  assert.deepEqual(course.options.exams.map((exam) => exam.id), ["e2", "e1", "e3"], "The exam list follows the chosen course.");
+  assert.equal(course.kpis.exams, 3);
+  const exam = buildDeanAnalytics({ exams, courses, attempts, violations: [], filters: { courseId: "c1", examId: "e3" } });
+  assert.equal(exam.kpis.exams, 1, "Figures follow the exam filter.");
+  assert.deepEqual(exam.atRisk.map((row) => row.studentId), ["s1"], "The at-risk prediction still uses the section's other exams.");
+  assert.equal(exam.atRisk[0].scores.length, 3);
+}
+
 // Wiring: professors get the dean's pages with their own wording; the data is limited by row-level security.
 const app = readFileSync("src/App.jsx", "utf8");
 const layout = readFileSync("src/pages/professor/ProfessorLayout.jsx", "utf8");
@@ -48,6 +78,11 @@ assert.match(layout, /label: "Monitoring"[\s\S]*label: "Analytics", to: "\/profe
 assert.match(readFileSync("src/pages/professor/ProfessorAnalytics.jsx", "utf8"), /<DeanAnalytics scope="professor" \/>/);
 assert.match(readFileSync("src/pages/professor/ProfessorExamIntegrity.jsx", "utf8"), /<DeanExamIntegrity scope="professor" \/>/);
 assert.match(analytics, /queryKey: \[`\$\{scope\}-analytics`, user\?\.id\]/, "Cached results are kept per role and per user.");
+assert.match(analytics, /const AT_RISK_PAGE_SIZE = 10;/);
+assert.match(analytics, /<ListPagination count=\{atRiskRows\.length\} page=\{atRiskPage\.page\} pageSize=\{AT_RISK_PAGE_SIZE\}/, "Students at risk are shown 10 per page.");
+assert.match(analytics, /label="Course"[\s\S]*label="Exam"[\s\S]*Reset Filters/);
+assert.match(analytics, /<SearchBox value=\{search\}/);
+assert.match(analytics, /label="Risk"[\s\S]*label="Section"[\s\S]*label="Score Trend"/, "Students at risk have their own filters.");
 assert.match(integrity, /isProfessor \? filterViolations\(violations, filters\)/);
 assert.match(integrity, /<h2>Violation Analytics<\/h2>/);
 assert.match(dashboard, /filterViolations\(violations, \{/, "The dean dashboard uses the same filters.");

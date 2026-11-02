@@ -111,17 +111,32 @@ function periodRows(scopedExams, context) {
     .map(({ period, examIds }) => ({ period, ...measure(examIds, context) }));
 }
 
+export function sectionLabel(course) {
+  return `${course.course_code} - ${course.section}`;
+}
+
+// filters: academicYear, semester, programId, courseId, examId. The course and exam lists follow the filters above them.
 export function buildDeanAnalytics({ exams, courses, attempts, violations, filters = {} }) {
+  const termCourses = courses.filter((course) => (!filters.academicYear || course.academic_year === filters.academicYear)
+    && (!filters.semester || course.semester === filters.semester)
+    && (!filters.programId || course.program_id === filters.programId));
+  const termCourseIds = new Set(termCourses.map((course) => course.id));
   const options = {
     academicYears: uniqueSorted(courses.map((course) => course.academic_year)),
     semesters: uniqueSorted(courses.map((course) => course.semester)),
     programIds: uniqueSorted(courses.map((course) => course.program_id)),
+    courses: termCourses.map((course) => ({ id: course.id, label: sectionLabel(course) })).sort((left, right) => left.label.localeCompare(right.label)),
+    exams: exams
+      .filter((exam) => exam.status === "Published" && termCourseIds.has(exam.course_id) && (!filters.courseId || exam.course_id === filters.courseId))
+      .map((exam) => ({ id: exam.id, label: exam.title || exam.description || "Untitled exam" }))
+      .sort((left, right) => left.label.localeCompare(right.label)),
   };
-  const scopedCourses = courses.filter((course) => (!filters.academicYear || course.academic_year === filters.academicYear)
-    && (!filters.semester || course.semester === filters.semester)
-    && (!filters.programId || course.program_id === filters.programId));
+  const scopedCourses = termCourses.filter((course) => !filters.courseId || course.id === filters.courseId);
   const courseById = new Map(scopedCourses.map((course) => [course.id, course]));
-  const scopedExams = exams.filter((exam) => exam.status === "Published" && courseById.has(exam.course_id));
+  // Exams of the chosen courses; the at-risk prediction uses all of them (it needs each student's history),
+  // the other figures follow the exam filter too.
+  const courseExams = exams.filter((exam) => exam.status === "Published" && courseById.has(exam.course_id));
+  const scopedExams = courseExams.filter((exam) => !filters.examId || exam.id === filters.examId);
   const examIds = new Set(scopedExams.map((exam) => exam.id));
   const finalAttempts = latestSubmittedAttempts(attempts.filter((attempt) => examIds.has(attempt.exam_id)));
   const scopedViolations = violations.filter((item) => examIds.has(item.exam_id));
@@ -146,7 +161,7 @@ export function buildDeanAnalytics({ exams, courses, attempts, violations, filte
       return {
         trend: scoreDrop(periodRows(courseExams, context)),
         id: course.id,
-        label: `${course.course_code} - ${course.section}`,
+        label: sectionLabel(course),
         courseName: course.course_name || "",
         semester: course.semester || "",
         academicYear: course.academic_year || "",
@@ -159,7 +174,9 @@ export function buildDeanAnalytics({ exams, courses, attempts, violations, filte
     })
     .sort((left, right) => left.label.localeCompare(right.label));
 
-  const predictions = predictStudents({ exams: scopedExams, courses: scopedCourses, attempts: finalAttempts });
+  const courseExamIds = new Set(courseExams.map((exam) => exam.id));
+  const historyAttempts = latestSubmittedAttempts(attempts.filter((attempt) => courseExamIds.has(attempt.exam_id)));
+  const predictions = predictStudents({ exams: courseExams, courses: scopedCourses, attempts: historyAttempts });
   const atRisk = predictions.filter((row) => row.level !== "Low");
   kpis.studentsAtRisk = atRisk.length;
 

@@ -1,15 +1,20 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
-import { FiAlertTriangle, FiBarChart2, FiCheckCircle, FiFileText, FiTrendingDown, FiUsers } from "react-icons/fi";
+import { FiAlertTriangle, FiBarChart2, FiCheckCircle, FiFileText, FiTrendingDown, FiUsers, FiX } from "react-icons/fi";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Badge, Card, EmptyState, ListSkeleton, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
+import { ListPagination } from "../../components/ListViewControls";
+import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useChartTheme } from "../../context/ThemeContext";
 import { buildDeanAnalytics } from "../../lib/deanAnalytics";
+import { getListPageSlice } from "../../lib/listView";
+import { FALLING_SLOPE } from "../../lib/riskPrediction";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const ALL = "All";
 const SORTS = ["Section", "Lowest pass rate", "Lowest average", "Highest risk"];
+const AT_RISK_PAGE_SIZE = 10;
+const FALLING = "Falling scores only";
 
 function percent(value, digits = 0) {
   return value === null || value === undefined ? "-" : `${(value * 100).toFixed(digits)}%`;
@@ -23,7 +28,7 @@ async function loadAnalyticsData() {
   const [coursesResponse, programsResponse, examsResponse, attemptsResponse, violationsResponse, studentsResponse] = await Promise.all([
     supabase.from("courses").select("id, course_code, section, course_name, semester, academic_year, program_id"),
     supabase.from("programs").select("id, program_code, program_name"),
-    supabase.from("exams").select("id, course_id, status, description, passing_score").eq("status", "Published"),
+    supabase.from("exams").select("id, title, course_id, status, description, passing_score").eq("status", "Published"),
     supabase.from("exam_attempts").select("id, exam_id, student_id, score, status, started_at, submitted_at").limit(20000),
     supabase.from("violations").select("exam_id, student_id, violation_type, created_at").limit(20000),
     supabase.from("profiles").select("id, full_name, student_number, email").eq("role", "Student").limit(10000),
@@ -61,7 +66,26 @@ export default function DeanAnalytics({ scope = "dean" }) {
   const [academicYear, setAcademicYear] = useState(ALL);
   const [semester, setSemester] = useState(ALL);
   const [programId, setProgramId] = useState(ALL);
+  const [courseId, setCourseId] = useState(ALL);
+  const [examId, setExamId] = useState(ALL);
+  const [search, setSearch] = useState("");
   const [sort, setSort] = useState(SORTS[0]);
+  const [riskLevel, setRiskLevel] = useState(ALL);
+  const [riskSection, setRiskSection] = useState(ALL);
+  const [riskTrend, setRiskTrend] = useState(ALL);
+  const [riskPage, setRiskPage] = useState(1);
+  // Filters above the course list narrow it, so a chosen course or exam that no longer fits is cleared.
+  const changeTermFilter = (setter) => (event) => {
+    setter(event.target.value);
+    setCourseId(ALL);
+    setExamId(ALL);
+    setRiskPage(1);
+  };
+  const resetFilters = () => {
+    [setAcademicYear, setSemester, setProgramId, setCourseId, setExamId, setRiskLevel, setRiskSection, setRiskTrend].forEach((setter) => setter(ALL));
+    setSearch("");
+    setRiskPage(1);
+  };
   // Keyed by role and user: the query cache is kept in the browser, so one account must never see another's results.
   const query = useQuery({ queryKey: [`${scope}-analytics`, user?.id], enabled: hasSupabaseConfig && Boolean(user?.id), queryFn: loadAnalyticsData });
   const loading = hasSupabaseConfig && query.isLoading;
@@ -76,17 +100,20 @@ export default function DeanAnalytics({ scope = "dean" }) {
       academicYear: academicYear === ALL ? "" : academicYear,
       semester: semester === ALL ? "" : semester,
       programId: programId === ALL ? "" : programId,
+      courseId: courseId === ALL ? "" : courseId,
+      examId: examId === ALL ? "" : examId,
     },
-  }) : null, [academicYear, data, programId, semester]);
+  }) : null, [academicYear, courseId, data, examId, programId, semester]);
+  const term = search.trim().toLowerCase();
 
   const programName = useMemo(() => new Map((data?.programs || []).map((program) => [program.id, program.program_code || program.program_name])), [data?.programs]);
   const sections = useMemo(() => {
-    const rows = [...(analysis?.sections || [])];
+    const rows = (analysis?.sections || []).filter((row) => !term || `${row.label} ${row.courseName}`.toLowerCase().includes(term));
     if (sort === "Lowest pass rate") rows.sort((left, right) => (left.passRate ?? 2) - (right.passRate ?? 2));
     if (sort === "Lowest average") rows.sort((left, right) => (left.averageScore ?? 1000) - (right.averageScore ?? 1000));
     if (sort === "Highest risk") rows.sort((left, right) => (right.highRiskRate ?? -1) - (left.highRiskRate ?? -1));
     return rows;
-  }, [analysis?.sections, sort]);
+  }, [analysis?.sections, sort, term]);
   const chartData = (analysis?.periods || []).map((row) => ({
     period: row.period,
     "Average score": row.averageScore === null ? null : Number(row.averageScore.toFixed(1)),
@@ -95,7 +122,7 @@ export default function DeanAnalytics({ scope = "dean" }) {
   }));
   const kpis = analysis?.kpis;
   const studentById = useMemo(() => new Map((data?.students || []).map((student) => [student.id, student])), [data?.students]);
-  const atRiskRows = (analysis?.atRisk || []).map((row) => {
+  const allAtRiskRows = (analysis?.atRisk || []).map((row) => {
     const student = studentById.get(row.studentId);
     return {
       ...row,
@@ -104,6 +131,16 @@ export default function DeanAnalytics({ scope = "dean" }) {
       studentNumber: student?.student_number || "",
     };
   });
+  const atRiskSections = [...new Set(allAtRiskRows.map((row) => row.sectionLabel))].sort();
+  const atRiskRows = allAtRiskRows.filter((row) => (riskLevel === ALL || row.level === riskLevel)
+    && (riskSection === ALL || row.sectionLabel === riskSection)
+    && (riskTrend === ALL || row.slope <= FALLING_SLOPE)
+    && (!term || `${row.studentName} ${row.studentNumber} ${row.sectionLabel}`.toLowerCase().includes(term)));
+  const atRiskPage = getListPageSlice(atRiskRows, riskPage, AT_RISK_PAGE_SIZE);
+  const changeRiskFilter = (setter) => (event) => {
+    setter(event.target.value);
+    setRiskPage(1);
+  };
   const backtestResult = analysis?.backtest;
   const atRiskColumns = [
     { key: "studentName", label: "Student", render: (row) => <span className="dean-insights-section"><strong>{row.studentName}</strong><small>{row.studentNumber}</small></span> },
@@ -141,19 +178,32 @@ export default function DeanAnalytics({ scope = "dean" }) {
       </header>
 
       <Card className="dean-dashboard-panel dean-dashboard-controls">
+        <div className="dean-dashboard-search-row">
+          <SearchBox value={search} onChange={(value) => { setSearch(value); setRiskPage(1); }} placeholder="Search sections, courses, or students..." />
+          {search ? <Button variant="light" onClick={() => { setSearch(""); setRiskPage(1); }}><FiX /> Clear</Button> : null}
+        </div>
         <div className="dean-dashboard-filters">
-          <SelectField label="Academic Year" value={academicYear} onChange={(event) => setAcademicYear(event.target.value)}>
+          <SelectField label="Academic Year" value={academicYear} onChange={changeTermFilter(setAcademicYear)}>
             <option>{ALL}</option>
             {(analysis?.options.academicYears || []).map((item) => <option key={item}>{item}</option>)}
           </SelectField>
-          <SelectField label="Semester" value={semester} onChange={(event) => setSemester(event.target.value)}>
+          <SelectField label="Semester" value={semester} onChange={changeTermFilter(setSemester)}>
             <option>{ALL}</option>
             {(analysis?.options.semesters || []).map((item) => <option key={item}>{item}</option>)}
           </SelectField>
-          <SelectField label="Program" value={programId} onChange={(event) => setProgramId(event.target.value)}>
+          <SelectField label="Program" value={programId} onChange={changeTermFilter(setProgramId)}>
             <option value={ALL}>{ALL}</option>
             {(analysis?.options.programIds || []).map((id) => <option key={id} value={id}>{programName.get(id) || "Unnamed program"}</option>)}
           </SelectField>
+          <SelectField label="Course" value={courseId} onChange={(event) => { setCourseId(event.target.value); setExamId(ALL); setRiskPage(1); }}>
+            <option value={ALL}>All Courses</option>
+            {(analysis?.options.courses || []).map((course) => <option key={course.id} value={course.id}>{course.label}</option>)}
+          </SelectField>
+          <SelectField label="Exam" value={examId} onChange={(event) => setExamId(event.target.value)}>
+            <option value={ALL}>All Exams</option>
+            {(analysis?.options.exams || []).map((exam) => <option key={exam.id} value={exam.id}>{exam.label}</option>)}
+          </SelectField>
+          <Button variant="light" onClick={resetFilters}>Reset Filters</Button>
         </div>
       </Card>
 
@@ -213,8 +263,8 @@ export default function DeanAnalytics({ scope = "dean" }) {
           <Table
             className="dean-insights-table"
             columns={columns}
-            emptyDescription="Sections appear once their published exams have submitted attempts."
-            emptyTitle="No sections to compare."
+            emptyDescription={term ? "Search matches section codes and course names; students are listed under Students at risk." : "Sections appear once their published exams have submitted attempts."}
+            emptyTitle={term ? "No sections match the search." : "No sections to compare."}
             rows={sections}
           />
         )}
@@ -225,18 +275,36 @@ export default function DeanAnalytics({ scope = "dean" }) {
           <div className="dean-dashboard-section-header">
             <div>
               <h2>Students at risk of failing the next exam</h2>
-              <p>Predicted from each student&apos;s scores in the section: the average of their last 3 scores plus a quarter of their score trend (the weight that predicted best in the accuracy test). {text.missedExams}</p>
+              <p>Predicted from each student&apos;s scores in the section: the average of their last 3 scores plus a quarter of their score trend (the weight that predicted best in the accuracy test). {text.missedExams} The prediction uses every exam in the section, so the Exam filter does not change this list.</p>
             </div>
             <span>{loading ? <SkeletonValue /> : `${atRiskRows.length} student${atRiskRows.length === 1 ? "" : "s"}`}</span>
           </div>
+          <div className="dean-dashboard-filters dean-insights-risk-filters">
+            <SelectField label="Risk" value={riskLevel} onChange={changeRiskFilter(setRiskLevel)}>
+              <option value={ALL}>All Risk Levels</option>
+              <option>High</option>
+              <option>Medium</option>
+            </SelectField>
+            <SelectField label="Section" value={riskSection} onChange={changeRiskFilter(setRiskSection)}>
+              <option value={ALL}>All Sections</option>
+              {atRiskSections.map((label) => <option key={label}>{label}</option>)}
+            </SelectField>
+            <SelectField label="Score Trend" value={riskTrend} onChange={changeRiskFilter(setRiskTrend)}>
+              <option value={ALL}>All Trends</option>
+              <option>{FALLING}</option>
+            </SelectField>
+          </div>
           {loading ? <ListSkeleton columns={6} label="Loading predictions..." variant="table" /> : (
-            <Table
-              className="dean-insights-table"
-              columns={atRiskColumns}
-              emptyDescription="No student's recent scores predict a failing or borderline result."
-              emptyTitle="No students at risk."
-              rows={atRiskRows}
-            />
+            <>
+              <Table
+                className="dean-insights-table"
+                columns={atRiskColumns}
+                emptyDescription={allAtRiskRows.length ? "Adjust the search or filters to show more students." : "No student's recent scores predict a failing or borderline result."}
+                emptyTitle={allAtRiskRows.length ? "No students match the filters." : "No students at risk."}
+                rows={atRiskPage.rows}
+              />
+              <ListPagination count={atRiskRows.length} page={atRiskPage.page} pageSize={AT_RISK_PAGE_SIZE} onPage={setRiskPage} />
+            </>
           )}
         </Card>
 
