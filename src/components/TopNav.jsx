@@ -1,7 +1,8 @@
+import MessageMenu from "./MessageMenu";
 import NotificationBell from "./NotificationBell";
 import PortalNav from "./PortalNav";
 import { useState } from "react";
-import { FiMessageCircle, FiUserCheck } from "react-icons/fi";
+import { FiUserCheck } from "react-icons/fi";
 import { NavLink, useNavigate } from "react-router-dom";
 import ProfileMenu from "./ProfileMenu";
 import { useAuth } from "../context/AuthContext";
@@ -39,22 +40,7 @@ export default function TopNav() {
           {links.map(([label, to]) => <NavLink key={to} to={to}>{label}</NavLink>)}
         </PortalNav>
         <div className="nav-tools">
-          <div className="message-menu">
-            <button onClick={() => openMessages()} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
-            <div className="message-menu-panel">
-              <strong>Messages</strong>
-              {conversations.length ? conversations.map((conversation) => (
-                <article key={conversation.id} onClick={() => openMessages(conversation.id)}>
-                  <div>
-                    <b>{conversation.name}</b>
-                    <small>{conversation.role}</small>
-                  </div>
-                  <p>{conversation.lastMessage}</p>
-                  {conversation.unread ? <span>{conversation.unread}</span> : null}
-                </article>
-              )) : <p className="message-menu-empty">No live messages yet.</p>}
-            </div>
-          </div>
+          <MessageMenu className="message-menu" conversations={conversations} onOpenMessages={openMessages} unreadCount={unreadCount} />
           <NotificationBell user={user} emptyText="No password reset requests yet." />
           <ProfileMenu icon={FiUserCheck} logout={logout} user={user} />
         </div>

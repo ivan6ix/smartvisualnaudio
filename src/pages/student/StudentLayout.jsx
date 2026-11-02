@@ -1,6 +1,7 @@
+import MessageMenu from "../../components/MessageMenu";
 import NotificationBell from "../../components/NotificationBell";
 import { useEffect, useState } from "react";
-import { FiBookOpen, FiClipboard, FiFileText, FiMenu, FiMessageCircle, FiMoon, FiSun, FiUser, FiX } from "react-icons/fi";
+import { FiBookOpen, FiClipboard, FiFileText, FiMenu, FiMoon, FiSun, FiUser, FiX } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import MessageModal from "../../components/MessageModal";
 import ProfileAvatar from "../../components/ProfileAvatar";
@@ -122,22 +123,7 @@ export default function StudentLayout() {
           </div>
           <div className="admin-topbar-actions student-topbar-actions">
             <button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} className="admin-icon-button student-theme-button" onClick={toggleTheme} title="Theme" type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}</button>
-            <div className="message-menu admin-message-menu student-message-menu">
-              <button onClick={() => openMessages()} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
-              <div className="message-menu-panel">
-                <strong>Messages</strong>
-                {conversations.length ? conversations.map((message) => (
-                  <article key={message.id} onClick={() => openMessages(message.id)}>
-                    <div>
-                      <b>{message.name}</b>
-                      <small>{message.role}</small>
-                    </div>
-                    <p>{message.lastMessage}</p>
-                    {message.unread ? <span>{message.unread}</span> : null}
-                  </article>
-                )) : <p className="message-menu-empty">No live messages yet.</p>}
-              </div>
-            </div>
+            <MessageMenu className="message-menu admin-message-menu student-message-menu" conversations={conversations} onOpenMessages={openMessages} unreadCount={unreadCount} />
             <NotificationBell user={user} />
             <ProfileMenu className="profile-menu admin-profile-menu student-profile-menu" logout={logout} user={user} />
           </div>

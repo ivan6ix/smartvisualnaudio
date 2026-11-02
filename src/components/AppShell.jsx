@@ -1,8 +1,9 @@
+import MessageMenu from "./MessageMenu";
 import NotificationBell from "./NotificationBell";
 import ProfileMenu from "./ProfileMenu";
 import MessageModal from "./MessageModal";
 import { useEffect, useState } from "react";
-import { FiBookOpen, FiClipboard, FiFileText, FiList, FiMenu, FiMessageCircle, FiMoon, FiShield, FiSun, FiUser, FiUserPlus, FiUsers, FiX } from "react-icons/fi";
+import { FiBookOpen, FiClipboard, FiFileText, FiList, FiMenu, FiMoon, FiShield, FiSun, FiUser, FiUserPlus, FiUsers, FiX } from "react-icons/fi";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
@@ -88,22 +89,7 @@ export default function AppShell({ role = "Admin" }) {
           </div>
           <div className="admin-topbar-actions">
             <button aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`} className="admin-icon-button" onClick={toggleTheme} title="Theme" type="button">{theme === "dark" ? <FiSun /> : <FiMoon />}</button>
-            <div className="message-menu admin-message-menu">
-              <button onClick={() => openMessages()} title="Messages" type="button"><FiMessageCircle />{unreadCount ? <span>{unreadCount}</span> : null}</button>
-              <div className="message-menu-panel">
-                <strong>Messages</strong>
-                {conversations.length ? conversations.map((conversation) => (
-                  <article key={conversation.id} onClick={() => openMessages(conversation.id)}>
-                    <div>
-                      <b>{conversation.name}</b>
-                      <small>{conversation.role}</small>
-                    </div>
-                    <p>{conversation.lastMessage}</p>
-                    {conversation.unread ? <span>{conversation.unread}</span> : null}
-                  </article>
-                )) : <p className="message-menu-empty">No live messages yet.</p>}
-              </div>
-            </div>
+            <MessageMenu className="message-menu admin-message-menu" conversations={conversations} onOpenMessages={openMessages} unreadCount={unreadCount} />
             <NotificationBell user={user} emptyText="No password reset requests yet." />
             <ProfileMenu className="profile-menu admin-profile-menu" icon={FiUser} logout={logout} user={user} />
           </div>

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FiArchive, FiEdit2, FiFileText, FiGrid, FiPlus, FiRotateCcw, FiTrash2, FiUser, FiUsers, FiX } from "react-icons/fi";
+import { FiArchive, FiEdit2, FiFileText, FiGrid, FiPlus, FiRotateCcw, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button, ListSkeleton, RowActionMenu, SkeletonValue } from "../../components/ui";
@@ -152,8 +152,6 @@ export default function ProfessorExams() {
   const [sectionFilters, setSectionFilters] = useState(initialSectionFilters);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [archivedSearch, setArchivedSearch] = useState("");
-  const [deleteTarget, setDeleteTarget] = useState(null);
-  const [deletingId, setDeletingId] = useState("");
   const [publishTarget, setPublishTarget] = useState(null);
   const [publishingId, setPublishingId] = useState("");
   const [openMenuId, setOpenMenuId] = useState("");
@@ -310,12 +308,10 @@ export default function ProfessorExams() {
   }, [loadExams]);
 
   useEffect(() => {
-    if (!archiveModalOpen && !deleteTarget && !publishTarget) return undefined;
+    if (!archiveModalOpen && !publishTarget) return undefined;
     function handleKeyDown(event) {
       if (event.key !== "Escape") return;
-      if (deleteTarget) {
-        setDeleteTarget(null);
-      } else if (publishTarget) {
+      if (publishTarget) {
         setPublishTarget(null);
       } else {
         setArchiveModalOpen(false);
@@ -323,7 +319,7 @@ export default function ProfessorExams() {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [archiveModalOpen, deleteTarget, publishTarget]);
+  }, [archiveModalOpen, publishTarget]);
 
   useEffect(() => {
     if (!shareExam || !hasSupabaseConfig || !user?.id) return;
@@ -562,29 +558,6 @@ export default function ProfessorExams() {
     updateExamStatus(exam, { status: "Unpublished" }, "Exam unpublished");
   }
 
-  async function handleDeleteArchivedExam() {
-    if (!deleteTarget || !hasSupabaseConfig) return;
-    if (deleteTarget.groupId) {
-      toast.error("Shared exam members cannot be permanently deleted individually.");
-      return;
-    }
-    setDeletingId(deleteTarget.id);
-    try {
-      const { error } = await supabase.rpc("delete_archived_exam", { p_id: deleteTarget.id });
-      if (error) throw error;
-      const next = liveExams.filter((exam) => exam.id !== deleteTarget.id);
-      setLiveExams(next);
-      queryClient.setQueryData(["professor-exams", user.id], next);
-      toast.success("Archived exam permanently deleted.");
-      setDeleteTarget(null);
-    } catch (error) {
-      if (import.meta.env.DEV) window.console.error("Archived exam delete failed", error);
-      toast.error(error.message);
-    } finally {
-      setDeletingId("");
-    }
-  }
-
   function formatLastModified(value) {
     if (!value) return "Recently";
     const date = new Date(value);
@@ -798,7 +771,7 @@ export default function ProfessorExams() {
           <div className="professor-share-header">
             <div>
               <h2 id="professor-archive-title">Archived Exams</h2>
-              <p>Restore hidden exams or permanently delete unused archived drafts.</p>
+              <p>Restore archived exams to your exam list.</p>
             </div>
             <button aria-label="Close archived exams" onClick={() => setArchiveModalOpen(false)} type="button">
               <FiX />
@@ -837,13 +810,9 @@ export default function ProfessorExams() {
                     <td>{formatLastModified(exam.updatedAt)}</td>
                     <td>
                       <div className="professor-exam-actions">
-                        <button disabled={loadingActionId === exam.id || deletingId === exam.id} onClick={() => setArchived(exam)}>
+                        <button disabled={loadingActionId === exam.id} onClick={() => setArchived(exam)}>
                           <FiRotateCcw />
                           {loadingActionId === exam.id ? "Restoring..." : "Restore"}
-                        </button>
-                        <button className="danger" disabled={Boolean(exam.groupId) || loadingActionId === exam.id || deletingId === exam.id} onClick={() => setDeleteTarget(exam)} title={exam.groupId ? "Shared exams cannot be deleted individually" : "Delete archived exam"}>
-                          <FiTrash2 />
-                          Delete
                         </button>
                       </div>
                     </td>
@@ -852,40 +821,6 @@ export default function ProfessorExams() {
               </tbody>
             </table>
             {!filteredArchivedExams.length ? <div className="professor-exams-empty">{archivedSearch.trim() ? "No archived exams found." : "No archived exams."}</div> : null}
-          </div>
-        </section>
-      </div>
-    );
-  }
-
-  function renderDeleteConfirmModal() {
-    if (!deleteTarget) return null;
-
-    return (
-      <div className="professor-share-backdrop professor-delete-backdrop" onClick={() => setDeleteTarget(null)} role="presentation">
-        <section aria-labelledby="professor-delete-title" aria-modal="true" className="professor-share-modal professor-delete-modal" onClick={(event) => event.stopPropagation()} role="dialog">
-          <div className="professor-share-header">
-            <div>
-              <h2 id="professor-delete-title">Delete Exam Permanently?</h2>
-              <p>This action may permanently remove this archived exam and unused draft data. This cannot be undone.</p>
-            </div>
-            <button aria-label="Close delete confirmation" disabled={deletingId === deleteTarget.id} onClick={() => setDeleteTarget(null)} type="button">
-              <FiX />
-            </button>
-          </div>
-
-          <div className="professor-delete-summary">
-            <strong>{deleteTarget.title || "Untitled Exam"}</strong>
-            <span>{deleteTarget.course} - {deleteTarget.type} - {deleteTarget.rawStatus || deleteTarget.status}</span>
-            <p>Exams with student starts, attempts, grading, violations, or approval history are protected and will not be deleted.</p>
-          </div>
-
-          <div className="professor-delete-actions">
-            <button disabled={deletingId === deleteTarget.id} onClick={() => setDeleteTarget(null)} type="button">Cancel</button>
-            <button className="danger" disabled={deletingId === deleteTarget.id} onClick={handleDeleteArchivedExam} type="button">
-              <FiTrash2 />
-              {deletingId === deleteTarget.id ? "Deleting..." : "Delete Permanently"}
-            </button>
           </div>
         </section>
       </div>
@@ -1175,7 +1110,6 @@ export default function ProfessorExams() {
       {renderExamSection("pending", "Pending for Approval", "Exams waiting for cluster professor review.", pendingExams)}
       {renderExamSection("unpublished", "Unpublished Exams", "Hidden exams that are not visible to students.", unpublishedExams)}
       {renderArchivedModal()}
-      {renderDeleteConfirmModal()}
       {renderPublishConfirmModal()}
 
       {shareExam ? (

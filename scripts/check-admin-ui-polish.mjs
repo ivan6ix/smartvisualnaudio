@@ -16,10 +16,18 @@ assert.ok(dashboard.indexOf("Violation Analytics") < dashboard.indexOf("System H
 assert.ok(dashboard.indexOf("System Health") < dashboard.indexOf("Recent Account Activity"), "Recent activity should follow System Health.");
 
 const themeIndex = appShell.indexOf('title="Theme"');
-const messagesIndex = appShell.indexOf('title="Messages"');
+const messagesIndex = appShell.indexOf("<MessageMenu");
 const notificationsIndex = appShell.indexOf("<NotificationBell");
 const profileIndex = appShell.indexOf("admin-profile-menu");
 assert.ok(themeIndex < messagesIndex && messagesIndex < notificationsIndex && notificationsIndex < profileIndex, "Admin topbar order should be Theme, Messages, Notifications, Profile.");
+
+// Top bar menus open only on click and close on an outside click or Escape.
+assert.ok(!/\.(message|notification)-menu:(hover|focus-within) \.(message|notification)-menu-panel/.test(css), "Message and notification menus must not open on hover or focus.");
+for (const name of ["MessageMenu", "NotificationBell", "ProfileMenu"]) {
+  const source = readFileSync(new URL(`../src/components/${name}.jsx`, import.meta.url), "utf8");
+  assert.match(source, /event\.key === "Escape"[\s\S]*document\.addEventListener\("mousedown", handlePointer\)/, `${name} must close on an outside click and on Escape.`);
+}
+assert.match(css, /\.admin-sidebar-profile > div > span \{/, "Sidebar role text styles must not hit the avatar.");
 
 ["admin-account-table", "admin-account-table-active", "admin-account-table-deactivated"].forEach((token) => {
   assert.ok(people.includes(token), `Create Account tables should use ${token}.`);

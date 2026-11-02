@@ -20,7 +20,7 @@ assert.match(editor, /groupHasReviewHistory[\s\S]*Review required/, "An edited r
 assert.match(editor, /\.order\("sort_order"/, "Grouped questions must load in authored order.");
 assert.match(list, /transition_exam_group[\s\S]*submit_review[\s\S]*publish[\s\S]*unpublish/, "Group lifecycle must use one RPC.");
 assert.match(list, /Shared across \{exam\.sharedCourseCount\} courses/, "Cards and tables must identify shared exams.");
-assert.match(list, /Boolean\(exam\.groupId\)[\s\S]*Delete/, "Individual grouped-member deletion must be unavailable.");
+assert.doesNotMatch(list, /delete_archived_exam|Delete Permanently/, "Individual grouped-member deletion must be unavailable (archived exams can only be restored).");
 assert.match(cluster, /exam_publish_group_members[\s\S]*membersByGroup[\s\S]*liveExamRows = liveExamRows\.filter/, "Cluster review must show one representative.");
 assert.match(review, /groupMember[\s\S]*review_exam_group/, "Group review must use its transactional RPC.");
 

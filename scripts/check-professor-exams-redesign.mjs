@@ -48,8 +48,8 @@ assert.match(exams, /<colgroup>[\s\S]*<col style=\{\{ width: "30%" \}\}/, "Exam 
 
 assert.match(exams, /setArchiveModalOpen\(true\)/, "Archived Exams entry must remain wired.");
 assert.match(exams, /className="professor-share-modal professor-archive-modal"/, "Archived Exams must remain a modal.");
-assert.match(exams, /handleDeleteArchivedExam/, "Archived permanent delete flow must remain present.");
-assert.match(exams, /delete_archived_exam/, "Permanent delete safeguard RPC must remain the deletion boundary.");
+// Archived exams can only be restored; professors cannot permanently delete them.
+assert.doesNotMatch(exams, /handleDeleteArchivedExam|delete_archived_exam|Delete Permanently/, "Archived exams must offer Restore only, with no permanent delete.");
 assert.match(exams, /navigate\("\/professor\/exams\/create"/, "Create Exam navigation must remain wired.");
 assert.match(exams, /navigate\(`\/professor\/exams\/create\?editId=\$\{exam\.id\}`\)/, "Edit and resume navigation must remain wired.");
 assert.match(exams, /handlePublish\(exam\)/, "Publish action must remain wired.");
