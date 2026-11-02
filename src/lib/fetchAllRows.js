@@ -23,3 +23,22 @@ export async function fetchAllRows(buildQuery, { pageSize = ROWS_PER_REQUEST, ma
   }
   return { data: rows, error: null };
 }
+
+// Looking rows up by a list of ids puts every id in the request address, which grows about 40 characters per id
+// and is rejected when too long. This splits the ids into batches (each read in full) that load in parallel.
+// buildQuery(batchIds, selectOptions) returns a fresh query for one batch, ordered by a unique column.
+export const IDS_PER_REQUEST = 200;
+
+export async function fetchRowsByIds(ids, buildQuery, { batchSize = IDS_PER_REQUEST } = {}) {
+  const unique = [...new Set(ids.filter(Boolean))];
+  if (!unique.length) return { data: [], error: null };
+  const batches = [];
+  for (let start = 0; start < unique.length; start += batchSize) batches.push(unique.slice(start, start + batchSize));
+  const results = await Promise.all(batches.map((batch) => fetchAllRows((options) => buildQuery(batch, options))));
+  const rows = [];
+  for (const result of results) {
+    if (result.error) return { data: null, error: result.error };
+    rows.push(...result.data);
+  }
+  return { data: rows, error: null };
+}

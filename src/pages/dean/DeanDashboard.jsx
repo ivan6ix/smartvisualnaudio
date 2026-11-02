@@ -7,6 +7,7 @@ import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, 
 import { useChartTheme } from "../../context/ThemeContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { violationChart } from "../../data/mockData";
+import { fetchRowsByIds } from "../../lib/fetchAllRows";
 import { getListPageSlice } from "../../lib/listView";
 import { VIOLATION_DATE_RANGES, filterViolations, violationFilterOptions } from "../../lib/violationFilters";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -98,17 +99,16 @@ export default function DeanDashboard() {
       const studentIds = [...new Set(violations.map((row) => row.student_id).filter(Boolean))];
       const examIds = [...new Set(violations.map((row) => row.exam_id).filter(Boolean))];
 
+      // Looked up in batches of ids, so the request address stays short however many alerts there are.
       const [profilesResponse, examsResponse] = await Promise.all([
-        studentIds.length ? supabase.from("profiles").select("id, full_name, student_number, email").in("id", studentIds) : Promise.resolve({ data: [] }),
-        examIds.length ? supabase.from("exams").select("id, title, exam_title, course_id, course").in("id", examIds) : Promise.resolve({ data: [] }),
+        fetchRowsByIds(studentIds, (ids, options) => supabase.from("profiles").select("id, full_name, student_number, email", options).in("id", ids).order("id")),
+        fetchRowsByIds(examIds, (ids, options) => supabase.from("exams").select("id, title, exam_title, course_id, course", options).in("id", ids).order("id")),
       ]);
       if (profilesResponse.error) throw profilesResponse.error;
       if (examsResponse.error) throw examsResponse.error;
 
       const courseIds = [...new Set((examsResponse.data || []).map((exam) => exam.course_id).filter(Boolean))];
-      const coursesResponse = courseIds.length
-        ? await supabase.from("courses").select("id, course_name, course_code").in("id", courseIds)
-        : { data: [] };
+      const coursesResponse = await fetchRowsByIds(courseIds, (ids, options) => supabase.from("courses").select("id, course_name, course_code", options).in("id", ids).order("id"));
       if (coursesResponse.error) throw coursesResponse.error;
 
       const profilesById = new Map((profilesResponse.data || []).map((profile) => [profile.id, profile]));

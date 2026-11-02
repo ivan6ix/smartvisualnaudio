@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { ROWS_PER_REQUEST, fetchAllRows } from "../src/lib/fetchAllRows.js";
+import { IDS_PER_REQUEST, ROWS_PER_REQUEST, fetchAllRows, fetchRowsByIds } from "../src/lib/fetchAllRows.js";
 
 // A fake query that behaves like the API: at most `cap` rows per request, exact count only when asked.
 function fakeTable(total, { cap = ROWS_PER_REQUEST, failFrom = null } = {}) {
@@ -42,6 +42,29 @@ function fakeTable(total, { cap = ROWS_PER_REQUEST, failFrom = null } = {}) {
   assert.equal(table.calls.length, 1);
   const failing = fakeTable(2500, { failFrom: 2000 });
   assert.deepEqual(await fetchAllRows(failing.build), { data: null, error: { message: "page failed" } });
+}
+
+// Lookups by id go in batches (short request addresses), each batch read in full, in parallel.
+{
+  const ids = Array.from({ length: 450 }, (_, index) => `id-${index}`);
+  const batches = [];
+  const result = await fetchRowsByIds([...ids, ids[0], null], (batch, options) => {
+    batches.push({ size: batch.length, counted: Boolean(options?.count) });
+    return { range: () => Promise.resolve({ data: batch.map((id) => ({ id })), error: null, count: batch.length }) };
+  });
+  assert.equal(result.data.length, 450, "Duplicates and empty ids are dropped.");
+  assert.deepEqual(batches.map((batch) => batch.size), [IDS_PER_REQUEST, IDS_PER_REQUEST, 50]);
+  assert.deepEqual(await fetchRowsByIds([], () => assert.fail("No request for an empty id list.")), { data: [], error: null });
+  const failed = await fetchRowsByIds(ids, (batch) => ({ range: () => Promise.resolve(batch[0] === "id-200" ? { data: null, error: { message: "batch failed" } } : { data: [], error: null, count: 0 }) }));
+  assert.deepEqual(failed, { data: null, error: { message: "batch failed" } });
+}
+
+// No page asks for more than the API's 1000 rows in one request; large reads go through fetchAllRows.
+for (const file of ["src/pages/dean/DeanAnalytics.jsx", "src/pages/dean/DeanExamIntegrity.jsx", "src/pages/dean/DeanDashboard.jsx", "src/components/admin/BulkRegisterModal.jsx"]) {
+  const source = readFileSync(file, "utf8");
+  assert.doesNotMatch(source, /\.limit\((\d{5,}|[2-9]\d{3})\)/, `${file} must read large tables with fetchAllRows.`);
+  assert.match(source, /fetch(AllRows|RowsByIds)\(/, `${file} must use the paging helpers.`);
+  assert.doesNotMatch(source, /\.in\("id", (studentIds|examIds|courseIds)\)/, `${file} must look ids up in batches.`);
 }
 
 // The Scores page reads every table in full, filters by exam or course (short request addresses), loads in two

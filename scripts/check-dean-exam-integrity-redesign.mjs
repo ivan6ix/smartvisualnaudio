@@ -13,8 +13,8 @@ assert.match(layout, /dean-topbar-actions[\s\S]*dean-theme-button[\s\S]*dean-mes
 assert.match(integrity, /className="dean-integrity-page"/, "Exam Integrity should use the scoped redesigned page container.");
 assert.match(integrity, /Review examination integrity records and recorded monitoring events/, "Exam Integrity should keep a compact oversight header.");
 assert.match(integrity, /from\("violations"\)[\s\S]*select\("id, student_id, exam_id, violation_type, description, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at"\)[\s\S]*limit\(500\)/, "Existing capped violation metadata query must be preserved.");
-assert.match(integrity, /from\("profiles"\)[\s\S]*select\("id, full_name, student_number, email"\)/, "Existing student lookup must be preserved.");
-assert.match(integrity, /from\("exams"\)[\s\S]*select\("id, title(, [a-z_, ]+)?"\)/, "Existing exam lookup must be preserved.");
+assert.match(integrity, /from\("profiles"\)[\s\S]*select\("id, full_name, student_number, email"(, options)?\)/, "Existing student lookup must be preserved.");
+assert.match(integrity, /from\("exams"\)[\s\S]*select\("id, title(, [a-z_, ]+)?"(, options)?\)/, "Existing exam lookup must be preserved.");
 assert.match(integrity, /SearchBox[\s\S]*placeholder="Search student, exam, or violation"/, "Existing search behavior must remain visible.");
 assert.match(integrity, /Severity Filter[\s\S]*Violation Type/, "Existing filters must remain visible.");
 assert.match(integrity, /useListViewPreference\(\{ role: scope, page: "exam-integrity", defaultView: "table" \}\)/, "Cards/Table preference must remain table-first (kept per role).");

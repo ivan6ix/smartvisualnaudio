@@ -7,6 +7,7 @@ import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, 
 import { useAuth } from "../../context/AuthContext";
 import { useChartTheme } from "../../context/ThemeContext";
 import { buildDeanAnalytics } from "../../lib/deanAnalytics";
+import { fetchAllRows } from "../../lib/fetchAllRows";
 import { getListPageSlice } from "../../lib/listView";
 import { FALLING_SLOPE } from "../../lib/riskPrediction";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -24,14 +25,15 @@ function score(value) {
   return value === null || value === undefined ? "-" : `${value.toFixed(1)}%`;
 }
 
+// Every table is read in full: the API returns at most 1000 rows per request.
 async function loadAnalyticsData() {
   const [coursesResponse, programsResponse, examsResponse, attemptsResponse, violationsResponse, studentsResponse] = await Promise.all([
-    supabase.from("courses").select("id, course_code, section, course_name, semester, academic_year, program_id"),
-    supabase.from("programs").select("id, program_code, program_name"),
-    supabase.from("exams").select("id, title, course_id, status, description, passing_score").eq("status", "Published"),
-    supabase.from("exam_attempts").select("id, exam_id, student_id, score, status, started_at, submitted_at").limit(20000),
-    supabase.from("violations").select("exam_id, student_id, violation_type, created_at").limit(20000),
-    supabase.from("profiles").select("id, full_name, student_number, email").eq("role", "Student").limit(10000),
+    fetchAllRows((options) => supabase.from("courses").select("id, course_code, section, course_name, semester, academic_year, program_id", options).order("id")),
+    fetchAllRows((options) => supabase.from("programs").select("id, program_code, program_name", options).order("id")),
+    fetchAllRows((options) => supabase.from("exams").select("id, title, course_id, status, description, passing_score", options).eq("status", "Published").order("id")),
+    fetchAllRows((options) => supabase.from("exam_attempts").select("id, exam_id, student_id, score, status, started_at, submitted_at", options).order("id")),
+    fetchAllRows((options) => supabase.from("violations").select("exam_id, student_id, violation_type, created_at", options).order("id")),
+    fetchAllRows((options) => supabase.from("profiles").select("id, full_name, student_number, email", options).eq("role", "Student").order("id")),
   ]);
   for (const response of [coursesResponse, examsResponse, attemptsResponse, violationsResponse, studentsResponse]) {
     if (response.error) throw response.error;

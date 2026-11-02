@@ -8,6 +8,7 @@ import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, 
 import { useChartTheme } from "../../context/ThemeContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { buildRiskQueue, latestSubmittedAttempts, summarizeIntegrity } from "../../lib/integrityRisk";
+import { fetchRowsByIds } from "../../lib/fetchAllRows";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import { ALL_FILTERS, VIOLATION_DATE_RANGES, countByViolationType, filterViolations, violationFilterOptions } from "../../lib/violationFilters";
@@ -137,24 +138,17 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
 
       const examIds = [...new Set((data || []).map((row) => row.exam_id).filter(Boolean))];
 
+      // Looked up in batches of ids and read in full (the API returns at most 1000 rows per request).
       const [examsResponse, attemptsResponse] = await Promise.all([
-        examIds.length
-          ? supabase.from("exams").select("id, title, duration, time_limit, course_id").in("id", examIds)
-          : Promise.resolve({ data: [] }),
-        examIds.length
-          ? supabase.from("exam_attempts").select("id, exam_id, student_id, score, status, started_at, submitted_at").in("exam_id", examIds).limit(10000)
-          : Promise.resolve({ data: [] }),
+        fetchRowsByIds(examIds, (ids, options) => supabase.from("exams").select("id, title, duration, time_limit, course_id", options).in("id", ids).order("id")),
+        fetchRowsByIds(examIds, (ids, options) => supabase.from("exam_attempts").select("id, exam_id, student_id, score, status, started_at, submitted_at", options).in("exam_id", ids).order("id")),
       ]);
       const finalAttempts = latestSubmittedAttempts(attemptsResponse.data || []);
       const studentIds = [...new Set([...(data || []), ...finalAttempts].map((row) => row.student_id).filter(Boolean))];
       const courseIds = [...new Set((examsResponse.data || []).map((exam) => exam.course_id).filter(Boolean))];
       const [profilesResponse, coursesResponse] = await Promise.all([
-        studentIds.length
-          ? supabase.from("profiles").select("id, full_name, student_number, email").in("id", studentIds)
-          : Promise.resolve({ data: [] }),
-        courseIds.length
-          ? supabase.from("courses").select("id, course_code, section, course_name").in("id", courseIds)
-          : Promise.resolve({ data: [] }),
+        fetchRowsByIds(studentIds, (ids, options) => supabase.from("profiles").select("id, full_name, student_number, email", options).in("id", ids).order("id")),
+        fetchRowsByIds(courseIds, (ids, options) => supabase.from("courses").select("id, course_code, section, course_name", options).in("id", ids).order("id")),
       ]);
 
       const profilesById = new Map((profilesResponse.data || []).map((profile) => [profile.id, profile]));

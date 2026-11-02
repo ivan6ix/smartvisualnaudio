@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { FiDownload, FiUpload, FiUserPlus, FiX } from "react-icons/fi";
 import { Badge, Button, Field, Table } from "../ui";
 import { checkStaffRows, MAX_ROWS, readStaffCsv, resultsCsv, templateCsv } from "../../lib/bulkAccounts";
+import { fetchAllRows } from "../../lib/fetchAllRows";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function downloadCsv(text, fileName) {
@@ -32,7 +33,8 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
   useEffect(() => {
     if (!hasSupabaseConfig) return;
     let active = true;
-    supabase.from("profiles").select("email, employee_number").limit(10000).then(({ data, error }) => {
+    // Every account is read (the API returns at most 1000 rows per request), so no duplicate slips through.
+    fetchAllRows((options) => supabase.from("profiles").select("id, email, employee_number", options).order("id")).then(({ data, error }) => {
       if (!active) return;
       if (error) {
         toast.error(error.message);
