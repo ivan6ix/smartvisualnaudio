@@ -6,7 +6,9 @@ const corsHeaders = {
 };
 
 const allowedRoles = new Set(["Professor", "Dean", "Cluster Professor"]);
-const adminRoles = new Set(["Admin", "Dean"]);
+// Only active Admins manage accounts. Deans have no account pages, and letting them reset any password
+// let a Dean take over an Admin account.
+const adminRoles = new Set(["Admin"]);
 
 async function writeAudit(
   adminClient: ReturnType<typeof createClient>,
@@ -69,12 +71,12 @@ Deno.serve(async (req) => {
 
     const { data: caller, error: callerError } = await adminClient
       .from("profiles")
-      .select("role")
+      .select("role, status")
       .eq("id", authData.user.id)
       .maybeSingle();
 
-    if (callerError || !caller || !adminRoles.has(caller.role)) {
-      return json({ error: "Only admin or dean accounts can manage accounts." }, 403);
+    if (callerError || !caller || !adminRoles.has(caller.role) || caller.status !== "Active") {
+      return json({ error: "Only active admin accounts can manage accounts." }, 403);
     }
 
     const body = await req.json();

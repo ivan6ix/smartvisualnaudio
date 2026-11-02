@@ -8,6 +8,7 @@ import { accounts as seedAccounts, roles } from "../data/mockData";
 import { useAuth } from "../context/AuthContext";
 import useListViewPreference from "../hooks/useListViewPreference";
 import useLocalStorageState from "../hooks/useLocalStorageState";
+import { fetchAllRows } from "../lib/fetchAllRows";
 import { getListPageSlice } from "../lib/listView";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
@@ -36,11 +37,12 @@ export default function Accounts() {
     queryKey: ["admin-accounts"],
     enabled: hasSupabaseConfig,
     queryFn: async () => {
-      const { data, error } = await supabase
+      // Every account, newest first (the API returns at most 1000 rows per request).
+      const { data, error } = await fetchAllRows((options) => supabase
         .from("profiles")
-        .select("id, role, full_name, email, employee_number, student_number, status, created_at")
+        .select("id, role, full_name, email, employee_number, student_number, status, created_at", options)
         .order("created_at", { ascending: false })
-        .limit(250);
+        .order("id"));
 
       if (error) throw error;
       return (data || []).map(mapProfile);
