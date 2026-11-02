@@ -11,6 +11,7 @@ import { professorCourses, professorExams } from "../../data/professorData";
 import { getListPageSlice } from "../../lib/listView";
 import { canGradeManually, needsGradingPath } from "../../lib/manualGrading";
 import { buildRiskQueue, summarizeIntegrity } from "../../lib/integrityRisk";
+import { fetchAllRows } from "../../lib/fetchAllRows";
 import { DEFAULT_PASSING_SCORE } from "../../lib/itemAnalysis";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
@@ -161,6 +162,21 @@ function buildDemoData() {
   return { courses, exams, attempts: [], answers: [], questions: [] };
 }
 
+function groupBy(rows, keyOf) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    const key = keyOf(row);
+    const list = groups.get(key);
+    if (list) list.push(row);
+    else groups.set(key, [row]);
+  });
+  return groups;
+}
+
+function countBy(rows, keyOf) {
+  return rows.reduce((counts, row) => counts.set(keyOf(row), (counts.get(keyOf(row)) || 0) + 1), new Map());
+}
+
 function isPublishedExam(exam) {
   return exam?.status === "Published";
 }
@@ -194,78 +210,102 @@ export default function ProfessorScores() {
   const [gradeInputs, setGradeInputs] = useState({});
   const listView = useListViewPreference({ role: "professor", page: "scores", defaultView: "table" });
 
+  // Two rounds: courses and exams together, then everything for the published exams together. Every table is read
+  // in full with fetchAllRows (the API returns at most 1000 rows per request), and every filter is by exam or
+  // course, so request addresses stay short however many attempts there are.
   const loadData = useCallback(async () => {
     if (!hasSupabaseConfig || !user?.id) return;
     setLoading(true);
     try {
-      const { data: courseRows, error: coursesError } = await supabase
-        .from("courses")
-        .select("id, course_name, course_code, section")
-        .eq("professor_id", user.id)
-        .eq("archived", false)
-        .order("created_at", { ascending: false });
+      const [{ data: courseRows, error: coursesError }, { data: examRows, error: examsError }] = await Promise.all([
+        supabase
+          .from("courses")
+          .select("id, course_name, course_code, section")
+          .eq("professor_id", user.id)
+          .eq("archived", false)
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("exams")
+          .select("id, title, exam_title, course_id, description, semester, exam_type, status, exam_settings, assignment_mode, questions_count, passing_score, duration, time_limit, created_at")
+          .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
+          .order("created_at", { ascending: false }),
+      ]);
       if (coursesError) throw coursesError;
+      if (examsError) throw examsError;
 
       const courses = (courseRows || []).map((course) => ({ id: course.id, courseName: course.course_name, courseCode: course.course_code, section: course.section }));
       const courseIds = courses.map((course) => course.id);
-      if (!courseIds.length) {
-        setData({ courses, exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [], violations: [] });
-        return;
-      }
-
-      const { data: examRows, error: examsError } = await supabase
-        .from("exams")
-        .select("id, title, exam_title, course_id, description, semester, exam_type, status, exam_settings, assignment_mode, questions_count, passing_score, duration, time_limit, created_at")
-        .in("course_id", courseIds)
-        .or(`professor_id.eq.${user.id},created_by.eq.${user.id}`)
-        .order("created_at", { ascending: false });
-      if (examsError) throw examsError;
-
-      const publishedExams = (examRows || []).filter(isPublishedExam);
+      const courseIdSet = new Set(courseIds);
+      const publishedExams = (examRows || []).filter((exam) => isPublishedExam(exam) && courseIdSet.has(exam.course_id));
       const examIds = publishedExams.map((exam) => exam.id);
       if (!examIds.length) {
         setData({ courses, exams: [], attempts: [], answers: [], questions: [], reopenRequests: [], assignments: [], exceptions: [], enrollments: [], starts: [], violations: [] });
         return;
       }
 
-      const [{ data: attemptRows, error: attemptsError }, { data: questionRows, error: questionsError }, { data: enrollmentRows, error: enrollmentsError }, { data: assignmentRows, error: assignmentsError }, { data: exceptionRows, error: exceptionsError }, { data: startRows, error: startsError }, { data: violationRows, error: violationsError }] = await Promise.all([
-        supabase
+      const [
+        { data: attemptRows, error: attemptsError },
+        { data: questionRows, error: questionsError },
+        { data: enrollmentRows, error: enrollmentsError },
+        { data: assignmentRows, error: assignmentsError },
+        { data: exceptionRows, error: exceptionsError },
+        { data: startRows, error: startsError },
+        { data: violationRows, error: violationsError },
+        { data: answerRows, error: answersError },
+        { data: reopenRows, error: requestsError },
+      ] = await Promise.all([
+        fetchAllRows((options) => supabase
           .from("exam_attempts")
-          .select("id, exam_id, score, earned_points, max_points, status, submitted_at, started_at, student_id, profiles:student_id(full_name, student_number, email)")
+          .select("id, exam_id, score, earned_points, max_points, status, submitted_at, started_at, student_id, profiles:student_id(full_name, student_number, email)", options)
           .in("exam_id", examIds)
           .order("submitted_at", { ascending: false })
-          .limit(5000),
-        supabase
+          .order("id", { ascending: true })),
+        fetchAllRows((options) => supabase
           .from("exam_questions")
-          .select("id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order")
+          .select("id, exam_id, question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order", options)
           .in("exam_id", examIds)
           .order("sort_order", { ascending: true, nullsFirst: false })
-          .order("id", { ascending: true }),
-        supabase
+          .order("id", { ascending: true })),
+        fetchAllRows((options) => supabase
           .from("course_enrollments")
-          .select("course_id, student_id, profiles:student_id(full_name, student_number, email)")
+          .select("course_id, student_id, profiles:student_id(full_name, student_number, email)", options)
           .in("course_id", courseIds)
-          .limit(10000),
-        supabase
+          .order("course_id", { ascending: true })
+          .order("student_id", { ascending: true })),
+        fetchAllRows((options) => supabase
           .from("exam_student_assignments")
-          .select("exam_id, student_id, profiles:student_id(full_name, student_number, email)")
+          .select("exam_id, student_id, profiles:student_id(full_name, student_number, email)", options)
           .in("exam_id", examIds)
-          .limit(10000),
-        supabase
+          .order("exam_id", { ascending: true })
+          .order("student_id", { ascending: true })),
+        fetchAllRows((options) => supabase
           .from("exam_student_access_exceptions")
-          .select("exam_id, student_id, profiles:student_id(full_name, student_number, email)")
+          .select("exam_id, student_id, profiles:student_id(full_name, student_number, email)", options)
           .in("exam_id", examIds)
-          .limit(10000),
-        supabase
+          .order("exam_id", { ascending: true })
+          .order("student_id", { ascending: true })),
+        fetchAllRows((options) => supabase
           .from("exam_start_sessions")
-          .select("exam_id, student_id, started_at")
+          .select("exam_id, student_id, started_at", options)
           .in("exam_id", examIds)
-          .limit(10000),
-        supabase
+          .order("exam_id", { ascending: true })
+          .order("student_id", { ascending: true })),
+        fetchAllRows((options) => supabase
           .from("violations")
-          .select("exam_id, student_id, violation_type, severity, created_at")
+          .select("exam_id, student_id, violation_type, severity, created_at", options)
           .in("exam_id", examIds)
-          .limit(20000),
+          .order("id", { ascending: true })),
+        // Answers have no exam column; the inner join filters them by their attempt's exam in the same request.
+        fetchAllRows((options) => supabase
+          .from("exam_attempt_answers")
+          .select("id, attempt_id, question_id, answer, file_url, earned_points, max_points, is_correct, needs_manual_grading, graded_at, exam_attempts!inner(exam_id)", options)
+          .in("exam_attempts.exam_id", examIds)
+          .order("id", { ascending: true })),
+        fetchAllRows((options) => supabase
+          .from("exam_attempt_reopen_requests")
+          .select("id, attempt_id, exam_id, student_id, reason, status, reviewed_at, reopened_started_at, original_submitted_at, original_score, original_earned_points, original_max_points, original_status, created_at", options)
+          .in("exam_id", examIds)
+          .order("id", { ascending: true })),
       ]);
       if (attemptsError) throw attemptsError;
       if (violationsError) throw violationsError;
@@ -274,30 +314,11 @@ export default function ProfessorScores() {
       if (assignmentsError && !["42P01", "PGRST205"].includes(assignmentsError.code)) throw assignmentsError;
       if (exceptionsError && !["42P01", "PGRST205"].includes(exceptionsError.code)) throw exceptionsError;
       if (startsError) throw startsError;
+      if (answersError) throw answersError;
+      if (requestsError) throw requestsError;
 
-      const attemptIds = (attemptRows || []).map((attempt) => attempt.id);
-      let answerRows = [];
-      let reopenRows = [];
-      if (attemptIds.length) {
-        const [{ data: answers, error: answersError }, { data: requests, error: requestsError }] = await Promise.all([
-          supabase
-            .from("exam_attempt_answers")
-            .select("id, attempt_id, question_id, answer, file_url, earned_points, max_points, is_correct, needs_manual_grading, graded_at")
-            .in("attempt_id", attemptIds)
-            .limit(20000),
-          supabase
-            .from("exam_attempt_reopen_requests")
-            .select("id, attempt_id, exam_id, student_id, reason, status, reviewed_at, reopened_started_at, original_submitted_at, original_score, original_earned_points, original_max_points, original_status, created_at")
-            .in("attempt_id", attemptIds)
-            .limit(5000),
-        ]);
-        if (answersError) throw answersError;
-        if (requestsError) throw requestsError;
-        answerRows = answers || [];
-        reopenRows = requests || [];
-      }
-
-      setData({ courses, exams: publishedExams, attempts: attemptRows || [], answers: answerRows, questions: questionRows || [], reopenRequests: reopenRows, assignments: assignmentRows || [], exceptions: exceptionRows || [], enrollments: enrollmentRows || [], starts: startRows || [], violations: violationRows || [] });
+      const answers = (answerRows || []).map(({ exam_attempts: _attemptExam, ...answer }) => answer);
+      setData({ courses, exams: publishedExams, attempts: attemptRows || [], answers, questions: questionRows || [], reopenRequests: reopenRows || [], assignments: assignmentRows || [], exceptions: exceptionRows || [], enrollments: enrollmentRows || [], starts: startRows || [], violations: violationRows || [] });
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -354,13 +375,19 @@ export default function ProfessorScores() {
     };
   }), [answersByAttempt, courseById, examById, reopenByAttempt, data.attempts]);
 
+  // Rows grouped once by exam or course, so per-exam figures stay fast with thousands of attempts.
+  const attemptsByExam = useMemo(() => groupBy(attempts, (attempt) => attempt.exam_id), [attempts]);
+  const assignmentCountByExam = useMemo(() => countBy(data.assignments, (assignment) => assignment.exam_id), [data.assignments]);
+  const enrollmentCountByCourse = useMemo(() => countBy(data.enrollments, (enrollment) => enrollment.course_id), [data.enrollments]);
+  const pointsByExam = useMemo(() => data.questions.reduce((totals, question) => totals.set(question.exam_id, (totals.get(question.exam_id) || 0) + Number(question.points || 0)), new Map()), [data.questions]);
+
   const examSummaries = useMemo(() => data.exams.map((exam) => {
     const course = courseById.get(exam.course_id) || {};
-    const examAttempts = attempts.filter((attempt) => attempt.exam_id === exam.id);
+    const examAttempts = attemptsByExam.get(exam.id) || [];
     const assignedPopulation = exam.assignment_mode === "selected_students"
-      ? data.assignments.filter((assignment) => assignment.exam_id === exam.id).length
-      : data.enrollments.filter((enrollment) => enrollment.course_id === exam.course_id).length;
-    const totalPoints = data.questions.filter((question) => question.exam_id === exam.id).reduce((total, question) => total + Number(question.points || 0), 0);
+      ? assignmentCountByExam.get(exam.id) || 0
+      : enrollmentCountByCourse.get(exam.course_id) || 0;
+    const totalPoints = pointsByExam.get(exam.id) || 0;
     return {
       ...exam,
       course,
@@ -370,11 +397,11 @@ export default function ProfessorScores() {
       pendingAnswers: examAttempts.reduce((total, attempt) => total + (answersByAttempt[attempt.id] || []).filter((answer) => answer.needs_manual_grading).length, 0),
       totalPoints,
     };
-  }), [answersByAttempt, attempts, courseById, data.assignments, data.enrollments, data.exams, data.questions]);
+  }), [answersByAttempt, assignmentCountByExam, attemptsByExam, courseById, data.exams, enrollmentCountByCourse, pointsByExam]);
 
   const selectedExam = examId ? examSummaries.find((exam) => exam.id === examId) : null;
   const examQuestions = useMemo(() => data.questions.filter((question) => question.exam_id === examId), [data.questions, examId]);
-  const examAttempts = useMemo(() => attempts.filter((attempt) => attempt.exam_id === examId), [attempts, examId]);
+  const examAttempts = useMemo(() => attemptsByExam.get(examId) || [], [attemptsByExam, examId]);
   const selectedAttempt = attemptId ? attempts.find((attempt) => attempt.id === attemptId) : null;
   const selectedQuestion = questionId ? questionById.get(questionId) : null;
   const selectedQuestionIndex = selectedQuestion ? examQuestions.findIndex((question) => question.id === selectedQuestion.id) : -1;
@@ -476,14 +503,22 @@ export default function ProfessorScores() {
     });
   }, [search, sectionFilter, sort, statusFilter, students]);
 
+  // This exam's answers grouped by question, read once (rather than scanning every answer and attempt per question).
+  const answersByQuestion = useMemo(() => {
+    const groups = new Map();
+    examAttempts.forEach((attempt) => (answersByAttempt[attempt.id] || []).forEach((answer) => {
+      const list = groups.get(answer.question_id);
+      if (list) list.push(answer);
+      else groups.set(answer.question_id, [answer]);
+    }));
+    return groups;
+  }, [answersByAttempt, examAttempts]);
+
   const questionSummaries = useMemo(() => examQuestions.map((question, index) => {
-    const answers = data.answers.filter((answer) => {
-      const attempt = attempts.find((item) => item.id === answer.attempt_id);
-      return answer.question_id === question.id && attempt?.exam_id === examId;
-    });
+    const answers = answersByQuestion.get(question.id) || [];
     const pending = answers.filter((answer) => answer.needs_manual_grading).length;
     return { ...question, number: index + 1, answered: answers.filter((answer) => formatAnswer(answer.answer, answer.file_url) !== "No answer").length, pending, status: pending ? "Needs Grading" : "Complete", manual: Boolean(question.manual_grading) };
-  }), [attempts, data.answers, examId, examQuestions]);
+  }), [answersByQuestion, examQuestions]);
 
   const filteredQuestions = useMemo(() => questionSummaries.filter((question) => {
     if (answerFilter === "Needs Grading") return question.pending > 0;
