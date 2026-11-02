@@ -3,6 +3,7 @@ import { useMemo, useState } from "react";
 import { FiAlertTriangle, FiBarChart2, FiCheckCircle, FiFileText, FiTrendingDown, FiUsers } from "react-icons/fi";
 import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { Badge, Card, EmptyState, ListSkeleton, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
+import { useAuth } from "../../context/AuthContext";
 import { useChartTheme } from "../../context/ThemeContext";
 import { buildDeanAnalytics } from "../../lib/deanAnalytics";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -40,13 +41,29 @@ async function loadAnalyticsData() {
   };
 }
 
-export default function DeanAnalytics() {
+// Wording per role. The data needs no role filter: row-level security already limits a professor to their own
+// courses, exams, attempts and violations.
+const SCOPE_TEXT = {
+  dean: {
+    subtitle: "Exam results and integrity across periods and sections, with recommendations for follow-up.",
+    missedExams: "Missed exams are not counted, because exam assignments are visible only to professors.",
+  },
+  professor: {
+    subtitle: "Exam results and integrity across your periods and sections, with recommendations for follow-up.",
+    missedExams: "Missed exams are not counted.",
+  },
+};
+
+export default function DeanAnalytics({ scope = "dean" }) {
   const chartTheme = useChartTheme();
+  const { user } = useAuth();
+  const text = SCOPE_TEXT[scope] || SCOPE_TEXT.dean;
   const [academicYear, setAcademicYear] = useState(ALL);
   const [semester, setSemester] = useState(ALL);
   const [programId, setProgramId] = useState(ALL);
   const [sort, setSort] = useState(SORTS[0]);
-  const query = useQuery({ queryKey: ["dean-analytics"], enabled: hasSupabaseConfig, queryFn: loadAnalyticsData });
+  // Keyed by role and user: the query cache is kept in the browser, so one account must never see another's results.
+  const query = useQuery({ queryKey: [`${scope}-analytics`, user?.id], enabled: hasSupabaseConfig && Boolean(user?.id), queryFn: loadAnalyticsData });
   const loading = hasSupabaseConfig && query.isLoading;
   const data = query.data;
 
@@ -120,7 +137,7 @@ export default function DeanAnalytics() {
     <section className="dean-dashboard-page dean-insights-page">
       <header className="dean-dashboard-header">
         <h1>Analytics</h1>
-        <p>Exam results and integrity across periods and sections, with recommendations for follow-up.</p>
+        <p>{text.subtitle}</p>
       </header>
 
       <Card className="dean-dashboard-panel dean-dashboard-controls">
@@ -208,7 +225,7 @@ export default function DeanAnalytics() {
           <div className="dean-dashboard-section-header">
             <div>
               <h2>Students at risk of failing the next exam</h2>
-              <p>Predicted from each student&apos;s scores in the section: the average of their last 3 scores plus a quarter of their score trend (the weight that predicted best in the accuracy test). Missed exams are not counted, because exam assignments are visible only to professors.</p>
+              <p>Predicted from each student&apos;s scores in the section: the average of their last 3 scores plus a quarter of their score trend (the weight that predicted best in the accuracy test). {text.missedExams}</p>
             </div>
             <span>{loading ? <SkeletonValue /> : `${atRiskRows.length} student${atRiskRows.length === 1 ? "" : "s"}`}</span>
           </div>

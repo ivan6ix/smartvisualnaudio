@@ -3907,24 +3907,24 @@ html[data-appearance="dark"] .dean-sidebar {
   height: 320px;
   padding: 14px;
 }
-.dean-shell .recharts-cartesian-grid line {
+:is(.dean-shell, .dean-insights-page, .dean-integrity-page) .recharts-cartesian-grid line {
   stroke: rgba(125, 211, 252, 0.14);
 }
-.dean-shell .recharts-text,
-.dean-shell .recharts-legend-item-text {
+:is(.dean-shell, .dean-insights-page, .dean-integrity-page) .recharts-text,
+:is(.dean-shell, .dean-insights-page, .dean-integrity-page) .recharts-legend-item-text {
   fill: var(--app-text-muted);
 }
-.dean-shell .recharts-tooltip-wrapper {
+:is(.dean-shell, .dean-insights-page, .dean-integrity-page) .recharts-tooltip-wrapper {
   color: var(--app-text);
 }
-.dean-shell .dean-integrity-link {
+:is(.dean-shell, .dean-integrity-page) .dean-integrity-link {
   color: var(--accent);
   font-weight: 800;
 }
-.dean-shell .dean-integrity-link:hover {
+:is(.dean-shell, .dean-integrity-page) .dean-integrity-link:hover {
   color: var(--app-text);
 }
-.dean-shell .dean-integrity-audio {
+:is(.dean-shell, .dean-integrity-page) .dean-integrity-audio {
   border-radius: 999px;
   background: var(--app-surface);
 }

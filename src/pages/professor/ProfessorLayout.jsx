@@ -1,7 +1,7 @@
 import MessageMenu from "../../components/MessageMenu";
 import NotificationBell from "../../components/NotificationBell";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FiAlertTriangle, FiBookOpen, FiClipboard, FiFileText, FiMenu, FiMonitor, FiMoon, FiSettings, FiSun, FiUser, FiX } from "react-icons/fi";
+import { FiAlertTriangle, FiBookOpen, FiClipboard, FiFileText, FiMenu, FiMonitor, FiMoon, FiSettings, FiShield, FiSun, FiTrendingUp, FiUser, FiX } from "react-icons/fi";
 import { NavLink, Navigate, Outlet, useLocation, useNavigate } from "react-router-dom";
 import MessageModal from "../../components/MessageModal";
 import ProfileAvatar from "../../components/ProfileAvatar";
@@ -19,6 +19,8 @@ const professorNavigation = [
   { label: "Exams", to: "/professor/exams", icon: FiFileText },
   { label: "Scores", to: "/professor/scores", icon: FiUser },
   { label: "Monitoring", to: "/professor/monitoring", icon: FiMonitor },
+  { label: "Analytics", to: "/professor/analytics", icon: FiTrendingUp },
+  { label: "Exam Integrity", to: "/professor/integrity", icon: FiShield },
 ];
 
 const professorUtilityNavigation = [

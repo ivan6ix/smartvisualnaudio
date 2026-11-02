@@ -17,7 +17,7 @@ assert.match(integrity, /from\("profiles"\)[\s\S]*select\("id, full_name, studen
 assert.match(integrity, /from\("exams"\)[\s\S]*select\("id, title(, [a-z_, ]+)?"\)/, "Existing exam lookup must be preserved.");
 assert.match(integrity, /SearchBox[\s\S]*placeholder="Search student, exam, or violation"/, "Existing search behavior must remain visible.");
 assert.match(integrity, /Severity Filter[\s\S]*Violation Type/, "Existing filters must remain visible.");
-assert.match(integrity, /useListViewPreference\(\{ role: "dean", page: "exam-integrity", defaultView: "table" \}\)/, "Cards/Table preference must remain table-first.");
+assert.match(integrity, /useListViewPreference\(\{ role: scope, page: "exam-integrity", defaultView: "table" \}\)/, "Cards/Table preference must remain table-first (kept per role).");
 assert.match(integrity, /ListViewToolbar[\s\S]*onCardDensity[\s\S]*onTableDensity/, "View and density controls must remain wired.");
 assert.match(integrity, /getListPageSlice\(filteredViolations, page, listView\.pageSize\)/, "Shared pagination must remain wired.");
 assert.match(integrity, /Student[\s\S]*Student ID[\s\S]*Exam[\s\S]*Violation[\s\S]*Severity[\s\S]*Date[\s\S]*Time[\s\S]*Evidence/, "Actual integrity table columns must remain present.");
@@ -30,7 +30,7 @@ assert.match(integrity, /function EvidenceCell[\s\S]*createSignedUrl\(row\.evide
 assert.match(integrity, /if \(!row\.evidencePath \|\| !row\.evidenceBucket\) return "-";/, "Missing evidence must render without broken media.");
 assert.match(integrity, /row\.evidenceKind === "audio"[\s\S]*<audio className="dean-integrity-audio" controls src=\{signedUrl\}>/, "Audio evidence must remain on-demand and playable only after signing.");
 assert.match(integrity, /window\.open\("", "_blank"\)[\s\S]*pendingWindow\.location\.href = nextUrl/, "Screenshot evidence should open only after an on-demand signed URL is created.");
-assert.match(integrity, /channel\("dean-exam-integrity"\)[\s\S]*postgres_changes[\s\S]*table: "violations"[\s\S]*removeChannel\(channel\)/, "Single realtime subscription lifecycle must remain scoped and cleaned up.");
+assert.match(integrity, /channel\(isProfessor \? "professor-exam-integrity" : "dean-exam-integrity"\)[\s\S]*postgres_changes[\s\S]*table: "violations"[\s\S]*removeChannel\(channel\)/, "Single realtime subscription lifecycle must remain scoped and cleaned up.");
 assert.doesNotMatch(integrity, /Promise\.all\([\s\S]*createSignedUrl/, "Evidence must not be signed eagerly for every row.");
 
 assert.match(styles, /\.dean-integrity-table-scroll\s*\{[\s\S]*overflow:\s*auto/, "Integrity table must use local scroll.");

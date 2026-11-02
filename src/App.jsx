@@ -38,6 +38,8 @@ const pageImports = {
   ProfessorMessages: () => import("./pages/professor/ProfessorMessages"),
   ProfessorMonitoring: () => import("./pages/professor/ProfessorMonitoring"),
   ProfessorScores: () => import("./pages/professor/ProfessorScores"),
+  ProfessorAnalytics: () => import("./pages/professor/ProfessorAnalytics"),
+  ProfessorExamIntegrity: () => import("./pages/professor/ProfessorExamIntegrity"),
   Register: () => import("./pages/Register"),
   Reports: () => import("./pages/Reports"),
   ResetPassword: () => import("./pages/ResetPassword"),
@@ -84,6 +86,8 @@ const ProfessorLayout = lazy(pageImports.ProfessorLayout);
 const ProfessorMessages = lazy(pageImports.ProfessorMessages);
 const ProfessorMonitoring = lazy(pageImports.ProfessorMonitoring);
 const ProfessorScores = lazy(pageImports.ProfessorScores);
+const ProfessorAnalytics = lazy(pageImports.ProfessorAnalytics);
+const ProfessorExamIntegrity = lazy(pageImports.ProfessorExamIntegrity);
 const Register = lazy(pageImports.Register);
 const Reports = lazy(pageImports.Reports);
 const ResetPassword = lazy(pageImports.ResetPassword);
@@ -129,6 +133,8 @@ function getPageImportForPath(pathname) {
     "/professor/exams/create": pageImports.ProfessorCreateExam,
     "/professor/monitoring": pageImports.ProfessorMonitoring,
     "/professor/scores": pageImports.ProfessorScores,
+    "/professor/analytics": pageImports.ProfessorAnalytics,
+    "/professor/integrity": pageImports.ProfessorExamIntegrity,
     "/professor/messages": pageImports.ProfessorMessages,
     "/professor/notifications": pageImports.Notifications,
     "/cluster": pageImports.ClusterDashboard,
@@ -199,6 +205,8 @@ export default function App() {
           <Route path="exams" element={<ProfessorExams />} />
           <Route path="exams/create" element={<ProfessorCreateExam />} />
           <Route path="monitoring" element={<ProfessorMonitoring />} />
+          <Route path="analytics" element={<ProfessorAnalytics />} />
+          <Route path="integrity" element={<ProfessorExamIntegrity />} />
           <Route path="scores" element={<ProfessorScores />} />
           <Route path="scores/:examId" element={<ProfessorScores />} />
           <Route path="scores/:examId/attempt/:attemptId" element={<ProfessorScores />} />

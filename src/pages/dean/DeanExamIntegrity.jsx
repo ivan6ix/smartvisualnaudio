@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FiActivity, FiAlertTriangle, FiCamera, FiShield } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiCamera, FiShield, FiX } from "react-icons/fi";
+import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { toast } from "sonner";
 import IntegrityReview from "../../components/exam/IntegrityReview";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
-import { Badge, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonValue, Table } from "../../components/ui";
+import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
+import { useChartTheme } from "../../context/ThemeContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { buildRiskQueue, latestSubmittedAttempts, summarizeIntegrity } from "../../lib/integrityRisk";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
+import { ALL_FILTERS, VIOLATION_DATE_RANGES, countByViolationType, filterViolations, violationFilterOptions } from "../../lib/violationFilters";
 
 const violationLabels = {
   MULTIPLE_FACE: "Multiple face detected",
@@ -94,7 +97,11 @@ function EvidenceCell({ row }) {
   );
 }
 
-export default function DeanExamIntegrity() {
+// Shared by the dean and professor Exam Integrity pages. Row-level security limits a professor to the violations
+// and attempts of their own exams; the professor page also gets the dean dashboard's Violation Analytics filters.
+export default function DeanExamIntegrity({ scope = "dean" }) {
+  const isProfessor = scope === "professor";
+  const chartTheme = useChartTheme();
   const [violations, setViolations] = useState([]);
   const [risk, setRisk] = useState(null);
   const [loading, setLoading] = useState(Boolean(hasSupabaseConfig));
@@ -102,8 +109,9 @@ export default function DeanExamIntegrity() {
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("All");
   const [severity, setSeverity] = useState("All Severities");
+  const [filters, setFilters] = useState(ALL_FILTERS);
   const [page, setPage] = useState(1);
-  const listView = useListViewPreference({ role: "dean", page: "exam-integrity", defaultView: "table" });
+  const listView = useListViewPreference({ role: scope, page: "exam-integrity", defaultView: "table" });
 
   useEffect(() => {
     if (!hasSupabaseConfig) {
@@ -131,7 +139,7 @@ export default function DeanExamIntegrity() {
 
       const [examsResponse, attemptsResponse] = await Promise.all([
         examIds.length
-          ? supabase.from("exams").select("id, title, duration, time_limit").in("id", examIds)
+          ? supabase.from("exams").select("id, title, duration, time_limit, course_id").in("id", examIds)
           : Promise.resolve({ data: [] }),
         examIds.length
           ? supabase.from("exam_attempts").select("id, exam_id, student_id, score, status, started_at, submitted_at").in("exam_id", examIds).limit(10000)
@@ -139,12 +147,19 @@ export default function DeanExamIntegrity() {
       ]);
       const finalAttempts = latestSubmittedAttempts(attemptsResponse.data || []);
       const studentIds = [...new Set([...(data || []), ...finalAttempts].map((row) => row.student_id).filter(Boolean))];
-      const profilesResponse = studentIds.length
-        ? await supabase.from("profiles").select("id, full_name, student_number, email").in("id", studentIds)
-        : { data: [] };
+      const courseIds = [...new Set((examsResponse.data || []).map((exam) => exam.course_id).filter(Boolean))];
+      const [profilesResponse, coursesResponse] = await Promise.all([
+        studentIds.length
+          ? supabase.from("profiles").select("id, full_name, student_number, email").in("id", studentIds)
+          : Promise.resolve({ data: [] }),
+        courseIds.length
+          ? supabase.from("courses").select("id, course_code, section, course_name").in("id", courseIds)
+          : Promise.resolve({ data: [] }),
+      ]);
 
       const profilesById = new Map((profilesResponse.data || []).map((profile) => [profile.id, profile]));
       const examsById = new Map((examsResponse.data || []).map((exam) => [exam.id, exam]));
+      const coursesById = new Map((coursesResponse.data || []).map((course) => [course.id, course]));
 
       const durationByExam = Object.fromEntries((examsResponse.data || []).map((exam) => [exam.id, Number(exam.duration || exam.time_limit) || null]));
       const queue = buildRiskQueue({ attempts: finalAttempts, violations: data || [], durationByExam });
@@ -165,6 +180,7 @@ export default function DeanExamIntegrity() {
         const { date, time } = formatDateTime(violation.created_at);
         const profile = profilesById.get(violation.student_id);
         const exam = examsById.get(violation.exam_id);
+        const course = exam?.course_id ? coursesById.get(exam.course_id) : null;
         const evidencePath = violation.evidence_url || violation.screenshot_url;
         const isAudio = violation.evidence_type === "audio" || /\.(webm|mp3|wav|m4a|ogg)$/i.test(evidencePath || "");
 
@@ -173,6 +189,8 @@ export default function DeanExamIntegrity() {
           student: profile?.full_name || profile?.email || "Unknown student",
           studentNumber: profile?.student_number || "-",
           exam: exam?.title || "Unknown exam",
+          course: course ? [course.course_code || course.course_name, course.section].filter(Boolean).join(" - ") : "-",
+          timestamp: new Date(violation.created_at).getTime() || 0,
           violationType: violationLabels[violation.violation_type] || violation.violation_type || "Monitoring alert",
           description: violation.description || (violation.audio_level ? `Audio level: ${violation.audio_level}%` : "-"),
           severity: violation.severity || "Low",
@@ -192,7 +210,7 @@ export default function DeanExamIntegrity() {
     loadViolations();
 
     const channel = supabase
-      .channel("dean-exam-integrity")
+      .channel(isProfessor ? "professor-exam-integrity" : "dean-exam-integrity")
       .on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => {
         loadViolations();
       })
@@ -201,13 +219,18 @@ export default function DeanExamIntegrity() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, []);
+  }, [isProfessor]);
 
-  const filteredViolations = useMemo(() => violations.filter((violation) => {
+  const filteredViolations = useMemo(() => (isProfessor ? filterViolations(violations, filters) : violations.filter((violation) => {
     const matchesSeverity = severity === "All Severities" || violation.severity === severity;
     const matchesSearch = `${violation.student} ${violation.studentNumber} ${violation.exam} ${violation.violationType}`.toLowerCase().includes(search.toLowerCase());
     return matchesSeverity && matchesSearch && (typeFilter === "All" || violation.violationType === typeFilter);
-  }), [search, severity, violations, typeFilter]);
+  })), [filters, isProfessor, search, severity, violations, typeFilter]);
+  const filterOptions = useMemo(() => violationFilterOptions(violations, filters.course), [filters.course, violations]);
+  const setFilter = (key, value) => {
+    setFilters((current) => ({ ...current, [key]: value, ...(key === "course" ? { exam: ALL_FILTERS.exam } : {}) }));
+    setPage(1);
+  };
 
   const highCount = violations.filter((violation) => violation.severity === "High").length;
   const snapshotCount = violations.filter((violation) => violation.hasEvidence).length;
@@ -234,7 +257,7 @@ export default function DeanExamIntegrity() {
     <section className="dean-integrity-page">
       <header className="dean-dashboard-header dean-integrity-header">
         <h1>Exam Integrity</h1>
-        <p>Review examination integrity records and recorded monitoring events.</p>
+        <p>{isProfessor ? "Review integrity records and monitoring events across your exams." : "Review examination integrity records and recorded monitoring events."}</p>
       </header>
 
       <div className="dean-kpi-grid dean-integrity-kpi-grid">
@@ -254,23 +277,78 @@ export default function DeanExamIntegrity() {
         ))}
       </div>
 
-      <Card className="dean-dashboard-panel dean-integrity-controls">
-        <div className="dean-integrity-search-row">
-          <SearchBox value={search} onChange={setSearch} placeholder="Search student, exam, or violation" />
-        </div>
-        <div className="dean-integrity-filter-row">
-          <SelectField label="Severity Filter" value={severity} onChange={(event) => setSeverity(event.target.value)}>
-            <option>All Severities</option>
-            <option>High</option>
-            <option>Medium</option>
-            <option>Low</option>
-          </SelectField>
-          <SelectField label="Violation Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-            <option>All</option>
-            {[...new Set(violations.map((item) => item.violationType))].filter(Boolean).map((type) => <option key={type}>{type}</option>)}
-          </SelectField>
-        </div>
-      </Card>
+      {isProfessor ? (
+        <>
+          <Card className="dean-dashboard-panel dean-dashboard-controls">
+            <div className="dean-dashboard-search-row">
+              <SearchBox value={filters.search} onChange={(value) => setFilter("search", value)} placeholder="Search students, exams, courses, or violations..." />
+              {filters.search ? <Button variant="light" onClick={() => setFilter("search", "")}><FiX /> Clear</Button> : null}
+            </div>
+            <div className="dean-dashboard-filters">
+              <SelectField label="Date Range" value={filters.dateRange} onChange={(event) => setFilter("dateRange", event.target.value)}>
+                {VIOLATION_DATE_RANGES.map((range) => <option key={range}>{range}</option>)}
+              </SelectField>
+              <SelectField label="Course" value={filters.course} onChange={(event) => setFilter("course", event.target.value)}>
+                <option>{ALL_FILTERS.course}</option>
+                {filterOptions.courses.map((course) => <option key={course}>{course}</option>)}
+              </SelectField>
+              <SelectField label="Exam" value={filters.exam} onChange={(event) => setFilter("exam", event.target.value)}>
+                <option>{ALL_FILTERS.exam}</option>
+                {filterOptions.exams.map((exam) => <option key={exam}>{exam}</option>)}
+              </SelectField>
+              <SelectField label="Violation Type" value={filters.type} onChange={(event) => setFilter("type", event.target.value)}>
+                <option>{ALL_FILTERS.type}</option>
+                {filterOptions.types.map((type) => <option key={type}>{type}</option>)}
+              </SelectField>
+              <SelectField label="Severity" value={filters.severity} onChange={(event) => setFilter("severity", event.target.value)}>
+                <option>{ALL_FILTERS.severity}</option>
+                {filterOptions.severities.map((item) => <option key={item}>{item}</option>)}
+              </SelectField>
+              <Button variant="light" onClick={() => { setFilters(ALL_FILTERS); setPage(1); }}>Reset Filters</Button>
+            </div>
+          </Card>
+          <Card className="dean-dashboard-panel dean-analytics-panel">
+            <div className="dean-dashboard-section-header">
+              <div>
+                <h2>Violation Analytics</h2>
+                <p>Alerts in your exams that match the filters, by type.</p>
+              </div>
+              <span>{loading ? <SkeletonValue /> : `${filteredViolations.length} matching records`}</span>
+            </div>
+            <div className="chart-box dean-chart-box">
+              {loading ? <SkeletonBlock className="skeleton-chart" /> : filteredViolations.length ? (
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={countByViolationType(filteredViolations)}>
+                    <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
+                    <XAxis axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} />
+                    <YAxis allowDecimals={false} axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} tick={{ fill: chartTheme.axis }} />
+                    <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
+                    <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : <EmptyState title="No matching records found." description="Adjust the search or filters to show analytics." />}
+            </div>
+          </Card>
+        </>
+      ) : (
+        <Card className="dean-dashboard-panel dean-integrity-controls">
+          <div className="dean-integrity-search-row">
+            <SearchBox value={search} onChange={setSearch} placeholder="Search student, exam, or violation" />
+          </div>
+          <div className="dean-integrity-filter-row">
+            <SelectField label="Severity Filter" value={severity} onChange={(event) => setSeverity(event.target.value)}>
+              <option>All Severities</option>
+              <option>High</option>
+              <option>Medium</option>
+              <option>Low</option>
+            </SelectField>
+            <SelectField label="Violation Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
+              <option>All</option>
+              {[...new Set(violations.map((item) => item.violationType))].filter(Boolean).map((type) => <option key={type}>{type}</option>)}
+            </SelectField>
+          </div>
+        </Card>
+      )}
 
       <Card className="dean-dashboard-panel dean-integrity-risk-panel">
         <div className="dean-dashboard-section-header">

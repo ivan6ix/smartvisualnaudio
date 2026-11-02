@@ -8,6 +8,7 @@ import { useChartTheme } from "../../context/ThemeContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { violationChart } from "../../data/mockData";
 import { getListPageSlice } from "../../lib/listView";
+import { VIOLATION_DATE_RANGES, filterViolations, violationFilterOptions } from "../../lib/violationFilters";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const defaultStats = {
@@ -40,7 +41,6 @@ const deviceViolationLabels = {
   MICROPHONE_ACCESS_LOST: "Microphone Access Lost",
 };
 
-const dateRanges = ["All Time", "Today", "Last 7 Days", "Last 30 Days"];
 const emptyViolations = [];
 
 async function countRows(query) {
@@ -58,14 +58,6 @@ function formatDateTime(value) {
     time: date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
     timestamp: date.getTime(),
   };
-}
-
-function getRangeStart(range) {
-  const now = new Date();
-  if (range === "Today") return new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-  if (range === "Last 7 Days") return now.getTime() - 7 * 24 * 60 * 60 * 1000;
-  if (range === "Last 30 Days") return now.getTime() - 30 * 24 * 60 * 60 * 1000;
-  return 0;
 }
 
 function severityTone(severity) {
@@ -156,28 +148,14 @@ export default function DeanDashboard() {
   const stats = hasSupabaseConfig ? dashboardQuery.data?.stats || defaultStats : defaultStats;
   const violations = hasSupabaseConfig ? dashboardQuery.data?.violations || emptyViolations : emptyViolations;
 
-  const filteredViolations = useMemo(() => {
-    const term = search.trim().toLowerCase();
-    const rangeStart = getRangeStart(dateRange);
-
-    return violations.filter((violation) => {
-      const matchesDate = !rangeStart || violation.timestamp >= rangeStart;
-      const matchesCourse = courseFilter === "All Courses" || violation.course === courseFilter;
-      const matchesExam = examFilter === "All Exams" || violation.exam === examFilter;
-      const matchesType = typeFilter === "All Violations" || violation.violationType === typeFilter;
-      const matchesSeverity = severityFilter === "All Severities" || violation.severity === severityFilter;
-      const matchesSearch = !term || [
-        violation.student,
-        violation.studentNumber,
-        violation.course,
-        violation.exam,
-        violation.violationType,
-        violation.description,
-      ].join(" ").toLowerCase().includes(term);
-
-      return matchesDate && matchesCourse && matchesExam && matchesType && matchesSeverity && matchesSearch;
-    });
-  }, [courseFilter, dateRange, examFilter, search, severityFilter, typeFilter, violations]);
+  const filteredViolations = useMemo(() => filterViolations(violations, {
+    search,
+    dateRange,
+    course: courseFilter,
+    exam: examFilter,
+    type: typeFilter,
+    severity: severityFilter,
+  }), [courseFilter, dateRange, examFilter, search, severityFilter, typeFilter, violations]);
 
   const violationData = hasSupabaseConfig
     ? Object.entries(violationLabels).map(([key, name]) => ({
@@ -186,13 +164,7 @@ export default function DeanDashboard() {
       }))
     : violationChart;
 
-  const courseOptions = [...new Set(violations.map((violation) => violation.course).filter((course) => course && course !== "-"))];
-  const examOptions = [...new Set(violations
-    .filter((violation) => courseFilter === "All Courses" || violation.course === courseFilter)
-    .map((violation) => violation.exam)
-    .filter((exam) => exam && exam !== "Unknown exam"))];
-  const typeOptions = [...new Set(violations.map((violation) => violation.violationType).filter(Boolean))];
-  const severityOptions = [...new Set(violations.map((violation) => violation.severity).filter(Boolean))];
+  const { courses: courseOptions, exams: examOptions, types: typeOptions, severities: severityOptions } = violationFilterOptions(violations, courseFilter);
 
   function resetFilters() {
     setSearch("");
@@ -245,7 +217,7 @@ export default function DeanDashboard() {
         </div>
         <div className="dean-dashboard-filters">
           <SelectField label="Date Range" value={dateRange} onChange={(event) => setDateRange(event.target.value)}>
-            {dateRanges.map((range) => <option key={range}>{range}</option>)}
+            {VIOLATION_DATE_RANGES.map((range) => <option key={range}>{range}</option>)}
           </SelectField>
           <SelectField label="Course" value={courseFilter} onChange={(event) => { setCourseFilter(event.target.value); setExamFilter("All Exams"); }}>
             <option>All Courses</option>
