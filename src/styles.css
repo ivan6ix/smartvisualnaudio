@@ -2206,7 +2206,7 @@ html[data-theme="dark"] .admin-sidebar {
 .programs-table-wrap td,
 .courses-table-wrap th,
 .courses-table-wrap td {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .programs-table-wrap .actions-heading,
 .programs-table-wrap .actions,
@@ -2531,7 +2531,7 @@ html[data-appearance="light"] .admin-section-page .btn.danger:focus-visible {
 }
 .active-session-item strong {
   color: var(--app-text);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .active-session-item span {
   color: var(--app-text-muted);
@@ -2990,7 +2990,7 @@ html[data-theme="light"] .profile-remove-actions button.danger {
   border: 1px solid var(--app-line);
   padding: 14px;
   color: var(--app-text);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   transition: transform 0.18s ease;
   cursor: grab;
   user-select: none;
@@ -4039,7 +4039,7 @@ html[data-appearance="dark"] .dean-sidebar {
 }
 .dean-integrity-table th,
 .dean-integrity-table td {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .dean-integrity-table .dean-integrity-primary {
   color: var(--text-primary);
@@ -4159,7 +4159,7 @@ button.dean-integrity-link {
 }
 .dean-courses-table th,
 .dean-courses-table td {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .dean-courses-table td:first-child {
   color: var(--text-primary);
@@ -4321,7 +4321,7 @@ html[data-appearance="dark"] .dean-courses-records-panel .list-record-card {
 }
 .dean-reports-table th,
 .dean-reports-table td {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .dean-reports-table td:first-child {
   color: var(--text-primary);
@@ -4529,7 +4529,7 @@ html[data-theme="light"] .list-view-segment button.active {
 .list-record-card dd {
   color: var(--app-text);
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .list-record-card dl {
   display: grid;
@@ -4591,7 +4591,7 @@ html[data-appearance="dark"] .admin-section-page .record-card__header {
   font-size: 0.95rem;
   line-height: 1.3;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .admin-section-page .record-card__body {
   display: grid;
@@ -4616,7 +4616,7 @@ html[data-appearance="dark"] .admin-section-page .record-card__header {
   font-weight: 700;
   margin: 0;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 html[data-theme="light"] .admin-section-page .record-card__value {
   color: #0f172a;
@@ -4898,7 +4898,7 @@ html[data-appearance="dark"] .professor-dashboard-page .professor-ongoing-footer
 }
 .professor-ongoing-exam-main strong {
   font-size: .95rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-ongoing-course-cell {
   display: grid;
@@ -4930,7 +4930,7 @@ html[data-appearance="dark"] .professor-dashboard-page .professor-ongoing-footer
   line-height: 1.3;
   margin: 0 auto 6px;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   padding: 8px 14px;
 }
 .professor-ongoing-detail {
@@ -5234,7 +5234,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .professor-course-list-card span,
 .professor-course-list-card small,
 .professor-course-list-card em {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-course-list-card strong {
   color: var(--app-text);
@@ -6371,7 +6371,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   margin: 0;
   color: var(--app-text);
   white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   line-height: 1.5;
 }
 .professor-exams-page {
@@ -6499,7 +6499,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .professor-draft-row strong,
 .professor-draft-row span,
 .professor-draft-row small {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-draft-row span,
 .professor-draft-row small {
@@ -6711,7 +6711,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   font-size: 0.78rem;
   font-weight: 600;
   line-height: 1.4;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-exam-actions {
   display: flex;
@@ -6968,7 +6968,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .professor-share-targets article span {
   display: block;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-share-targets article strong {
   color: var(--app-text);
@@ -7403,7 +7403,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .professor-shell .professor-exams-section .professor-exams-table th,
 .professor-shell .professor-exams-section .professor-exams-table td {
   padding: 10px 12px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   word-break: normal;
 }
 .professor-exams-section .professor-exams-table th:first-child,
@@ -7447,7 +7447,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .professor-exams-section .professor-exams-table td:first-child strong {
   display: block;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-exams-section .professor-status-stack,
 .professor-shell .professor-exams-section .professor-status-stack {
@@ -7578,7 +7578,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   border-left: 3px solid var(--app-primary, #2563eb);
   color: var(--app-text);
   padding-left: 12px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-course-picker details {
   min-width: 0;
@@ -7639,7 +7639,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   flex: 1;
   gap: 2px;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-course-picker-options label strong {
   font-size: 0.92rem;
@@ -7668,7 +7668,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   display: inline-flex;
   gap: 5px;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   padding: 4px 6px;
 }
 .professor-selected-course-chip button {
@@ -7693,7 +7693,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   width: 100%;
 }
 .professor-publish-modal .professor-delete-summary span {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-shared-label {
   color: var(--app-text-muted);
@@ -8851,7 +8851,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .student-available-exams-table th,
 .student-available-exams-table td {
   letter-spacing: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   padding-inline: 6px;
   white-space: normal;
 }
@@ -8874,7 +8874,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .student-available-exams-table td:nth-child(2) span,
 .student-available-exams-table td:nth-child(2) small {
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .student-available-exams-table td:nth-child(2) small {
   color: var(--app-text-muted);
@@ -8933,7 +8933,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   display: block;
   color: var(--app-text);
   font-size: 1rem;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .student-available-exam-main span,
 .student-available-exam-main small {
@@ -8942,7 +8942,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   font-size: 12px;
   line-height: 1.35;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .student-available-exam-actions {
   display: flex;
@@ -9281,7 +9281,7 @@ html[data-theme="light"] .professor-course-list-card:hover {
   padding: 3px 9px;
   font-size: 0.74rem;
   font-weight: 700;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .student-proctor-pills svg {
   color: var(--accent);
@@ -10338,7 +10338,7 @@ html[data-appearance] .student-exam-take-page .page-header,
   display: block;
   max-width: 100%;
   color: var(--app-text);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   line-height: 1.35;
 }
 .student-file-list article > div:first-child span {
@@ -10817,7 +10817,7 @@ html[data-appearance] .student-exam-take-page .page-header,
 }
 .student-material-items section strong,
 .student-material-items section span {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .student-material-items section strong {
   color: var(--app-text);
@@ -11312,7 +11312,7 @@ html[data-appearance] .student-exam-take-page .page-header,
 .module-archive-list strong,
 .module-archive-list span {
   display: block;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .module-archive-list span {
   color: var(--app-text-muted);
@@ -11475,7 +11475,7 @@ html[data-appearance] .student-exam-take-page .page-header,
 .professor-permit-file-list strong,
 .professor-permit-file-list span {
   display: block;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-permit-folder-grid span,
 .professor-permit-file-list span {
@@ -11572,7 +11572,7 @@ html[data-appearance] .student-exam-take-page .page-header,
 .module-preview-modal p {
   margin: 5px 0 0;
   color: var(--app-text-muted);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .module-preview-modal header button {
   width: 40px;
@@ -11774,7 +11774,7 @@ html[data-appearance] .student-exam-take-page .page-header,
 .professor-material-items section span {
   display: block;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-material-items section strong {
   color: var(--app-text);
@@ -12472,7 +12472,7 @@ html[data-appearance="light"] .cluster-reports-panel {
   font-size: 1.22rem;
   line-height: 1.25;
   margin: 4px 0 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .cluster-exam-details-grid {
   display: grid;
@@ -12496,7 +12496,7 @@ html[data-appearance="light"] .cluster-reports-panel {
   font-size: 0.95rem;
   font-weight: 700;
   line-height: 1.35;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .cluster-exam-question-list article {
   border-radius: 8px;
@@ -12652,7 +12652,7 @@ html[data-appearance="light"] .cluster-reports-panel {
 }
 .cluster-exam-question-header span {
   flex: 0 1 auto;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   text-align: right;
 }
 .cluster-question-review-block {
@@ -12677,7 +12677,7 @@ html[data-appearance="light"] .cluster-reports-panel {
   padding: 10px 12px;
 }
 .cluster-choice-row span {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .cluster-choice-row b {
   color: var(--success);
@@ -12699,7 +12699,7 @@ html[data-appearance="light"] .cluster-reports-panel {
 .cluster-question-review-block p,
 .cluster-match-review span,
 .cluster-match-review b {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .cluster-match-review {
   display: grid;
@@ -12957,7 +12957,7 @@ html[data-appearance="light"] .cluster-exam-review-panel {
   background: var(--app-surface);
   color: var(--app-text);
   padding: 10px 12px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .floating-chat-row.mine p {
   border-color: transparent;
@@ -15569,7 +15569,7 @@ html[data-theme="light"] :is(
   .dean-reports-table { min-width: 860px; }
   .dean-dashboard-section-header { align-items: flex-start; flex-direction: column; }
   .nav-tools { flex-wrap: wrap; }
-  .profile-menu > button span { display: none; }
+  .profile-menu > button span:not(.profile-avatar) { display: none; }
   .card { padding: 18px; border-radius: 24px; }
   .page-header h1 { font-size: 1.8rem; }
   .message-panel {
@@ -16176,7 +16176,7 @@ html[data-theme="light"] .legal-back-link {
 }
 .audit-log-details dd {
   margin:4px 0 0;
-  overflow-wrap:anywhere;
+  overflow-wrap: break-word;
   color:var(--app-text);
 }
 .audit-log-metadata {
@@ -16261,7 +16261,7 @@ svg {
 }
 
 :is(.page-header, .card, .field, .student-card, .professor-create-card, .professor-exam-card, .list-card, .notification-menu-panel, .message-menu-panel, .profile-menu > div, .cluster-profile-menu > div, .message-modal, .settings-modal, .modal, .student-resource-modal, .module-preview-modal, .module-archive-modal, .permit-request-modal, .professor-share-modal, .professor-monitoring-modal, .professor-score-modal, .professor-manual-modal, .audit-log-modal) {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .table-wrap,
@@ -16277,7 +16277,7 @@ svg {
 
 :is(.notification-menu-panel, .message-menu-panel, .profile-menu > div, .cluster-profile-menu > div, .professor-exam-actions-popover, .student-material-dropdown section, .professor-material-dropdown section) {
   max-width: calc(100vw - 24px);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 :is(.modal-backdrop, .settings-modal-backdrop, .student-modal-backdrop, .message-modal-backdrop, .professor-monitoring-backdrop, .avatar-crop-backdrop) {
@@ -16344,7 +16344,7 @@ svg {
 .student-order-row span,
 .student-exam-question p,
 .student-exam-question label {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .student-exam-lock-overlay {
@@ -16453,8 +16453,8 @@ svg {
   }
 
   :is(.nav-tools, .cluster-tools) > button span:not(.profile-avatar),
-  .profile-menu > button span,
-  .cluster-profile-menu > button span {
+  .profile-menu > button span:not(.profile-avatar),
+  .cluster-profile-menu > button span:not(.profile-avatar) {
     display: none;
   }
 
@@ -16820,7 +16820,7 @@ html[data-appearance="dark"] .professor-courses-page .professor-courses-panel {
   color: var(--text-primary);
   font-size: 0.9rem;
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-courses-page .professor-course-record-action {
   align-self: end;
@@ -17210,14 +17210,14 @@ html[data-appearance="dark"] .professor-course-detail-page .professor-course-men
   font-size: 1rem;
   line-height: 1.2;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-exams-page .professor-exam-record-header span:not(.professor-status-pill) {
   color: var(--text-secondary);
   display: block;
   font-size: 0.86rem;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-exams-page .professor-exam-record-body {
   display: grid;
@@ -17243,7 +17243,7 @@ html[data-appearance="dark"] .professor-course-detail-page .professor-course-men
   font-size: 0.9rem;
   margin: 0;
   min-width: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-exams-page .professor-exam-record-card .professor-exam-actions {
   justify-content: flex-end;
@@ -17317,7 +17317,7 @@ html[data-appearance="dark"] .professor-course-detail-page .professor-course-men
   color: var(--text-muted);
   font-size: 0.78rem;
   margin-top: 4px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-exams-page .professor-exams-table th:last-child,
 .professor-exams-page .professor-exams-table td:last-child {
@@ -17763,7 +17763,7 @@ html[data-appearance="dark"] .student-sidebar {
   color: var(--text-primary);
   font-size: 0.98rem;
   line-height: 1.2;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .student-dashboard-page .student-course-card span,
 .student-dashboard-page .student-course-card small,
@@ -17772,7 +17772,7 @@ html[data-appearance="dark"] .student-sidebar {
   color: var(--text-muted);
   font-size: 0.84rem;
   line-height: 1.35;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .student-dashboard-page .student-course-card i {
   background: rgba(37, 99, 235, 0.08);
@@ -18784,7 +18784,7 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   color: #2563eb;
 }
 .professor-pdfq-dropzone strong {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .professor-pdfq-dropzone span {
   color: var(--app-text-muted);
@@ -19608,7 +19608,7 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 .admin-app-shell[data-role="Admin"] .admin-section-page .bulk-register-table :is(th, td),
 .bulk-register-table :is(th, td) {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 .bulk-register-modal .account-modal-actions {
   margin-top: 16px;

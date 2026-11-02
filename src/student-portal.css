@@ -53,7 +53,7 @@
   font-weight: 700;
   line-height: 1.25;
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .student-app-shell :is(.student-dashboard-header, .student-page-header, .student-course-heading, .page-header, .admin-section-hero) p {
@@ -179,7 +179,7 @@
 .student-app-shell .list-table-wrap :is(th, td) { padding-inline: 14px; vertical-align: middle; }
 .student-app-shell .list-table-wrap th { white-space: nowrap; font-size: 0.75rem; font-weight: 650; }
 .student-app-shell .list-table-wrap :is(th, td):last-child { width: 100px; min-width: 100px; text-align: center; }
-.student-app-shell .list-table-wrap td :is(strong, span, small) { overflow-wrap: anywhere; }
+.student-app-shell .list-table-wrap td :is(strong, span, small) { overflow-wrap: break-word; }
 .student-app-shell .student-available-exams-table td:nth-child(2) :is(span, small) { display: block; }
 .student-app-shell .student-available-exams-table td:nth-child(2) small { margin-top: 5px; }
 .student-app-shell .list-table-dense :is(th, td) { padding-block: 8px; }
@@ -203,13 +203,13 @@
 .student-app-shell .student-grade-course-list { align-items: start; grid-auto-rows: auto; }
 .student-app-shell .student-grade-course { align-self: start; padding: 0; }
 .student-app-shell .student-grade-course-toggle { display: flex; border: 0; border-radius: 8px; box-shadow: none; gap: 12px; }
-.student-app-shell .student-grade-course-toggle > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.student-app-shell .student-grade-course-toggle > div:first-child { min-width: 0; overflow-wrap: break-word; }
 .student-app-shell .student-grade-course-toggle > div:last-child { min-width: auto; flex-shrink: 0; gap: 8px; }
 .student-app-shell .student-grade-course-toggle > div:last-child strong,
 .student-app-shell :is(.student-grade-pill, .student-grade-body footer) { background: var(--app-surface-muted); border: 1px solid var(--app-line); border-radius: 6px; font-weight: 600; }
 .student-app-shell .student-grade-body { margin: 0; border: 0; border-top: 1px solid var(--app-line); border-radius: 0 0 8px 8px; padding: 18px; }
 .student-app-shell .student-grade-row { border: 0; border-bottom: 1px solid var(--app-line); border-radius: 0; padding: 12px 0; box-shadow: none; }
-.student-app-shell .student-grade-row > div { min-width: 0; overflow-wrap: anywhere; }
+.student-app-shell .student-grade-row > div { min-width: 0; overflow-wrap: break-word; }
 .student-app-shell .student-grade-row b { font-weight: 600; }
 .student-app-shell .student-progress { background: var(--app-surface-muted); height: 6px; }
 .student-app-shell .student-progress span { background: var(--app-success); margin: 0; }
@@ -235,13 +235,13 @@
 .student-app-shell .profile-picture-upload { background: var(--app-surface-muted); color: var(--text-primary); }
 .student-app-shell .info-list span { display: grid; grid-template-columns: minmax(0, 1fr); gap: 5px; padding: 12px 0; border: 0; border-bottom: 1px solid var(--app-line); border-radius: 0; }
 .student-app-shell .info-list strong { font-weight: 600; }
-.student-app-shell .info-list strong { overflow-wrap: anywhere; }
+.student-app-shell .info-list strong { overflow-wrap: break-word; }
 .student-app-shell .settings-switch.on { background: var(--app-active); border-color: var(--primary); }
 .student-app-shell .settings-switch.on i { background: #2563eb; }
 .student-app-shell .student-sidebar-profile .profile-avatar { color: var(--text-primary); }
 .student-app-shell .notification-history-list article { border-radius: 8px; gap: 12px; }
 .student-app-shell .notification-history-list article.unread { border-left: 3px solid var(--primary); }
-.student-app-shell :is(.notification-history-main, .notification-history-main > *, .notification-toggle-row > div) { min-width: 0; overflow-wrap: anywhere; }
+.student-app-shell :is(.notification-history-main, .notification-history-main > *, .notification-toggle-row > div) { min-width: 0; overflow-wrap: break-word; }
 .student-app-shell :is(.notification-history-toolbar, .notification-pagination) { flex-wrap: wrap; }
 .student-app-shell :is(.message-panel, .floating-chat-box, .message-menu-panel, .notification-menu-panel, .profile-menu > div) { border-radius: 8px; }
 .student-app-shell :is(.conversation-list button, .bubble, .message-row) { border-radius: 8px; }

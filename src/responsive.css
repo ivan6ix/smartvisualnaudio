@@ -1,0 +1,128 @@
+/*
+ * Responsive layer for every role (admin, dean, professor, cluster professor, student).
+ * Loaded after styles.css and student-portal.css. Rules here only adapt sizes to the screen; they do not
+ * change the desktop design. !important is used only where a page-specific rule would otherwise keep a
+ * desktop size on a phone.
+ */
+
+/* Labels never split in the middle of a word, at any width. */
+th,
+.badge,
+[class*="status-pill"],
+td :is(button, .btn, a.btn) {
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+/* Page titles and section titles scale smoothly between phone and desktop. */
+@media (max-width: 1024px) {
+  main h1 {
+    font-size: clamp(1.45rem, 1.05rem + 1.7vw, 1.92rem) !important;
+    line-height: 1.2;
+  }
+  main h2 {
+    font-size: clamp(1.05rem, 0.92rem + 0.6vw, 1.3rem);
+  }
+
+  /* The dashboard's ongoing-exam list is a grid that already scrolls sideways; its count columns get room for
+     their 12 px headers ("VIOLATIONS"). Header and rows share the template so they stay aligned. */
+  main :is(.professor-ongoing-exam-head, .professor-ongoing-exam-row) {
+    grid-template-columns: minmax(190px, 1.25fr) minmax(140px, .9fr) minmax(90px, .55fr) minmax(190px, 1fr) repeat(4, minmax(96px, .45fr)) minmax(84px, .45fr);
+  }
+  main .professor-ongoing-exam-head > span {
+    white-space: nowrap;
+  }
+
+  /* Readable small text on phones and tablets: nothing under 12 px. */
+  main :is(th, .badge, [class*="status-pill"], small, dt, time),
+  main .professor-ongoing-exam-head > span,
+  main .professor-analytics-bin-labels > span,
+  main .settings-switch > span,
+  main [class*="kpi-card"] :is(span, small, p),
+  main [class*="stat-card"] :is(span, small, p) {
+    font-size: max(0.75rem, 12px) !important;
+  }
+}
+
+/* Phones and tablets */
+@media (max-width: 1024px) {
+  /* Page sections and cards may shrink to the screen; otherwise a wide table or chart widens the whole page and
+     the right side is cut off. Low specificity, so deliberate min-widths elsewhere still apply. */
+  main :where(section, div, article, header, aside, form, ul, li, fieldset) {
+    min-width: 0;
+  }
+
+  /* Wide tables scroll sideways inside their card instead of squeezing columns until words break. */
+  main :where(div, section):has(> table) {
+    max-width: 100%;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+  }
+  main table {
+    table-layout: auto !important;
+  }
+  main th,
+  main td :is(button, .btn, a.btn, .badge, [class*="status-pill"]) {
+    white-space: nowrap;
+  }
+}
+
+/* Phones */
+@media (max-width: 760px) {
+  /* Bar charts with many bins label every other bar so 12 px labels do not overlap. */
+  main .professor-analytics-bin-labels:has(> span:nth-child(7)) > span:nth-child(even) {
+    visibility: hidden;
+  }
+
+  /* Smaller cards: less padding, summary cards two per row. */
+  main :is(.card, .page-header, .admin-section-hero, .admin-dashboard-header, .admin-panel, [class*="kpi-card"], .stat-card, .admin-stat-card) {
+    padding: 14px !important;
+  }
+  main :is(.page-header, .admin-section-hero, .admin-dashboard-header) {
+    border-radius: 12px !important;
+    min-height: 0 !important;
+  }
+  main :is(.professor-stats-grid, .professor-analytics-kpis, .dean-kpi-grid, .cluster-kpi-grid, .admin-stats-grid, .stats-grid, .student-dashboard-summary-grid) {
+    display: grid !important;
+    gap: 10px !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+  main :is([class*="kpi-card"], .stat-card, .admin-stat-card) {
+    gap: 6px;
+    min-height: 0 !important;
+  }
+  main :is([class*="kpi-card"], .stat-card, .admin-stat-card) :is(strong, h3) {
+    font-size: clamp(1.25rem, 1rem + 1.2vw, 1.6rem) !important;
+    line-height: 1.15;
+  }
+  main :is([class*="kpi-card"], .stat-card, .admin-stat-card) svg {
+    height: 18px;
+    width: 18px;
+  }
+
+  /* Create Account header: the title stacks above the account count and buttons instead of squeezing them. */
+  main .account-create-hero {
+    align-items: stretch !important;
+    flex-direction: column !important;
+  }
+  main .account-create-hero .account-hero-actions {
+    width: 100%;
+  }
+
+  /* Pop-up windows fill the phone inside an 8 px margin, with tighter padding. */
+  :is(.modal-backdrop, [class*="-backdrop"]):has(> [role="dialog"]) {
+    padding: 8px !important;
+  }
+  [role="dialog"]:is(.modal, [class*="-modal"]) {
+    max-width: 100% !important;
+    padding: 16px !important;
+    width: 100% !important;
+  }
+}
+
+/* Very narrow phones (older or small Android devices) */
+@media (max-width: 380px) {
+  main :is(.card, [class*="kpi-card"], .stat-card, .admin-stat-card) {
+    padding: 12px !important;
+  }
+}
