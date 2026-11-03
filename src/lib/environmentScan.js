@@ -150,8 +150,10 @@ export function classifyAngleDetections({ angleId, frames = [] }) {
     let framesAtFloor = 0;
     let framesAtFlag = 0;
     let maxConfidence = 0;
+    // Which photos the item was seen in, so saved scan history can point at them.
+    const frameIndexes = [];
 
-    frames.forEach((frame) => {
+    frames.forEach((frame, frameIndex) => {
       const matches = (frame?.predictions || [])
         .map((prediction) => normalizePrediction(prediction))
         .filter((prediction) => prediction && findDetectionRule(prediction.label) === rule)
@@ -162,6 +164,7 @@ export function classifyAngleDetections({ angleId, frames = [] }) {
         const atFlag = atFloor.filter((item) => item.confidence >= rule.flag);
         if (atFloor.length > rule.allowed) {
           framesAtFloor += 1;
+          frameIndexes.push(frameIndex);
           maxConfidence = Math.max(maxConfidence, atFloor[rule.allowed].confidence);
         }
         if (atFlag.length > rule.allowed) framesAtFlag += 1;
@@ -169,7 +172,10 @@ export function classifyAngleDetections({ angleId, frames = [] }) {
       }
 
       const best = matches.reduce((max, item) => Math.max(max, item.confidence), 0);
-      if (best >= rule.floor) framesAtFloor += 1;
+      if (best >= rule.floor) {
+        framesAtFloor += 1;
+        frameIndexes.push(frameIndex);
+      }
       if (best >= rule.flag) framesAtFlag += 1;
       maxConfidence = Math.max(maxConfidence, best);
     });
@@ -185,6 +191,7 @@ export function classifyAngleDetections({ angleId, frames = [] }) {
       label: confirmed ? `${rule.label} detected` : `Possible ${rule.label.toLowerCase()}`,
       confidence: maxConfidence,
       detected: confirmed,
+      frameIndexes,
       severity: confirmed ? "risk" : "uncertain",
       reason: confirmed
         ? `${rule.label} detected (${percent(maxConfidence)}). Remove it from your exam area, then retake this step.`

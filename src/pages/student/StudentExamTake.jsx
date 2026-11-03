@@ -28,6 +28,7 @@ import {
   summarizeScan,
 } from "../../lib/environmentScan";
 import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../../lib/examCompatibility";
+import { saveScanStep } from "../../lib/environmentScanHistory";
 import { createLiveObjectMonitor } from "../../lib/liveObjectMonitor";
 import { detectWithOwl, loadOwlDetector } from "../../lib/owlClient";
 import { OWL_FRAMES_PER_STEP, pickOwlFrameIndexes, placeOwlFrames } from "../../lib/owlDetection";
@@ -444,6 +445,8 @@ export default function StudentExamTake() {
   const scanInactiveTimerRef = useRef(null);
   const scanCaptureInFlightRef = useRef(false);
   const scanRequestCounterRef = useRef(0);
+  // One saved-history id per scan attempt (a full restart starts a new attempt; retaking a step does not).
+  const scanHistoryIdsRef = useRef({});
   const scanDetectorLoadRef = useRef(null);
   const [scanOpen, setScanOpen] = useState(true);
   const [scanStatus, setScanStatus] = useState("idle");
@@ -1507,6 +1510,25 @@ export default function StudentExamTake() {
     });
     if (result.outcome === SCAN_OUTCOME.TECHNICAL) window.console.warn("[EnvironmentScan] Angle check failed.", angleId, result.reason);
     dispatchScan({ type: "analysis_resolved", angleId, requestId, outcome: result.outcome, findings: result.findings, reason: result.reason });
+    saveScanHistory(angleId, frames, result);
+  }
+
+  // Saves the checked step and its photos for the professor's scan history. Runs in the background: a failed save
+  // never holds up or blocks the student.
+  function saveScanHistory(angleId, frames, result) {
+    if (!hasSupabaseConfig || !user?.id || !examId) return;
+    const sessionId = scanStateRef.current.sessionId;
+    scanHistoryIdsRef.current[sessionId] ||= window.crypto.randomUUID();
+    saveScanStep({
+      supabase,
+      examId,
+      studentId: user.id,
+      scanId: scanHistoryIdsRef.current[sessionId],
+      step: angleId,
+      outcome: result.outcome,
+      findings: result.findings,
+      frames,
+    }).catch((error) => window.console.warn("[EnvironmentScan] Scan history was not saved.", error));
   }
 
   function retryScanAngleAnalysis(angleId) {
@@ -3220,7 +3242,7 @@ export default function StudentExamTake() {
             </div>
           ) : null}
           {scanStatus !== "passed" ? (
-            <p className="student-scan-ai-note">Scan photos are checked by an AI on your computer and may also be sent to Google Gemini for a second check. They are not saved by the exam system; on Google&apos;s free tier, Google may use them to improve its services.</p>
+            <p className="student-scan-ai-note">Scan photos are checked by an AI on your computer and may also be sent to Google Gemini for a second check; on Google&apos;s free tier, Google may use them to improve its services. The photos and results of each scan are saved, and only you, this exam&apos;s professor, and the school&apos;s Admin and Dean can view them.</p>
           ) : null}
           {scanActive && scanAiProgress !== null ? (
             <p className="student-scan-ai-note" aria-live="polite">Downloading the scan AI (first time only): {scanAiProgress}%. You can start the room sweep now.</p>

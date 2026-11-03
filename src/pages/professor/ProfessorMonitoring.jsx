@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { FiActivity, FiBookOpen, FiUser, FiUsers, FiX } from "react-icons/fi";
+import { FiActivity, FiBookOpen, FiCamera, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { toast } from "sonner";
 import { ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
+import EnvironmentScanHistory from "../../components/professor/EnvironmentScanHistory";
 import { Badge, Button, Card, PageHeader, SearchBox, StatCard } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { professorAlerts } from "../../data/professorData";
@@ -119,6 +120,8 @@ export default function ProfessorMonitoring() {
   })));
   const [evidenceLoadingId, setEvidenceLoadingId] = useState("");
   const [selectedStudent, setSelectedStudent] = useState(null);
+  // The View Activities window shows the student's alerts or their saved environment scans.
+  const [activityView, setActivityView] = useState("activities");
   const [studentSearch, setStudentSearch] = useState("");
   const [studentCourseFilter, setStudentCourseFilter] = useState("All Courses");
   const [studentSectionFilter, setStudentSectionFilter] = useState("All Sections");
@@ -379,6 +382,7 @@ export default function ProfessorMonitoring() {
 
   function openActivities(student) {
     setSelectedStudent(student);
+    setActivityView("activities");
     setActivityFilters({
       course: "All Courses",
       period: "All Periods",
@@ -563,6 +567,18 @@ export default function ProfessorMonitoring() {
               <button aria-label="Close activities" onClick={() => setSelectedStudent(null)} type="button"><FiX /></button>
             </div>
 
+            <div className="professor-monitoring-view-switch" role="tablist" aria-label="Student records">
+              <button aria-selected={activityView === "activities"} className={activityView === "activities" ? "active" : ""} onClick={() => setActivityView("activities")} role="tab" type="button">
+                <FiActivity /> Activities
+              </button>
+              <button aria-selected={activityView === "scans"} className={activityView === "scans" ? "active" : ""} onClick={() => setActivityView("scans")} role="tab" type="button">
+                <FiCamera /> Environment scan history
+              </button>
+            </div>
+
+            {activityView === "scans" ? (
+              <EnvironmentScanHistory exams={monitoringExams} filters={activityFilters} studentId={selectedStudent.id} />
+            ) : (
             <div className="professor-monitoring-alert-list">
               {filteredSelectedViolations.map((violation) => (
                 <article key={violation.id}>
@@ -598,6 +614,7 @@ export default function ProfessorMonitoring() {
               ))}
               {!filteredSelectedViolations.length ? <div className="professor-exams-empty">No violations recorded for the selected filters.</div> : null}
             </div>
+            )}
           </section>
         </div>
       ) : null}

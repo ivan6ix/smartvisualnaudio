@@ -207,7 +207,20 @@ assert.match(page, /@page \{ size: \$\{landscape \? "landscape" : "portrait"\}/,
 
 // The printout fits the paper (no sideways scrolling) and uses no bold text.
 const styles = readFileSync("src/styles.css", "utf8");
-const printBlock = styles.slice(styles.lastIndexOf("@media print {"));
+// The Reports print block only: from its "@media print {" to the matching closing brace.
+const printStart = styles.lastIndexOf("@media print {", styles.indexOf(".professor-report-print-group"));
+let depth = 0;
+let printEnd = printStart;
+for (let index = styles.indexOf("{", printStart); index < styles.length; index += 1) {
+  if (styles[index] === "{") depth += 1;
+  if (styles[index] === "}") depth -= 1;
+  if (depth === 0) {
+    printEnd = index + 1;
+    break;
+  }
+}
+const printBlock = styles.slice(printStart, printEnd);
+assert.match(printBlock, /\.professor-report-print-group/, "The print block was found.");
 assert.match(printBlock, /\.professor-report-screen \{\s+display: none !important;/);
 assert.match(printBlock, /\.professor-report-print table \{[^}]*min-width: 0 !important;[^}]*table-layout: fixed;/, "The site-wide 720px table minimum is undone for print.");
 assert.match(printBlock, /\.professor-report-print :is\(th, td\) \{[^}]*white-space: normal !important;/, "Headers and cells wrap instead of widening the table.");

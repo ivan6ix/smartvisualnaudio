@@ -19962,3 +19962,170 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
     padding-top: 4px;
   }
 }
+
+/* Monitoring > View Activities: switch between alerts and the environment scan history. */
+.professor-monitoring-view-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 16px;
+}
+.professor-monitoring-view-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid var(--app-line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+}
+.professor-monitoring-view-switch button.active {
+  border-color: var(--theme-color);
+  background: var(--app-active);
+  color: var(--theme-color);
+}
+.professor-monitoring-view-switch button:focus-visible {
+  outline: 2px solid var(--theme-color);
+  outline-offset: 2px;
+}
+.scan-history {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+.scan-history-exams {
+  border: 1px solid var(--app-line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.scan-history-row {
+  display: grid;
+  grid-template-columns: minmax(0, 2.2fr) 0.6fr 1.3fr 0.9fr minmax(0, 1.5fr);
+  gap: 10px;
+  align-items: center;
+  padding: 10px 14px;
+  border-top: 1px solid var(--app-line);
+}
+.scan-history-row:first-child {
+  border-top: 0;
+}
+.scan-history-row-head {
+  background: var(--app-input);
+  color: var(--app-text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+.scan-history-row span:first-child {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.scan-history-row small {
+  color: var(--app-text-muted);
+}
+.scan-history-row .btn {
+  justify-self: end;
+}
+.scan-history-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.scan-history-heading > div {
+  display: grid;
+  gap: 2px;
+}
+.scan-history-heading span {
+  color: var(--app-text-muted);
+  font-size: 0.85rem;
+}
+.scan-history-scan {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--app-line);
+  border-radius: 12px;
+}
+.scan-history-scan h3 {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 1rem;
+}
+.scan-history-step p {
+  margin: 0 0 6px;
+}
+.scan-history-step ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  color: var(--app-text-muted);
+  font-size: 0.85rem;
+}
+.scan-history-photos {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  gap: 8px;
+}
+.scan-history-photos figure {
+  margin: 0;
+  display: grid;
+  gap: 4px;
+}
+.scan-history-photos img,
+.scan-history-photo-placeholder {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  background: var(--app-input);
+}
+.scan-history-photo-placeholder {
+  display: grid;
+  place-items: center;
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+}
+.scan-history-photos figure.is-flagged img {
+  border: 3px solid var(--danger, #dc2626);
+}
+.scan-history-photos figcaption {
+  color: var(--app-text-muted);
+  font-size: 0.75rem;
+}
+.scan-history-photos figure.is-flagged figcaption {
+  color: var(--danger, #dc2626);
+  font-weight: 700;
+}
+.scan-history-note {
+  margin: 0;
+  color: var(--app-text-muted);
+  font-size: 0.85rem;
+}
+@media (max-width: 760px) {
+  .scan-history-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .scan-history-row-head {
+    display: none;
+  }
+  .scan-history-row span:nth-child(2),
+  .scan-history-row span:nth-child(3) {
+    display: none;
+  }
+  .scan-history-row span:last-child {
+    grid-column: 1 / -1;
+  }
+  .scan-history-row .btn {
+    justify-self: stretch;
+  }
+}
