@@ -173,7 +173,7 @@ export default function People({ type }) {
 
       resetForm();
       setCreateModalOpen(false);
-      toast.success(`${accountType} created with default password ${form.password || "123456"}`);
+      toast.success(`${accountType} created with default password ${form.password || "123456"}. They will set their own at first sign-in.`);
     } catch (error) {
       toast.error(error.message);
     } finally {
@@ -201,7 +201,7 @@ export default function People({ type }) {
       if (hasSupabaseConfig) {
         await callAccountFunction({ action: "reset-password", userId: row.id, password: "123456" });
       }
-      toast.success("Password reset to 123456");
+      toast.success("Password reset to 123456. They will set their own at next sign-in.");
     } catch (error) {
       toast.error(error.message);
     }

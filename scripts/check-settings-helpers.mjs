@@ -83,7 +83,7 @@ assert.equal(getAvatarFileValidationError({ type: "image/png", size: AVATAR_MAX_
   assert.equal(result.ok, true);
   assert.deepEqual(calls, [
     ["verify", "person@example.edu", "current-secret"],
-    ["update", ["password"], "new-secret"],
+    ["update", ["password", "data"], "new-secret"],
   ]);
 }
 

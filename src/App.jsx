@@ -1,12 +1,17 @@
 import Legal from "./pages/Legal";
 import { lazy, Suspense, useEffect } from "react";
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ProtectedRoute from "./routes/ProtectedRoute";
 import { PageSkeleton } from "./components/ui";
+import { useAuth } from "./context/AuthContext";
+
+// Pages a user with a temporary password may still open; everything else sends them to set their own first.
+const PASSWORD_CHANGE_OPEN_PATHS = new Set(["/change-password", "/privacy", "/terms", "/storage", "/forgot-password", "/reset-password"]);
 
 const pageImports = {
   Accounts: () => import("./pages/Accounts"),
   AdminLogs: () => import("./pages/AdminLogs"),
+  ChangePassword: () => import("./pages/ChangePassword"),
   ClusterDashboard: () => import("./pages/cluster/ClusterDashboard"),
   ClusterExamList: () => import("./pages/cluster/ClusterExamList"),
   ClusterExamReview: () => import("./pages/cluster/ClusterExamReview"),
@@ -55,6 +60,7 @@ const pageImports = {
 
 const Accounts = lazy(pageImports.Accounts);
 const AdminLogs = lazy(pageImports.AdminLogs);
+const ChangePassword = lazy(pageImports.ChangePassword);
 const ClusterDashboard = lazy(pageImports.ClusterDashboard);
 const ClusterExamList = lazy(pageImports.ClusterExamList);
 const ClusterExamReview = lazy(pageImports.ClusterExamReview);
@@ -160,6 +166,10 @@ function getPageImportForPath(pathname) {
 }
 
 export default function App() {
+  const { user, hasLoggedInThisSession } = useAuth();
+  const { pathname } = useLocation();
+  const mustChangePassword = hasLoggedInThisSession && user?.mustChangePassword;
+
   useEffect(() => {
     function prefetchLink(event) {
       const link = event.target?.closest?.("a[href]");
@@ -175,10 +185,13 @@ export default function App() {
     };
   }, []);
 
+  if (mustChangePassword && !PASSWORD_CHANGE_OPEN_PATHS.has(pathname)) return <Navigate to="/change-password" replace />;
+
   return (
     <Suspense fallback={<PageSkeleton />}>
       <Routes>
         {["privacy", "terms", "storage"].map((path) => <Route key={path} path={`/${path}`} element={<Legal />} />)}
+        <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/landing" element={<LandingPage />} />
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />

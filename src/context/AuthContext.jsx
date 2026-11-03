@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 import { queryClient, queryPersister } from "../lib/queryClient";
 import { REGISTRATION_DEVICE_EMAIL_LIMIT, getRegistrationLimitStatus, recordRegistrationEmail } from "../lib/registrationRateLimit";
+import { mustChangePassword } from "../lib/settingsSecurity";
 
 const AuthContext = createContext(null);
 const AUTH_USER_STORAGE_KEY = "smartvisualnaudio.auth.user";
@@ -165,6 +166,7 @@ async function mapAuthUser(authUser, previousUser = null) {
     avatarUrl: profileLoaded
       ? (profile ? profile.avatar_url || "" : metadata.avatar_url || "")
       : (canReusePrevious ? previousUser.avatarUrl : metadata.avatar_url || ""),
+    mustChangePassword: mustChangePassword(authUser),
   };
 }
 

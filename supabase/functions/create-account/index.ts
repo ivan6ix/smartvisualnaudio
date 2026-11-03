@@ -102,6 +102,8 @@ Deno.serve(async (req) => {
           status: "Active",
           full_name: fullName,
           employee_number: employeeNumber,
+          // The Admin chose this password, so the user must replace it at first sign-in.
+          must_change_password: true,
         },
       });
 
@@ -188,7 +190,12 @@ Deno.serve(async (req) => {
       if (!userId) return json({ error: "User ID is required." }, 400);
       if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
 
-      const { error } = await adminClient.auth.admin.updateUserById(userId, { password });
+      const { data: currentUser, error: currentUserError } = await adminClient.auth.admin.getUserById(userId);
+      if (currentUserError || !currentUser.user) return json({ error: currentUserError?.message || "User not found." }, 404);
+
+      // The Admin knows the reset password, so the user must replace it at their next sign-in.
+      const metadata = { ...(currentUser.user.user_metadata || {}), must_change_password: true };
+      const { error } = await adminClient.auth.admin.updateUserById(userId, { password, user_metadata: metadata });
       if (error) return json({ error: error.message }, 400);
       await writeAudit(adminClient, {
         userId: authData.user.id,

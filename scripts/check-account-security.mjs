@@ -24,4 +24,37 @@ const accounts = readFileSync("src/pages/Accounts.jsx", "utf8");
 assert.doesNotMatch(accounts, /\.limit\(\d+\)/, "Manage Accounts must not cap the account list.");
 assert.match(accounts, /fetchAllRows\(\(options\) => supabase\s+\.from\("profiles"\)/);
 
+// Accounts with an Admin-set password (created or reset) must set their own at sign-in.
+assert.match(accountFunction, /full_name: fullName,[\s\S]*?must_change_password: true,/, "New accounts are marked to change their password.");
+assert.match(accountFunction, /action === "reset-password"[\s\S]*?must_change_password: true[\s\S]*?updateUserById\(userId, \{ password, user_metadata: metadata \}\)/, "Resets mark the account in the same update.");
+
+const { mustChangePassword, updateOwnPassword, validateNewPassword } = await import("../src/lib/settingsSecurity.js");
+assert.equal(mustChangePassword({ user_metadata: { must_change_password: true } }), true);
+assert.equal(mustChangePassword({ user_metadata: { must_change_password: false } }), false);
+assert.equal(mustChangePassword({ user_metadata: {} }), false);
+assert.equal(mustChangePassword(null), false);
+{
+  let payload = null;
+  await updateOwnPassword({ auth: { updateUser: async (body) => { payload = body; return { error: null }; } } }, "my-own-secret");
+  assert.deepEqual(payload, { password: "my-own-secret", data: { must_change_password: false } }, "Setting a password clears the mark in the same request.");
+}
+assert.equal(validateNewPassword({ newPassword: "abc", confirmPassword: "abc" }), "Use at least 6 characters for the new password.");
+assert.equal(validateNewPassword({ newPassword: "abcdef", confirmPassword: "abcdeg" }), "Passwords do not match.");
+assert.equal(validateNewPassword({ newPassword: "abcdef", confirmPassword: "abcdef" }), "");
+
+for (const file of ["src/pages/ResetPassword.jsx", "src/pages/ForgotPassword.jsx"]) {
+  const source = readFileSync(file, "utf8");
+  assert.doesNotMatch(source, /auth\.updateUser\(/, `${file} must clear the mark through updateOwnPassword.`);
+  assert.match(source, /updateOwnPassword\(supabase, values\.password\)/);
+}
+const auth = readFileSync("src/context/AuthContext.jsx", "utf8");
+assert.match(auth, /mustChangePassword: mustChangePassword\(authUser\)/);
+const app = readFileSync("src/App.jsx", "utf8");
+assert.match(app, /if \(mustChangePassword && !PASSWORD_CHANGE_OPEN_PATHS\.has\(pathname\)\) return <Navigate to="\/change-password" replace \/>;/, "Every other page redirects until the password is changed.");
+assert.match(app, /<Route path="\/change-password" element=\{<ChangePassword \/>\} \/>/);
+const changePage = readFileSync("src/pages/ChangePassword.jsx", "utf8");
+assert.match(changePage, /if \(!user\.mustChangePassword\) return <Navigate/, "The page sends users without the mark home.");
+assert.match(changePage, /updateOwnPassword\(supabase, values\.newPassword\)/);
+assert.match(changePage, /same_password/, "Reusing the temporary password gets a clear message.");
+
 console.log("Account security checks passed.");

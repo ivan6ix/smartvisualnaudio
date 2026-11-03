@@ -5,6 +5,7 @@ import { ArrowUpRight, Eye, EyeOff, KeyRound, LockKeyhole, Mail, Moon, ShieldChe
 import { toast } from "sonner";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { updateOwnPassword } from "../lib/settingsSecurity";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 import Brand from "../components/landing/Brand";
 import styles from "../components/landing/Landing.module.css";
@@ -85,7 +86,7 @@ export default function ForgotPassword() {
         setResetMode(false);
         return;
       }
-      const { error } = await supabase.auth.updateUser({ password: values.password });
+      const { error } = await updateOwnPassword(supabase, values.password);
       if (error) throw error;
       await supabase.auth.signOut();
       toast.success("Password updated. Please log in with your new password.");

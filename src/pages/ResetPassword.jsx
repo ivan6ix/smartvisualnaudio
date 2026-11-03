@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button, Field } from "../components/ui";
+import { updateOwnPassword } from "../lib/settingsSecurity";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 export default function ResetPassword() {
@@ -23,7 +24,7 @@ export default function ResetPassword() {
     setSaving(true);
     try {
       if (hasSupabaseConfig) {
-        const { error } = await supabase.auth.updateUser({ password: values.password });
+        const { error } = await updateOwnPassword(supabase, values.password);
         if (error) throw error;
         await supabase.auth.signOut();
       }

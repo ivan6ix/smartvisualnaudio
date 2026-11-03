@@ -98,7 +98,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     }
     setRunning(false);
     const createdCount = [...nextResults.values()].filter((result) => result.status === "Created").length;
-    if (createdCount) toast.success(`${createdCount} account${createdCount === 1 ? "" : "s"} created with default password ${password}`);
+    if (createdCount) toast.success(`${createdCount} account${createdCount === 1 ? "" : "s"} created with default password ${password}. Each user sets their own at first sign-in.`);
     if (createdCount < ready.length) toast.error(`${ready.length - createdCount} account${ready.length - createdCount === 1 ? "" : "s"} could not be created. See the results.`);
   }
 
