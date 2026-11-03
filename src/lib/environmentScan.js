@@ -40,9 +40,8 @@ export const DUPLICATE_VIEW_DISTANCE = 4;
 // floor: lowest confidence considered at all; flag: confirmed when seen in 2+ frames;
 // strong: confirmed from a single frame. Anything between floor and a confirmation is ambiguous.
 // countBased rules allow `allowed` instances per frame (the student).
-// Rules match in order, so "laptop screen" is a laptop and "headphones" is not a phone.
+// Rules match in order, so "laptop screen" is a laptop.
 export const DETECTION_RULES = [
-  { category: "audio_device", label: "Earbuds or headphones", match: /\b(earbuds?|earphones?|headphones?|headset|airpods?)\b/, floor: 0.3, flag: 0.5, strong: 0.75 },
   { category: "smartwatch", label: "Smartwatch", match: /\bsmart ?watch(es)?\b/, floor: 0.3, flag: 0.5, strong: 0.75 },
   { category: "phone", label: "Phone", match: /\b(cell ?phones?|mobile ?phones?|smart ?phones?|phones?|iphones?|android( phone)?|handphones?|cellular( phone)?|mobile)\b/, floor: 0.3, flag: 0.5, strong: 0.75 },
   { category: "tablet", label: "Tablet", match: /\b(tablets?|ipads?)\b/, floor: 0.3, flag: 0.5, strong: 0.75 },
@@ -62,9 +61,13 @@ export function normalizeLabel(value) {
   return String(value || "").toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ").trim();
 }
 
+// Earbuds, earphones, headphones and headsets are allowed in the scan and during the exam. Checked before the rules
+// so "ear phones" or "head phones" is never read as a phone.
+export const ALLOWED_AUDIO_DEVICES = /\b(ear ?buds?|ear ?phones?|head ?phones?|head ?sets?|airpods?)\b/;
+
 export function findDetectionRule(label) {
   const normalized = normalizeLabel(label);
-  if (!normalized || IGNORED_LABELS.includes(normalized)) return null;
+  if (!normalized || IGNORED_LABELS.includes(normalized) || ALLOWED_AUDIO_DEVICES.test(normalized)) return null;
   return DETECTION_RULES.find((rule) => rule.match.test(normalized)) || null;
 }
 

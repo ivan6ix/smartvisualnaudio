@@ -28,8 +28,6 @@ const suspiciousLabels = [
   "laptop",
   "monitor",
   "screen",
-  "headphones",
-  "earbuds",
   "calculator",
 ];
 

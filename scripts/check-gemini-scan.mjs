@@ -8,6 +8,9 @@ import { GEMINI_ITEMS, buildGeminiPrompt, buildGeminiRequest, geminiEndpoint, pa
 
 // Every item Gemini may report maps to a detection rule.
 for (const [item, label] of Object.entries(GEMINI_ITEMS)) assert.ok(findDetectionRule(label), `${item} -> ${label} must match a detection rule.`);
+// Earbuds and headphones are allowed: Gemini is not asked for them and is told never to report them as a phone.
+assert.ok(!Object.keys(GEMINI_ITEMS).some((item) => /earbud|headphone/.test(item)));
+assert.match(buildGeminiPrompt("desk", 1), /Earbuds, earphones, headphones and headsets are allowed: never list them, and never list them as a phone\./);
 
 // One request per step: the prompt, then every photo in order, with a JSON schema and no randomness.
 const request = buildGeminiRequest("sweep", ["data:image/jpeg;base64,AAA", "BBB"]);

@@ -16,9 +16,10 @@ import {
 // Every question asked to the model maps to an existing detection rule, and each prohibited kind is asked for.
 for (const { query, label } of OWL_QUERIES) assert.ok(findDetectionRule(label), `${query} -> ${label} must match a detection rule.`);
 const categories = new Set(OWL_QUERIES.map(({ label }) => findDetectionRule(label).category));
-for (const category of ["phone", "laptop", "second_screen", "tablet", "calculator", "smartwatch", "audio_device", "notes", "book"]) {
+for (const category of ["phone", "laptop", "second_screen", "tablet", "calculator", "smartwatch", "notes", "book"]) {
   assert.ok(categories.has(category), `The browser AI must look for ${category}.`);
 }
+assert.ok(!OWL_QUERIES.some(({ query }) => /ear ?buds?|head ?phones?|head ?sets?|ear ?phones?/.test(query)), "Allowed earbuds and headphones are not searched for.");
 assert.equal(OWL_CANDIDATE_LABELS.length, OWL_QUERIES.length);
 
 // Scores are stretched onto the rules' confidence scale: weak = possible, clear = flag, strong = confirmed alone.

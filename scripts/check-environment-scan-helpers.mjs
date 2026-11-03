@@ -13,6 +13,7 @@ import {
   classifyAngleDetections,
   createScanState,
   createSweep,
+  findDetectionRule,
   findDuplicateAngle,
   finishSweep,
   getSweepProgress,
@@ -133,9 +134,13 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
   assert.equal(lowConfidence.outcome, SCAN_OUTCOME.RESCAN);
   const belowFloor = classifyAngleDetections({ angleId: "sweep", frames: sameFrames([prediction("cell phone", 0.2)]) });
   assert.equal(belowFloor.outcome, SCAN_OUTCOME.CLEAR);
-  // "headphones" is never read as a phone; "mobile" alone is still a phone.
-  assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sameFrames([prediction("headphones", 0.9)]) }).findings[0].category, "audio_device");
+  // Earbuds, earphones, headphones and headsets are allowed, and never read as a phone; "mobile" alone is still a phone.
+  for (const label of ["headphones", "head phones", "ear-phones", "earbuds", "wireless earbuds", "headset", "AirPods"]) {
+    assert.equal(findDetectionRule(label), null, `${label} is allowed.`);
+    assert.equal(classifyAngleDetections({ angleId: "desk", frames: sameFrames([prediction(label, 0.95, { areaRatio: 0.2 })]) }).outcome, SCAN_OUTCOME.CLEAR, `${label} must not block the scan.`);
+  }
   assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sameFrames([prediction("Mobile", 0.9)]) }).findings[0].category, "phone");
+  assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sameFrames([prediction("phone", 0.9), prediction("headphones", 0.9)]) }).findings[0].category, "phone", "A phone next to allowed headphones is still flagged.");
 }
 
 // 8. Genuine prohibited objects are flagged with a meaningful, deduplicated finding.
@@ -165,7 +170,7 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
   assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sameFrames([prediction("laptop", 0.3)]) }).outcome, SCAN_OUTCOME.CLEAR, "Laptop below the floor is ignored.");
   const deskNotes = classifyAngleDetections({ angleId: "desk", frames: sameFrames([prediction("book", 0.7, { areaRatio: 0.01 })]) });
   assert.equal(deskNotes.outcome, SCAN_OUTCOME.RISK, "Small books on the desk view are within reach and must be flagged.");
-  for (const label of ["notes", "calculator", "tv", "earbuds", "smartwatch"]) {
+  for (const label of ["notes", "calculator", "tv", "smartwatch"]) {
     assert.equal(classifyAngleDetections({ angleId: "desk", frames: sameFrames([prediction(label, 0.9, { areaRatio: 0.2 })]) }).outcome, SCAN_OUTCOME.RISK, `${label} must be flagged.`);
   }
 }

@@ -20,8 +20,6 @@ export const OWL_QUERIES = [
   { query: "a tablet computer", label: "tablet" },
   { query: "a calculator", label: "calculator" },
   { query: "a smartwatch", label: "smartwatch" },
-  { query: "wireless earbuds", label: "earbuds" },
-  { query: "headphones", label: "headphones" },
   { query: "a sheet of paper", label: "paper" },
   { query: "handwritten notes", label: "notes" },
   { query: "a printed document", label: "document" },

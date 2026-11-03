@@ -9,7 +9,6 @@ export const LIVE_OBJECT_CATEGORIES = {
   tablet: { type: "PHONE_DETECTED", label: "Tablet" },
   laptop: { type: "GADGET_DETECTED", label: "Laptop" },
   calculator: { type: "GADGET_DETECTED", label: "Calculator" },
-  audio_device: { type: "GADGET_DETECTED", label: "Earbuds or headphones" },
   smartwatch: { type: "GADGET_DETECTED", label: "Smartwatch" },
 };
 
