@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FiArrowDown, FiArrowUp, FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiRepeat, FiShield, FiUpload, FiXCircle } from "react-icons/fi";
+import { FiArrowDown, FiArrowUp, FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiRepeat, FiShield, FiSliders, FiUpload, FiXCircle } from "react-icons/fi";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import AudioMonitoringTimeline from "../../components/exam/AudioMonitoringTimeline";
@@ -29,6 +29,8 @@ import {
 } from "../../lib/environmentScan";
 import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../../lib/examCompatibility";
 import { saveScanStep } from "../../lib/environmentScanHistory";
+import { cameraConstraints, loadDeviceChoice, microphoneConstraints } from "../../lib/mediaDevices";
+import DeviceSetup from "../../components/student/DeviceSetup";
 import { createLiveObjectMonitor } from "../../lib/liveObjectMonitor";
 import { detectWithOwl, loadOwlDetector } from "../../lib/owlClient";
 import { OWL_FRAMES_PER_STEP, pickOwlFrameIndexes, placeOwlFrames } from "../../lib/owlDetection";
@@ -464,6 +466,9 @@ export default function StudentExamTake() {
   const [scanAiProgress, setScanAiProgress] = useState(null);
   const [scanFindings, setScanFindings] = useState([]);
   const [scanFacingMode, setScanFacingMode] = useState("user");
+  // Camera and microphone picked in the device setup step; used by the scan and by exam monitoring.
+  const [deviceSetupDone, setDeviceSetupDone] = useState(false);
+  const deviceChoiceRef = useRef(loadDeviceChoice(window.localStorage));
   const [cameraError, setCameraError] = useState("");
   const [examModeReady, setExamModeReady] = useState(false);
   const [examStarting, setExamStarting] = useState(false);
@@ -1288,8 +1293,9 @@ export default function StudentExamTake() {
     scanCancelledRef.current = false;
 
     try {
+      const scanSize = { width: { ideal: 1280 }, height: { ideal: 720 } };
       const stream = await window.navigator.mediaDevices.getUserMedia({
-        video: { facingMode: scanFacingMode, width: { ideal: 1280 }, height: { ideal: 720 } },
+        video: scanFacingMode === "environment" ? { ...scanSize, facingMode: "environment" } : cameraConstraints(deviceChoiceRef.current.cameraId, scanSize),
         audio: false,
       });
       stream.getVideoTracks().forEach((track) => {
@@ -1886,7 +1892,7 @@ export default function StudentExamTake() {
     try {
       const replacementStream = await window.navigator.mediaDevices.getUserMedia({
         video: false,
-        audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: true },
+        audio: microphoneConstraints(deviceChoiceRef.current.microphoneId, { echoCancellation: false, noiseSuppression: false, autoGainControl: true }),
       });
       const replacementTrack = replacementStream.getAudioTracks()[0];
       if (!replacementTrack || replacementTrack.readyState !== "live" || replacementTrack.muted || !replacementTrack.enabled) {
@@ -2453,12 +2459,12 @@ export default function StudentExamTake() {
     if (!liveCameraMonitoringEnabled && !examSettings.liveAudioMonitoring) return null;
 
     const stream = await window.navigator.mediaDevices.getUserMedia({
-      video: liveCameraMonitoringEnabled ? { facingMode: "user", width: { ideal: 640 }, height: { ideal: 360 } } : false,
-      audio: examSettings.liveAudioMonitoring ? {
+      video: liveCameraMonitoringEnabled ? cameraConstraints(deviceChoiceRef.current.cameraId, { width: { ideal: 640 }, height: { ideal: 360 } }) : false,
+      audio: examSettings.liveAudioMonitoring ? microphoneConstraints(deviceChoiceRef.current.microphoneId, {
         echoCancellation: false,
         noiseSuppression: false,
         autoGainControl: true,
-      } : false,
+      }) : false,
     });
     const required = [
       ...(liveCameraMonitoringEnabled ? [["Camera", stream.getVideoTracks()[0]]] : []),
@@ -3116,6 +3122,27 @@ export default function StudentExamTake() {
   }
 
   if (!scanPassed || scanOpen) {
+    // Step 1: pick and test the camera and microphone before the scan starts.
+    if (!deviceSetupDone && scanStatus !== "scanning" && scanStatus !== "passed") {
+      return (
+        <section className="student-exam-take-page">
+          <PageHeader
+            title="Environment Scan"
+            subtitle="Set up your camera and microphone, then complete the camera scan before taking the exam."
+          />
+          <Card className="student-environment-scan">
+            <DeviceSetup
+              microphoneRequired={Boolean(examSettings.liveAudioMonitoring)}
+              onContinue={(choice) => {
+                deviceChoiceRef.current = choice;
+                setDeviceSetupDone(true);
+              }}
+            />
+          </Card>
+        </section>
+      );
+    }
+
     const scanActive = scanStatus === "scanning";
     const activeScanAngleId = selectedScanAngleId || scanSummary.nextAngleId;
     const activeScanAngle = SCAN_ANGLES.find((angle) => angle.id === activeScanAngleId) || null;
@@ -3282,6 +3309,7 @@ export default function StudentExamTake() {
           </div>
 
           <div className="student-scan-actions">
+            {scanStatus === "idle" || scanStatus === "failed" ? <Button onClick={() => setDeviceSetupDone(false)} type="button" variant="light"><FiSliders /> Change devices</Button> : null}
             <Button disabled={scanActive} onClick={switchEnvironmentCamera} type="button"><FiRepeat /> {scanFacingMode === "user" ? "Use Rear Camera" : "Use Front Camera"}</Button>
             {scanStatus === "idle" || scanStatus === "failed" ? <Button onClick={startEnvironmentScan}><FiCamera /> Start Scan</Button> : null}
             {scanActive && sweepProgress ? (
