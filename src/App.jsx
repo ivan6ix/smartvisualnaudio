@@ -45,6 +45,7 @@ const pageImports = {
   ProfessorScores: () => import("./pages/professor/ProfessorScores"),
   ProfessorAnalytics: () => import("./pages/professor/ProfessorAnalytics"),
   ProfessorExamIntegrity: () => import("./pages/professor/ProfessorExamIntegrity"),
+  ProfessorReports: () => import("./pages/professor/ProfessorReports"),
   Register: () => import("./pages/Register"),
   Reports: () => import("./pages/Reports"),
   ResetPassword: () => import("./pages/ResetPassword"),
@@ -94,6 +95,7 @@ const ProfessorMonitoring = lazy(pageImports.ProfessorMonitoring);
 const ProfessorScores = lazy(pageImports.ProfessorScores);
 const ProfessorAnalytics = lazy(pageImports.ProfessorAnalytics);
 const ProfessorExamIntegrity = lazy(pageImports.ProfessorExamIntegrity);
+const ProfessorReports = lazy(pageImports.ProfessorReports);
 const Register = lazy(pageImports.Register);
 const Reports = lazy(pageImports.Reports);
 const ResetPassword = lazy(pageImports.ResetPassword);
@@ -141,6 +143,7 @@ function getPageImportForPath(pathname) {
     "/professor/scores": pageImports.ProfessorScores,
     "/professor/analytics": pageImports.ProfessorAnalytics,
     "/professor/integrity": pageImports.ProfessorExamIntegrity,
+    "/professor/reports": pageImports.ProfessorReports,
     "/professor/messages": pageImports.ProfessorMessages,
     "/professor/notifications": pageImports.Notifications,
     "/cluster": pageImports.ClusterDashboard,
@@ -220,6 +223,7 @@ export default function App() {
           <Route path="monitoring" element={<ProfessorMonitoring />} />
           <Route path="analytics" element={<ProfessorAnalytics />} />
           <Route path="integrity" element={<ProfessorExamIntegrity />} />
+          <Route path="reports" element={<ProfessorReports />} />
           <Route path="scores" element={<ProfessorScores />} />
           <Route path="scores/:examId" element={<ProfessorScores />} />
           <Route path="scores/:examId/attempt/:attemptId" element={<ProfessorScores />} />
