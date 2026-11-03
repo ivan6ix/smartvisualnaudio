@@ -5,6 +5,13 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Anyone can call this without signing in, so every handled request gets the same answer: it never says whether
+// an email has an account. Real accounts get at most RESETS_PER_HOUR emails an hour (counted from the request logs),
+// so the form can't flood an inbox or use up the Brevo quota.
+const RESETS_PER_HOUR = 3;
+const SENT_MESSAGE = "If that email has an account, a password reset link is on its way.";
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -36,24 +43,52 @@ Deno.serve(async (req) => {
     const siteUrl = Deno.env.get("SITE_URL") || new URL(req.url).origin;
 
     if (!supabaseUrl || !serviceRoleKey || !brevoApiKey || !senderEmail) {
-      return json({ error: "Missing Brevo or Supabase function secrets." }, 500);
+      console.error("[send-password-reset] Missing Brevo or Supabase function secrets.");
+      return json({ error: "Unable to send the reset email right now. Try again later." }, 500);
     }
 
-    const { email } = await req.json();
+    const { email } = await req.json().catch(() => ({}));
     const normalizedEmail = String(email || "").trim().toLowerCase();
-    if (!normalizedEmail) return json({ error: "Email is required." }, 400);
+    if (!normalizedEmail || normalizedEmail.length > 254 || !EMAIL_PATTERN.test(normalizedEmail)) {
+      return json({ error: "Enter a valid email address." }, 400);
+    }
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);
+    const { data: requester, error: requesterError } = await adminClient
+      .from("profiles")
+      .select("id, role")
+      .eq("email", normalizedEmail)
+      .maybeSingle();
+    if (requesterError) {
+      console.error("[send-password-reset] Account lookup failed", requesterError.message);
+      return json({ error: "Unable to send the reset email right now. Try again later." }, 500);
+    }
+    if (!requester?.id) return json({ ok: true, message: SENT_MESSAGE });
+
+    const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { count: recentResets, error: countError } = await adminClient
+      .from("logs")
+      .select("id", { count: "exact", head: true })
+      .eq("target_user_id", requester.id)
+      .eq("event_type", "account.password_reset_requested")
+      .gte("created_at", since);
+    if (countError) {
+      console.error("[send-password-reset] Rate limit check failed", countError.message);
+      return json({ error: "Unable to send the reset email right now. Try again later." }, 500);
+    }
+    if ((recentResets || 0) >= RESETS_PER_HOUR) return json({ ok: true, message: SENT_MESSAGE });
+
     const { data, error } = await adminClient.auth.admin.generateLink({
       type: "recovery",
       email: normalizedEmail,
       options: { redirectTo: `${siteUrl.replace(/\/$/, "")}/forgot-password` },
     });
 
-    if (error) return json({ error: error.message }, 400);
-
-    const actionLink = data.properties?.action_link;
-    if (!actionLink) return json({ error: "Password reset link was not generated." }, 500);
+    const actionLink = data?.properties?.action_link;
+    if (error || !actionLink) {
+      console.error("[send-password-reset] Reset link was not generated", error?.message);
+      return json({ error: "Unable to send the reset email right now. Try again later." }, 500);
+    }
 
     const brevoResponse = await fetch("https://api.brevo.com/v3/smtp/email", {
       method: "POST",
@@ -70,32 +105,27 @@ Deno.serve(async (req) => {
     });
 
     if (!brevoResponse.ok) {
-      const message = await brevoResponse.text();
-      return json({ error: message || "Brevo email sending failed." }, 500);
+      // Brevo's error text stays in the function logs; callers only see a generic message.
+      console.error("[send-password-reset] Brevo email sending failed", brevoResponse.status, await brevoResponse.text());
+      return json({ error: "Unable to send the reset email right now. Try again later." }, 500);
     }
 
-    const { data: requester } = await adminClient
-      .from("profiles")
-      .select("id, role")
-      .eq("email", normalizedEmail)
-      .maybeSingle();
+    // This row is also what the hourly limit counts.
+    await adminClient.from("logs").insert({
+      user_id: requester.id,
+      actor_role: requester.role,
+      event_type: "account.password_reset_requested",
+      action: "Password Reset Request",
+      description: "A user requested a password reset.",
+      entity_type: "account",
+      entity_id: requester.id,
+      target_user_id: requester.id,
+      metadata: {},
+    });
 
-    if (requester?.id) {
-      await adminClient.from("logs").insert({
-        user_id: requester.id,
-        actor_role: requester.role,
-        event_type: "account.password_reset_requested",
-        action: "Password Reset Request",
-        description: "A user requested a password reset.",
-        entity_type: "account",
-        entity_id: requester.id,
-        target_user_id: requester.id,
-        metadata: {},
-      });
-    }
-
-    return json({ ok: true });
+    return json({ ok: true, message: SENT_MESSAGE });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Unexpected server error." }, 500);
+    console.error("[send-password-reset] Unexpected error", error instanceof Error ? error.message : error);
+    return json({ error: "Unable to send the reset email right now. Try again later." }, 500);
   }
 });

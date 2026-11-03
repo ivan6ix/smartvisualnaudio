@@ -57,4 +57,16 @@ assert.match(changePage, /if \(!user\.mustChangePassword\) return <Navigate/, "T
 assert.match(changePage, /updateOwnPassword\(supabase, values\.newPassword\)/);
 assert.match(changePage, /same_password/, "Reusing the temporary password gets a clear message.");
 
+// The public password reset never says whether an email has an account, caps emails per account, and keeps
+// provider errors out of responses.
+const resetFunction = readFileSync("supabase/functions/send-password-reset/index.ts", "utf8");
+assert.match(resetFunction, /const RESETS_PER_HOUR = 3;/);
+assert.match(resetFunction, /if \(!requester\?\.id\) return json\(\{ ok: true, message: SENT_MESSAGE \}\);/, "Unknown emails get the same answer as real ones.");
+assert.match(resetFunction, /if \(\(recentResets \|\| 0\) >= RESETS_PER_HOUR\) return json\(\{ ok: true, message: SENT_MESSAGE \}\);/, "Rate-limited requests get the same answer too.");
+assert.match(resetFunction, /\.eq\("event_type", "account\.password_reset_requested"\)\s+\.gte\("created_at", since\)/);
+assert.ok(resetFunction.indexOf("RESETS_PER_HOUR) return") < resetFunction.indexOf("generateLink("), "The limit is checked before any link or email.");
+assert.doesNotMatch(resetFunction, /json\(\{ error: (error|message|requesterError|countError)[.\w]*/, "Raw error text must not reach callers.");
+assert.doesNotMatch(resetFunction, /Missing Brevo or Supabase function secrets\." \}/, "Configuration details stay in the logs.");
+assert.match(auth, /toast\.success\("If that email has an account, a password reset link is on its way\."\);/);
+
 console.log("Account security checks passed.");

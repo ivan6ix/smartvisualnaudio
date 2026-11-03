@@ -329,7 +329,8 @@ export function AuthProvider({ children }) {
         if (fallback.error) throw error;
       }
     }
-    toast.success("Password reset link sent");
+    // Same message whether or not the email has an account.
+    toast.success("If that email has an account, a password reset link is on its way.");
   }
 
   async function logout() {
