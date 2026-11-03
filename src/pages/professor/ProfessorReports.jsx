@@ -21,6 +21,7 @@ import {
   examTitle,
   filterOptions,
   formatCell,
+  printLayout,
   reportCsv,
   reportFileName,
 } from "../../lib/professorReports";
@@ -159,7 +160,8 @@ export default function ProfessorReports() {
     setFilters({ ...EMPTY_FILTERS, course: firstCourse || ALL });
   }
 
-  const columns = (report?.columns || []).map((column) => ({ ...column, render: (row) => cellContent(column, row) }));
+  const columns = (report?.columns || []).map((column) => ({ ...column, className: column.align === "center" ? "is-center" : undefined, render: (row) => cellContent(column, row) }));
+  const layout = printLayout(report?.columns || []);
   const examChoices = options?.exams || [];
   const generatedAt = new Date().toLocaleString();
   const canExport = Boolean(report && !report.needs && report.rows.length);
@@ -307,11 +309,13 @@ export default function ProfessorReports() {
               {report.summary.map((item) => <li key={item.label}><span>{item.label}</span><strong>{item.value}</strong></li>)}
             </ul>
           </header>
+          <style>{`@page { size: ${layout.landscape ? "landscape" : "portrait"}; margin: 12mm 10mm 14mm; }`}</style>
           <table>
-            <thead><tr>{report.columns.map((column) => <th key={column.key}>{column.label}</th>)}</tr></thead>
+            <colgroup>{layout.widths.map((width, index) => <col key={report.columns[index].key} style={{ width }} />)}</colgroup>
+            <thead><tr>{report.columns.map((column) => <th className={column.align === "center" ? "is-center" : undefined} key={column.key}>{column.label}</th>)}</tr></thead>
             <tbody>
               {report.rows.map((row) => (
-                <tr key={row.id}>{report.columns.map((column) => <td key={column.key}>{formatCell(column, row[column.key])}</td>)}</tr>
+                <tr key={row.id}>{report.columns.map((column) => <td className={column.align === "center" ? "is-center" : undefined} key={column.key}>{formatCell(column, row[column.key])}</td>)}</tr>
               ))}
             </tbody>
           </table>

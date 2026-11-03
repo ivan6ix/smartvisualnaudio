@@ -246,7 +246,7 @@ export function buildGradeSheet(context, filters) {
   for (const exam of exams) {
     const columnId = columnKey(exam);
     if (!columnByKey.has(columnId)) {
-      const column = { key: `exam:${columnId}`, label: examTitle(exam), type: examType(exam) };
+      const column = { key: `exam:${columnId}`, label: examTitle(exam), type: examType(exam), size: "narrow", align: "center" };
       columnByKey.set(columnId, column);
       columns.push(column);
     }
@@ -304,12 +304,12 @@ export function buildGradeSheet(context, filters) {
   const classAverage = average(rows.map((row) => row.averageValue).filter((value) => value !== null));
   return {
     columns: [
-      { key: "student", label: "Student" },
-      { key: "studentNumber", label: "Student number" },
-      { key: "section", label: "Section" },
+      { key: "student", label: "Student", size: "wide" },
+      { key: "studentNumber", label: "Student number", size: "medium" },
+      { key: "section", label: "Section", size: "medium" },
       ...columns,
-      { key: "average", label: "Average" },
-      { key: "remark", label: "Remarks" },
+      { key: "average", label: "Average", size: "narrow", align: "center" },
+      { key: "remark", label: "Remarks", size: "medium" },
     ],
     rows,
     summary: [
@@ -352,16 +352,16 @@ export function buildExamResults(context, filters) {
   return {
     title: `${examTitle(exam)} (${courseLabel(course)})`,
     columns: [
-      { key: "student", label: "Student" },
-      { key: "studentNumber", label: "Student number" },
-      { key: "status", label: "Status" },
-      { key: "points", label: "Points" },
-      { key: "score", label: "Score" },
-      { key: "remark", label: "Remarks" },
-      { key: "submitted", label: "Submitted", format: "datetime" },
-      { key: "minutes", label: "Time taken" },
-      { key: "alerts", label: "Alerts" },
-      { key: "risk", label: "Risk" },
+      { key: "student", label: "Student", size: "wide" },
+      { key: "studentNumber", label: "Student number", size: "medium" },
+      { key: "status", label: "Status", size: "medium" },
+      { key: "points", label: "Points", size: "narrow", align: "center" },
+      { key: "score", label: "Score", size: "narrow", align: "center" },
+      { key: "remark", label: "Remarks", size: "narrow" },
+      { key: "submitted", label: "Submitted", format: "datetime", size: "medium" },
+      { key: "minutes", label: "Time taken", size: "narrow", align: "center" },
+      { key: "alerts", label: "Alerts", size: "narrow", align: "center" },
+      { key: "risk", label: "Risk", size: "narrow" },
     ],
     rows,
     summary: [
@@ -403,14 +403,14 @@ export function buildIntegrityReport(context, filters) {
   const highRisk = new Set(rows.filter((row) => row.risk === "High").map((row) => `${row.studentId}:${row.exam}`));
   return {
     columns: [
-      { key: "student", label: "Student" },
-      { key: "studentNumber", label: "Student number" },
-      { key: "section", label: "Section" },
-      { key: "exam", label: "Exam" },
-      { key: "alert", label: "Alert" },
-      { key: "severity", label: "Severity" },
-      { key: "at", label: "Date and time", format: "datetime" },
-      { key: "risk", label: "Attempt risk" },
+      { key: "student", label: "Student", size: "wide" },
+      { key: "studentNumber", label: "Student number", size: "medium" },
+      { key: "section", label: "Section", size: "medium" },
+      { key: "exam", label: "Exam", size: "wide" },
+      { key: "alert", label: "Alert", size: "medium" },
+      { key: "severity", label: "Severity", size: "narrow" },
+      { key: "at", label: "Date and time", format: "datetime", size: "medium" },
+      { key: "risk", label: "Attempt risk", size: "narrow" },
     ],
     rows,
     summary: [
@@ -453,16 +453,16 @@ export function buildStudentReport(context, filters) {
   return {
     title: `${studentName(student)} (${student.student_number || "no student number"})`,
     columns: [
-      { key: "section", label: "Course" },
-      { key: "exam", label: "Exam" },
-      { key: "type", label: "Type" },
-      { key: "period", label: "Period" },
-      { key: "status", label: "Status" },
-      { key: "score", label: "Score" },
-      { key: "remark", label: "Remarks" },
-      { key: "submitted", label: "Submitted", format: "datetime" },
-      { key: "alerts", label: "Alerts" },
-      { key: "risk", label: "Risk" },
+      { key: "section", label: "Course", size: "medium" },
+      { key: "exam", label: "Exam", size: "wide" },
+      { key: "type", label: "Type", size: "narrow" },
+      { key: "period", label: "Period", size: "narrow" },
+      { key: "status", label: "Status", size: "medium" },
+      { key: "score", label: "Score", size: "narrow", align: "center" },
+      { key: "remark", label: "Remarks", size: "narrow" },
+      { key: "submitted", label: "Submitted", format: "datetime", size: "medium" },
+      { key: "alerts", label: "Alerts", size: "narrow", align: "center" },
+      { key: "risk", label: "Risk", size: "narrow" },
     ],
     rows,
     summary: [
@@ -503,15 +503,15 @@ export function buildCourseSummary(context, filters) {
   const overall = average(rows.map((row) => row.averageValue).filter((value) => value !== null));
   return {
     columns: [
-      { key: "section", label: "Course and section" },
-      { key: "courseName", label: "Course name" },
-      { key: "students", label: "Students" },
-      { key: "exams", label: "Exams" },
-      { key: "average", label: "Average" },
-      { key: "passRate", label: "Pass rate" },
-      { key: "missing", label: "Missing work" },
-      { key: "alerts", label: "Alerts" },
-      { key: "atRisk", label: "At risk" },
+      { key: "section", label: "Course and section", size: "medium" },
+      { key: "courseName", label: "Course name", size: "wide" },
+      { key: "students", label: "Students", size: "narrow", align: "center" },
+      { key: "exams", label: "Exams", size: "narrow", align: "center" },
+      { key: "average", label: "Average", size: "narrow", align: "center" },
+      { key: "passRate", label: "Pass rate", size: "narrow", align: "center" },
+      { key: "missing", label: "Missing work", size: "narrow", align: "center" },
+      { key: "alerts", label: "Alerts", size: "narrow", align: "center" },
+      { key: "atRisk", label: "At risk", size: "narrow", align: "center" },
     ],
     rows,
     summary: [
@@ -542,6 +542,21 @@ export function formatCell(column, value) {
     return at === null ? "-" : new Date(at).toLocaleString([], { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   }
   return value === null || value === undefined || value === "" ? "-" : String(value);
+}
+
+// Printed column widths: each column's share of the page follows its size (names wide, numbers narrow), so the
+// table always fits the paper. Reports with many columns print in landscape.
+const SIZE_WEIGHTS = { narrow: 1, medium: 1.6, wide: 2.6 };
+export const LANDSCAPE_FROM_COLUMNS = 11;
+export const LANDSCAPE_FROM_WEIGHT = 14;
+
+export function printLayout(columns) {
+  const weights = columns.map((column) => SIZE_WEIGHTS[column.size] || SIZE_WEIGHTS.medium);
+  const total = weights.reduce((sum, weight) => sum + weight, 0) || 1;
+  return {
+    widths: weights.map((weight) => `${((weight / total) * 100).toFixed(2)}%`),
+    landscape: columns.length >= LANDSCAPE_FROM_COLUMNS || total > LANDSCAPE_FROM_WEIGHT,
+  };
 }
 
 // Spreadsheet apps run cells that start with these characters as formulas, so they get a leading quote.

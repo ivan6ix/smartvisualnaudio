@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { ALL, EMPTY_FILTERS, buildReport, buildReportContext, filterOptions, formatCell, reportCsv } from "../src/lib/professorReports.js";
+import { ALL, EMPTY_FILTERS, buildReport, buildReportContext, filterOptions, formatCell, printLayout, reportCsv } from "../src/lib/professorReports.js";
 
 const NOW = Date.parse("2026-11-01T12:00:00Z");
 const day = (offset) => new Date(NOW + offset * 86400000).toISOString();
@@ -157,7 +157,27 @@ assert.match(page, /queryKey: \["professor-reports", user\?\.id\]/, "Cached repo
 assert.match(page, /window\.print\(\)/);
 assert.match(page, /downloadCsv\(reportCsv\(report\), reportFileName\(reportType\)\)/);
 assert.match(page, /className="professor-report-print"[\s\S]*report\.rows\.map/, "The printout lists every row, not one page.");
+assert.match(page, /<colgroup>\{layout\.widths\.map/, "Printed columns get set widths.");
+assert.match(page, /@page \{ size: \$\{layout\.landscape \? "landscape" : "portrait"\}/, "Wide reports print in landscape.");
+
+// Printed columns share the page by size and always add up to the full width; many columns go landscape.
+{
+  const course = printLayout(buildReport(context, "course-summary", filters({ course: ALL })).columns);
+  const total = course.widths.reduce((sum, width) => sum + Number.parseFloat(width), 0);
+  assert.ok(Math.abs(total - 100) < 0.1, "Column widths add up to the page width.");
+  assert.ok(Number.parseFloat(course.widths[1]) > Number.parseFloat(course.widths[2]), "Name columns are wider than number columns.");
+  assert.equal(course.landscape, false);
+  const manyExams = Array.from({ length: 12 }, (_, index) => ({ key: `e${index}`, size: "narrow" }));
+  assert.equal(printLayout(manyExams).landscape, true);
+}
+
+// The printout fits the paper (no sideways scrolling) and uses no bold text.
 const styles = readFileSync("src/styles.css", "utf8");
-assert.match(styles, /@media print \{\s+\.professor-app-shell,[\s\S]*\.professor-report-screen \{\s+display: none !important;/);
+const printBlock = styles.slice(styles.lastIndexOf("@media print {"));
+assert.match(printBlock, /\.professor-report-screen \{\s+display: none !important;/);
+assert.match(printBlock, /\.professor-report-print table \{[^}]*min-width: 0 !important;[^}]*table-layout: fixed;/, "The site-wide 720px table minimum is undone for print.");
+assert.match(printBlock, /\.professor-report-print :is\(th, td\) \{[^}]*white-space: normal !important;/, "Headers and cells wrap instead of widening the table.");
+assert.match(printBlock, /\.professor-report-print \* \{[^}]*font-weight: 400 !important;/);
+assert.doesNotMatch(printBlock, /font-weight: (?:[5-9]00|bold)/, "No bold text in the printout.");
 
 console.log("Professor reports checks passed.");
