@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { FiBookOpen, FiCheckSquare, FiDownload, FiGrid, FiPrinter, FiShield, FiUser, FiX } from "react-icons/fi";
 import { ListPagination } from "../../components/ListViewControls";
 import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonValue, Table } from "../../components/ui";
@@ -24,10 +24,13 @@ import {
   printLayout,
   reportCsv,
   reportFileName,
+  reportRowCount,
 } from "../../lib/professorReports";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const PAGE_SIZE = 10;
+const GROUPS_PER_PAGE = 5;
+const GROUP_NOUNS = { "grade-sheet": "course", "exam-results": "exam", student: "student" };
 const REPORT_ICONS = { table: FiGrid, check: FiCheckSquare, shield: FiShield, user: FiUser, book: FiBookOpen };
 const MISSING_TABLE_CODES = ["42P01", "PGRST205"];
 const TONES = {
@@ -123,31 +126,59 @@ function cellContent(column, row) {
   return BADGE_KEYS.has(column.key) && TONES[text] ? <Badge tone={TONES[text]}>{text}</Badge> : text;
 }
 
+const centered = (column) => (column.align === "center" ? "is-center" : undefined);
+
+// One table on screen, 10 rows at a time.
+function ScreenTable({ table }) {
+  const [page, setPage] = useState(1);
+  const columns = table.columns.map((column) => ({ ...column, className: centered(column), render: (row) => cellContent(column, row) }));
+  const pageData = getListPageSlice(table.rows, page, PAGE_SIZE);
+  return (
+    <>
+      <Table className="professor-report-table" columns={columns} emptyDescription="Change the filters or the date range." emptyTitle="No rows match these filters." rows={pageData.rows} />
+      <ListPagination count={table.rows.length} page={pageData.page} pageSize={PAGE_SIZE} onPage={setPage} />
+    </>
+  );
+}
+
+// One table on paper: every row, columns sized to fit the page.
+function PrintTable({ table }) {
+  const { widths } = printLayout(table.columns);
+  return (
+    <table>
+      <colgroup>{widths.map((width, index) => <col key={table.columns[index].key} style={{ width }} />)}</colgroup>
+      <thead><tr>{table.columns.map((column) => <th className={centered(column)} key={column.key}>{column.label}</th>)}</tr></thead>
+      <tbody>
+        {table.rows.map((row) => (
+          <tr key={row.id}>{table.columns.map((column) => <td className={centered(column)} key={column.key}>{formatCell(column, row[column.key])}</td>)}</tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export default function ProfessorReports() {
   const { user } = useAuth();
   const [reportType, setReportType] = useState(REPORT_TYPES[0].id);
   const [filters, setFilters] = useState(EMPTY_FILTERS);
-  const [page, setPage] = useState(1);
+  const [groupPage, setGroupPage] = useState(1);
   // Keyed by user: the query cache is kept in the browser, so one account must never see another's reports.
   const query = useQuery({ queryKey: ["professor-reports", user?.id], enabled: hasSupabaseConfig && Boolean(user?.id), queryFn: () => loadReportData(user.id) });
   const loading = hasSupabaseConfig && query.isLoading;
   const context = useMemo(() => query.data ? buildReportContext(query.data) : null, [query.data]);
   const options = useMemo(() => context ? filterOptions(context, filters) : null, [context, filters]);
   const report = useMemo(() => context ? buildReport(context, reportType, filters) : null, [context, reportType, filters]);
-  const pageData = getListPageSlice(report?.rows || [], page, PAGE_SIZE);
   const typeInfo = REPORT_TYPES.find((item) => item.id === reportType);
   const filterSummary = context ? describeFilters(reportType, filters, context) : [];
+  // With All chosen, a report is several titled tables (one per course, exam or student); otherwise one table.
+  const tables = report ? report.groups || [{ id: "report", title: "", subtitle: "", columns: report.columns, rows: report.rows }] : [];
+  const groupSlice = getListPageSlice(tables, groupPage, GROUPS_PER_PAGE);
+  const rowCount = report ? reportRowCount(report) : 0;
+  const landscape = tables.some((table) => printLayout(table.columns).landscape);
+  // A new report or filter shows the first page; the key also resets each table's own row pages.
+  const resetKey = `${reportType}|${JSON.stringify(filters)}`;
 
-  // A grade sheet needs one course, so the first course is chosen once, when the data first arrives.
-  const firstCourse = options?.courseCodes[0];
-  const autoPicked = useRef(false);
-  useEffect(() => {
-    if (!firstCourse || autoPicked.current) return;
-    autoPicked.current = true;
-    setFilters((current) => (current.course === ALL ? { ...current, course: firstCourse } : current));
-  }, [firstCourse]);
-
-  useEffect(() => setPage(1), [filters, reportType]);
+  useEffect(() => setGroupPage(1), [resetKey]);
 
   function update(changes) {
     setFilters((current) => ({ ...current, ...changes }));
@@ -157,14 +188,13 @@ export default function ProfessorReports() {
     update({ ...changes, examId: "", studentId: "" });
   }
   function resetFilters() {
-    setFilters({ ...EMPTY_FILTERS, course: firstCourse || ALL });
+    setFilters(EMPTY_FILTERS);
   }
 
-  const columns = (report?.columns || []).map((column) => ({ ...column, className: column.align === "center" ? "is-center" : undefined, render: (row) => cellContent(column, row) }));
-  const layout = printLayout(report?.columns || []);
   const examChoices = options?.exams || [];
   const generatedAt = new Date().toLocaleString();
-  const canExport = Boolean(report && !report.needs && report.rows.length);
+  const canExport = rowCount > 0;
+  const groupNoun = GROUP_NOUNS[reportType] || "table";
 
   return (
     <section className="dean-dashboard-page professor-reports-page">
@@ -226,7 +256,7 @@ export default function ProfessorReports() {
             ) : null}
             {reportType === "exam-results" || reportType === "integrity" ? (
               <SelectField label="Exam" value={filters.examId} onChange={(event) => update({ examId: event.target.value })}>
-                <option value="">{reportType === "integrity" ? "All exams" : "Choose an exam"}</option>
+                <option value="">All exams</option>
                 {examChoices.map((exam) => <option key={exam.id} value={exam.id}>{`${examTitle(exam)} (${courseLabel(context.courseById.get(exam.course_id))})`}</option>)}
               </SelectField>
             ) : null}
@@ -248,9 +278,9 @@ export default function ProfessorReports() {
                 </SelectField>
               </>
             ) : null}
-            {reportType === "student" ? (
+            {reportType === "student" || reportType === "integrity" ? (
               <SelectField label="Student" value={filters.studentId} onChange={(event) => update({ studentId: event.target.value })}>
-                <option value="">Choose a student</option>
+                <option value="">All students</option>
                 {(options?.students || []).map((student) => <option key={student.id} value={student.id}>{`${student.full_name || student.email || "Unknown student"}${student.student_number ? ` (${student.student_number})` : ""}`}</option>)}
               </SelectField>
             ) : null}
@@ -277,18 +307,32 @@ export default function ProfessorReports() {
           <div className="dean-dashboard-section-header">
             <div>
               <h2>{typeInfo.label}{report?.title ? `: ${report.title}` : ""}</h2>
-              <p>{report && !report.needs ? `${report.rows.length.toLocaleString()} rows. The screen shows ${PAGE_SIZE} at a time; printing and the CSV include every row.` : "Choose the filters for this report."}</p>
+              <p>
+                {report?.groups
+                  ? `${tables.length.toLocaleString()} ${groupNoun}${tables.length === 1 ? "" : "s"}, ${rowCount.toLocaleString()} rows. The screen shows ${GROUPS_PER_PAGE} ${groupNoun}s and ${PAGE_SIZE} rows at a time; printing and the CSV include everything.`
+                  : `${rowCount.toLocaleString()} rows. The screen shows ${PAGE_SIZE} at a time; printing and the CSV include every row.`}
+              </p>
             </div>
           </div>
           {loading ? (
             <ListSkeleton columns={6} label="Loading reports..." variant="table" />
-          ) : report?.needs ? (
-            <EmptyState title={report.needs} description="Use the filters above." />
+          ) : report?.groups ? (
+            tables.length ? (
+              <>
+                {groupSlice.rows.map((group) => (
+                  <section className="professor-report-group" key={group.id}>
+                    <h3>{group.title}</h3>
+                    <p>{group.subtitle}</p>
+                    <ScreenTable key={`${resetKey}|${group.id}`} table={group} />
+                  </section>
+                ))}
+                <ListPagination count={tables.length} page={groupSlice.page} pageSize={GROUPS_PER_PAGE} onPage={setGroupPage} />
+              </>
+            ) : (
+              <EmptyState title="No rows match these filters." description="Change the filters or the date range." />
+            )
           ) : report ? (
-            <>
-              <Table className="professor-report-table" columns={columns} emptyDescription="Change the filters or the date range." emptyTitle="No rows match these filters." rows={pageData.rows} />
-              <ListPagination count={report.rows.length} page={pageData.page} pageSize={PAGE_SIZE} onPage={setPage} />
-            </>
+            <ScreenTable key={resetKey} table={tables[0]} />
           ) : null}
         </Card>
       </div>
@@ -302,23 +346,25 @@ export default function ProfessorReports() {
             <dl>
               <div><dt>Professor</dt><dd>{user?.fullName || user?.email}</dd></div>
               <div><dt>Generated</dt><dd>{generatedAt}</dd></div>
-              <div><dt>Rows</dt><dd>{report.rows.length.toLocaleString()}</dd></div>
+              <div><dt>Rows</dt><dd>{rowCount.toLocaleString()}</dd></div>
               {filterSummary.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}
             </dl>
             <ul>
               {report.summary.map((item) => <li key={item.label}><span>{item.label}</span><strong>{item.value}</strong></li>)}
             </ul>
           </header>
-          <style>{`@page { size: ${layout.landscape ? "landscape" : "portrait"}; margin: 12mm 10mm 14mm; }`}</style>
-          <table>
-            <colgroup>{layout.widths.map((width, index) => <col key={report.columns[index].key} style={{ width }} />)}</colgroup>
-            <thead><tr>{report.columns.map((column) => <th className={column.align === "center" ? "is-center" : undefined} key={column.key}>{column.label}</th>)}</tr></thead>
-            <tbody>
-              {report.rows.map((row) => (
-                <tr key={row.id}>{report.columns.map((column) => <td className={column.align === "center" ? "is-center" : undefined} key={column.key}>{formatCell(column, row[column.key])}</td>)}</tr>
-              ))}
-            </tbody>
-          </table>
+          <style>{`@page { size: ${landscape ? "landscape" : "portrait"}; margin: 12mm 10mm 14mm; }`}</style>
+          {tables.map((table, index) => (
+            <section className={`professor-report-print-group${table.pageBreak && index ? " page-break" : ""}`} key={table.id}>
+              {report.groups ? (
+                <>
+                  <h3>{table.title}</h3>
+                  <p>{table.subtitle}</p>
+                </>
+              ) : null}
+              <PrintTable table={table} />
+            </section>
+          ))}
           <footer>
             <div><span /><p>Prepared by: {user?.fullName || user?.email}</p></div>
             <div><span /><p>Date</p></div>

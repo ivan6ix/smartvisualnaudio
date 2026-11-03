@@ -2,7 +2,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
-import { ALL, EMPTY_FILTERS, buildReport, buildReportContext, filterOptions, formatCell, printLayout, reportCsv } from "../src/lib/professorReports.js";
+import { ALL, EMPTY_FILTERS, buildReport, buildReportContext, describeFilters, filterOptions, formatCell, printLayout, reportCsv, reportRowCount } from "../src/lib/professorReports.js";
 
 const NOW = Date.parse("2026-11-01T12:00:00Z");
 const day = (offset) => new Date(NOW + offset * 86400000).toISOString();
@@ -61,8 +61,16 @@ const byStudent = (report) => new Map(report.rows.map((row) => [row.studentId, r
 
 // Grade sheet: needs a course; sections share columns; best graded attempt counts; missing and pending block a remark.
 {
-  assert.match(buildReport(context, "grade-sheet", filters()).needs, /Choose a course/);
+  // All courses: one grade sheet per course, each on its own page, with totals across them.
+  const allCourses = buildReport(context, "grade-sheet", filters());
+  assert.deepEqual(allCourses.groups.map((group) => group.id), ["MATH101", "SCI101"]);
+  assert.ok(allCourses.groups.every((group) => group.pageBreak));
+  assert.equal(allCourses.groups[0].rows.length, 3);
+  assert.match(allCourses.groups[0].subtitle, /^Students 3 · Class average/);
+  assert.equal(allCourses.summary.find((item) => item.label === "Students").value, 5);
+  assert.equal(reportRowCount(allCourses), 5);
   const sheet = buildReport(context, "grade-sheet", filters({ course: "MATH101" }));
+  assert.equal(sheet.groups, null, "One chosen course is one table.");
   assert.deepEqual(sheet.columns.map((column) => column.label), ["Student", "Student number", "Section", "Quiz 1", "Midterm", "Average", "Remarks"], "Same quiz and midterm in two sections share one column each.");
   const rows = byStudent(sheet);
   assert.equal(rows.size, 3);
@@ -87,7 +95,12 @@ const byStudent = (report) => new Map(report.rows.map((row) => [row.studentId, r
 
 // Exam results: one exam, everyone who should take it, time taken, alerts and risk.
 {
-  assert.match(buildReport(context, "exam-results", filters()).needs, /Choose an exam/);
+  // All exams: one block per exam in the filters.
+  const allExams = buildReport(context, "exam-results", filters());
+  assert.deepEqual(allExams.groups.map((group) => group.id), ["qA", "qB", "mA", "sA", "mB"], "In exam date order (mB's deadline is last).");
+  assert.equal(allExams.summary.find((item) => item.label === "Exams").value, 5);
+  assert.deepEqual(buildReport(context, "exam-results", filters({ course: "SCI101" })).groups.map((group) => group.id), ["sA"]);
+  assert.deepEqual(buildReport(context, "exam-results", filters({ status: "Missing" })).groups.map((group) => group.id), ["mA"], "Exams with no matching rows are left out.");
   const results = buildReport(context, "exam-results", filters({ examId: "mA" }));
   const rows = byStudent(results);
   assert.equal(rows.get("s1").points, "40 / 50");
@@ -100,7 +113,7 @@ const byStudent = (report) => new Map(report.rows.map((row) => [row.studentId, r
   assert.equal(formatCell(results.columns.find((column) => column.key === "submitted"), rows.get("s2").submitted), "-", "No submission shows a dash, not 1970.");
   assert.equal(results.summary[0].value, "1 of 2");
   assert.deepEqual(buildReport(context, "exam-results", filters({ examId: "mA", status: "Missing" })).rows.map((row) => row.studentId), ["s2"]);
-  assert.match(buildReport(context, "exam-results", filters({ course: "SCI101", examId: "mA" })).needs, /Choose an exam/, "An exam outside the chosen course is not shown.");
+  assert.deepEqual(buildReport(context, "exam-results", filters({ course: "SCI101", examId: "mA" })).groups, [], "An exam outside the chosen course is not shown.");
 }
 
 // Integrity: alerts on the professor's exams only, filtered by alert type, severity and alert date.
@@ -111,11 +124,20 @@ const byStudent = (report) => new Map(report.rows.map((row) => [row.studentId, r
   assert.equal(buildReport(context, "integrity", filters({ alertType: "Tab switch" })).rows.length, 1);
   assert.equal(buildReport(context, "integrity", filters({ severity: "High" })).rows.length, 3);
   assert.equal(buildReport(context, "integrity", filters({ dateRange: "Last 30 days" })).rows.length, 3, "Date range follows when the alert happened.");
+  const oneStudent = buildReport(context, "integrity", filters({ studentId: "s2" }));
+  assert.deepEqual(oneStudent.rows.map((row) => row.alert), ["Tab switch"], "The Student filter shows only that student's alerts.");
+  assert.equal(oneStudent.summary.find((item) => item.label === "Students flagged").value, 1);
+  assert.deepEqual(describeFilters("integrity", filters({ studentId: "s3" }), context), [["Student", "Ben Reyes (2026-003)"]], "The printout lists the chosen student.");
 }
 
 // Student report: the chosen student's exams across courses, including selected-student exams.
 {
-  assert.match(buildReport(context, "student", filters({ course: ALL })).needs, /Choose a student/);
+  // All students: every student's record, one block each, filtered by the search box.
+  const allStudents = buildReport(context, "student", filters());
+  assert.deepEqual(allStudents.groups.map((group) => group.id), ["s2", "s1", "s3"], "Sorted by name.");
+  assert.deepEqual(allStudents.groups.find((group) => group.id === "s1").rows.map((row) => row.exam), ["Quiz 1", "Midterm", "Lab test"]);
+  assert.equal(allStudents.summary.find((item) => item.label === "Students").value, 3);
+  assert.deepEqual(buildReport(context, "student", filters({ search: "Ben" })).groups.map((group) => group.id), ["s3"]);
   const report = buildReport(context, "student", filters({ course: ALL, studentId: "s1" }));
   assert.deepEqual(report.rows.map((row) => row.exam), ["Quiz 1", "Midterm", "Lab test"]);
   assert.equal(report.summary.find((item) => item.label === "Passed").value, "3 of 3");
@@ -143,6 +165,13 @@ const byStudent = (report) => new Map(report.rows.map((row) => [row.studentId, r
   assert.equal(lines.length, 4);
   assert.equal(lines[0], "Student,Student number,Section,Quiz 1,Midterm,Average,Remarks");
   assert.ok(lines.some((line) => line.startsWith("\"'=HYPERLINK(\"\"x\"\")\"")), "A name starting with = is written as text, not a formula.");
+  // Grouped reports: each block's title and summary, its header and rows, then a blank line.
+  const grouped = reportCsv(buildReport(context, "grade-sheet", filters())).replace(/^\uFEFF/, "").split("\r\n");
+  assert.equal(grouped[0], "MATH101 Algebra");
+  assert.match(grouped[1], /^Students 3 · Class average/);
+  assert.equal(grouped[2], lines[0]);
+  assert.equal(grouped[6], "", "A blank line separates the blocks.");
+  assert.equal(grouped[7], "SCI101 Science");
 }
 
 // The page: professor-only route and sidebar item, every table read in full, print and CSV wired.
@@ -156,9 +185,14 @@ assert.match(page, /\.eq\("needs_manual_grading", true\)\.in\("exam_attempts\.ex
 assert.match(page, /queryKey: \["professor-reports", user\?\.id\]/, "Cached reports are kept per user.");
 assert.match(page, /window\.print\(\)/);
 assert.match(page, /downloadCsv\(reportCsv\(report\), reportFileName\(reportType\)\)/);
-assert.match(page, /className="professor-report-print"[\s\S]*report\.rows\.map/, "The printout lists every row, not one page.");
-assert.match(page, /<colgroup>\{layout\.widths\.map/, "Printed columns get set widths.");
-assert.match(page, /@page \{ size: \$\{layout\.landscape \? "landscape" : "portrait"\}/, "Wide reports print in landscape.");
+assert.match(page, /function PrintTable[\s\S]*?table\.rows\.map/, "Printed tables list every row, not one page.");
+assert.match(page, /className="professor-report-print"[\s\S]*tables\.map\(\(table, index\)[\s\S]*<PrintTable table=\{table\} \/>/, "The printout includes every table (every course, exam or student with All).");
+assert.match(page, /<option value="">All exams<\/option>/);
+assert.match(page, /<option value="">All students<\/option>/);
+assert.match(page, /\{reportType === "student" \|\| reportType === "integrity" \? \(\s+<SelectField label="Student"/, "Integrity has a Student filter.");
+assert.doesNotMatch(page, /Choose (a course|an exam|a student)/, "All shows everything instead of asking for one choice.");
+assert.match(page, /<colgroup>\{widths\.map/, "Printed columns get set widths.");
+assert.match(page, /@page \{ size: \$\{landscape \? "landscape" : "portrait"\}/, "Wide reports print in landscape.");
 
 // Printed columns share the page by size and always add up to the full width; many columns go landscape.
 {

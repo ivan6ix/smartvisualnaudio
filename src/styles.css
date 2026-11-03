@@ -19767,6 +19767,24 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 .professor-report-print {
   display: none;
 }
+.professor-report-group + .professor-report-group {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--app-line);
+}
+.professor-report-group h3 {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 1rem;
+}
+.professor-report-group > p {
+  margin: 4px 0 12px;
+  color: var(--app-text-muted);
+  font-size: 0.85rem;
+}
+.professor-report-group + .list-view-pagination {
+  margin-top: 18px;
+}
 @media (max-width: 1100px) {
   .professor-report-types {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -19905,6 +19923,25 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   }
   .professor-report-print tr {
     break-inside: avoid;
+  }
+  /* With All chosen: one titled block per course, exam or student. Courses and exams each start a new page. */
+  .professor-report-print-group + .professor-report-print-group {
+    margin-top: 16px;
+  }
+  .professor-report-print-group.page-break {
+    break-before: page;
+    margin-top: 0;
+  }
+  .professor-report-print-group h3 {
+    margin: 0;
+    font-size: 11pt;
+    break-after: avoid;
+  }
+  :is(html, html[data-appearance]) .professor-report-print-group > p {
+    margin: 2px 0 6px;
+    color: #4b5563 !important;
+    font-size: 8pt;
+    break-after: avoid;
   }
   .professor-report-print footer {
     display: flex;

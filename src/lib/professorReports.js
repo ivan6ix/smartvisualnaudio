@@ -237,8 +237,7 @@ function studentFields(context, studentId, course) {
 
 // Students down the side, one column per exam. Exams with the same type and title in different sections share a
 // column, so a course taught in several sections prints as one sheet.
-export function buildGradeSheet(context, filters) {
-  if (filters.course === ALL) return { needs: "Choose a course to build its grade sheet.", columns: [], rows: [], summary: [] };
+function gradeSheetFor(context, filters) {
   const exams = filterExams(context, filters);
   const columnKey = (exam) => `${examType(exam)}|${examTitle(exam).trim().toLowerCase()}`;
   const columns = [];
@@ -301,8 +300,11 @@ export function buildGradeSheet(context, filters) {
     .filter((row) => matchesSearch(`${row.student} ${row.studentNumber}`, filters.search))
     .sort((left, right) => left.section.localeCompare(right.section) || left.student.localeCompare(right.student));
 
-  const classAverage = average(rows.map((row) => row.averageValue).filter((value) => value !== null));
+  const averages = rows.map((row) => row.averageValue).filter((value) => value !== null);
+  const passed = rows.filter((row) => row.remark === "Passed").length;
+  const course = context.courses.find((item) => item.course_code === filters.course);
   return {
+    title: `${filters.course}${course?.course_name ? ` ${course.course_name}` : ""}`,
     columns: [
       { key: "student", label: "Student", size: "wide" },
       { key: "studentNumber", label: "Student number", size: "medium" },
@@ -312,21 +314,78 @@ export function buildGradeSheet(context, filters) {
       { key: "remark", label: "Remarks", size: "medium" },
     ],
     rows,
-    summary: [
-      { label: "Students", value: rows.length },
-      { label: "Class average", value: percentText(classAverage) },
-      { label: "Passed", value: `${rows.filter((row) => row.remark === "Passed").length} of ${rows.length}` },
-      { label: "Missing work", value: missingWork },
-    ],
+    summary: gradeSummary({ students: rows.length, averages, passed, missingWork }),
+    stats: { students: rows.length, averages, passed, missingWork },
+  };
+}
+
+function gradeSummary({ students, averages, passed, missingWork }) {
+  return [
+    { label: "Students", value: students },
+    { label: "Class average", value: percentText(average(averages)) },
+    { label: "Passed", value: `${passed} of ${students}` },
+    { label: "Missing work", value: missingWork },
+  ];
+}
+
+function summaryLine(summary) {
+  return summary.map((item) => `${item.label} ${item.value}`).join(" · ");
+}
+
+function toGroup(id, report, extra = {}) {
+  return { id, title: report.title, subtitle: summaryLine(report.summary), columns: report.columns, rows: report.rows, ...extra };
+}
+
+// With All courses: one grade sheet per course (its sections together), each starting on a new printed page.
+export function buildGradeSheet(context, filters) {
+  if (filters.course !== ALL) return gradeSheetFor(context, filters);
+  const codes = uniqueSorted(filterCourses(context, filters).map((course) => course.course_code));
+  const sheets = codes.map((code) => ({ code, sheet: gradeSheetFor(context, { ...filters, course: code }) })).filter(({ sheet }) => sheet.rows.length);
+  const totals = sheets.reduce((sum, { sheet }) => ({
+    students: sum.students + sheet.stats.students,
+    averages: [...sum.averages, ...sheet.stats.averages],
+    passed: sum.passed + sheet.stats.passed,
+    missingWork: sum.missingWork + sheet.stats.missingWork,
+  }), { students: 0, averages: [], passed: 0, missingWork: 0 });
+  return {
+    title: "All courses",
+    groups: sheets.map(({ code, sheet }) => toGroup(code, sheet, { pageBreak: true })),
+    summary: gradeSummary(totals),
+  };
+}
+
+function examResultsSummary({ assigned, scores, passed }) {
+  return [
+    { label: "Submitted", value: `${scores.length} of ${assigned}` },
+    { label: "Average", value: percentText(average(scores)) },
+    { label: "Highest / lowest", value: scores.length ? `${round(Math.max(...scores))}% / ${round(Math.min(...scores))}%` : "-" },
+    { label: "Pass rate", value: scores.length ? `${Math.round((passed / scores.length) * 100)}%` : "-" },
+  ];
+}
+
+// One exam, or with no exam chosen, every exam in the filters (one block each, each on a new printed page).
+export function buildExamResults(context, filters) {
+  const exams = filterExams(context, { ...filters, examId: "" });
+  if (filters.examId) {
+    const exam = exams.find((item) => item.id === filters.examId);
+    return exam ? examResultsFor(context, filters, exam) : { title: "", groups: [], summary: [] };
+  }
+  const results = exams.map((exam) => ({ exam, result: examResultsFor(context, filters, exam) })).filter(({ result }) => result.rows.length);
+  const totals = results.reduce((sum, { result }) => ({
+    assigned: sum.assigned + result.stats.assigned,
+    scores: [...sum.scores, ...result.stats.scores],
+    passed: sum.passed + result.stats.passed,
+  }), { assigned: 0, scores: [], passed: 0 });
+  const [submitted, averageScore, , passRate] = examResultsSummary(totals);
+  return {
+    title: "All exams",
+    groups: results.map(({ exam, result }) => toGroup(exam.id, result, { pageBreak: true })),
+    summary: [{ label: "Exams", value: results.length }, submitted, averageScore, passRate],
   };
 }
 
 // Everyone who should take one exam, with their result, time taken, alerts and integrity risk.
-export function buildExamResults(context, filters) {
-  const exam = context.examById.get(filters.examId);
-  if (!exam || !filterExams(context, { ...filters, examId: "" }).some((item) => item.id === exam.id)) {
-    return { needs: "Choose an exam to see its results.", columns: [], rows: [], summary: [] };
-  }
+function examResultsFor(context, filters, exam) {
   const course = context.courseById.get(exam.course_id);
   const all = (context.populationByExam.get(exam.id) || []).map((studentId) => {
     const result = studentResult(context, exam, studentId);
@@ -347,7 +406,7 @@ export function buildExamResults(context, filters) {
   const rows = all
     .filter((row) => (filters.status === ALL || row.status === filters.status) && matchesSearch(`${row.student} ${row.studentNumber}`, filters.search))
     .sort((left, right) => left.student.localeCompare(right.student));
-  const scored = all.map((row) => row.scoreValue).filter((value) => value !== null);
+  const scores = all.map((row) => row.scoreValue).filter((value) => value !== null);
   const passed = all.filter((row) => row.remark === "Passed").length;
   return {
     title: `${examTitle(exam)} (${courseLabel(course)})`,
@@ -364,12 +423,8 @@ export function buildExamResults(context, filters) {
       { key: "risk", label: "Risk", size: "narrow" },
     ],
     rows,
-    summary: [
-      { label: "Submitted", value: `${scored.length} of ${all.length}` },
-      { label: "Average", value: percentText(average(scored)) },
-      { label: "Highest / lowest", value: scored.length ? `${round(Math.max(...scored))}% / ${round(Math.min(...scored))}%` : "-" },
-      { label: "Pass rate", value: scored.length ? `${Math.round((passed / scored.length) * 100)}%` : "-" },
-    ],
+    summary: examResultsSummary({ assigned: all.length, scores, passed }),
+    stats: { assigned: all.length, scores, passed },
   };
 }
 
@@ -379,6 +434,7 @@ export function buildIntegrityReport(context, filters) {
   const examIds = new Set(filters.examId ? [filters.examId] : exams.map((exam) => exam.id));
   const rows = context.violations
     .filter((item) => examIds.has(item.exam_id) && inDateRange(item.created_at, filters, context.now)
+      && (!filters.studentId || item.student_id === filters.studentId)
       && (filters.alertType === ALL || violationLabel(item.violation_type) === filters.alertType)
       && (filters.severity === ALL || String(item.severity || "").toLowerCase() === filters.severity.toLowerCase()))
     .map((item) => {
@@ -422,10 +478,30 @@ export function buildIntegrityReport(context, filters) {
   };
 }
 
-// One student's exams across the professor's courses, with their trend and at-risk prediction.
+// One student's record, or with no student chosen, every student in the filters (one block each).
 export function buildStudentReport(context, filters) {
-  const studentId = filters.studentId;
-  if (!studentId) return { needs: "Choose a student to see their record.", columns: [], rows: [], summary: [] };
+  if (filters.studentId) return studentReportFor(context, filters, filters.studentId);
+  const records = filterOptions(context, filters).students
+    .filter((student) => matchesSearch(`${studentName(student)} ${student.student_number || ""}`, filters.search))
+    .map((student) => ({ student, record: studentReportFor(context, filters, student.id) }))
+    .filter(({ record }) => record.rows.length);
+  const studentAverages = records.map(({ record }) => record.stats.average).filter((value) => value !== null);
+  const passed = records.reduce((total, { record }) => total + record.stats.passed, 0);
+  const results = records.reduce((total, { record }) => total + record.rows.length, 0);
+  return {
+    title: "All students",
+    groups: records.map(({ student, record }) => toGroup(student.id, record)),
+    summary: [
+      { label: "Students", value: records.length },
+      { label: "Average", value: percentText(average(studentAverages)) },
+      { label: "Passed", value: `${passed} of ${results}` },
+      { label: "High risk next exam", value: records.filter(({ record }) => record.stats.highRisk).length },
+    ],
+  };
+}
+
+// One student's exams across the professor's courses, with their trend and at-risk prediction.
+function studentReportFor(context, filters, studentId) {
   const exams = filterExams(context, filters).filter((exam) => (context.populationByExam.get(exam.id) || []).includes(studentId));
   const rows = exams.map((exam) => {
     const course = context.courseById.get(exam.course_id);
@@ -449,6 +525,7 @@ export function buildStudentReport(context, filters) {
   const finalAttempts = exams.map((exam) => studentResult(context, exam, studentId)).filter((result) => result.score !== null).map((result) => result.attempt);
   const predictions = predictStudents({ exams, courses: context.courses, attempts: finalAttempts });
   const worst = predictions[0];
+  const passed = rows.filter((row) => row.remark === "Passed").length;
   const student = context.studentById.get(studentId) || {};
   return {
     title: `${studentName(student)} (${student.student_number || "no student number"})`,
@@ -467,10 +544,11 @@ export function buildStudentReport(context, filters) {
     rows,
     summary: [
       { label: "Average", value: percentText(average(scored)) },
-      { label: "Passed", value: `${rows.filter((row) => row.remark === "Passed").length} of ${rows.length}` },
+      { label: "Passed", value: `${passed} of ${rows.length}` },
       { label: "Alerts", value: rows.reduce((total, row) => total + row.alerts, 0) },
       { label: "Next exam outlook", value: worst ? `${worst.level} risk (${round(worst.predicted)}% predicted)` : "Not enough scores" },
     ],
+    stats: { average: average(scored), passed, highRisk: worst?.level === "High" },
   };
 }
 
@@ -531,9 +609,14 @@ const BUILDERS = {
   "course-summary": buildCourseSummary,
 };
 
+// A report is either one table (columns and rows) or, when All is chosen, several titled tables (groups).
 export function buildReport(context, reportType, filters) {
-  const report = (BUILDERS[reportType] || buildGradeSheet)(context, { ...EMPTY_FILTERS, ...filters });
-  return { title: "", needs: "", ...report };
+  const { title = "", columns = [], rows = [], groups = null, summary = [] } = (BUILDERS[reportType] || buildGradeSheet)(context, { ...EMPTY_FILTERS, ...filters });
+  return { title, columns, rows, groups, summary };
+}
+
+export function reportRowCount(report) {
+  return report.groups ? report.groups.reduce((total, group) => total + group.rows.length, 0) : report.rows.length;
 }
 
 export function formatCell(column, value) {
@@ -566,9 +649,17 @@ function csvCell(value) {
   return /[",\r\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
 }
 
-export function reportCsv({ columns, rows }) {
+function csvTable({ columns, rows }) {
   const lines = [columns.map((column) => csvCell(column.label)).join(",")];
   for (const row of rows) lines.push(columns.map((column) => csvCell(formatCell(column, row[column.key]))).join(","));
+  return lines;
+}
+
+// Grouped reports write each block under its title, separated by a blank line.
+export function reportCsv(report) {
+  const lines = report.groups
+    ? report.groups.flatMap((group, index) => [...(index ? [""] : []), csvCell(group.title), csvCell(group.subtitle), ...csvTable(group)])
+    : csvTable(report);
   return `\uFEFF${lines.join("\r\n")}\r\n`;
 }
 
@@ -591,6 +682,10 @@ export function describeFilters(reportType, filters, context) {
   if (reportType === "exam-results" && filters.status !== ALL) parts.push(["Status", filters.status]);
   if (reportType === "integrity" && filters.alertType !== ALL) parts.push(["Alert", filters.alertType]);
   if (reportType === "integrity" && filters.severity !== ALL) parts.push(["Severity", filters.severity]);
+  if (["integrity", "student"].includes(reportType) && filters.studentId) {
+    const student = context.studentById.get(filters.studentId);
+    parts.push(["Student", `${studentName(student)}${student?.student_number ? ` (${student.student_number})` : ""}`]);
+  }
   if (filters.search.trim()) parts.push(["Search", filters.search.trim()]);
   return parts;
 }
