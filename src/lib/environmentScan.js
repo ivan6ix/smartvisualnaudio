@@ -337,21 +337,28 @@ export function findDuplicateAngle(angleId, signature, capturedSignatures = {}) 
 
 // --- Room sweep --------------------------------------------------------------------------------
 // A laptop webcam has no motion sensor, so the sweep is judged from the pictures: the view must keep
-// changing (distinct views), last long enough for a slow full turn, and end back at the starting view.
+// changing (distinct views) and last long enough for a slow full turn. Coming back to the starting view
+// finishes the sweep on its own; otherwise the student presses Done once enough of the room was shown.
 // View distances ignore overall brightness so the camera's auto exposure does not count as movement.
 
 export const SWEEP_SAMPLE_INTERVAL_MS = 500;
 export const SWEEP_MIN_MS = 20000;
 export const SWEEP_MAX_MS = 90000;
-// A sample this different from the last kept view becomes a new view.
+// A sample this different from each of the last few kept views becomes a new view. Comparing with several
+// views (not only the last) stops shaking or turning back and forth from adding views.
 export const SWEEP_VIEW_DISTANCE = 14;
+export const SWEEP_RECENT_VIEWS = 4;
 export const SWEEP_MIN_VIEWS = 8;
 export const SWEEP_TARGET_VIEWS = 12;
+// The progress bar also follows time, so it cannot fill faster than a slow full turn.
+export const SWEEP_TARGET_MS = 25000;
 export const SWEEP_COVERAGE_BEFORE_RETURN = 0.9;
 // At most this many views are sent to the detectors, spread evenly over the sweep.
 export const SWEEP_MAX_FRAMES = 12;
-// Ending this close to the first view counts as being back where the sweep started.
-export const SWEEP_RETURN_DISTANCE = 16;
+// Ending this close to one of the first views counts as being back where the sweep started. The first few
+// views are used because the very first frame is often taken while the student is still settling.
+export const SWEEP_RETURN_DISTANCE = 20;
+export const SWEEP_START_VIEWS = 3;
 // Two samples this far apart, half a second apart, mean the camera turned too fast to see clearly.
 // Only shown as a hint; the sweep's duration check is what rejects a rushed turn.
 export const SWEEP_FAST_DISTANCE = 24;
@@ -372,8 +379,7 @@ export function createSweep(startedAt) {
 
 // True when this sample shows something new, so the caller should keep its image.
 export function isNewSweepView(sweep, signature) {
-  const lastView = sweep.views.at(-1);
-  return !lastView || getViewDistance(lastView.signature, signature) >= SWEEP_VIEW_DISTANCE;
+  return sweep.views.slice(-SWEEP_RECENT_VIEWS).every((view) => getViewDistance(view.signature, signature) >= SWEEP_VIEW_DISTANCE);
 }
 
 // Adds one sample; `image` is only given for samples that isNewSweepView accepted.
@@ -392,16 +398,17 @@ export function getSweepProgress(sweep, now = sweep.lastAt) {
   const elapsedMs = Math.max(0, now - sweep.startedAt);
   const viewCount = sweep.views.length;
   const enoughTurning = elapsedMs >= SWEEP_MIN_MS && viewCount >= SWEEP_MIN_VIEWS;
-  const startDistance = viewCount ? getViewDistance(sweep.views[0].signature, sweep.lastSignature) : Number.POSITIVE_INFINITY;
+  const startDistance = Math.min(...sweep.views.slice(0, SWEEP_START_VIEWS).map((view) => getViewDistance(view.signature, sweep.lastSignature)));
   const backAtStart = enoughTurning && startDistance < SWEEP_RETURN_DISTANCE;
   return {
     elapsedMs,
     viewCount,
-    // Distinct views only estimate how far the camera turned, so coverage stays below full until the
-    // view is back at the start.
-    coverage: backAtStart ? 1 : Math.min(SWEEP_COVERAGE_BEFORE_RETURN, viewCount / SWEEP_TARGET_VIEWS),
+    // Distinct views and time only estimate how far the camera turned, so the bar follows the slower of the
+    // two and stays below full until the view is back at the start or the student presses Done.
+    coverage: backAtStart ? 1 : Math.min(SWEEP_COVERAGE_BEFORE_RETURN, viewCount / SWEEP_TARGET_VIEWS, elapsedMs / SWEEP_TARGET_MS),
     canFinish: enoughTurning,
     backAtStart,
+    startImage: sweep.views[0]?.image || null,
     tooFast: sweep.tooFastAt !== null && sweep.lastAt - sweep.tooFastAt < 2000,
     timedOut: elapsedMs >= SWEEP_MAX_MS,
   };
@@ -423,9 +430,8 @@ export function finishSweep(sweep, now = sweep.lastAt) {
   if (progress.elapsedMs < SWEEP_MIN_MS) {
     return { ok: false, reason: "The sweep was too quick to check the room. Turn more slowly, taking about 30 seconds for the full circle." };
   }
-  if (!progress.backAtStart) {
-    return { ok: false, reason: "The sweep did not end where it started. Turn all the way around until you face your starting view again." };
-  }
+  // Ending exactly at the starting view is not required: the views must already show enough of the room, and the
+  // AI check of the photos decides whether the room is clear.
   return {
     ok: true,
     frames: spreadEvenly(sweep.views, SWEEP_MAX_FRAMES).map((view) => ({ image: view.image, timestamp: view.timestamp, angle: "sweep" })),

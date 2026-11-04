@@ -3168,7 +3168,7 @@ export default function StudentExamTake() {
       : sweepProgress.tooFast
         ? "Slow down. Turn more slowly so the camera can see clearly."
         : sweepProgress.canFinish
-          ? "Almost done. Keep turning until you face where you started."
+          ? "Enough of the room is shown. Keep turning until you see your starting view again, or press Done."
           : "Keep turning slowly in the same direction.";
 
     return (
@@ -3255,6 +3255,12 @@ export default function StudentExamTake() {
                 <span style={{ width: `${sweepPercent}%` }} />
               </div>
               <small className={sweepProgress.tooFast ? "warning" : ""}>{sweepHint}</small>
+              {sweepProgress.startImage ? (
+                <figure className="student-sweep-start">
+                  <img alt="Your starting view" src={sweepProgress.startImage} />
+                  <figcaption>Your starting view: turn until you see this again.</figcaption>
+                </figure>
+              ) : null}
             </div>
           ) : scanActive ? (
             <div className="student-scan-meter" aria-live="polite">

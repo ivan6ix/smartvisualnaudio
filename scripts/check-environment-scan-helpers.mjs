@@ -349,9 +349,31 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
   assert.equal(early.canFinish, false);
   assert.equal(early.backAtStart, false);
 
-  // A camera that never moves, three quarters of a turn, or a rushed turn are all sent back with a reason.
+  // A camera that never moves or a rushed turn are sent back with a reason.
   assert.match(finishSweep(sweepThrough(Array(61).fill(0))).reason, /did not show enough of the room/);
-  assert.match(finishSweep(sweepThrough(turn(270, 60))).reason, /did not end where it started/);
+
+  // Shaking in place or turning back and forth over the same spot does not fill the bar or unlock Done.
+  const shaking = sweepThrough(Array.from({ length: 61 }, (_, index) => [0, 8, 3, 10, 5][index % 5]));
+  const shakingProgress = getSweepProgress(shaking);
+  assert.ok(shakingProgress.viewCount < SWEEP_MIN_VIEWS, `Shaking adds few views (${shakingProgress.viewCount}).`);
+  assert.equal(shakingProgress.canFinish, false);
+  assert.match(finishSweep(shaking).reason, /did not show enough of the room/);
+  const backAndForth = sweepThrough(Array.from({ length: 61 }, (_, index) => (index % 12 < 6 ? (index % 6) * 12 : (6 - (index % 6)) * 12)));
+  assert.ok(getSweepProgress(backAndForth).viewCount < SWEEP_MIN_VIEWS, "Turning back and forth over one corner counts that corner once.");
+
+  // The bar cannot run ahead of a slow turn: after 5 seconds it is at most a fifth full, however much the view changed.
+  assert.ok(getSweepProgress(sweepThrough(turn(180, 10))).coverage <= 0.2 + 1e-9, "Progress follows time as well as views.");
+
+  // A real full turn rarely ends exactly where it started. Ending a little off still finishes with Done, and
+  // coming back near one of the first views (not only the very first frame) finishes on its own.
+  assert.equal(getSweepProgress(sweepThrough(turn(330, 60))).backAtStart, true, "Ending a little short of the start still counts as back at the start.");
+  const settlingStart = sweepThrough([-50, -48, ...turn(360, 60)]);
+  assert.equal(getSweepProgress(settlingStart).backAtStart, true, "A first frame taken while settling does not block the return.");
+  const threeQuarters = sweepThrough(turn(270, 60));
+  assert.equal(getSweepProgress(threeQuarters).backAtStart, false);
+  assert.ok(getSweepProgress(threeQuarters).coverage <= 0.9, "Before returning or pressing Done, the bar stays below full.");
+  assert.equal(getSweepProgress(threeQuarters).canFinish, true);
+  assert.equal(finishSweep(threeQuarters).ok, true, "Done finishes a sweep that showed enough of the room.");
   const rushed = sweepThrough(turn(360, 20));
   assert.match(finishSweep(rushed).reason, /too quick/);
   assert.equal(getSweepProgress(rushed).tooFast, true, "Turning 18 degrees every half second is too fast to see clearly.");

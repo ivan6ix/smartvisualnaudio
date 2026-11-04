@@ -20130,6 +20130,26 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   }
 }
 
+/* Room sweep: a small picture of the starting view, so the student knows where the circle ends. */
+.student-sweep-start {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 4px 0 0;
+}
+.student-sweep-start img {
+  width: 96px;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border: 2px solid var(--theme-color);
+  border-radius: 8px;
+}
+.student-sweep-start figcaption {
+  color: var(--app-text-muted);
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
 /* Device setup before the environment scan: camera preview, microphone level and speaker test. */
 .device-setup {
   display: grid;
