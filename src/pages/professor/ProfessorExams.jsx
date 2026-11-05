@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FiArchive, FiEdit2, FiFileText, FiGrid, FiPlus, FiRotateCcw, FiUser, FiUsers, FiX } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
@@ -130,6 +130,7 @@ function mapExam(row, reviewByExam = {}, groupByExam = {}) {
     clusterStatus: getClusterStatus(row),
     rejectionReason: latestReview?.remarks || "",
     reviewRequired: Boolean(row.submitted_at && !row.approved_at),
+    sharedFromExamId: row.exam_settings?.sharedFromExamId || "",
     groupId: groupByExam[row.id]?.groupId || "",
     sharedCourseCount: groupByExam[row.id]?.count || 0,
     sharedCourses: groupByExam[row.id]?.courses || [],
@@ -149,6 +150,8 @@ export default function ProfessorExams() {
   const [examsReady, setExamsReady] = useState(() => !hasSupabaseConfig || Boolean(queryClient.getQueryData(["professor-exams", user?.id])));
   const [loadingActionId, setLoadingActionId] = useState("");
   const [sharingTargetId, setSharingTargetId] = useState("");
+  const [sharedStudentIds, setSharedStudentIds] = useState([]);
+  const sharingRef = useRef(false);
   const [sectionFilters, setSectionFilters] = useState(initialSectionFilters);
   const [archiveModalOpen, setArchiveModalOpen] = useState(false);
   const [archivedSearch, setArchivedSearch] = useState("");
@@ -354,6 +357,12 @@ export default function ProfessorExams() {
       } else {
         setShareStudents(studentRows || []);
       }
+
+      const { data: grantRows } = await supabase
+        .from("exam_student_access_exceptions")
+        .select("student_id")
+        .eq("exam_id", shareExam.id);
+      setSharedStudentIds((grantRows || []).map((row) => row.student_id));
     }
 
     loadShareTargets();
@@ -364,6 +373,7 @@ export default function ProfessorExams() {
     setShareMode("");
     setShareCourses([]);
     setShareStudents([]);
+    setSharedStudentIds([]);
     setSharingTargetId("");
   }
 
@@ -863,61 +873,17 @@ export default function ProfessorExams() {
   }
 
   async function duplicateExamToCourse(targetCourse) {
-    if (!shareExam || !targetCourse || !hasSupabaseConfig || !user?.id) return;
+    if (!shareExam || !targetCourse || !hasSupabaseConfig || !user?.id || sharingRef.current) return;
+    sharingRef.current = true;
     setSharingTargetId(targetCourse.id);
 
     try {
-      const { data: sourceExam, error: examError } = await supabase
-        .from("exams")
-        .select("title, exam_title, description, semester, exam_type, duration, time_limit, exam_settings, assignment_mode, questions_count")
-        .eq("id", shareExam.id)
-        .maybeSingle();
-
-      if (examError) throw examError;
-      if (!sourceExam) throw new Error("Exam not found.");
-
-      const { data: questionRows, error: questionError } = await supabase
-        .from("exam_questions")
-        .select("question_text, question_type, choices, correct_answer, correct_answers, question_config, manual_grading, points, sort_order")
-        .eq("exam_id", shareExam.id)
-        .order("sort_order", { ascending: true, nullsFirst: false })
-        .order("id", { ascending: true });
-
-      if (questionError) throw questionError;
-
-      const duration = sourceExam.time_limit || sourceExam.duration || null;
-      const { data: newExam, error: insertError } = await supabase
-        .from("exams")
-        .insert({
-          course_id: targetCourse.id,
-          title: sourceExam.title,
-          exam_title: sourceExam.exam_title || sourceExam.title,
-          description: sourceExam.description,
-          semester: sourceExam.semester,
-          course: `${targetCourse.course_code} - ${targetCourse.section}`,
-          professor_id: user.id,
-          created_by: user.id,
-          exam_type: sourceExam.exam_type,
-          duration,
-          time_limit: duration,
-          exam_settings: sourceExam.exam_settings || {},
-          assignment_mode: "entire_course",
-          questions_count: questionRows?.length || sourceExam.questions_count || 0,
-          status: "Published",
-          approved_at: null,
-        })
-        .select("id")
-        .single();
-
-      if (insertError) throw insertError;
-
-      if (questionRows?.length) {
-        const { error: copyQuestionsError } = await supabase.from("exam_questions").insert(questionRows.map((question) => ({
-          ...question,
-          exam_id: newExam.id,
-        })));
-        if (copyQuestionsError) throw copyQuestionsError;
-      }
+      // The database copies the exam and its questions in one step, and refuses a second copy in the same course.
+      const { error } = await supabase.rpc("share_exam_to_course", {
+        p_exam_id: shareExam.id,
+        p_course_id: targetCourse.id,
+      });
+      if (error) throw error;
 
       toast.success(`Exam shared to ${targetCourse.course_code} - ${targetCourse.section}`);
       await loadExams(true);
@@ -925,12 +891,14 @@ export default function ProfessorExams() {
     } catch (error) {
       toast.error(error.message);
     } finally {
+      sharingRef.current = false;
       setSharingTargetId("");
     }
   }
 
   async function shareToStudent(enrollment) {
-    if (!shareExam || !enrollment?.student_id || !hasSupabaseConfig) return;
+    if (!shareExam || !enrollment?.student_id || !hasSupabaseConfig || sharingRef.current) return;
+    sharingRef.current = true;
     setSharingTargetId(enrollment.student_id);
 
     try {
@@ -947,10 +915,16 @@ export default function ProfessorExams() {
     } catch (error) {
       toast.error(error.message);
     } finally {
+      sharingRef.current = false;
       setSharingTargetId("");
     }
   }
 
+  // Courses that already hold this exam or a copy of it, so the Share button can say Shared.
+  const shareRootId = shareExam?.sharedFromExamId || shareExam?.id || "";
+  const sharedCourseIds = new Set(allExams
+    .filter((exam) => !exam.archived && shareRootId && (exam.id === shareRootId || exam.sharedFromExamId === shareRootId))
+    .map((exam) => exam.courseId));
   const shareCourseTargets = shareCourses.filter((course) => course.id !== shareExam?.courseId);
   const shareSectionTargets = shareCourseTargets.filter((course) => (
     shareExam?.courseCode ? course.course_code === shareExam.courseCode : true
@@ -965,6 +939,7 @@ export default function ProfessorExams() {
           id: course.id,
           label: `${course.course_code} - ${course.section}`,
           detail: course.course_name,
+          shared: sharedCourseIds.has(course.id),
           action: () => duplicateExamToCourse(course),
         })),
       };
@@ -978,6 +953,7 @@ export default function ProfessorExams() {
           id: course.id,
           label: `${course.course_code} - ${course.section}`,
           detail: course.course_name,
+          shared: sharedCourseIds.has(course.id),
           action: () => duplicateExamToCourse(course),
         })),
       };
@@ -991,6 +967,7 @@ export default function ProfessorExams() {
           id: enrollment.student_id,
           label: enrollment.profiles?.full_name || enrollment.profiles?.email || "Unnamed student",
           detail: enrollment.profiles?.student_number || enrollment.profiles?.email || "",
+          shared: sharedStudentIds.includes(enrollment.student_id),
           action: () => shareToStudent(enrollment),
         })),
       };
@@ -1155,8 +1132,8 @@ export default function ProfessorExams() {
                       <strong>{row.label}</strong>
                       {row.detail ? <span>{row.detail}</span> : null}
                     </div>
-                    <button disabled={sharingTargetId === row.id} onClick={row.action} type="button">
-                      {sharingTargetId === row.id ? "Sharing..." : "Share"}
+                    <button disabled={Boolean(sharingTargetId) || row.shared} onClick={row.action} type="button">
+                      {sharingTargetId === row.id ? "Sharing..." : row.shared ? "Shared" : "Share"}
                     </button>
                   </article>
                 )) : <div className="professor-share-empty">{getSharePanel()?.empty}</div>}
