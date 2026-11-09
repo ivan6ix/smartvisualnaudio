@@ -20339,3 +20339,8 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
     grid-template-columns: repeat(2, minmax(150px, 220px));
   }
 }
+
+/* Space between a confirmation summary box (Publish, Delete) and its buttons. */
+.professor-delete-summary + .professor-delete-actions {
+  margin-top: 16px;
+}
