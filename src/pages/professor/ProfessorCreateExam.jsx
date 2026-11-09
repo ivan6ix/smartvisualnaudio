@@ -1,7 +1,7 @@
 import { validateExam, toLocalDateTime } from "../../lib/examValidation";
 import { queryClient } from "../../lib/queryClient";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiChevronDown, FiEdit2, FiFileText, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
+import { FiEdit2, FiFileText, FiPlus, FiSave, FiTrash2, FiX } from "react-icons/fi";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { toast } from "sonner";
 import PdfQuestionGeneratorModal from "../../components/exam/PdfQuestionGeneratorModal";
@@ -233,6 +233,7 @@ export default function ProfessorCreateExam() {
   const [groupHasReviewHistory, setGroupHasReviewHistory] = useState(false);
   const [existingExamStatus, setExistingExamStatus] = useState("");
   const [courseSearch, setCourseSearch] = useState("");
+  const [coursePickerOpen, setCoursePickerOpen] = useState(false);
   const [assignmentCourseId, setAssignmentCourseId] = useState(presetCourseId);
   const [selectedStudentsByCourse, setSelectedStudentsByCourse] = useState({});
   const [courseStudents, setCourseStudents] = useState([]);
@@ -254,6 +255,19 @@ export default function ProfessorCreateExam() {
   const publishKeyRef = useRef(crypto.randomUUID());
   const selectedCourseIds = useMemo(() => examForm.courseIds?.length
     ? examForm.courseIds : examForm.courseId ? [examForm.courseId] : [], [examForm.courseId, examForm.courseIds]);
+  // Course selection opens in a modal from the Courses button.
+  const coursesLocked = Boolean(groupId) || (isEditingExam && existingExamStatus !== "Draft");
+  const visibleCourses = courses.filter((course) => `${course.courseCode} ${course.section} ${course.courseName || ""}`.toLowerCase().includes(courseSearch.trim().toLowerCase()));
+  const singleSelectedCourse = selectedCourseIds.length === 1 ? courses.find((course) => course.id === selectedCourseIds[0]) : null;
+  const courseButtonLabel = !selectedCourseIds.length ? "Select courses"
+    : singleSelectedCourse ? `${singleSelectedCourse.courseCode} - ${singleSelectedCourse.section}`
+      : `${selectedCourseIds.length} course${selectedCourseIds.length === 1 ? "" : "s"} selected`;
+  useEffect(() => {
+    if (!coursePickerOpen) return undefined;
+    const closeOnEscape = (event) => { if (event.key === "Escape") setCoursePickerOpen(false); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [coursePickerOpen]);
   useEffect(() => {
     if (!selectedCourseIds.includes(assignmentCourseId)) {
       setAssignmentCourseId(examForm.courseId || selectedCourseIds[0] || "");
@@ -1446,22 +1460,10 @@ export default function ProfessorCreateExam() {
             <div className="professor-details-grid">
               <div className="professor-field-label professor-course-picker">
                 <span>Courses</span>
-                <details>
-                  <summary>{selectedCourseIds.length ? `${selectedCourseIds.length} course${selectedCourseIds.length === 1 ? "" : "s"} selected` : "Select courses"}<FiChevronDown aria-hidden="true" /></summary>
-                  <div className="professor-course-picker-options">
-                    <input aria-label="Search courses" className="professor-create-input" onChange={(event) => setCourseSearch(event.target.value)} placeholder="Search courses or sections" type="search" value={courseSearch} />
-                    {courses.filter((course) => `${course.courseCode} ${course.section} ${course.courseName || ""}`.toLowerCase().includes(courseSearch.toLowerCase())).map((course) => (
-                      <label className={selectedCourseIds.includes(course.id) ? "is-selected" : ""} key={course.id}>
-                        <input checked={selectedCourseIds.includes(course.id)} disabled={Boolean(groupId) || (isEditingExam && existingExamStatus !== "Draft")}
-                          onChange={(event) => toggleCourse(course.id, event.target.checked)} type="checkbox" />
-                        <span>
-                          <strong>{course.courseCode} - {course.section}</strong>
-                          {course.courseName ? <small>{course.courseName}</small> : null}
-                        </span>
-                      </label>
-                    ))}
-                  </div>
-                </details>
+                <button aria-haspopup="dialog" className={`professor-course-picker-button${selectedCourseIds.length ? " has-value" : ""}`} onClick={() => setCoursePickerOpen(true)} type="button">
+                  <span>{courseButtonLabel}</span>
+                  <small>{selectedCourseIds.length ? "Change" : "Choose"}</small>
+                </button>
                 {selectedCourseIds.length > 1 ? <div className="professor-selected-course-chips">{selectedCourseIds.map((id) => {
                   const course = courses.find((item) => item.id === id);
                   return <span className="professor-selected-course-chip" key={id}>
@@ -1715,6 +1717,41 @@ export default function ProfessorCreateExam() {
           onClose={() => setPdfGeneratorOpen(false)}
           onInsert={handleInsertGeneratedQuestions}
         />
+      ) : null}
+      {coursePickerOpen ? (
+        <div className="professor-share-backdrop professor-course-modal-backdrop" onClick={() => setCoursePickerOpen(false)} role="presentation">
+          <section aria-labelledby="create-course-picker-title" aria-modal="true" className="professor-share-modal professor-course-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+            <div className="professor-share-header">
+              <div>
+                <h2 id="create-course-picker-title">Choose Courses</h2>
+                <p>{coursesLocked ? "The courses of this exam can no longer be changed." : "Pick one course, or several to give them the same exam."}</p>
+              </div>
+              <button aria-label="Close course selection" onClick={() => setCoursePickerOpen(false)} type="button">
+                <FiX />
+              </button>
+            </div>
+            <input aria-label="Search courses" autoFocus className="professor-create-input professor-course-modal-search" onChange={(event) => setCourseSearch(event.target.value)} placeholder="Search courses or sections" type="search" value={courseSearch} />
+            <div className="professor-course-picker-options professor-course-modal-list">
+              {visibleCourses.map((course) => (
+                <label className={selectedCourseIds.includes(course.id) ? "is-selected" : ""} key={course.id}>
+                  <input checked={selectedCourseIds.includes(course.id)} disabled={coursesLocked}
+                    onChange={(event) => toggleCourse(course.id, event.target.checked)} type="checkbox" />
+                  <span>
+                    <strong>{course.courseCode} - {course.section}</strong>
+                    {course.courseName ? <small>{course.courseName}</small> : null}
+                  </span>
+                </label>
+              ))}
+              {!visibleCourses.length ? <div className="professor-share-empty">{courses.length ? "No courses match your search." : "You have no active courses yet."}</div> : null}
+            </div>
+            <div className="professor-delete-actions professor-course-modal-actions">
+              <button disabled={coursesLocked || !selectedCourseIds.length} onClick={() => setExamForm((current) => ({ ...current, courseIds: [], courseId: "" }))} type="button">Clear</button>
+              <button onClick={() => setCoursePickerOpen(false)} type="button">
+                {selectedCourseIds.length ? `Done (${selectedCourseIds.length} selected)` : "Done"}
+              </button>
+            </div>
+          </section>
+        </div>
       ) : null}
       {publishConfirmOpen ? (
         <div className="professor-share-backdrop professor-publish-backdrop" onClick={() => saving ? null : setPublishConfirmOpen(false)} role="presentation">

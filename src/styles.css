@@ -7580,24 +7580,56 @@ html[data-theme="light"] .professor-course-list-card:hover {
   padding-left: 12px;
   overflow-wrap: break-word;
 }
-.professor-course-picker details {
-  min-width: 0;
-  width: 100%;
-}
-.professor-course-picker summary {
+/* Courses field: a button that opens the course selection modal. */
+.professor-course-picker-button {
   align-items: center;
   background: var(--app-surface);
   border: 1px solid var(--app-line);
   border-radius: 6px;
-  color: var(--app-text);
+  color: var(--app-text-muted);
   cursor: pointer;
   display: flex;
+  gap: 12px;
   min-height: 44px;
+  min-width: 0;
   padding: 9px 12px;
+  text-align: left;
+  width: 100%;
 }
-.professor-course-picker summary svg {
+.professor-course-picker-button.has-value {
+  color: var(--app-text);
+}
+.professor-course-picker-button:hover,
+.professor-course-picker-button:focus-visible {
+  border-color: var(--app-primary, #2563eb);
+}
+.professor-course-picker-button span {
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: break-word;
+}
+.professor-course-picker-button small {
+  color: var(--app-primary, #2563eb);
   flex: none;
-  margin-left: auto;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.professor-share-modal.professor-course-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 44px);
+  width: min(100%, 520px);
+}
+.professor-course-modal-search {
+  margin-bottom: 10px;
+  width: 100%;
+}
+.professor-course-picker-options.professor-course-modal-list {
+  flex: 1;
+  max-height: min(55vh, 420px);
+}
+.professor-course-modal-actions {
+  margin-top: 16px;
 }
 .professor-course-picker-options {
   background: var(--app-surface);

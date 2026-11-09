@@ -44,3 +44,9 @@ assert.match(list, /clusterStatus === "rejected" \? "Resubmit for Approval"[\s\S
 
 assert.match(styles, /\.professor-course-picker-options[\s\S]*max-height: 260px/, "Course picker should remain compact on narrow screens.");
 assert.match(styles, /\.professor-shared-label/, "Shared labels need visible styling.");
+
+// Courses are chosen in a modal opened from a button, so the open list never pushes the form around.
+assert.match(editor, /className=\{`professor-course-picker-button[\s\S]*onClick=\{\(\) => setCoursePickerOpen\(true\)\}/, "Courses field must be a button that opens the course modal.");
+assert.doesNotMatch(editor, /<details>\s*<summary>\{selectedCourseIds/, "The inline course dropdown must be gone.");
+assert.match(editor, /coursePickerOpen \? \([\s\S]*role="dialog"[\s\S]*Search courses or sections[\s\S]*toggleCourse\(course\.id, event\.target\.checked\)/, "The course modal must search and toggle courses.");
+assert.match(editor, /event\.key === "Escape"\) setCoursePickerOpen\(false\)/, "Escape must close the course modal.");
