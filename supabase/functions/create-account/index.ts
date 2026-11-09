@@ -93,6 +93,27 @@ Deno.serve(async (req) => {
       if (!fullName || !email || !employeeNumber) return json({ error: "Full name, email, and employee number are required." }, 400);
       if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
 
+      // Employee numbers and emails are unique. Check first, because a clash inside Auth only reports
+      // "Database error creating new user".
+      const { data: sameNumber } = await adminClient
+        .from("profiles")
+        .select("full_name")
+        .eq("employee_number", employeeNumber)
+        .limit(1)
+        .maybeSingle();
+      if (sameNumber) {
+        return json({ error: `Employee number ${employeeNumber} is already used by ${sameNumber.full_name}. Enter a different employee number.` }, 409);
+      }
+      const { data: sameEmail } = await adminClient
+        .from("profiles")
+        .select("full_name")
+        .eq("email", email)
+        .limit(1)
+        .maybeSingle();
+      if (sameEmail) {
+        return json({ error: `The email ${email} is already used by ${sameEmail.full_name}. Enter a different email.` }, 409);
+      }
+
       const { data, error } = await adminClient.auth.admin.createUser({
         email,
         password,
@@ -107,7 +128,12 @@ Deno.serve(async (req) => {
         },
       });
 
-      if (error) return json({ error: error.message }, 400);
+      if (error) {
+        const message = /database error/i.test(error.message)
+          ? "The account could not be created. The email or employee number may already be in use."
+          : error.message;
+        return json({ error: message }, 400);
+      }
       if (!data.user) return json({ error: "Account was not created." }, 500);
 
       const { data: profile, error: profileError } = await adminClient

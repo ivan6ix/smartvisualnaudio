@@ -85,7 +85,11 @@ export default function Accounts() {
 
   async function callAccountFunction(body) {
     const { data, error } = await supabase.functions.invoke("create-account", { body });
-    if (error) throw error;
+    if (error) {
+      // A non-2xx reply hides the function's own message (for example a taken employee number) in the response body.
+      const detail = await error.context?.json?.().catch(() => null);
+      throw new Error(detail?.error || error.message);
+    }
     if (data?.error) throw new Error(data.error);
     return data;
   }

@@ -69,4 +69,18 @@ assert.doesNotMatch(resetFunction, /json\(\{ error: (error|message|requesterErro
 assert.doesNotMatch(resetFunction, /Missing Brevo or Supabase function secrets\." \}/, "Configuration details stay in the logs.");
 assert.match(auth, /toast\.success\("If that email has an account, a password reset link is on its way\."\);/);
 
+// A taken employee number or email gets a clear message before Auth is called, instead of
+// "Database error creating new user".
+const createStart = accountFunction.indexOf('if (action === "create")');
+const createUserAt = accountFunction.indexOf("auth.admin.createUser", createStart);
+const numberCheckAt = accountFunction.indexOf('.eq("employee_number", employeeNumber)', createStart);
+const emailCheckAt = accountFunction.indexOf('.eq("email", email)', createStart);
+assert.ok(numberCheckAt > createStart && numberCheckAt < createUserAt, "The employee number is checked before the account is created.");
+assert.ok(emailCheckAt > createStart && emailCheckAt < createUserAt, "The email is checked before the account is created.");
+assert.match(accountFunction, /is already used by \$\{sameNumber\.full_name\}/);
+assert.match(accountFunction, /\/database error\/i\.test\(error\.message\)/, "Auth's vague database error gets a readable message.");
+for (const page of ["src/pages/People.jsx", "src/pages/Accounts.jsx"]) {
+  assert.match(readFileSync(page, "utf8"), /await error\.context\?\.json\?\.\(\)\.catch/, `${page} shows the function's own error message.`);
+}
+
 console.log("Account security checks passed.");
