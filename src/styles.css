@@ -4863,7 +4863,7 @@ html[data-appearance="dark"] .professor-dashboard-page .professor-ongoing-footer
   padding-bottom: 2px;
 }
 .professor-ongoing-detail {
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--app-line);
   border-radius: 8px;
   background: var(--app-surface);
   box-shadow: 0 10px 26px rgba(15, 23, 42, .06);
@@ -4885,7 +4885,7 @@ html[data-appearance="dark"] .professor-dashboard-page .professor-ongoing-footer
 }
 .professor-ongoing-exam-row {
   background: var(--app-surface);
-  border: 1px solid var(--app-border);
+  border: 1px solid var(--app-line);
   border-radius: 8px;
   box-shadow: 0 8px 20px rgba(15, 23, 42, .05);
   color: var(--app-text);
@@ -4921,7 +4921,7 @@ html[data-appearance="dark"] .professor-dashboard-page .professor-ongoing-footer
 }
 .professor-ongoing-detail-title strong {
   background: color-mix(in srgb, var(--primary) 14%, var(--app-surface));
-  border: 1px solid color-mix(in srgb, var(--primary) 36%, var(--app-border));
+  border: 1px solid color-mix(in srgb, var(--primary) 36%, var(--app-line));
   border-radius: 8px;
   color: var(--app-text);
   display: block;
@@ -20442,4 +20442,16 @@ html[data-theme="dark"] .professor-ongoing-summary .professor-ongoing-stat {
 .professor-ongoing-summary .professor-ongoing-stat.danger strong { color: #ef4444; }
 @media (max-width: 1200px) and (min-width: 901px) {
   .professor-ongoing-summary { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Ongoing Exams list: rows and the detail view use the same border as the count cards on the dark theme. */
+html[data-theme="dark"] .professor-ongoing-exam-row,
+html[data-theme="dark"] .professor-ongoing-detail {
+  border-color: rgba(226, 232, 240, 0.24);
+}
+/* The View button keeps its colour but drops the glow that dark buttons get elsewhere. */
+.professor-ongoing-card .btn.professor-ongoing-view-button,
+.professor-ongoing-card .btn.professor-ongoing-view-button:hover,
+.professor-ongoing-card .btn.professor-ongoing-view-button:focus {
+  box-shadow: none;
 }
