@@ -20332,3 +20332,10 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   margin: 2px 0 0;
   max-width: none;
 }
+
+/* Ongoing Exams filters: Course and Section are the same width (the first filter column is otherwise sized for a search box). */
+@media (min-width: 761px) {
+  .professor-score-filters.compact.professor-ongoing-filters {
+    grid-template-columns: repeat(2, minmax(150px, 220px));
+  }
+}
