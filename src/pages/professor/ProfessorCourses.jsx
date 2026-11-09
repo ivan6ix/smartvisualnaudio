@@ -4,21 +4,13 @@ import { FiBookOpen, FiFileText, FiUsers } from "react-icons/fi";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
-import { Badge, Card, ListSkeleton, SkeletonValue } from "../../components/ui";
+import { Card, ListSkeleton, SkeletonValue } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
 import { formatCourseMeta, formatCourseTerm } from "../../lib/coursePrograms";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
-
-function statusTone(status) {
-  if (status === "Published" || status === "published" || status === "Active") return "blue";
-  if (status === "Draft" || status === "draft") return "neutral";
-  if (status === "Pending Review" || status === "pending") return "warn";
-  if (status === "Closed" || status === "closed") return "danger";
-  return "success";
-}
 
 function mapCourse(course, enrollmentCounts = {}) {
   return {
@@ -56,7 +48,6 @@ export default function ProfessorCourses() {
     ...mapExam(exam),
     courseId: professorCourses.find((course) => course.courseName === exam.course && course.section === exam.section)?.id,
   })), []);
-  const [selectedCourseId, setSelectedCourseId] = useState(demoCourses[0]?.id || "");
   const [coursePage, setCoursePage] = useState(1);
   const courseView = useListViewPreference({ role: "professor", page: "courses", defaultView: "cards" });
 
@@ -133,20 +124,13 @@ export default function ProfessorCourses() {
   const kpiValue = (value) => coursesLoading ? <SkeletonValue /> : value;
 
   useEffect(() => {
-    setSelectedCourseId((current) => current && courses.some((course) => course.id === current) ? current : courses[0]?.id || "");
-  }, [courses]);
-
-  useEffect(() => {
     if (coursesQuery.error) toast.error(coursesQuery.error.message);
   }, [coursesQuery.error]);
 
-  const selectedCourse = courses.find((course) => course.id === selectedCourseId);
-  const selectedExams = useMemo(() => exams.filter((exam) => exam.courseId === selectedCourseId), [exams, selectedCourseId]);
   const totalStudents = uniqueEnrolledStudents ?? courses.reduce((total, course) => total + Number(course.students || 0), 0);
   const coursePageData = getListPageSlice(courses, coursePage, courseView.pageSize);
 
   function openCourse(course) {
-    setSelectedCourseId(course.id);
     navigate(`/professor/courses/${course.id}/materials`);
   }
 
@@ -154,7 +138,7 @@ export default function ProfessorCourses() {
     <section className="professor-courses-page">
       <header className="professor-courses-page-header">
         <h1>Courses</h1>
-        <p>View your assigned courses and the exams created for each course.</p>
+        <p>View your assigned courses. Open a course to see its materials, exams, and members.</p>
       </header>
 
       <div className="professor-stats-grid professor-courses-stats">
@@ -272,32 +256,6 @@ export default function ProfessorCourses() {
         <ListPagination count={courses.length} page={coursePageData.page} pageSize={courseView.pageSize} onPage={setCoursePage} />
       </Card>
 
-      <Card className="professor-courses-panel professor-course-exams-panel">
-        <div className="professor-courses-header">
-          <div>
-            <h2>{selectedCourse ? `${selectedCourse.courseCode} Exams` : "Course Exams"}</h2>
-            <p>{selectedCourse ? `${selectedCourse.courseName} - ${selectedCourse.section}` : "Select a course to view exams."}</p>
-          </div>
-          <span>{coursesLoading ? <SkeletonValue /> : `${selectedExams.length} exams`}</span>
-        </div>
-
-        <div className="professor-course-exam-list">
-          {coursesLoading ? <ListSkeleton columns={2} count={3} header={false} label="Loading course exams..." variant="table" /> : null}
-          {selectedExams.map((exam) => (
-            <article key={exam.id}>
-              <div>
-                <strong>{exam.title}</strong>
-                <small>{exam.type} • Created {exam.createdAt}</small>
-              </div>
-              <div>
-                <span>{exam.duration} min</span>
-                <Badge tone={statusTone(exam.status)}>{exam.status}</Badge>
-              </div>
-            </article>
-          ))}
-          {!coursesLoading && !selectedExams.length ? <div className="professor-exams-empty">No exams created for this course yet.</div> : null}
-        </div>
-      </Card>
     </section>
   );
 }
