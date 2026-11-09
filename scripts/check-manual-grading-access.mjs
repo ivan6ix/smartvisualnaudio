@@ -20,9 +20,9 @@ assert.match(scores, /import \{ canGradeManually, needsGradingPath \} from "\.\.
 assert.equal((scores.match(/canGradeManually\(question, (?:answer|row\.answer)\) \? <GradeControl/g) || []).length, 2, "Both grading views must use canGradeManually.");
 assert.doesNotMatch(scores, /&& question\.manual_grading \? <GradeControl/, "Grading must not depend only on the question flag.");
 
-// Accurate pending counts from answers, and a Needs Grading deep link in both views.
+// Accurate pending counts from answers, and a Needs Grading deep link in the exam table (Scores has no card view).
 assert.match(scores, /pendingAnswers: examAttempts\.reduce\(\(total, attempt\) => total \+ \(answersByAttempt\[attempt\.id\] \|\| \[\]\)\.filter\(\(answer\) => answer\.needs_manual_grading\)\.length, 0\)/, "Pending count must count only pending answers.");
-assert.equal((scores.match(/exam\.pendingAnswers > 0 \? <Link className="professor-score-action professor-score-needs-grading" to=\{needsGradingPath\(exam\.id\)\}>Needs Grading \(\{exam\.pendingAnswers\}\)<\/Link>/g) || []).length, 2, "Table and card views must both offer Needs Grading.");
+assert.equal((scores.match(/exam\.pendingAnswers > 0 \? <Link className="professor-score-action professor-score-needs-grading" to=\{needsGradingPath\(exam\.id\)\}>Needs Grading \(\{exam\.pendingAnswers\}\)<\/Link>/g) || []).length, 1, "The exam table must offer Needs Grading.");
 assert.match(scores, /if \(requestedTab === "questions"\) setTab\("questions"\);[\s\S]*\.includes\(requestedFilter\)\) setAnswerFilter\(requestedFilter\);/, "Exam view must honor the tab and filter deep link.");
 
 // Existing grading call and rules stay in place.

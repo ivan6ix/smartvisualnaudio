@@ -8,19 +8,22 @@ export function ListViewToolbar({ controls, children }) {
   return <div className="list-view-toolbar">{children}<ListViewControls {...controls} /></div>;
 }
 
-export function ListViewControls({ cardDensity, onCardDensity, onTableDensity, onView, tableDensity, view }) {
+// views limits the View choices; with a single view the View buttons are hidden and only Density shows.
+export function ListViewControls({ cardDensity, onCardDensity, onTableDensity, onView, tableDensity, view, views = LIST_VIEWS }) {
   const activeDensity = view === "cards" ? cardDensity : tableDensity;
   const setDensity = view === "cards" ? onCardDensity : onTableDensity;
   return (
     <div className="list-view-controls">
-      <div className="list-view-segment" aria-label="View">
-        <span>View:</span>
-        {LIST_VIEWS.map((item) => (
-          <button aria-pressed={view === item} className={view === item ? "active" : ""} key={item} onClick={() => onView(item)} type="button">
-            {item === "cards" ? <FiGrid /> : <FiList />} {VIEW_LABELS[item]}
-          </button>
-        ))}
-      </div>
+      {views.length > 1 ? (
+        <div className="list-view-segment" aria-label="View">
+          <span>View:</span>
+          {views.map((item) => (
+            <button aria-pressed={view === item} className={view === item ? "active" : ""} key={item} onClick={() => onView(item)} type="button">
+              {item === "cards" ? <FiGrid /> : <FiList />} {VIEW_LABELS[item]}
+            </button>
+          ))}
+        </div>
+      ) : null}
       <div className="list-view-segment" aria-label={`${VIEW_LABELS[view]} density`}>
         <span>Density:</span>
         {DENSITIES.map((item) => (

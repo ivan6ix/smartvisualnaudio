@@ -8,7 +8,7 @@ import { Badge, Button, Card, ListSkeleton, PageHeader, SearchBox, SelectField }
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
-import { getListPageSlice } from "../../lib/listView";
+import { getListPageSlice, getPageSizeForView } from "../../lib/listView";
 import { canGradeManually, needsGradingPath } from "../../lib/manualGrading";
 import { buildRiskQueue, summarizeIntegrity } from "../../lib/integrityRisk";
 import { fetchAllRows } from "../../lib/fetchAllRows";
@@ -187,6 +187,8 @@ function isDeadlinePassed(exam) {
   const time = new Date(deadline).getTime();
   return Number.isFinite(time) && time <= Date.now();
 }
+
+const SCORES_PAGE_SIZE = getPageSizeForView("table");
 
 export default function ProfessorScores() {
   const { user } = useAuth();
@@ -606,7 +608,7 @@ export default function ProfessorScores() {
       <section className="professor-scores-page">
         <PageHeader variant="plain" title="Scores" subtitle="Loading exam results..." />
         <Card>
-          <ListSkeleton columns={5} label="Loading exam results..." variant={listView.view === "cards" ? "records" : "table"} />
+          <ListSkeleton columns={5} label="Loading exam results..." variant="table" />
         </Card>
       </section>
     );
@@ -723,7 +725,8 @@ export default function ProfessorScores() {
     .filter((exam) => sectionFilter === "All Sections" || exam.course?.section === sectionFilter)
     .filter((exam) => typeFilter === "All Types" || exam.exam_type === typeFilter)
     .filter((exam) => !search.trim() || normalizeText(`${exam.exam_title} ${exam.title} ${exam.exam_type} ${exam.course?.courseCode} ${exam.course?.section}`).includes(normalizeText(search)));
-  const examPage = getListPageSlice(filteredExams, page, listView.pageSize);
+  // Scores always shows the exam table; there is no card view here.
+  const examPage = getListPageSlice(filteredExams, page, SCORES_PAGE_SIZE);
   const courseOptions = ["All Courses", ...new Set(data.courses.map((course) => course.courseCode).filter(Boolean))];
   const sectionOptions = ["All Sections", ...new Set(data.courses.filter((course) => courseFilter === "All Courses" || course.courseCode === courseFilter).map((course) => course.section).filter(Boolean))];
   const typeOptions = ["All Types", ...new Set(data.exams.map((exam) => exam.exam_type || "Exam").filter(Boolean))];
@@ -746,25 +749,20 @@ export default function ProfessorScores() {
         </div>
         <ListViewToolbar
           controls={{
-            cardDensity: listView.cardDensity,
-            onCardDensity: listView.setCardDensity,
             onTableDensity: listView.setTableDensity,
-            onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, examPage.page, filteredExams.length)),
             tableDensity: listView.tableDensity,
-            view: listView.view,
+            view: "table",
+            views: ["table"],
           }}
         />
-        <ExamList rows={examPage.rows} view={listView.view} density={listView.viewDensity} />
-        <ListPagination count={filteredExams.length} page={examPage.page} pageSize={listView.pageSize} onPage={setPage} />
+        <ExamList rows={examPage.rows} density={listView.tableDensity} />
+        <ListPagination count={filteredExams.length} page={examPage.page} pageSize={SCORES_PAGE_SIZE} onPage={setPage} />
       </Card>
     </section>
   );
 }
 
-function ExamList({ density, rows, view }) {
-  if (view === "cards") {
-    return <ProfessorScoreExamCards density={density} rows={rows} />;
-  }
+function ExamList({ density, rows }) {
   return (
     <div className="professor-score-table-wrap">
       <table className={`professor-score-table compact list-table-${density}`}>
@@ -789,43 +787,6 @@ function ExamList({ density, rows, view }) {
       </table>
       {!rows.length ? <div className="professor-exams-empty">No exams match your filters.</div> : null}
     </div>
-  );
-}
-
-function ScoreMetric({ label, children }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{children}</dd>
-    </div>
-  );
-}
-
-function ProfessorScoreExamCards({ density, rows }) {
-  return (
-    <>
-      <div className={`professor-score-card-grid professor-score-card-grid-${density}`}>
-        {rows.map((exam) => (
-          <article className="professor-score-exam-card" key={exam.id}>
-            <header>
-              <Link className="professor-score-card-title" to={`/professor/scores/${exam.id}`}>
-                <strong>{exam.exam_title || exam.title}</strong>
-                <span>{exam.course?.courseCode} - {exam.course?.section}</span>
-              </Link>
-              <Link className="professor-score-action" to={`/professor/scores/${exam.id}`}>View</Link>
-            </header>
-            <dl>
-              <ScoreMetric label="Type">{exam.exam_type || "Exam"}</ScoreMetric>
-              <ScoreMetric label="Students">{exam.students}</ScoreMetric>
-              <ScoreMetric label="Pending Grading">{exam.pendingAnswers}</ScoreMetric>
-              <ScoreMetric label="Status"><CompactBadge tone={statusTone(exam.status)}>{exam.status || "Draft"}</CompactBadge></ScoreMetric>
-            </dl>
-            {exam.pendingAnswers > 0 ? <Link className="professor-score-action professor-score-needs-grading" to={needsGradingPath(exam.id)}>Needs Grading ({exam.pendingAnswers})</Link> : null}
-          </article>
-        ))}
-      </div>
-      {!rows.length ? <div className="professor-exams-empty">No exams match your filters.</div> : null}
-    </>
   );
 }
 

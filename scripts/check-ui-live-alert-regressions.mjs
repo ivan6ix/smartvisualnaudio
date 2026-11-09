@@ -33,12 +33,8 @@ assert.ok(
 );
 
 assert.ok(
-  professorScores.includes('ProfessorScoreExamCards'),
-  'Professor Scores card view should use a scores-specific card layout.',
-);
-assert.ok(
-  styles.includes('--professor-score-card-min'),
-  'Professor Scores cards should define readable responsive min widths.',
+  !professorScores.includes('ProfessorScoreExamCards') && professorScores.includes('views: ["table"]'),
+  'Professor Scores shows only the exam table: no Cards view option.',
 );
 assert.ok(
   styles.includes('html[data-theme="light"] .list-view-segment button.active'),
