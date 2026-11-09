@@ -4,12 +4,12 @@ import { FiArchive, FiEdit2, FiFileText, FiGrid, FiPlus, FiRotateCcw, FiUser, Fi
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Button, ListSkeleton, RowActionMenu, SkeletonValue } from "../../components/ui";
-import { ListCardGrid, ListPagination, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
+import { ListCardGrid, ListViewToolbar, ResponsiveTable } from "../../components/ListViewControls";
+import ScrollAfterItems from "../../components/ScrollAfterItems";
 import { useAuth } from "../../context/AuthContext";
 import { useCluster } from "../../context/ClusterContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { formatCourseMeta } from "../../lib/coursePrograms";
-import { getListPageSlice, getPageSizeForView, toNextListPage } from "../../lib/listView";
 import { validateExam } from "../../lib/examValidation";
 import { getReviewTargets, notifyReviewClusters, reviewTargetsProblem } from "../../lib/reviewTargets";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -159,7 +159,6 @@ export default function ProfessorExams() {
   const [publishTarget, setPublishTarget] = useState(null);
   const [publishingId, setPublishingId] = useState("");
   const [openMenuId, setOpenMenuId] = useState("");
-  const [sectionPages, setSectionPages] = useState({});
   const listView = useListViewPreference({ role: "professor", page: "exams", defaultView: "table" });
   const sourceExams = hasSupabaseConfig ? liveExams : professorExams;
   const allExams = useMemo(() => Array.isArray(sourceExams) ? sourceExams : [], [sourceExams]);
@@ -604,10 +603,6 @@ export default function ProfessorExams() {
     return actions;
   }
 
-  function updateSectionPage(sectionKey, nextPage) {
-    setSectionPages((current) => ({ ...current, [sectionKey]: nextPage }));
-  }
-
   function renderExamCards(rows, actionFactory, prefix = "exam") {
     return (
       <ListCardGrid density={listView.cardDensity}>
@@ -731,9 +726,16 @@ export default function ProfessorExams() {
     return <ListSkeleton columns={6} count={2} label={label} variant={listView.view === "cards" ? "cards" : "table"} />;
   }
 
+  // Each section shows its first 10 exams; the rest scroll inside the section.
+  function renderExamRows(rows, actionFactory, prefix) {
+    return (
+      <ScrollAfterItems className="professor-exams-scroll" itemSelector=".professor-exam-record-card, .professor-exams-table tbody tr">
+        {listView.view === "cards" ? renderExamCards(rows, actionFactory, prefix) : renderExamTable(rows, actionFactory, prefix)}
+      </ScrollAfterItems>
+    );
+  }
+
   function renderDraftsSection() {
-    const page = sectionPages.drafts || 1;
-    const pageData = getListPageSlice(draftExams, page, listView.pageSize);
     return (
       <section className="professor-exams-section professor-drafts-section">
         <div className="professor-exams-section-header">
@@ -744,9 +746,8 @@ export default function ProfessorExams() {
           <span>{examsReady ? `${draftExams.length} ${draftExams.length === 1 ? "exam" : "exams"}` : <SkeletonValue />}</span>
         </div>
         {renderSectionSkeleton("Loading draft exams...")}
-        {examsReady ? (listView.view === "cards" ? renderExamCards(pageData.rows, getDraftActions, "draft") : renderExamTable(pageData.rows, getDraftActions, "draft")) : null}
+        {examsReady ? renderExamRows(draftExams, getDraftActions, "draft") : null}
         {examsReady && !draftExams.length ? <div className="professor-exams-empty">No draft exams.</div> : null}
-        <ListPagination count={draftExams.length} page={pageData.page} pageSize={listView.pageSize} onPage={(nextPage) => updateSectionPage("drafts", nextPage)} />
       </section>
     );
   }
@@ -957,8 +958,6 @@ export default function ProfessorExams() {
 
   function renderExamSection(sectionKey, title, description, rows) {
     const filteredRows = filterSectionRows(rows, sectionKey);
-    const page = sectionPages[sectionKey] || 1;
-    const pageData = getListPageSlice(filteredRows, page, listView.pageSize);
     const filters = sectionFilters[sectionKey];
     const programOptions = getFilterOptions(rows, "programCode");
     const courseOptions = getFilterOptions(rows, "course");
@@ -1001,9 +1000,8 @@ export default function ProfessorExams() {
         </div>
 
         {renderSectionSkeleton(`Loading ${title.toLowerCase()}...`)}
-        {examsReady ? (listView.view === "cards" ? renderExamCards(pageData.rows, getExamActions, sectionKey) : renderExamTable(pageData.rows, getExamActions, sectionKey)) : null}
+        {examsReady ? renderExamRows(filteredRows, getExamActions, sectionKey) : null}
         {examsReady && !filteredRows.length ? <div className="professor-exams-empty">{rows.length ? "No exams match your filters." : "No exams in this section."}</div> : null}
-        <ListPagination count={filteredRows.length} page={pageData.page} pageSize={listView.pageSize} onPage={(nextPage) => updateSectionPage(sectionKey, nextPage)} />
       </section>
     );
   }
@@ -1045,16 +1043,7 @@ export default function ProfessorExams() {
             cardDensity: listView.cardDensity,
             onCardDensity: listView.setCardDensity,
             onTableDensity: listView.setTableDensity,
-            onView: (nextView) => {
-              const nextPageSize = getPageSizeForView(nextView);
-              setSectionPages((current) => ({
-                drafts: toNextListPage({ currentPage: current.drafts || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: draftExams.length }),
-                published: toNextListPage({ currentPage: current.published || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: publishedExams.length }),
-                pending: toNextListPage({ currentPage: current.pending || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: pendingExams.length }),
-                unpublished: toNextListPage({ currentPage: current.unpublished || 1, currentPageSize: listView.pageSize, nextPageSize, totalItems: unpublishedExams.length }),
-              }));
-              listView.setView(nextView);
-            },
+            onView: listView.setView,
             tableDensity: listView.tableDensity,
             view: listView.view,
           }}

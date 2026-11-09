@@ -2,6 +2,15 @@ export const LIST_VIEWS = ["cards", "table"];
 export const DENSITIES = ["comfortable", "compact", "dense"];
 export const CARD_PAGE_SIZE = 12;
 export const TABLE_PAGE_SIZE = 20;
+// Exam lists show this many items, then scroll inside the list.
+export const SCROLL_LIST_LIMIT = 10;
+
+// Height that shows items up to and including the `limit`-th one. itemBottoms are measured from the list's top
+// edge (already including its scroll). Returns null when everything fits, so the list is not capped.
+export function getScrollLimitHeight(itemBottoms = [], limit = SCROLL_LIST_LIMIT) {
+  if (itemBottoms.length <= limit) return null;
+  return Math.ceil(itemBottoms[limit - 1]) + 2;
+}
 
 export function normalizeListView(value, fallback = "table") {
   return LIST_VIEWS.includes(value) ? value : normalizeFallback(fallback, LIST_VIEWS, "table");

@@ -2,9 +2,8 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "rea
 import { FiActivity, FiAlertTriangle, FiArrowLeft, FiCheckCircle, FiClock, FiEye, FiPlayCircle, FiUsers, FiVolume2, FiVolumeX, FiWifi, FiWifiOff } from "react-icons/fi";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { ListPagination } from "../../components/ListViewControls";
+import ScrollAfterItems from "../../components/ScrollAfterItems";
 import { Badge, Button, Card, ListSkeleton, SearchBox, SkeletonValue } from "../../components/ui";
-import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import { playViolationAlertSound } from "../../lib/violationAlerts";
 import {
@@ -28,7 +27,6 @@ const SORT_COLUMNS = [
   ["progress", "Live Progress"],
   ["violations", "Violations"],
 ];
-const EXAM_LIST_PAGE_SIZE = 20;
 
 function formatDateTime(value) {
   if (!value) return "-";
@@ -70,7 +68,6 @@ export default function ProfessorOngoingExams() {
   const [activeExams, setActiveExams] = useState([]);
   const [upcomingExams, setUpcomingExams] = useState([]);
   const [ongoingReady, setOngoingReady] = useState(!hasSupabaseConfig);
-  const [examPage, setExamPage] = useState(1);
   const [filters, setFilters] = useState({ course: ALL_FILTER, section: ALL_FILTER });
   const [connectionState, setConnectionState] = useState("Live");
   const [soundMuted, setSoundMuted] = useState(false);
@@ -117,7 +114,6 @@ export default function ProfessorOngoingExams() {
         }
       }
       setActiveExams(nextActive);
-      setExamPage((current) => Math.min(Math.max(1, current), Math.max(1, Math.ceil(nextActive.length / EXAM_LIST_PAGE_SIZE))));
       setUpcomingExams(nextUpcoming);
       if (initial) setSelectedExamId(null);
       setSelectedExamId((current) => current && nextActive.some((exam) => exam.id === current) ? current : null);
@@ -162,7 +158,6 @@ export default function ProfessorOngoingExams() {
   function updateFilters(patch) {
     // A new course resets the section, since its sections are different.
     setFilters((current) => ({ ...current, ...patch, ...(patch.course !== undefined ? { section: ALL_FILTER } : {}) }));
-    setExamPage(1);
   }
 
   function updateTable(examId, patch) {
@@ -247,7 +242,7 @@ export default function ProfessorOngoingExams() {
               <label className="field"><span>Course</span><select value={filters.course} onChange={(event) => updateFilters({ course: event.target.value })}><option value={ALL_FILTER}>All courses</option>{filterOptions.courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
               <label className="field"><span>Section</span><select value={filters.section} onChange={(event) => updateFilters({ section: event.target.value })}><option value={ALL_FILTER}>All sections</option>{filterOptions.sections.map((section) => <option key={section} value={section}>Section {section}</option>)}</select></label>
             </div>
-            <ActiveExamList exams={filteredExams} filtered={filters.course !== ALL_FILTER || filters.section !== ALL_FILTER} loading={!ongoingReady} page={examPage} onPage={setExamPage} onView={openExam} />
+            <ActiveExamList exams={filteredExams} filtered={filters.course !== ALL_FILTER || filters.section !== ALL_FILTER} loading={!ongoingReady} onView={openExam} />
           </>
         ) : (
           <ExamDetail
@@ -284,11 +279,10 @@ function formatScheduleRange(exam) {
   return sameDay ? `${date} · ${startTime} - ${endTime}` : `${formatDateTime(exam.startsAt)} - ${formatDateTime(exam.deadline)}`;
 }
 
-function ActiveExamList({ exams, filtered, loading, page, onPage, onView }) {
+function ActiveExamList({ exams, filtered, loading, onView }) {
   const sortedExams = useMemo(() => [...exams].sort((first, second) => (
     new Date(first.deadline || 8640000000000000) - new Date(second.deadline || 8640000000000000)
   )), [exams]);
-  const pageData = getListPageSlice(sortedExams, page, EXAM_LIST_PAGE_SIZE);
 
   if (loading) return <ListSkeleton columns={6} count={3} label="Loading ongoing exams..." variant="table" />;
 
@@ -310,9 +304,9 @@ function ActiveExamList({ exams, filtered, loading, page, onPage, onView }) {
     );
   }
 
+  // The first 10 exams show; the rest scroll inside the list, under a header that stays in place.
   return (
-    <>
-      <div className="professor-ongoing-exam-list professor-scroll-surface" role="table" aria-label="Active ongoing exams">
+    <ScrollAfterItems aria-label="Active ongoing exams" className="professor-ongoing-exam-list professor-scroll-surface" itemSelector=".professor-ongoing-exam-row" role="table">
         <div className="professor-ongoing-exam-head" role="row">
           <span role="columnheader">Exam</span>
           <span role="columnheader">Course / Section</span>
@@ -324,10 +318,8 @@ function ActiveExamList({ exams, filtered, loading, page, onPage, onView }) {
           <span role="columnheader">Violations</span>
           <span role="columnheader">Action</span>
         </div>
-        {pageData.rows.map((exam) => <ExamRow key={exam.id} exam={exam} onView={onView} />)}
-      </div>
-      <ListPagination count={sortedExams.length} page={pageData.page} pageSize={EXAM_LIST_PAGE_SIZE} onPage={onPage} />
-    </>
+        {sortedExams.map((exam) => <ExamRow key={exam.id} exam={exam} onView={onView} />)}
+    </ScrollAfterItems>
   );
 }
 

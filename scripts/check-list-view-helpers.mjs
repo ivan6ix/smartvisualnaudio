@@ -4,6 +4,8 @@ import {
   DENSITIES,
   getListPageSlice,
   getListPreferenceKeys,
+  getScrollLimitHeight,
+  SCROLL_LIST_LIMIT,
   readStoredListValue,
   normalizeDensity,
   normalizeListView,
@@ -65,3 +67,11 @@ assert.equal(storage.getItem(professorCourses.cardDensity), "dense");
 assert.equal(storage.getItem(professorCourses.tableDensity), "comfortable");
 assert.equal(readStoredListValue(createStorage(true), "x", "fallback"), "fallback");
 assert.doesNotThrow(() => writeStoredListValue(createStorage(true), "x", "cards"));
+
+// Exam lists: the first 10 items show, then the list scrolls.
+assert.equal(SCROLL_LIST_LIMIT, 10);
+const bottoms = Array.from({ length: 14 }, (_, index) => 40 + (index + 1) * 60);
+assert.equal(getScrollLimitHeight(bottoms), 642, "height ends just under the 10th item");
+assert.equal(getScrollLimitHeight(bottoms.slice(0, 10)), null, "10 or fewer items are not capped");
+assert.equal(getScrollLimitHeight([], 10), null);
+assert.equal(getScrollLimitHeight([10.2, 20.4, 30.6], 2), 23);

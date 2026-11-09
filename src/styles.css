@@ -20537,3 +20537,22 @@ html[data-theme="dark"] .professor-violation-toast {
     width: auto;
   }
 }
+
+/* Exam lists show their first 10 exams; ScrollAfterItems sets the height and the rest scroll inside. */
+.scroll-after-items {
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+.professor-exams-scroll.scroll-after-items {
+  border-radius: 8px;
+  padding-right: 4px;
+}
+/* The Ongoing Exams column header stays in place while the rows scroll. */
+.professor-ongoing-exam-list.scroll-after-items .professor-ongoing-exam-head {
+  background: var(--app-surface);
+  padding-bottom: 8px;
+  padding-top: 4px;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
