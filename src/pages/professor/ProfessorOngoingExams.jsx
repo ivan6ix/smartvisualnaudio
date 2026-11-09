@@ -7,7 +7,10 @@ import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import { playViolationAlertSound } from "../../lib/violationAlerts";
 import {
+  ALL_FILTER,
   classifyOngoingStudent,
+  filterOngoingExams,
+  getOngoingFilterOptions,
   getNextOngoingTransitionDelay,
   paginateOngoingRows,
   shouldPlayViolationSound,
@@ -67,6 +70,7 @@ export default function ProfessorOngoingExams() {
   const [upcomingExams, setUpcomingExams] = useState([]);
   const [ongoingReady, setOngoingReady] = useState(!hasSupabaseConfig);
   const [examPage, setExamPage] = useState(1);
+  const [filters, setFilters] = useState({ course: ALL_FILTER, section: ALL_FILTER });
   const [connectionState, setConnectionState] = useState("Live");
   const [soundMuted, setSoundMuted] = useState(false);
   const [selectedExamId, setSelectedExamId] = useState(null);
@@ -78,7 +82,10 @@ export default function ProfessorOngoingExams() {
   const lastSoundAtRef = useRef(0);
 
   const allExamWindows = useMemo(() => [...activeExams, ...upcomingExams], [activeExams, upcomingExams]);
-  const summary = useMemo(() => summarizeOngoingExams(activeExams), [activeExams]);
+  // The counters and the list follow the course and section filters.
+  const filterOptions = useMemo(() => getOngoingFilterOptions(activeExams, filters.course), [activeExams, filters.course]);
+  const filteredExams = useMemo(() => filterOngoingExams(activeExams, filters), [activeExams, filters]);
+  const summary = useMemo(() => summarizeOngoingExams(filteredExams), [filteredExams]);
   const selectedExam = useMemo(() => activeExams.find((exam) => exam.id === selectedExamId) || null, [activeExams, selectedExamId]);
 
   const loadOngoing = useCallback(async ({ initial = false } = {}) => {
@@ -151,6 +158,12 @@ export default function ProfessorOngoingExams() {
     return () => window.clearTimeout(timer);
   }, [allExamWindows, loadOngoing]);
 
+  function updateFilters(patch) {
+    // A new course resets the section, since its sections are different.
+    setFilters((current) => ({ ...current, ...patch, ...(patch.course !== undefined ? { section: ALL_FILTER } : {}) }));
+    setExamPage(1);
+  }
+
   function updateTable(examId, patch) {
     setTableState((current) => ({ ...current, [examId]: { search: "", status: "All", sortKey: "student", sortDirection: "asc", page: 1, ...(current[examId] || {}), ...patch } }));
   }
@@ -204,7 +217,13 @@ export default function ProfessorOngoingExams() {
         </div>
 
         {!selectedExam ? (
-          <ActiveExamList exams={activeExams} loading={!ongoingReady} page={examPage} onPage={setExamPage} onView={openExam} />
+          <>
+            <div className="professor-score-filters compact professor-ongoing-filters">
+              <label className="field"><span>Course</span><select value={filters.course} onChange={(event) => updateFilters({ course: event.target.value })}><option value={ALL_FILTER}>All courses</option>{filterOptions.courses.map((course) => <option key={course} value={course}>{course}</option>)}</select></label>
+              <label className="field"><span>Section</span><select value={filters.section} onChange={(event) => updateFilters({ section: event.target.value })}><option value={ALL_FILTER}>All sections</option>{filterOptions.sections.map((section) => <option key={section} value={section}>Section {section}</option>)}</select></label>
+            </div>
+            <ActiveExamList exams={filteredExams} filtered={filters.course !== ALL_FILTER || filters.section !== ALL_FILTER} loading={!ongoingReady} page={examPage} onPage={setExamPage} onView={openExam} />
+          </>
         ) : (
           <ExamDetail
             exam={selectedExam}
@@ -240,13 +259,22 @@ function formatScheduleRange(exam) {
   return sameDay ? `${date} · ${startTime} - ${endTime}` : `${formatDateTime(exam.startsAt)} - ${formatDateTime(exam.deadline)}`;
 }
 
-function ActiveExamList({ exams, loading, page, onPage, onView }) {
+function ActiveExamList({ exams, filtered, loading, page, onPage, onView }) {
   const sortedExams = useMemo(() => [...exams].sort((first, second) => (
     new Date(first.deadline || 8640000000000000) - new Date(second.deadline || 8640000000000000)
   )), [exams]);
   const pageData = getListPageSlice(sortedExams, page, EXAM_LIST_PAGE_SIZE);
 
   if (loading) return <ListSkeleton columns={6} count={3} label="Loading ongoing exams..." variant="table" />;
+
+  if (!sortedExams.length && filtered) {
+    return (
+      <div className="professor-exams-empty">
+        <strong>No ongoing exams match these filters.</strong>
+        <span>Choose another course or section, or pick All.</span>
+      </div>
+    );
+  }
 
   if (!sortedExams.length) {
     return (

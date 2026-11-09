@@ -108,3 +108,25 @@ export function getNextOngoingTransitionDelay(exams = [], now = Date.now()) {
 export function shouldPlayViolationSound(lastPlayedAt, now = Date.now(), cooldownMs = VIOLATION_SOUND_COOLDOWN_MS) {
   return !lastPlayedAt || now - lastPlayedAt >= cooldownMs;
 }
+
+export const ALL_FILTER = "All";
+
+function examCourse(exam = {}) {
+  return exam.courseCode || exam.courseName || "";
+}
+
+// Course and section choices for the ongoing exam list. Sections follow the chosen course.
+export function getOngoingFilterOptions(exams = [], course = ALL_FILTER) {
+  const sorted = (values) => [...new Set(values.filter(Boolean))].sort((first, second) => first.localeCompare(second, undefined, { numeric: true }));
+  return {
+    courses: sorted(exams.map(examCourse)),
+    sections: sorted(exams.filter((exam) => course === ALL_FILTER || examCourse(exam) === course).map((exam) => exam.section)),
+  };
+}
+
+export function filterOngoingExams(exams = [], { course = ALL_FILTER, section = ALL_FILTER } = {}) {
+  return exams.filter((exam) => (
+    (course === ALL_FILTER || examCourse(exam) === course)
+    && (section === ALL_FILTER || exam.section === section)
+  ));
+}

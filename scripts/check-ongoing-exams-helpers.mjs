@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import {
+  ALL_FILTER,
   classifyOngoingStudent,
+  filterOngoingExams,
+  getOngoingFilterOptions,
   getOngoingExamPhase,
   getNextOngoingTransitionDelay,
   paginateOngoingRows,
@@ -60,3 +63,20 @@ assert.equal(getNextOngoingTransitionDelay([
   { startsAt: "2026-09-28T10:00:05Z", deadline: "2026-09-28T10:00:10Z" },
   { startsAt: "2026-09-28T11:00:00Z", deadline: "2026-09-28T12:00:00Z" },
 ], now), 5000);
+
+// Course and section filters: sections follow the chosen course, and All keeps everything.
+{
+  const exams = [
+    { id: "1", courseCode: "MCB101", section: "B" },
+    { id: "2", courseCode: "MCA101", section: "A" },
+    { id: "3", courseCode: "MCA101", section: "C" },
+    { id: "4", courseName: "No Code Course", section: "" },
+  ];
+  assert.deepEqual(getOngoingFilterOptions(exams), { courses: ["MCA101", "MCB101", "No Code Course"], sections: ["A", "B", "C"] });
+  assert.deepEqual(getOngoingFilterOptions(exams, "MCA101").sections, ["A", "C"]);
+  assert.equal(filterOngoingExams(exams).length, 4);
+  assert.deepEqual(filterOngoingExams(exams, { course: "MCA101" }).map((exam) => exam.id), ["2", "3"]);
+  assert.deepEqual(filterOngoingExams(exams, { course: "MCA101", section: "C" }).map((exam) => exam.id), ["3"]);
+  assert.deepEqual(filterOngoingExams(exams, { course: ALL_FILTER, section: "B" }).map((exam) => exam.id), ["1"]);
+  assert.deepEqual(filterOngoingExams(exams, { course: "No Code Course" }).map((exam) => exam.id), ["4"]);
+}
