@@ -1,11 +1,10 @@
 import { supabase, hasSupabaseConfig } from "../lib/supabase";
 import { useForm } from "react-hook-form";
-import { FiShield, FiUserCheck } from "react-icons/fi";
 import { toast } from "sonner";
 import ActiveSessions from "../components/ActiveSessions";
 import LegalLinks from "../components/LegalLinks";
 import PersonalActivityLogs from "../components/PersonalActivityLogs";
-import { Button, Card, Field } from "../components/ui";
+import { Button, Card, Field, PageHeader } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { writeAccountAuditLog } from "../lib/accountAudit";
 import { changeAuthenticatedPassword, PASSWORD_MIN_LENGTH } from "../lib/settingsSecurity";
@@ -44,14 +43,7 @@ export default function SecurityPrivacy() {
 
   return (
     <section className="admin-dashboard-page admin-section-page security-privacy-page">
-      <div className="admin-section-hero">
-        <div>
-          <span><FiShield /> Account Security Console</span>
-          <h1>Security & Privacy</h1>
-          <p>Manage password protection, session awareness, and privacy information for your account.</p>
-        </div>
-        <strong><FiUserCheck /></strong>
-      </div>
+      <PageHeader title="Security & Privacy" subtitle="Manage password protection, session awareness, and privacy information for your account." variant="plain" />
       <div className="dashboard-grid">
         <Card className="admin-panel settings-surface-card">
           <h2>Password & Authentication</h2>

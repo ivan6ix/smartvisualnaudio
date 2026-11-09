@@ -187,7 +187,7 @@ export default function ProfileSettings() {
 
   return (
     <section className="admin-dashboard-page admin-section-page settings-page">
-      <PageHeader title="Profile Settings" subtitle="Manage profile information, appearance, and notification preferences." />
+      <PageHeader title="Profile Settings" subtitle="Manage profile information, appearance, and notification preferences." variant="plain" />
       <div className="dashboard-grid">
         <Card className="admin-panel settings-surface-card profile-settings-card">
           <div className="profile-picture-editor">
