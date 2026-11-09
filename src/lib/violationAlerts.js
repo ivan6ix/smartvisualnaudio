@@ -1,5 +1,22 @@
-export const VIOLATION_ALERT_DURATION_MS = 3000;
-export const MAX_VIOLATION_ALERTS = 4;
+export const VIOLATION_ALERT_DURATION_MS = 8000;
+export const MAX_VIOLATION_ALERTS = 3;
+
+// Violation pop-ups: only the newest `max` show; older ones are counted for the "+N more violations" line.
+export function addViolationAlert(stack, alert, max = MAX_VIOLATION_ALERTS) {
+  const alerts = [...(stack?.alerts || []), alert];
+  const overflow = Math.max(0, alerts.length - max);
+  return { alerts: alerts.slice(overflow), hiddenCount: (stack?.hiddenCount || 0) + overflow };
+}
+
+// Closing the last visible pop-up also clears the "+N more" count.
+export function removeViolationAlert(stack, id) {
+  const alerts = (stack?.alerts || []).filter((alert) => alert.id !== id);
+  return { alerts, hiddenCount: alerts.length ? stack?.hiddenCount || 0 : 0 };
+}
+
+export function describeViolationPlace({ examTitle, courseCode, section } = {}) {
+  return [examTitle || "Exam", courseCode, section ? `Section ${section}` : ""].filter(Boolean).join(" · ");
+}
 
 const violationLabels = {
   copy_paste: "Copy / Paste",

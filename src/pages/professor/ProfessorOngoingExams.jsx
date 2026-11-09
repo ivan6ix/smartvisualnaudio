@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FiActivity, FiAlertTriangle, FiArrowLeft, FiCheckCircle, FiClock, FiEye, FiPlayCircle, FiUsers, FiVolume2, FiVolumeX, FiWifi, FiWifiOff } from "react-icons/fi";
+import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { ListPagination } from "../../components/ListViewControls";
 import { Badge, Button, Card, ListSkeleton, SearchBox, SkeletonValue } from "../../components/ui";
@@ -180,6 +181,24 @@ export default function ProfessorOngoingExams() {
     setExpandedViolations(new Set());
   }, []);
 
+  // "View student" on a violation pop-up lands here: open that exam with the student searched, then clear the request.
+  const location = useLocation();
+  const navigate = useNavigate();
+  const sectionRef = useRef(null);
+  const requestedExamId = location.state?.ongoingExamId;
+  const requestedStudent = location.state?.ongoingStudent;
+  useEffect(() => {
+    if (!requestedExamId || !ongoingReady) return;
+    if (activeExams.some((exam) => exam.id === requestedExamId)) {
+      openExam(requestedExamId);
+      setTableState((current) => ({ ...current, [requestedExamId]: { status: "All", sortKey: "student", sortDirection: "asc", ...(current[requestedExamId] || {}), search: requestedStudent || "", page: 1 } }));
+      window.requestAnimationFrame(() => sectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    } else {
+      toast.info("That exam is no longer ongoing.");
+    }
+    navigate(location.pathname, { replace: true, state: null });
+  }, [activeExams, location.pathname, navigate, ongoingReady, openExam, requestedExamId, requestedStudent]);
+
   function toggleSet(setter, id) {
     setter((current) => {
       const next = new Set(current);
@@ -190,7 +209,7 @@ export default function ProfessorOngoingExams() {
   }
 
   return (
-    <section className="professor-ongoing-section">
+    <section className="professor-ongoing-section" ref={sectionRef}>
       <Card className="professor-ongoing-card">
         <div className="professor-ongoing-header">
           <div>

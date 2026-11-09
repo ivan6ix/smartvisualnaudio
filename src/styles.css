@@ -20455,3 +20455,85 @@ html[data-theme="dark"] .professor-ongoing-detail {
 .professor-ongoing-card .btn.professor-ongoing-view-button:focus {
   box-shadow: none;
 }
+
+/* Violation pop-ups: bottom right, stay about 8 seconds (closed by the page), with a close and a View student button. */
+.professor-violation-alert-stack {
+  align-content: end;
+  bottom: 18px;
+  gap: 8px;
+  max-width: calc(100vw - 24px);
+  top: auto;
+  width: 340px;
+}
+.professor-violation-toast {
+  animation: professor-violation-pop-in 220ms ease-out;
+  border: 1px solid var(--app-line);
+  border-left: 3px solid #dc2626;
+  border-radius: 8px;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  pointer-events: auto;
+}
+html[data-theme="dark"] .professor-violation-toast {
+  border-color: rgba(226, 232, 240, 0.24);
+  border-left-color: #ef4444;
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.45);
+}
+.professor-violation-toast small {
+  color: var(--app-text-muted);
+  font-size: 0.78rem;
+}
+.professor-violation-view {
+  background: transparent;
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  color: var(--app-text);
+  cursor: pointer;
+  font-size: 0.8rem;
+  font-weight: 700;
+  justify-self: start;
+  margin-top: 4px;
+  padding: 4px 10px;
+}
+.professor-violation-view:hover {
+  background: var(--app-active, rgba(59, 130, 246, 0.12));
+}
+.professor-violation-close {
+  background: transparent;
+  border: 0;
+  border-radius: 6px;
+  color: var(--app-text-muted);
+  cursor: pointer;
+  display: inline-flex;
+  padding: 2px;
+}
+.professor-violation-close:hover {
+  color: var(--app-text);
+}
+.professor-violation-close svg {
+  color: inherit;
+  margin: 0;
+}
+.professor-violation-more {
+  background: var(--app-surface);
+  border: 1px solid var(--app-line);
+  border-radius: 8px;
+  color: var(--app-text-muted);
+  font-size: 0.8rem;
+  font-weight: 700;
+  justify-self: end;
+  margin: 0;
+  padding: 4px 10px;
+  pointer-events: auto;
+}
+@keyframes professor-violation-pop-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: none; }
+}
+@media (max-width: 600px) {
+  .professor-violation-alert-stack {
+    bottom: 12px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+}

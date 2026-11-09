@@ -10,7 +10,7 @@ import { PageSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import useMessagePreview from "../../hooks/useMessagePreview";
-import { formatViolationType, MAX_VIOLATION_ALERTS, playViolationAlertSound, VIOLATION_ALERT_DURATION_MS } from "../../lib/violationAlerts";
+import { addViolationAlert, describeViolationPlace, formatViolationType, playViolationAlertSound, removeViolationAlert, VIOLATION_ALERT_DURATION_MS } from "../../lib/violationAlerts";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const professorNavigation = [
@@ -133,26 +133,39 @@ export default function ProfessorLayout() {
   );
 }
 
+// Small pop-ups at the bottom right when a student in one of the professor's exams gets a violation.
 function ProfessorViolationAlerts({ user }) {
-  const [alerts, setAlerts] = useState([]);
-  const scopeRef = useRef({ courseIds: new Set(), examById: new Map() });
+  const navigate = useNavigate();
+  const [stack, setStack] = useState({ alerts: [], hiddenCount: 0 });
+  const scopeRef = useRef({ courseById: new Map(), courseIds: new Set(), examById: new Map() });
   const studentNamesRef = useRef(new Map());
   const timersRef = useRef(new Set());
 
   const removeAlert = useCallback((id) => {
-    setAlerts((current) => current.filter((alert) => alert.id !== id));
+    setStack((current) => removeViolationAlert(current, id));
   }, []);
 
+  const viewStudent = useCallback((alert) => {
+    removeAlert(alert.id);
+    // The dashboard's Ongoing Exams opens this exam with the student searched.
+    navigate("/professor", { state: { ongoingExamId: alert.examId, ongoingStudent: alert.studentName } });
+  }, [navigate, removeAlert]);
+
   const pushAlert = useCallback((violation, studentName = "Unknown student") => {
-    const exam = scopeRef.current.examById.get(violation.exam_id) || {};
+    const { courseById, examById } = scopeRef.current;
+    const exam = examById.get(violation.exam_id) || {};
+    const course = courseById.get(violation.course_id) || courseById.get(exam.course_id) || {};
+    const createdAt = violation.created_at ? new Date(violation.created_at) : new Date();
     const next = {
       id: `${violation.id || violation.exam_id || violation.student_id || Date.now()}-${Date.now()}`,
-      examTitle: exam.exam_title || exam.title || "Exam",
+      examId: violation.exam_id,
+      place: describeViolationPlace({ examTitle: exam.exam_title || exam.title, courseCode: course.course_code, section: course.section }),
       studentName,
+      time: (Number.isNaN(createdAt.getTime()) ? new Date() : createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }),
       typeLabel: formatViolationType(violation.violation_type),
     };
     playViolationAlertSound();
-    setAlerts((current) => [...current, next].slice(-MAX_VIOLATION_ALERTS));
+    setStack((current) => addViolationAlert(current, next));
     const timer = window.setTimeout(() => {
       timersRef.current.delete(timer);
       removeAlert(next.id);
@@ -191,12 +204,13 @@ function ProfessorViolationAlerts({ user }) {
     async function loadScopeAndSubscribe() {
       const { data: courses } = await supabase
         .from("courses")
-        .select("id")
+        .select("id, course_code, section")
         .eq("professor_id", user.id)
         .eq("archived", false);
       if (!active) return;
 
       const courseIds = new Set((courses || []).map((course) => course.id));
+      const courseById = new Map((courses || []).map((course) => [course.id, course]));
       const examById = new Map();
       const examSelect = "id, title, exam_title, course_id";
       const queries = [
@@ -207,7 +221,7 @@ function ProfessorViolationAlerts({ user }) {
       if (!active) return;
 
       results.flatMap((result) => result.data || []).forEach((exam) => examById.set(exam.id, exam));
-      scopeRef.current = { courseIds, examById };
+      scopeRef.current = { courseById, courseIds, examById };
       channel = supabase
         .channel(`professor-violation-alerts-${user.id}`)
         .on("postgres_changes", { event: "INSERT", schema: "public", table: "violations" }, handleViolation)
@@ -223,16 +237,20 @@ function ProfessorViolationAlerts({ user }) {
     };
   }, [handleViolation, user?.id]);
 
-  if (!alerts.length) return null;
+  if (!stack.alerts.length) return null;
   return (
     <div aria-live="polite" className="professor-violation-alert-stack">
-      {alerts.map((alert) => (
+      {stack.hiddenCount ? <p className="professor-violation-more">+{stack.hiddenCount} more {stack.hiddenCount === 1 ? "violation" : "violations"}</p> : null}
+      {stack.alerts.map((alert) => (
         <article className="professor-violation-toast" key={alert.id} role="status">
           <FiAlertTriangle aria-hidden="true" />
           <div>
             <strong>{alert.typeLabel}</strong>
-            <span>{alert.studentName} - {alert.examTitle}</span>
+            <span>{alert.studentName} · {alert.place}</span>
+            <small>{alert.time}</small>
+            {alert.examId ? <button className="professor-violation-view" onClick={() => viewStudent(alert)} type="button">View student</button> : null}
           </div>
+          <button aria-label="Dismiss violation alert" className="professor-violation-close" onClick={() => removeAlert(alert.id)} type="button"><FiX /></button>
         </article>
       ))}
     </div>
