@@ -15999,7 +15999,6 @@ html[data-theme="light"] :is(
   .table-wrap { max-width:100%; overflow-x:auto; }
   :is(.app-shell, .cluster-shell, .card, .field) { min-width:0; }
   :is(.settings-modal, .cluster-modal, .student-modal, .message-modal) { max-width:calc(100vw - 32px); max-height:calc(100dvh - 32px); overflow-y:auto; }
-  :is(.notification-menu, .message-menu):focus-within > div { display:block; opacity:1; visibility:visible; pointer-events:auto; }
 }
 @media screen and (max-width:1200px) {
   .portal-menu-toggle { display:block; }

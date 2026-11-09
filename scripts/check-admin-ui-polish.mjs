@@ -23,6 +23,8 @@ assert.ok(themeIndex < messagesIndex && messagesIndex < notificationsIndex && no
 
 // Top bar menus open only on click and close on an outside click or Escape.
 assert.ok(!/\.(message|notification)-menu:(hover|focus-within) \.(message|notification)-menu-panel/.test(css), "Message and notification menus must not open on hover or focus.");
+// A focus rule keeps the panel open after the icon is clicked again, so a second click would not close it.
+assert.ok(!/:is\([^)]*(message|notification)-menu[^)]*\):(hover|focus-within)/.test(css), "Message and notification menus must close when the icon is clicked again.");
 for (const name of ["MessageMenu", "NotificationBell", "ProfileMenu"]) {
   const source = readFileSync(new URL(`../src/components/${name}.jsx`, import.meta.url), "utf8");
   assert.match(source, /event\.key === "Escape"[\s\S]*document\.addEventListener\("mousedown", handlePointer\)/, `${name} must close on an outside click and on Escape.`);
