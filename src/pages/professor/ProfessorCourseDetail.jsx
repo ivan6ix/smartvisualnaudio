@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Badge, Button, ListSkeleton } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
 import { professorCourses, professorExams } from "../../data/professorData";
+import { isPublishedStatus } from "../../lib/ongoingExams";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const examFilterDefaults = {
@@ -347,7 +348,7 @@ export default function ProfessorCourseDetail() {
   const [exams, setExams] = useState(() => professorExams.map((exam) => ({
     ...mapExam(exam),
     courseId: professorCourses.find((courseItem) => courseItem.courseName === exam.course && courseItem.section === exam.section)?.id,
-  })).filter((exam) => exam.courseId === courseId));
+  })).filter((exam) => exam.courseId === courseId && isPublishedStatus(exam.status)));
   const [members, setMembers] = useState([]);
   const [modules, setModules] = useState([]);
   const [periods, setPeriods] = useState([]);
@@ -434,7 +435,8 @@ export default function ProfessorCourseDetail() {
       ]);
 
       if (examError) toast.error(examError.message);
-      else setExams((examRows || []).map(mapExam));
+      // Only published exams belong to the course; drafts, pending and unpublished exams stay on the Exams page.
+      else setExams((examRows || []).filter((exam) => isPublishedStatus(exam.status)).map(mapExam));
 
       if (memberError) toast.error(memberError.message);
       else setMembers((memberRows || []).map(mapMember));
