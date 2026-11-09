@@ -1661,15 +1661,11 @@ export default function ProfessorCreateExam() {
             <div className="professor-question-actions">
               <span className="professor-autosave-status">{autosaveStatus}</span>
               <button className="professor-add-question" onClick={handleAddQuestion} type="button"><FiPlus /> {editingQuestionId ? "Update Question" : "Add Question"}</button>
+              <button className="professor-generate-questions" onClick={() => setPdfGeneratorOpen(true)} title="Create Multiple Choice questions from a PDF, Word, PowerPoint or text file, or pictures, then review them before adding." type="button"><FiFileText /> Generate Questionnaire</button>
               <button className="professor-save-draft" disabled={saving} onClick={handleSaveDraft} type="button"><FiSave /> {saving ? "Saving..." : "Save as Draft"}</button>
               <button className="professor-submit-review" disabled={saving} onClick={handleSaveExam} title="Send this exam to the Cluster Professor for review before publishing." type="button"><FiSave /> {saving ? "Saving..." : "Submit for Review"}</button>
               <button className="professor-save-exam" disabled={saving || (groupId && groupHasReviewHistory)} onClick={handlePublishExam} title={groupId && groupHasReviewHistory ? "Submit this edited shared exam for review first" : "Publish directly without Cluster Professor review."} type="button"><FiSave /> {groupId && groupHasReviewHistory ? "Review required" : "Publish"}</button>
             </div>
-          </div>
-
-          <div className="professor-pdfq-entry">
-            <span>Have lecture notes or a module? Create Multiple Choice questions from a PDF, then review them before adding.</span>
-            <button className="professor-generate-questions" onClick={() => setPdfGeneratorOpen(true)} type="button"><FiFileText /> Generate from PDF</button>
           </div>
 
           <div className="professor-question-fields">

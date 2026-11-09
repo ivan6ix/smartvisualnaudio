@@ -298,7 +298,8 @@ assert.match(extractor, /hasPdfSignature/);
 
 // The modal is wired into Create Exam, generates in the browser, and presents a normal feature.
 const createExam = find("ProfessorCreateExam.jsx");
-assert.match(createExam, /Generate from PDF/);
+assert.match(createExam, /className="professor-question-actions">[\s\S]*?Generate Questionnaire<\/button>[\s\S]*?<\/div>/, "Generate Questionnaire sits with the other Question Builder buttons.");
+assert.doesNotMatch(createExam, /professor-pdfq-entry/, "The separate PDF prompt box is gone.");
 assert.match(createExam, /<PdfQuestionGeneratorModal[\s\S]*onInsert=\{handleInsertGeneratedQuestions\}/);
 assert.match(createExam, /function handleInsertGeneratedQuestions\(generated\) \{\s*setQuestions\(\(current\) => \[\.\.\.current, \.\.\.generated\]\);/);
 const modal = find("PdfQuestionGeneratorModal.jsx");

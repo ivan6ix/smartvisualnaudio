@@ -18736,21 +18736,7 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   }
 }
 
-/* Generate questions from PDF. */
-.professor-pdfq-entry {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 10px 16px;
-  margin-bottom: 14px;
-  border: 1px dashed var(--app-line);
-  border-radius: 8px;
-  padding: 10px 12px;
-  color: var(--app-text-muted);
-  font-size: 0.88rem;
-  font-weight: 700;
-}
+/* Generate questions from PDF (the Generate Questionnaire button in the Question Builder). */
 .professor-generate-questions {
   min-height: 42px;
   border: 1px solid rgba(37, 99, 235, 0.45);
@@ -20343,4 +20329,10 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 /* Space between a confirmation summary box (Publish, Delete) and its buttons. */
 .professor-delete-summary + .professor-delete-actions {
   margin-top: 16px;
+}
+
+/* Keep "Question Builder" on one line when the button row is long. */
+.professor-question-titlebar h2 {
+  flex: none;
+  white-space: nowrap;
 }
