@@ -604,7 +604,7 @@ export default function ProfessorScores() {
   if (loading && !scoresReady) {
     return (
       <section className="professor-scores-page">
-        <PageHeader title="Scores" subtitle="Loading exam results..." />
+        <PageHeader variant="plain" title="Scores" subtitle="Loading exam results..." />
         <Card>
           <ListSkeleton columns={5} label="Loading exam results..." variant={listView.view === "cards" ? "records" : "table"} />
         </Card>
@@ -656,7 +656,7 @@ export default function ProfessorScores() {
     const pageData = paginate(tab === "students" ? filteredStudents : filteredQuestions, page);
     return (
       <section className="professor-scores-page">
-        <PageHeader
+        <PageHeader variant="plain"
           title={selectedExam?.exam_title || selectedExam?.title || "Exam Results"}
           subtitle={`${selectedExam?.exam_type || "Exam"} | ${formatPoints(selectedExam?.totalPoints)} pts | ${students.length} student${students.length === 1 ? "" : "s"} | ${selectedExam?.pending || 0} pending`}
           actions={<Button variant="light" onClick={() => navigate("/professor/scores")}>Back to Scores</Button>}
@@ -730,7 +730,7 @@ export default function ProfessorScores() {
 
   return (
     <section className="professor-scores-page">
-      <PageHeader title="Scores" subtitle="Open an exam or task to review students, attempts, questions, and manual grading." />
+      <PageHeader variant="plain" title="Scores" subtitle="Open an exam or task to review students, attempts, questions, and manual grading." />
       <Card>
         <div className="professor-score-filters">
           <SearchBox value={search} onChange={setSearch} placeholder="Search exams or sections" />
@@ -975,11 +975,11 @@ function FileAnswerCell({ answer, limit = 80, onOpenFile }) {
 }
 
 function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeInput, onSaveGrade, onOpenFile, onReviewReopen, onBack }) {
-  if (!attempt) return <section className="professor-scores-page"><PageHeader title="Attempt Not Found" actions={<Button variant="light" onClick={onBack}>Back</Button>} /></section>;
+  if (!attempt) return <section className="professor-scores-page"><PageHeader variant="plain" title="Attempt Not Found" actions={<Button variant="light" onClick={onBack}>Back</Button>} /></section>;
   const answersByQuestion = new Map(answers.map((answer) => [answer.question_id, answer]));
   return (
     <section className="professor-scores-page">
-      <PageHeader title="Attempt Details" subtitle={`${attempt.studentName} | ${exam?.exam_title || exam?.title || "Exam"}`} actions={<Button variant="light" onClick={onBack}>Back</Button>} />
+      <PageHeader variant="plain" title="Attempt Details" subtitle={`${attempt.studentName} | ${exam?.exam_title || exam?.title || "Exam"}`} actions={<Button variant="light" onClick={onBack}>Back</Button>} />
       <Card>
         <div className="professor-score-summary left professor-attempt-summary">
           <Badge tone="neutral">{attempt.section}</Badge>
@@ -1030,7 +1030,7 @@ function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeIn
 }
 
 function QuestionReviewView({ exam, question, questionIndex, questions, rows, search, setSearch, filter, setFilter, page, setPage, gradeInputs, onGradeInput, onSaveGrade, onOpenFile }) {
-  if (!question) return <section className="professor-scores-page"><PageHeader title="Question Not Found" /></section>;
+  if (!question) return <section className="professor-scores-page"><PageHeader variant="plain" title="Question Not Found" /></section>;
   const pageData = paginate(rows, page);
   const previous = questions[questionIndex - 1];
   const next = questions[questionIndex + 1];
@@ -1038,7 +1038,7 @@ function QuestionReviewView({ exam, question, questionIndex, questions, rows, se
   const currentExamId = exam?.id || question.exam_id;
   return (
     <section className="professor-scores-page">
-      <PageHeader
+      <PageHeader variant="plain"
         title={`Question ${questionIndex + 1} / ${questions.length}`}
         subtitle={`${exam?.exam_title || exam?.title || "Exam"} | ${question.question_type} | ${formatPoints(question.points)} pts | ${pending} pending`}
         actions={<div className="professor-score-header-actions">{previous ? <Link className="professor-score-action" to={`/professor/scores/${currentExamId}/questions/${previous.id}`}>Previous Question</Link> : null}{next ? <Link className="professor-score-action" to={`/professor/scores/${currentExamId}/questions/${next.id}`}>Next Question</Link> : null}</div>}

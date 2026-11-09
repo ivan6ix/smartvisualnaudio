@@ -39,9 +39,10 @@ export function Card({ children, className = "", ...props }) {
   return <section className={`card ${className}`} {...props}>{children}</section>;
 }
 
-export function PageHeader({ title, subtitle, actions }) {
+// variant="plain" drops the large header card and shows a heading like the dashboard's.
+export function PageHeader({ title, subtitle, actions, variant }) {
   return (
-    <div className="page-header">
+    <div className={variant === "plain" ? "page-header page-header-plain" : "page-header"}>
       <div>
         <h1>{title}</h1>
         {subtitle ? <p>{subtitle}</p> : null}

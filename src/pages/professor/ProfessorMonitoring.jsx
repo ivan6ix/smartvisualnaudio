@@ -428,7 +428,7 @@ export default function ProfessorMonitoring() {
   return (
     <>
       <section className="professor-monitoring-page">
-      <PageHeader title="Monitoring Center" subtitle="Review student activity and proctoring alerts across your exams." />
+      <PageHeader variant="plain" title="Monitoring Center" subtitle="Review student activity and proctoring alerts across your exams." />
 
       <div className="professor-stats-grid">
         <StatCard label="Monitored Students" value={students.length} icon={FiUsers} />
