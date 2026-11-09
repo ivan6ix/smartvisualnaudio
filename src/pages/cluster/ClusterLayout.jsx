@@ -1,3 +1,4 @@
+import ClusterProgramBanner from "../../components/cluster/ClusterProgramBanner";
 import MessageMenu from "../../components/MessageMenu";
 import NotificationBell from "../../components/NotificationBell";
 import { useEffect, useState } from "react";
@@ -121,6 +122,7 @@ export default function ClusterLayout() {
           </div>
         </header>
         <main className="admin-main-content cluster-shell cluster-role-shell">
+          <ClusterProgramBanner userId={user.id} />
           <Outlet />
         </main>
       </div>

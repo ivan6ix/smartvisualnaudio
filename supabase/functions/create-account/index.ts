@@ -37,6 +37,18 @@ async function writeAudit(
   });
 }
 
+// A Cluster Professor reviews exams of one program. Returns the active program, or an error message.
+async function findActiveProgram(adminClient: ReturnType<typeof createClient>, programId: string) {
+  const { data: program, error } = await adminClient
+    .from("programs")
+    .select("id, program_code, is_active")
+    .eq("id", programId)
+    .maybeSingle();
+  if (error || !program) return { program: null, error: "Choose a program for this Cluster Professor." };
+  if (!program.is_active) return { program: null, error: `${program.program_code} is inactive. Choose an active program.` };
+  return { program, error: "" };
+}
+
 function json(body: Record<string, unknown>, status = 200) {
   return new Response(JSON.stringify(body), {
     status,
@@ -92,6 +104,16 @@ Deno.serve(async (req) => {
       if (!allowedRoles.has(role)) return json({ error: "Invalid account role." }, 400);
       if (!fullName || !email || !employeeNumber) return json({ error: "Full name, email, and employee number are required." }, 400);
       if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
+
+      // A Cluster Professor may be given a program now (the Create Account form requires it), or later with
+      // assign-program (bulk-created accounts). Without one they see no exams to review.
+      const programId = role === "Cluster Professor" ? String(body.programId || "").trim() : "";
+      let program: { id: string; program_code: string } | null = null;
+      if (programId) {
+        const found = await findActiveProgram(adminClient, programId);
+        if (found.error) return json({ error: found.error }, 400);
+        program = found.program;
+      }
 
       // Employee numbers and emails are unique. Check first, because a clash inside Auth only reports
       // "Database error creating new user".
@@ -158,6 +180,7 @@ Deno.serve(async (req) => {
           email,
           role,
           account_status: "Active",
+          program_id: program?.id || null,
         });
       }
 
@@ -170,10 +193,51 @@ Deno.serve(async (req) => {
         entityType: "account",
         entityId: data.user.id,
         targetUserId: data.user.id,
-        metadata: { role, status: "Active" },
+        metadata: { role, status: "Active", ...(program ? { program: program.program_code } : {}) },
       });
 
-      return json({ profile });
+      return json({ profile: { ...profile, program_id: program?.id || null } });
+    }
+
+    if (action === "assign-program") {
+      const userId = String(body.userId || "");
+      const programId = String(body.programId || "").trim();
+      if (!userId || !programId) return json({ error: "Choose a Cluster Professor and a program." }, 400);
+
+      const { data: target, error: targetError } = await adminClient
+        .from("profiles")
+        .select("id, role, full_name, email, status")
+        .eq("id", userId)
+        .maybeSingle();
+      if (targetError || !target) return json({ error: "Account not found." }, 404);
+      if (target.role !== "Cluster Professor") return json({ error: "Only Cluster Professors are assigned a program." }, 400);
+
+      const found = await findActiveProgram(adminClient, programId);
+      if (found.error || !found.program) return json({ error: found.error }, 400);
+
+      const { data: previous } = await adminClient.from("cluster_professors").select("program_id").eq("id", userId).maybeSingle();
+      const { error: assignError } = await adminClient.from("cluster_professors").upsert({
+        id: target.id,
+        full_name: target.full_name,
+        email: target.email,
+        role: target.role,
+        account_status: target.status,
+        program_id: found.program.id,
+      });
+      if (assignError) return json({ error: assignError.message }, 400);
+
+      await writeAudit(adminClient, {
+        userId: authData.user.id,
+        actorRole: caller.role,
+        eventType: "account.program_assigned",
+        action: "Program Assigned",
+        description: "An admin assigned a Cluster Professor's review program.",
+        entityType: "account",
+        entityId: userId,
+        targetUserId: userId,
+        metadata: { program: found.program.program_code, previous_program_id: previous?.program_id || null },
+      });
+      return json({ userId, programId: found.program.id });
     }
 
     if (action === "update-status") {

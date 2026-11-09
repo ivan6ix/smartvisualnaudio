@@ -86,12 +86,17 @@ Deno.serve(async (req) => {
 
     const { data: exam, error: examError } = await adminClient
       .from("exams")
-      .select("id, title, exam_title, professor_id, created_by")
+      .select("id, title, exam_title, professor_id, created_by, status")
       .eq("id", examId)
       .maybeSingle();
 
     if (examError) return json({ error: examError.message }, 400);
     if (!exam) return json({ error: "Exam not found." }, 404);
+
+    // Cluster Professors review only exams of their assigned program (checked as the caller, in the database).
+    const { data: canReview, error: accessError } = await userClient.rpc("cluster_can_review_exam", { p_exam_id: examId });
+    if (accessError) return json({ error: accessError.message }, 400);
+    if (!canReview) return json({ error: "This exam is not in your assigned program." }, 403);
 
     const { data: groupMember, error: groupError } = await adminClient
       .from("exam_publish_group_members")
@@ -107,6 +112,10 @@ Deno.serve(async (req) => {
       });
       if (reviewError) return json({ error: reviewError.message }, 400);
       return json({ group });
+    }
+
+    if (String(exam.status || "").toLowerCase() !== "pending review") {
+      return json({ error: "This exam is no longer waiting for review." }, 409);
     }
 
     const now = new Date().toISOString();

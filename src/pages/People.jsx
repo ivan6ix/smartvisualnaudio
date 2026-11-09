@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { FiRefreshCw, FiSlash, FiUserPlus, FiUsers, FiX } from "react-icons/fi";
+import { FiBookOpen, FiRefreshCw, FiSlash, FiUserPlus, FiUsers, FiX } from "react-icons/fi";
 import BulkRegisterModal from "../components/admin/BulkRegisterModal";
 import { Button, Card, Field, SearchBox, SelectField, Table, Badge, RowActionMenu } from "../components/ui";
 import { clusterProfessors, deans, professors } from "../data/mockData";
@@ -14,6 +14,8 @@ const source = {
 };
 
 const accountTypes = ["Professor", "Dean", "Cluster Professor"];
+const CLUSTER = "Cluster Professor";
+const emptyForm = { name: "", email: "", employeeNumber: "", password: "123456", programId: "" };
 
 function getTitle(type, isUnified) {
   if (isUnified) return "Create Account";
@@ -44,7 +46,13 @@ export default function People({ type }) {
   const [rowsByType, setRowsByType] = useLocalStorageState("smartproctor.people.byType", source);
   const [liveRowsByType, setLiveRowsByType] = useState(source);
   const [search, setSearch] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", employeeNumber: "", password: "123456" });
+  const [form, setForm] = useState(emptyForm);
+  // Each Cluster Professor reviews the exams of one program.
+  const [programs, setPrograms] = useState([]);
+  const [programByCluster, setProgramByCluster] = useState({});
+  const [assignTarget, setAssignTarget] = useState(null);
+  const [assignProgramId, setAssignProgramId] = useState("");
+  const [assigning, setAssigning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [bulkModalOpen, setBulkModalOpen] = useState(false);
@@ -87,13 +95,28 @@ export default function People({ type }) {
         grouped[profile.role] = [...(grouped[profile.role] || []), mapProfile(profile)];
       });
       setLiveRowsByType(grouped);
+
+      const [{ data: programRows, error: programError }, { data: clusterRows, error: clusterError }] = await Promise.all([
+        supabase.from("programs").select("id, program_code, program_name, is_active").order("program_code"),
+        supabase.from("cluster_professors").select("id, program_id"),
+      ]);
+      if (programError || clusterError) {
+        toast.error((programError || clusterError).message);
+        return;
+      }
+      setPrograms(programRows || []);
+      setProgramByCluster(Object.fromEntries((clusterRows || []).map((row) => [row.id, row.program_id || ""])));
     }
 
     loadPeople();
   }, []);
 
+  const activePrograms = useMemo(() => programs.filter((program) => program.is_active), [programs]);
+  const programById = useMemo(() => new Map(programs.map((program) => [program.id, program])), [programs]);
+  const showProgramColumn = isUnified || accountType === CLUSTER;
+
   const resetForm = useCallback(function resetForm() {
-    setForm({ name: "", email: "", employeeNumber: "", password: "123456" });
+    setForm(emptyForm);
     if (!type) setSelectedType("Professor");
   }, [type]);
 
@@ -149,10 +172,11 @@ export default function People({ type }) {
     return data;
   }
 
-  async function createAccount({ role, fullName, email, employeeNumber, password }) {
+  async function createAccount({ role, fullName, email, employeeNumber, password, programId = "" }) {
     if (hasSupabaseConfig) {
-      const data = await callAccountFunction({ action: "create", role, fullName, email, employeeNumber, password });
+      const data = await callAccountFunction({ action: "create", role, fullName, email, employeeNumber, password, ...(role === CLUSTER ? { programId } : {}) });
       updateLiveProfile(data.profile);
+      if (role === CLUSTER) setProgramByCluster((current) => ({ ...current, [data.profile.id]: data.profile.program_id || "" }));
       return;
     }
     updateRows(role, (current) => [{ id: crypto.randomUUID(), name: fullName, email, employeeNumber, role, status: "Active" }, ...current]);
@@ -160,6 +184,10 @@ export default function People({ type }) {
 
   async function createPerson(event) {
     event.preventDefault();
+    if (accountType === CLUSTER && hasSupabaseConfig && !form.programId) {
+      toast.error("Choose the program this Cluster Professor will review.");
+      return;
+    }
     setSaving(true);
 
     try {
@@ -169,6 +197,7 @@ export default function People({ type }) {
         email: form.email,
         employeeNumber: form.employeeNumber,
         password: form.password || "123456",
+        programId: form.programId,
       });
 
       resetForm();
@@ -207,12 +236,43 @@ export default function People({ type }) {
     }
   }
 
+  async function assignProgram(event) {
+    event.preventDefault();
+    if (!assignTarget || !assignProgramId) {
+      toast.error("Choose a program.");
+      return;
+    }
+    setAssigning(true);
+    try {
+      await callAccountFunction({ action: "assign-program", userId: assignTarget.id, programId: assignProgramId });
+      setProgramByCluster((current) => ({ ...current, [assignTarget.id]: assignProgramId }));
+      toast.success(`${assignTarget.name} now reviews ${programById.get(assignProgramId)?.program_code || "the selected program"} exams.`);
+      setAssignTarget(null);
+    } catch (error) {
+      toast.error(error.message);
+    } finally {
+      setAssigning(false);
+    }
+  }
+
+  function openAssignProgram(row) {
+    setAssignTarget(row);
+    setAssignProgramId(programByCluster[row.id] || "");
+  }
+
+  function programCell(row) {
+    if ((row.role || accountType) !== CLUSTER) return <span className="account-program-none">-</span>;
+    const program = programById.get(programByCluster[row.id]);
+    return program ? <Badge>{program.program_code}</Badge> : <Badge tone="warn">Not assigned</Badge>;
+  }
+
   const columns = [
     { key: "name", label: "Name", width: "18%" },
-    { key: "email", label: "Email", width: "25%" },
-    { key: "employeeNumber", label: "Employee Number", width: "17%" },
-    { key: "role", label: "Account Type", width: "17%", render: (row) => <Badge>{row.role || accountType}</Badge> },
-    { key: "status", label: "Status", width: "13%", className: "admin-table-center", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
+    { key: "email", label: "Email", width: showProgramColumn ? "22%" : "25%" },
+    { key: "employeeNumber", label: "Employee Number", width: showProgramColumn ? "14%" : "17%" },
+    { key: "role", label: "Account Type", width: showProgramColumn ? "15%" : "17%", render: (row) => <Badge>{row.role || accountType}</Badge> },
+    ...(showProgramColumn ? [{ key: "program", label: "Program", width: "10%", render: programCell }] : []),
+    { key: "status", label: "Status", width: showProgramColumn ? "11%" : "13%", className: "admin-table-center", render: (row) => <Badge tone={row.status === "Active" ? "success" : row.status === "Pending" ? "warn" : "danger"}>{row.status}</Badge> },
   ];
 
   const createForm = (
@@ -226,6 +286,12 @@ export default function People({ type }) {
       <Field label="Email" type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required />
       <Field label="Employee Number" value={form.employeeNumber} onChange={(event) => setForm({ ...form, employeeNumber: event.target.value })} required />
       <Field label="Default Password" type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required minLength={6} />
+      {accountType === CLUSTER ? (
+        <SelectField label="Program to Review" value={form.programId} onChange={(event) => setForm({ ...form, programId: event.target.value })} required={hasSupabaseConfig}>
+          <option value="">Select program</option>
+          {activePrograms.map((program) => <option key={program.id} value={program.id}>{program.program_code} - {program.program_name}</option>)}
+        </SelectField>
+      ) : null}
       <div className="account-modal-actions">
         <Button disabled={saving} type="button" variant="light" onClick={closeCreateModal}>Cancel</Button>
         <Button disabled={saving}><FiUserPlus /> {saving ? "Creating..." : `Create ${accountType}`}</Button>
@@ -264,6 +330,7 @@ export default function People({ type }) {
         <Table className="admin-account-table admin-account-table-active" columns={columns} rows={active} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => (
           <RowActionMenu
             actions={[
+              ...((row.role || accountType) === CLUSTER && hasSupabaseConfig ? [{ icon: FiBookOpen, label: programByCluster[row.id] ? "Change Program" : "Assign Program", onClick: () => openAssignProgram(row) }] : []),
               { icon: FiRefreshCw, label: "Reset Password", onClick: () => resetPassword(row) },
               { danger: true, icon: FiSlash, label: "Deactivate", onClick: () => setStatus(row, "Deactivated") },
             ]}
@@ -292,6 +359,31 @@ export default function People({ type }) {
               </button>
             </div>
             {createForm}
+          </section>
+        </div>
+      ) : null}
+      {assignTarget ? (
+        <div className="modal-backdrop account-modal-backdrop" onClick={() => (assigning ? null : setAssignTarget(null))} role="presentation">
+          <section aria-labelledby="assign-program-title" aria-modal="true" className="card modal account-create-modal account-program-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+            <div className="account-modal-header">
+              <div>
+                <h2 id="assign-program-title">{programByCluster[assignTarget.id] ? "Change Program" : "Assign Program"}</h2>
+                <p>{assignTarget.name} will review only exams from courses in this program.</p>
+              </div>
+              <button aria-label="Close assign program" disabled={assigning} onClick={() => setAssignTarget(null)} type="button">
+                <FiX />
+              </button>
+            </div>
+            <form className="account-create-form" onSubmit={assignProgram}>
+              <SelectField label="Program to Review" value={assignProgramId} onChange={(event) => setAssignProgramId(event.target.value)} required>
+                <option value="">Select program</option>
+                {activePrograms.map((program) => <option key={program.id} value={program.id}>{program.program_code} - {program.program_name}</option>)}
+              </SelectField>
+              <div className="account-modal-actions">
+                <Button disabled={assigning} type="button" variant="light" onClick={() => setAssignTarget(null)}>Cancel</Button>
+                <Button disabled={assigning || !assignProgramId}><FiBookOpen /> {assigning ? "Saving..." : "Save Program"}</Button>
+              </div>
+            </form>
           </section>
         </div>
       ) : null}

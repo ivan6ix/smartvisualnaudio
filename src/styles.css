@@ -20336,3 +20336,63 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   flex: none;
   white-space: nowrap;
 }
+
+/* Edit Question pop-up window in Create Exam: the same fields as the Question Builder, scrolling inside. */
+.professor-share-modal.professor-question-edit-modal {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 44px);
+  width: min(100%, 880px);
+}
+.professor-question-edit-body {
+  display: grid;
+  flex: 1;
+  gap: 14px;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 2px 4px 2px 0;
+}
+.professor-question-edit-actions {
+  margin-top: 16px;
+}
+.professor-question-edit-actions button {
+  align-items: center;
+  display: inline-flex;
+  gap: 8px;
+}
+.professor-question-editing-note {
+  color: var(--app-text-muted);
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* Cluster Professor pages: the program they review, or a note that none is assigned yet. */
+.cluster-program-banner {
+  align-items: center;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  color: var(--app-text-muted);
+  display: flex;
+  font-size: 0.9rem;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 10px 14px;
+}
+.cluster-program-banner svg {
+  color: var(--app-primary, #2563eb);
+  flex: none;
+}
+.cluster-program-banner strong {
+  color: var(--app-text);
+}
+.cluster-program-banner.is-missing {
+  border-color: rgba(217, 119, 6, 0.5);
+  background: rgba(217, 119, 6, 0.08);
+}
+.cluster-program-banner.is-missing svg {
+  color: #d97706;
+}
+.account-program-none {
+  color: var(--app-text-muted);
+}

@@ -11,6 +11,7 @@ import useListViewPreference from "../../hooks/useListViewPreference";
 import { formatCourseMeta } from "../../lib/coursePrograms";
 import { getListPageSlice, getPageSizeForView, toNextListPage } from "../../lib/listView";
 import { validateExam } from "../../lib/examValidation";
+import { getReviewTargets, notifyReviewClusters, reviewTargetsProblem } from "../../lib/reviewTargets";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function normalizeStatus(status) {
@@ -448,38 +449,10 @@ export default function ProfessorExams() {
     }
   }
 
-  async function notifyClusterExamSubmitted(exam) {
-    const { data: clusterRows, error: clusterError } = await supabase
-      .from("profiles")
-      .select("id")
-      .eq("role", "Cluster Professor")
-      .eq("status", "Active");
-
-    if (clusterError) throw clusterError;
-
-    const rows = (clusterRows || []).map((profile) => ({
-      user_id: profile.id,
-      title: "New exam submitted for review",
-      message: `${exam.title} is waiting for cluster review.`,
-      type: "Exam",
-      is_read: false,
-    }));
-
-    if (rows.length) {
-      const results = await Promise.all(rows.map((notification) => supabase.rpc("create_notification", {
-        p_workflow: "exam_review_request",
-        p_recipient_id: notification.user_id,
-        p_title: notification.title,
-        p_message: notification.message,
-        p_type: notification.type,
-        p_context_id: exam.id,
-        p_entity_type: "exam",
-        p_entity_id: exam.id,
-        p_action_path: `/cluster/exams/${exam.id}`,
-      })));
-      const error = results.find((result) => result.error)?.error;
-      if (error) throw error;
-    }
+  // Notifies only the Cluster Professors assigned to the exam's program(s).
+  async function notifyClusterExamSubmitted(exam, clusters) {
+    const error = await notifyReviewClusters(supabase, { clusters, examId: exam.id, examTitle: exam.title });
+    if (error) throw error;
   }
 
   async function handleSubmitForApproval(exam) {
@@ -491,9 +464,15 @@ export default function ProfessorExams() {
 
     setLoadingActionId(exam.id);
     try {
+      const reviewTargets = await getReviewTargets(supabase, { examId: exam.id });
+      const reviewProblem = reviewTargetsProblem(reviewTargets);
+      if (reviewProblem) {
+        toast.error(reviewProblem);
+        return;
+      }
       if (exam.groupId) {
         await transitionGroupAction(exam, "submit_review");
-        await notifyClusterExamSubmitted(exam);
+        await notifyClusterExamSubmitted(exam, reviewTargets.clusters);
         toast.success("Shared exam submitted to cluster professor");
         return;
       }
@@ -508,7 +487,7 @@ export default function ProfessorExams() {
         .eq("id", exam.id);
 
       if (error) throw error;
-      await notifyClusterExamSubmitted(exam);
+      await notifyClusterExamSubmitted(exam, reviewTargets.clusters);
       toast.success("Exam submitted to cluster professor");
       await loadExams(true);
     } catch (error) {

@@ -17,6 +17,7 @@ import {
   describeCorrectAnswer,
   normalizeQuestionForEditing,
 } from "../../lib/examQuestionTypes";
+import { getReviewTargets, notifyReviewClusters, reviewTargetsProblem } from "../../lib/reviewTargets";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const examTypes = ["Quiz", "Exam", "Long Exam", "Activity"];
@@ -224,6 +225,7 @@ export default function ProfessorCreateExam() {
   const [questionDraft, setQuestionDraft] = useState(emptyQuestionDraft);
   const [questions, setQuestions] = useState([]);
   const [editingQuestionId, setEditingQuestionId] = useState("");
+  const stashedQuestionDraftRef = useRef(null);
   const [saving, setSaving] = useState(false);
   const [publishConfirmOpen, setPublishConfirmOpen] = useState(false);
   const [selectedProfessorMatchingLeft, setSelectedProfessorMatchingLeft] = useState("");
@@ -263,6 +265,14 @@ export default function ProfessorCreateExam() {
   const courseButtonLabel = !selectedCourseIds.length ? "Select courses"
     : singleSelectedCourse ? `${singleSelectedCourse.courseCode} - ${singleSelectedCourse.section}`
       : `${selectedCourseIds.length} course${selectedCourseIds.length === 1 ? "" : "s"} selected`;
+  const closeQuestionEditorRef = useRef(null);
+  closeQuestionEditorRef.current = closeQuestionEditor;
+  useEffect(() => {
+    if (!editingQuestionId) return undefined;
+    const closeOnEscape = (event) => { if (event.key === "Escape") closeQuestionEditorRef.current?.(); };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [editingQuestionId]);
   useEffect(() => {
     if (!coursePickerOpen) return undefined;
     const closeOnEscape = (event) => { if (event.key === "Escape") setCoursePickerOpen(false); };
@@ -948,6 +958,16 @@ export default function ProfessorCreateExam() {
     setSelectedProfessorMatchingLeft("");
   }
 
+  // Added questions are edited in a pop-up window. The question being typed in the builder at the top is
+  // kept aside meanwhile and comes back when the window closes, saved or not.
+  function closeQuestionEditor() {
+    const stashed = stashedQuestionDraftRef.current;
+    stashedQuestionDraftRef.current = null;
+    setEditingQuestionId("");
+    setQuestionDraft(stashed?.draft || emptyQuestionDraft());
+    setSelectedProfessorMatchingLeft(stashed?.matchingLeft || "");
+  }
+
   function validateQuestion() {
     const fieldError = validateExam({ title: "Question validation" }, [questionDraft]);
     if (fieldError) return fieldError;
@@ -1001,13 +1021,19 @@ export default function ProfessorCreateExam() {
     }
 
     const nextQuestion = buildQuestionPayload();
-    setQuestions((current) => editingQuestionId
-      ? current.map((question) => question.id === editingQuestionId ? nextQuestion : question)
-      : [...current, nextQuestion]);
+    if (editingQuestionId) {
+      setQuestions((current) => current.map((question) => question.id === editingQuestionId ? nextQuestion : question));
+      closeQuestionEditor();
+      toast.success("Question updated.");
+      return;
+    }
+    setQuestions((current) => [...current, nextQuestion]);
     resetQuestionDraft();
   }
 
   function handleEditQuestion(question) {
+    if (!editingQuestionId) stashedQuestionDraftRef.current = { draft: questionDraft, matchingLeft: selectedProfessorMatchingLeft };
+    setSelectedProfessorMatchingLeft("");
     setEditingQuestionId(question.id);
     setQuestionDraft({
       id: question.id,
@@ -1037,7 +1063,7 @@ export default function ProfessorCreateExam() {
 
   function handleDeleteQuestion(questionId) {
     setQuestions((current) => current.filter((question) => question.id !== questionId));
-    if (editingQuestionId === questionId) resetQuestionDraft();
+    if (editingQuestionId === questionId) closeQuestionEditor();
   }
 
   async function handleSaveDraft() {
@@ -1108,6 +1134,20 @@ export default function ProfessorCreateExam() {
       return;
     }
 
+    // Only the Cluster Professors assigned to the courses' program(s) can review it; stop if there are none.
+    let reviewTargets;
+    try {
+      reviewTargets = await getReviewTargets(supabase, { courseIds: selectedCourseIds });
+    } catch (error) {
+      toast.error(error.message);
+      return;
+    }
+    const reviewProblem = reviewTargetsProblem(reviewTargets);
+    if (reviewProblem) {
+      toast.error(reviewProblem);
+      return;
+    }
+
     savingRef.current = true;
     finalPublishRef.current = true;
     autosavePendingRef.current = false;
@@ -1146,37 +1186,12 @@ export default function ProfessorCreateExam() {
       queryClient.invalidateQueries({ queryKey: ["professor-exams", user.id] });
       clearActiveCreateRecovery(sourceExamId || savedId);
       if (status === "Pending Review") {
-        const { data: clusterRows, error: clusterError } = await supabase
-          .from("profiles")
-          .select("id")
-          .eq("role", "Cluster Professor")
-          .eq("status", "Active");
-
-        if (clusterError) throw clusterError;
-
-        const notificationRows = (clusterRows || []).map((profile) => ({
-          user_id: profile.id,
-          title: "New exam submitted for review",
-          message: `${examForm.title.trim()} is waiting for cluster review.`,
-          type: "Exam",
-          is_read: false,
-        }));
-
-        if (notificationRows.length) {
-          const notificationResults = await Promise.all(notificationRows.map((notification) => supabase.rpc("create_notification", {
-            p_workflow: "exam_review_request",
-            p_recipient_id: notification.user_id,
-            p_title: notification.title,
-            p_message: notification.message,
-            p_type: notification.type,
-            p_context_id: savedId || sourceExamId,
-            p_entity_type: "exam",
-            p_entity_id: savedId || sourceExamId,
-            p_action_path: `/cluster/exams/${savedId || sourceExamId}`,
-          })));
-          const notificationError = notificationResults.find((result) => result.error)?.error;
-          if (notificationError) toast.error(`Exam saved, but the review notification failed: ${notificationError.message}`);
-        }
+        const notificationError = await notifyReviewClusters(supabase, {
+          clusters: reviewTargets.clusters,
+          examId: savedId || sourceExamId,
+          examTitle: examForm.title.trim(),
+        });
+        if (notificationError) toast.error(`Exam saved, but the review notification failed: ${notificationError.message}`);
       }
 
       toast.success(isEditingExam ? "Exam updated and submitted for approval." : "Exam submitted for approval.");
@@ -1291,6 +1306,30 @@ export default function ProfessorCreateExam() {
       savingRef.current = false;
       setSaving(false);
     }
+  }
+
+  function renderQuestionEditor() {
+    return (
+      <>
+        <div className="professor-question-fields">
+          <TextInput onChange={(event) => setQuestionValue("title", event.target.value)} placeholder="Question Title" type="text" value={questionDraft.title} />
+          <SelectInput onChange={(event) => handleQuestionTypeChange(event.target.value)} value={questionDraft.type}>
+            <option value="" disabled>Question Type</option>
+            {QUESTION_TYPES.map((type) => <option key={type}>{type}</option>)}
+          </SelectInput>
+          <TextInput min="0.01" max="1000" step="0.01" onChange={(event) => setQuestionValue("points", event.target.value)} placeholder="Maximum Points" type="number" value={questionDraft.points} />
+        </div>
+
+        {renderQuestionTypeFields()}
+        {supportsPartialMatch(questionDraft.type) ? (
+          <label className="professor-partial-match-option">
+            <input checked={Boolean(questionDraft.partialMatch)} onChange={(event) => setQuestionValue("partialMatch", event.target.checked)} type="checkbox" />
+            <span>Allow Partial Match</span>
+          </label>
+        ) : null}
+        {questionDraft.type && !isAutoGraded ? <p className="professor-manual-note">This question type is saved for manual grading.</p> : null}
+      </>
+    );
   }
 
   function renderQuestionTypeFields() {
@@ -1660,7 +1699,7 @@ export default function ProfessorCreateExam() {
             <h2>Question Builder</h2>
             <div className="professor-question-actions">
               <span className="professor-autosave-status">{autosaveStatus}</span>
-              <button className="professor-add-question" onClick={handleAddQuestion} type="button"><FiPlus /> {editingQuestionId ? "Update Question" : "Add Question"}</button>
+              <button className="professor-add-question" onClick={handleAddQuestion} type="button"><FiPlus /> Add Question</button>
               <button className="professor-generate-questions" onClick={() => setPdfGeneratorOpen(true)} title="Create Multiple Choice questions from a PDF, Word, PowerPoint or text file, or pictures, then review them before adding." type="button"><FiFileText /> Generate Questionnaire</button>
               <button className="professor-save-draft" disabled={saving} onClick={handleSaveDraft} type="button"><FiSave /> {saving ? "Saving..." : "Save as Draft"}</button>
               <button className="professor-submit-review" disabled={saving} onClick={handleSaveExam} title="Send this exam to the Cluster Professor for review before publishing." type="button"><FiSave /> {saving ? "Saving..." : "Submit for Review"}</button>
@@ -1668,23 +1707,9 @@ export default function ProfessorCreateExam() {
             </div>
           </div>
 
-          <div className="professor-question-fields">
-            <TextInput onChange={(event) => setQuestionValue("title", event.target.value)} placeholder="Question Title" type="text" value={questionDraft.title} />
-            <SelectInput onChange={(event) => handleQuestionTypeChange(event.target.value)} value={questionDraft.type}>
-              <option value="" disabled>Question Type</option>
-              {QUESTION_TYPES.map((type) => <option key={type}>{type}</option>)}
-            </SelectInput>
-            <TextInput min="0.01" max="1000" step="0.01" onChange={(event) => setQuestionValue("points", event.target.value)} placeholder="Maximum Points" type="number" value={questionDraft.points} />
-          </div>
-
-          {renderQuestionTypeFields()}
-          {supportsPartialMatch(questionDraft.type) ? (
-            <label className="professor-partial-match-option">
-              <input checked={Boolean(questionDraft.partialMatch)} onChange={(event) => setQuestionValue("partialMatch", event.target.checked)} type="checkbox" />
-              <span>Allow Partial Match</span>
-            </label>
-          ) : null}
-          {questionDraft.type && !isAutoGraded ? <p className="professor-manual-note">This question type is saved for manual grading.</p> : null}
+          {editingQuestionId ? (
+            <p className="professor-question-editing-note">Editing question {questions.findIndex((question) => question.id === editingQuestionId) + 1} in the pop-up window.</p>
+          ) : renderQuestionEditor()}
         </section>
 
         <aside className="professor-create-card professor-added-questions">
@@ -1714,6 +1739,28 @@ export default function ProfessorCreateExam() {
           onClose={() => setPdfGeneratorOpen(false)}
           onInsert={handleInsertGeneratedQuestions}
         />
+      ) : null}
+      {editingQuestionId ? (
+        <div className="professor-share-backdrop professor-question-edit-backdrop" onClick={closeQuestionEditor} role="presentation">
+          <section aria-labelledby="edit-question-title" aria-modal="true" className="professor-share-modal professor-question-edit-modal" onClick={(event) => event.stopPropagation()} role="dialog">
+            <div className="professor-share-header">
+              <div>
+                <h2 id="edit-question-title">Edit Question {questions.findIndex((question) => question.id === editingQuestionId) + 1}</h2>
+                <p>Change the question, then save. Closing without saving keeps the original.</p>
+              </div>
+              <button aria-label="Close question editor" onClick={closeQuestionEditor} type="button">
+                <FiX />
+              </button>
+            </div>
+            <div className="professor-question-edit-body professor-question-builder">
+              {renderQuestionEditor()}
+            </div>
+            <div className="professor-delete-actions professor-question-edit-actions">
+              <button onClick={closeQuestionEditor} type="button">Cancel</button>
+              <button className="professor-question-edit-save" onClick={handleAddQuestion} type="button"><FiSave /> Save Changes</button>
+            </div>
+          </section>
+        </div>
       ) : null}
       {coursePickerOpen ? (
         <div className="professor-share-backdrop professor-course-modal-backdrop" onClick={() => setCoursePickerOpen(false)} role="presentation">
