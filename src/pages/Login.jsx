@@ -1,3 +1,4 @@
+import { homeForRole } from "../lib/roleHome";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -39,8 +40,8 @@ export default function Login() {
     setSubmitError("");
     try {
       const signedInUser = await login(values.email, values.password);
-      const destinations = { "Cluster Professor": "/cluster", Professor: "/professor", Student: "/student", Dean: "/dean" };
-      navigate(destinations[signedInUser?.role] || "/");
+      // Replace the sign-in page in the history, so Back from the dashboard does not return to it.
+      navigate(homeForRole(signedInUser?.role), { replace: true });
     } catch (error) {
       setSubmitError(error.message);
       toast.error(error.message);

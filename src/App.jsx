@@ -2,6 +2,7 @@ import Legal from "./pages/Legal";
 import { lazy, Suspense, useEffect } from "react";
 import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ProtectedRoute from "./routes/ProtectedRoute";
+import SignedOutRoute from "./routes/SignedOutRoute";
 import { PageSkeleton } from "./components/ui";
 import { useAuth } from "./context/AuthContext";
 
@@ -195,8 +196,8 @@ export default function App() {
       <Routes>
         {["privacy", "terms", "storage"].map((path) => <Route key={path} path={`/${path}`} element={<Legal />} />)}
         <Route path="/change-password" element={<ChangePassword />} />
-        <Route path="/landing" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
+        <Route path="/landing" element={<SignedOutRoute><LandingPage /></SignedOutRoute>} />
+        <Route path="/login" element={<SignedOutRoute><Login /></SignedOutRoute>} />
         <Route path="/register" element={<Register />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />

@@ -3,13 +3,7 @@ import { useAuth } from "../context/AuthContext";
 import AppShell from "../components/AppShell";
 import TopNav from "../components/TopNav";
 import { PageSkeleton } from "../components/ui";
-
-const roleHome = {
-  Dean: "/dean",
-  Professor: "/professor",
-  "Cluster Professor": "/cluster",
-  Student: "/student",
-};
+import { ROLE_HOME } from "../lib/roleHome";
 
 export default function ProtectedRoute({ roles }) {
   const { user, loading, hasLoggedInThisSession } = useAuth();
@@ -18,7 +12,7 @@ export default function ProtectedRoute({ roles }) {
   if (loading) return <PageSkeleton />;
   // Visitors arriving at the bare domain see the landing page first; deep links still go to sign in.
   if (!hasLoggedInThisSession || !user) return <Navigate to={pathname === "/" ? "/landing" : "/login"} replace />;
-  if (roles?.length && !roles.includes(user.role)) return <Navigate to={roleHome[user.role] || "/login"} replace />;
+  if (roles?.length && !roles.includes(user.role)) return <Navigate to={ROLE_HOME[user.role] || "/login"} replace />;
   if (user.role === "Admin") return <AppShell role="Admin" />;
 
   return (
