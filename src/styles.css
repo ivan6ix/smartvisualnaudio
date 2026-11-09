@@ -20396,3 +20396,8 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 .account-program-none {
   color: var(--app-text-muted);
 }
+
+/* Added Questions: the Edit button's dark blue text is hard to read on the dark theme, so it is white there. */
+html[data-theme="dark"] .professor-added-actions button:not(.danger) {
+  color: #fff;
+}
