@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiArrowLeft, FiEye, FiVolume2, FiVolumeX, FiWifi, FiWifiOff } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiArrowLeft, FiCheckCircle, FiClock, FiEye, FiPlayCircle, FiUsers, FiVolume2, FiVolumeX, FiWifi, FiWifiOff } from "react-icons/fi";
 import { toast } from "sonner";
 import { ListPagination } from "../../components/ListViewControls";
 import { Badge, Button, Card, ListSkeleton, SearchBox, SkeletonValue } from "../../components/ui";
@@ -207,13 +207,19 @@ export default function ProfessorOngoingExams() {
 
         <div className="professor-ongoing-summary">
           {[
-            ["Active Exams", summary.activeExams],
-            ["Assigned", summary.assigned],
-            ["Not Started", summary.notStarted],
-            ["In Progress", summary.inProgress],
-            ["Submitted", summary.submitted],
-            ["Violations", summary.violations],
-          ].map(([label, value]) => <div key={label}><strong>{ongoingReady ? value : <SkeletonValue />}</strong><span>{label}</span></div>)}
+            ["Active Exams", summary.activeExams, FiActivity, ""],
+            ["Assigned", summary.assigned, FiUsers, ""],
+            ["Not Started", summary.notStarted, FiClock, ""],
+            ["In Progress", summary.inProgress, FiPlayCircle, ""],
+            ["Submitted", summary.submitted, FiCheckCircle, "success"],
+            ["Violations", summary.violations, FiAlertTriangle, summary.violations ? "danger" : ""],
+          ].map(([label, value, Icon, tone]) => (
+            <div className={`professor-ongoing-stat ${tone}`.trim()} key={label}>
+              <Icon aria-hidden="true" />
+              <span>{label}</span>
+              <strong>{ongoingReady ? value : <SkeletonValue />}</strong>
+            </div>
+          ))}
         </div>
 
         {!selectedExam ? (
