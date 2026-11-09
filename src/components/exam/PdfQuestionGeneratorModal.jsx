@@ -14,10 +14,10 @@ import {
   normalizeGeneratedQuestion,
   normalizeQuestionCount,
   toBuilderQuestion,
-  validatePdfFile,
   validatePreviewQuestions,
 } from "../../lib/pdfQuestionGenerator";
-import { PdfReadError, extractPdfPages } from "../../lib/pdfTextExtractor";
+import { DOCUMENT_ACCEPT, MAX_PICTURE_FILES, sourceLabel, validateDocumentFiles } from "../../lib/documentText";
+import { PdfReadError, extractDocumentPages } from "../../lib/pdfTextExtractor";
 import { generateQuestionsInBrowser } from "../../lib/questionBuilder";
 
 const CUSTOM_COUNT = "custom";
@@ -37,7 +37,8 @@ function isValidPoints(value) {
 
 export default function PdfQuestionGeneratorModal({ onClose, onInsert, generate = generateQuestionsInBrowser }) {
   const [step, setStep] = useState("setup");
-  const [file, setFile] = useState(null);
+  // One PDF, Word, PowerPoint or text file, or up to MAX_PICTURE_FILES pictures.
+  const [files, setFiles] = useState([]);
   const [pageRange, setPageRange] = useState("");
   const [countChoice, setCountChoice] = useState("10");
   const [customCount, setCustomCount] = useState("15");
@@ -101,14 +102,15 @@ export default function PdfQuestionGeneratorModal({ onClose, onInsert, generate 
     return (result?.questions || []).map((raw) => normalizeGeneratedQuestion(raw, sourcePages, { points: request.points }));
   }
 
-  function selectFile(nextFile) {
-    setFile(nextFile || null);
-    setSetupError(nextFile ? validatePdfFile(nextFile) : "");
+  function selectFiles(fileList) {
+    const list = [...(fileList || [])].filter(Boolean);
+    setFiles(list);
+    setSetupError(list.length ? validateDocumentFiles(list) : "");
   }
 
   async function handleGenerate(event) {
     event.preventDefault();
-    const fileError = validatePdfFile(file);
+    const fileError = validateDocumentFiles(files);
     const { count, error: countError } = normalizeQuestionCount(countChoice === CUSTOM_COUNT ? customCount : countChoice);
     const setupMessage = fileError || countError || (isValidPoints(points) ? "" : "Enter points between 0.01 and 1000.");
     if (setupMessage) {
@@ -121,17 +123,13 @@ export default function PdfQuestionGeneratorModal({ onClose, onInsert, generate 
     setSetupError("");
     setStep("working");
     try {
-      const extracted = await extractPdfPages(file, {
-        pageRange,
-        signal,
-        onProgress: ({ current, total }) => setProgress(`Reading page ${current} of ${total}...`),
-      });
-      const assessment = assessExtractedText(extracted.pages);
+      const extracted = await extractDocumentPages(files, { pageRange, signal, onProgress: setProgress });
+      const assessment = assessExtractedText(extracted.pages, extracted.kind);
       if (assessment.status !== "ok") throw new PdfReadError(assessment.message);
 
       const generated = await runGenerator(extracted.pages, request, signal);
-      if (!generated.length) throw new PdfReadError("No questions could be made from this PDF. It needs full sentences of text, not only headings, lists or tables.");
-      if (generated.length < count) toast.warning(`Only ${generated.length} of ${count} questions could be made from this PDF's text.`);
+      if (!generated.length) throw new PdfReadError("No questions could be made from this file. It needs full sentences of text, not only headings, lists or tables.");
+      if (generated.length < count) toast.warning(`Only ${generated.length} of ${count} questions could be made from this file's text.`);
       setPages(extracted.pages);
       setLastRequest(request);
       setItems(generated);
@@ -224,8 +222,8 @@ export default function PdfQuestionGeneratorModal({ onClose, onInsert, generate 
       <section aria-labelledby="pdf-generator-title" aria-modal="true" className="professor-share-modal professor-pdfq-modal" role="dialog">
         <div className="professor-share-header">
           <div>
-            <h2 id="pdf-generator-title">Generate Questions from PDF</h2>
-            <p>Builds Multiple Choice questions from your PDF&apos;s text. Review and edit every question before adding it.</p>
+            <h2 id="pdf-generator-title">Generate Questionnaire</h2>
+            <p>Builds Multiple Choice questions from the text of a PDF, Word, PowerPoint or text file, or pictures. Review and edit every question before adding it.</p>
           </div>
           <button aria-label="Close question generator" onClick={requestClose} type="button">
             <FiX />
@@ -235,23 +233,25 @@ export default function PdfQuestionGeneratorModal({ onClose, onInsert, generate 
         {step === "setup" ? (
           <form className="professor-pdfq-setup" noValidate onSubmit={handleGenerate}>
             <label
-              className={`professor-pdfq-dropzone${file ? " has-file" : ""}`}
+              className={`professor-pdfq-dropzone${files.length ? " has-file" : ""}`}
               onDragOver={(event) => event.preventDefault()}
               onDrop={(event) => {
                 event.preventDefault();
-                selectFile(event.dataTransfer.files?.[0]);
+                selectFiles(event.dataTransfer.files);
               }}
             >
               <FiUploadCloud aria-hidden="true" />
-              <strong>{file ? file.name : "Choose or drop a PDF"}</strong>
-              <span>{file ? formatFileSize(file.size) : "Text-based PDF, up to 10 MB. Scanned PDFs are not supported."}</span>
-              <input accept=".pdf,application/pdf" onChange={(event) => selectFile(event.target.files?.[0])} type="file" />
+              <strong>{!files.length ? "Choose or drop a file" : files.length === 1 ? files[0].name : `${files.length} pictures selected`}</strong>
+              <span>{files.length
+                ? formatFileSize(files.reduce((total, item) => total + item.size, 0))
+                : `PDF, Word (.docx), PowerPoint (.pptx), text (.txt) or pictures (.jpg, .png, .webp), up to 10 MB each. Choose up to ${MAX_PICTURE_FILES} pictures at once. Scanned PDFs are not supported.`}</span>
+              <input accept={DOCUMENT_ACCEPT} multiple onChange={(event) => selectFiles(event.target.files)} type="file" />
             </label>
 
             <div className="professor-pdfq-options">
               <label className="professor-field-label">
                 <span>Page range (optional)</span>
-                <input className="professor-create-input" onChange={(event) => setPageRange(event.target.value)} placeholder="All pages, e.g. 1-40" type="text" value={pageRange} />
+                <input className="professor-create-input" onChange={(event) => setPageRange(event.target.value)} placeholder="All, or e.g. 5-30" title="Pages of a PDF, slides of a PowerPoint, parts of a Word or text file, or pictures" type="text" value={pageRange} />
               </label>
               <label className="professor-field-label">
                 <span>Number of questions</span>
@@ -313,9 +313,9 @@ export default function PdfQuestionGeneratorModal({ onClose, onInsert, generate 
                     {item.source === "manual" ? (
                       <span className="professor-pdfq-source">Added manually</span>
                     ) : item.verified ? (
-                      <span className="professor-pdfq-source is-verified"><FiCheckCircle aria-hidden="true" /> Page {item.sourcePage}</span>
+                      <span className="professor-pdfq-source is-verified"><FiCheckCircle aria-hidden="true" /> {sourceLabel(item.sourceUnit, item.sourcePage)}</span>
                     ) : (
-                      <span className="professor-pdfq-source is-unverified"><FiAlertTriangle aria-hidden="true" /> Page not found - check carefully</span>
+                      <span className="professor-pdfq-source is-unverified"><FiAlertTriangle aria-hidden="true" /> Source not found - check carefully</span>
                     )}
                     <div className="professor-pdfq-card-actions">
                       <button aria-label={`Move question ${index + 1} up`} disabled={busy || index === 0} onClick={() => setItems((current) => moveItem(current, index, -1))} type="button"><FiArrowUp /></button>
@@ -355,7 +355,7 @@ export default function PdfQuestionGeneratorModal({ onClose, onInsert, generate 
                   {item.source === "generated" && item.evidence ? (
                     <details className="professor-pdfq-explanation">
                       <summary>Where this comes from (for your review only, not saved)</summary>
-                      <p>Page {item.sourcePage}:</p>
+                      <p>{sourceLabel(item.sourceUnit, item.sourcePage)}:</p>
                       <blockquote>{item.evidence}</blockquote>
                     </details>
                   ) : null}

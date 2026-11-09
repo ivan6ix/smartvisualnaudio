@@ -6,6 +6,8 @@ import {
   removeRepeatedLines,
   validatePdfFile,
 } from "./pdfQuestionGenerator.js";
+import { detectDocumentKind, readDocxText, readPptxSlides, splitTextIntoParts, textFromBytes, unitForKind, validateDocumentFiles } from "./documentText.js";
+import { readPicturePages } from "./imageTextReader.js";
 
 export class PdfReadError extends Error {
   constructor(message) {
@@ -65,7 +67,7 @@ export async function extractPdfPages(file, { pageRange = "", onProgress, signal
       onProgress?.({ current: pageNumber - range.start + 1, total: range.end - range.start + 1 });
       const page = await document.getPage(pageNumber);
       try {
-        pages.push({ page: pageNumber, text: normalizePageText(pageText(await page.getTextContent())) });
+        pages.push({ page: pageNumber, text: normalizePageText(pageText(await page.getTextContent())), unit: "page" });
       } finally {
         page.cleanup();
       }
@@ -79,4 +81,56 @@ export async function extractPdfPages(file, { pageRange = "", onProgress, signal
     signal?.removeEventListener("abort", cancelLoading);
     await loadingTask.destroy();
   }
+}
+
+function abortIfCancelled(signal) {
+  if (signal?.aborted) throw new globalThis.DOMException("Reading was cancelled.", "AbortError");
+}
+
+// Reads any file the question generator accepts: a PDF, Word (.docx), PowerPoint (.pptx) or text (.txt) file,
+// or up to 20 pictures. Returns { kind, unit, pageCount, pages } where pages are PDF pages, slides, parts of a
+// Word or text file, or pictures. The optional range ("5-30") picks pages, slides, parts or pictures.
+export async function extractDocumentPages(files, { pageRange = "", onProgress, signal } = {}) {
+  const list = [...files];
+  const fileError = validateDocumentFiles(list);
+  if (fileError) throw new PdfReadError(fileError);
+  const kind = detectDocumentKind(list[0]);
+  const unit = unitForKind(kind);
+
+  if (kind === "pdf") {
+    const { pageCount, pages } = await extractPdfPages(list[0], {
+      pageRange,
+      signal,
+      onProgress: ({ current, total }) => onProgress?.(`Reading page ${current} of ${total}...`),
+    });
+    return { kind, unit, pageCount, pages };
+  }
+
+  let allPages;
+  if (kind === "image") {
+    allPages = await readPicturePages(list, {
+      signal,
+      onProgress: ({ stage, current, total, progress = 0 }) => onProgress?.(stage === "loading"
+        ? "Loading text recognition (first time only)..."
+        : `Reading text in picture ${current} of ${total}... ${Math.round(progress * 100)}%`),
+    });
+  } else {
+    onProgress?.("Reading the file...");
+    const bytes = new Uint8Array(await list[0].arrayBuffer());
+    abortIfCancelled(signal);
+    try {
+      if (kind === "pptx") allPages = readPptxSlides(bytes);
+      else allPages = splitTextIntoParts(kind === "docx" ? readDocxText(bytes) : textFromBytes(bytes));
+    } catch (error) {
+      throw new PdfReadError(error.message || "This file could not be read. It may be damaged.");
+    }
+  }
+  abortIfCancelled(signal);
+
+  const range = parsePageRange(pageRange, allPages.length, unit);
+  if (range.error) throw new PdfReadError(range.error);
+  const pages = allPages
+    .slice(range.start - 1, range.end)
+    .map((page) => ({ ...page, text: normalizePageText(page.text) }));
+  return { kind, unit, pageCount: allPages.length, pages: removeRepeatedLines(pages) };
 }

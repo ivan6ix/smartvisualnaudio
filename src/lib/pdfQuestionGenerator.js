@@ -45,11 +45,14 @@ export function hasPdfSignature(bytes) {
   return head.includes("%PDF-");
 }
 
-export function parsePageRange(input, pageCount) {
+// unit is what the file is made of: "page" (PDF), "slide" (PowerPoint), "part" (Word, text) or "picture".
+export function parsePageRange(input, pageCount, unit = "page") {
+  const plural = `${unit}s`;
+  const thing = unit === "page" ? "PDF" : "file";
   const value = String(input || "").trim();
   if (!value) {
     if (pageCount > PDF_MAX_PAGES) {
-      return { start: 1, end: pageCount, error: `This PDF has ${pageCount} pages. Enter a page range of up to ${PDF_MAX_PAGES} pages.` };
+      return { start: 1, end: pageCount, error: `This ${thing} has ${pageCount} ${plural}. Enter a ${unit} range of up to ${PDF_MAX_PAGES} ${plural}.` };
     }
     return { start: 1, end: pageCount, error: "" };
   }
@@ -57,9 +60,9 @@ export function parsePageRange(input, pageCount) {
   const match = value.match(/^(\d+)\s*(?:-\s*(\d+))?$/);
   const start = match ? Number(match[1]) : 0;
   const end = match ? Number(match[2] || match[1]) : 0;
-  if (!match || start < 1 || end < start) return { start: 0, end: 0, error: "Enter a page range like 1-40." };
-  if (end > pageCount) return { start: 0, end: 0, error: `This PDF only has ${pageCount} pages.` };
-  if (end - start + 1 > PDF_MAX_PAGES) return { start: 0, end: 0, error: `Choose ${PDF_MAX_PAGES} pages or fewer.` };
+  if (!match || start < 1 || end < start) return { start: 0, end: 0, error: `Enter a ${unit} range like 1-40.` };
+  if (end > pageCount) return { start: 0, end: 0, error: `This ${thing} only has ${pageCount} ${pageCount === 1 ? unit : plural}.` };
+  if (end - start + 1 > PDF_MAX_PAGES) return { start: 0, end: 0, error: `Choose ${PDF_MAX_PAGES} ${plural} or fewer.` };
   return { start, end, error: "" };
 }
 
@@ -95,18 +98,30 @@ export function removeRepeatedLines(pages) {
   return charCount(cleaned) < charCount(pages) * REPEATED_LINE_MAX_REMOVED_RATIO ? pages : cleaned;
 }
 
-export function assessExtractedText(pages) {
+const EMPTY_TEXT_MESSAGES = {
+  pdf: "No readable text was found in this PDF. If it is scanned, upload a version with selectable text.",
+  image: "Not enough readable text was found in the picture. Use a clear, well-lit photo or screenshot of printed text.",
+  pptx: "Not enough text was found in these slides. Slides with full sentences or speaker notes work best.",
+};
+
+// kind is the file type ("pdf", "docx", "pptx", "text" or "image"). Only PDFs can be scanned images.
+export function assessExtractedText(pages, kind = "pdf") {
   const totalChars = pages.reduce((total, page) => total + page.text.length, 0);
   if (totalChars < PDF_MIN_TEXT_CHARS) {
     return {
       status: "empty",
       totalChars,
-      message: "No readable text was found in this PDF. If it is scanned, upload a version with selectable text.",
+      message: EMPTY_TEXT_MESSAGES[kind] || "Not enough readable text was found in this file. It needs full sentences of text.",
     };
   }
   if (totalChars > PDF_MAX_TEXT_CHARS) {
-    return { status: "too_long", totalChars, message: "This PDF has too much text for one run. Choose a smaller page range." };
+    return {
+      status: "too_long",
+      totalChars,
+      message: kind === "pdf" ? "This PDF has too much text for one run. Choose a smaller page range." : "This file has too much text for one run. Choose a smaller range.",
+    };
   }
+  if (kind !== "pdf") return { status: "ok", totalChars, message: "" };
   const sparsePages = pages.filter((page) => page.text.length < SCANNED_PAGE_CHARS).length;
   if (sparsePages / pages.length >= SCANNED_PAGE_RATIO || totalChars / pages.length < SCANNED_AVERAGE_CHARS) {
     return {
@@ -156,6 +171,7 @@ export function normalizeGeneratedQuestion(raw, pages, { points = "1" } = {}) {
     difficulty: QUESTION_DIFFICULTIES.includes(raw?.difficulty) ? raw.difficulty : "Moderate",
     explanation: String(raw?.explanation || "").trim(),
     sourcePage,
+    sourceUnit: page?.unit || "page",
     evidence,
     verified: Boolean(page) && evidenceAppearsOnPage(evidence, page.text),
     points: String(points),

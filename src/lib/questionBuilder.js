@@ -116,7 +116,7 @@ export function extractSentences(pages) {
     for (const block of textBlocks(String(page.text || ""))) {
       for (const part of block.split(/(?<=[.!?])\s+(?=["“(]?[A-Z0-9])/)) {
         const text = part.trim();
-        if (isUsableSentence(text)) sentences.push({ page: page.page, text });
+        if (isUsableSentence(text)) sentences.push({ page: page.page, unit: page.unit || "page", text });
       }
     }
   }
@@ -382,9 +382,9 @@ const builders = {
     };
   },
 
-  // The stem names the page, so there is at most one statement question per page.
+  // The stem names the page (or slide, part, picture), so there is at most one statement question per page.
   statement(sentence, context, level, random) {
-    const question = `Which statement is correct according to page ${sentence.page}?`;
+    const question = `Which statement is correct according to ${sentence.unit || "page"} ${sentence.page}?`;
     const term = sentence.keyTerms.find((item) => item.key.length >= 4);
     if (!term || context.avoid.has(comparableText(question))) return null;
     const start = sentence.text.toLowerCase().indexOf(term.key);
@@ -423,7 +423,7 @@ function finish(built, sentence, difficulty, random) {
     choices,
     correct,
     difficulty,
-    explanation: `From page ${sentence.page}: "${sentence.text}"`,
+    explanation: `From ${sentence.unit || "page"} ${sentence.page}: "${sentence.text}"`,
     sourcePage: sentence.page,
     evidence: sentence.text,
   };
