@@ -167,6 +167,29 @@ export function getCorrectAnswers(question) {
   return question.correct_answer || question.correctAnswer ? [question.correct_answer || question.correctAnswer] : [];
 }
 
+const CHOICE_ANSWER_TYPES = new Set(["Multiple Choice", "Picture Choice", "Multiple Select", "Drag and Drop"]);
+
+// The correct answer as a professor should read it. Choice questions store the chosen choice's id, so it is
+// shown as its letter and text ("B. Topic sentence"); a picture choice shows only its letter.
+export function describeCorrectAnswer(question = {}) {
+  const type = question.type || question.question_type || "";
+  const config = getQuestionConfig(question);
+  if (type === "Matching Type") {
+    const pairs = Array.isArray(config.pairs) ? config.pairs : safeJsonParse(question.correctAnswer ?? question.correct_answer, []);
+    return (Array.isArray(pairs) ? pairs : []).map((pair) => `${pair.left} → ${pair.right}`).join("; ");
+  }
+  const answers = getCorrectAnswers(question).map(String).filter(Boolean);
+  if (!CHOICE_ANSWER_TYPES.has(type)) return answers.join(", ");
+  const choices = normalizeChoiceItems(question.choices?.length ? question.choices : config.choices || []);
+  return answers.map((answer) => {
+    const index = choices.findIndex((choice) => choice.id === answer || String(choice.key) === answer);
+    if (index < 0) return answer;
+    const letter = String.fromCharCode(65 + index);
+    const value = String(choices[index].value || "").trim();
+    return !value || /^(data:|blob:|https?:)/.test(value) ? `Choice ${letter}` : `${letter}. ${value}`;
+  }).join(", ");
+}
+
 export function normalizeQuestionForEditing(question = {}) {
   const config = getQuestionConfig(question);
   const type = question.type || question.question_type || "";

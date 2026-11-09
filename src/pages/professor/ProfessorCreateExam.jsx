@@ -14,6 +14,7 @@ import {
   buildQuestionStorage,
   connectMatchingItems,
   createChoiceItem,
+  describeCorrectAnswer,
   normalizeQuestionForEditing,
 } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -1699,7 +1700,7 @@ export default function ProfessorCreateExam() {
                 <article key={question.id}>
                   <strong>{index + 1}. {question.title}</strong>
                   <span>{question.type} - {question.points} pt{question.points === "1" ? "" : "s"}</span>
-                  <span>{question.manualGrading ? "Manual grading required" : `Correct answer: ${question.correctAnswer}`}</span>
+                  <span>{question.manualGrading ? "Manual grading required" : `Correct answer: ${describeCorrectAnswer(question) || "Not set"}`}</span>
                   <div className="professor-added-actions">
                     <button onClick={() => handleEditQuestion(question)} type="button"><FiEdit2 /> Edit</button>
                     <button className="danger" onClick={() => handleDeleteQuestion(question.id)} type="button"><FiTrash2 /> Delete</button>

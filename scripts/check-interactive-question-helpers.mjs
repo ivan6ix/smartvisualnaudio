@@ -3,6 +3,7 @@ import {
   buildQuestionStorage,
   connectMatchingItems,
   createChoiceItem,
+  describeCorrectAnswer,
   gradeAnswer,
   normalizeChoiceItems,
   normalizeQuestionForEditing,
@@ -84,3 +85,15 @@ assert.equal(gradeAnswer(dragQuestion, [dragChoices[0].id]).earnedPoints, 0);
 assert.equal(gradeAnswer(dragQuestion, [dragChoices[0].id, dragChoices[1].id, dragChoices[2].id]).earnedPoints, 0);
 assert.equal(gradeAnswer(dragQuestion, [dragChoices[1].id]).earnedPoints, 0);
 assert.ok(!("correctAnswers" in sanitizeQuestionForStudent(dragQuestion).config));
+
+// The Added Questions list shows the correct answer as text, never the stored choice id.
+{
+  const choices = [createChoiceItem("Ending", "A"), createChoiceItem("Topic sentence", "B"), createChoiceItem("Title", "C")];
+  const single = buildQuestionStorage({ type: "Multiple Choice", choices, correctAnswer: choices[1].id });
+  assert.equal(describeCorrectAnswer(single), "B. Topic sentence");
+  assert.equal(describeCorrectAnswer(buildQuestionStorage(normalizeQuestionForEditing(single))), "B. Topic sentence", "Still text after editing.");
+  assert.equal(describeCorrectAnswer({ type: "Multiple Choice", choices: ["Red", "Blue", "Green"], correctAnswer: "C" }), "C. Green", "Older questions saved with a letter.");
+  assert.equal(describeCorrectAnswer(buildQuestionStorage({ type: "Multiple Select", choices, correctAnswers: [choices[0].id, choices[2].id] })), "A. Ending, C. Title");
+  assert.equal(describeCorrectAnswer(buildQuestionStorage({ type: "Picture Choice", choices: [{ id: "p1", value: "data:image/png;base64,AA" }], correctAnswer: "p1" })), "Choice A", "Pictures show only their letter.");
+  assert.equal(describeCorrectAnswer(buildQuestionStorage({ type: "Identification", correctAnswer: "Photosynthesis" })), "Photosynthesis");
+}
