@@ -163,7 +163,7 @@ export default function EnvironmentScanHistory({ studentId, exams, filters }) {
                 <span>{item.count}</span>
                 <span>{formatWhen(item.lastScanAt)}</span>
                 <span><Badge tone={RESULT_TONES[item.latestResult] || "neutral"}>{item.latestResult}</Badge></span>
-                <span><Button variant="light" onClick={() => setOpenExamId(item.examId)}><FiCamera /> View environment scan</Button></span>
+                <span><Button variant="light" className="scan-history-view" onClick={() => setOpenExamId(item.examId)} title="View environment scan"><FiCamera /> View scan</Button></span>
               </div>
             );
           })}

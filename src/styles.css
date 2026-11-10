@@ -20021,7 +20021,7 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 }
 .scan-history-row {
   display: grid;
-  grid-template-columns: minmax(0, 2.2fr) 0.6fr 1.3fr 0.9fr minmax(0, 1.5fr);
+  grid-template-columns: minmax(0, 2.2fr) 0.6fr 1.4fr 0.9fr auto;
   gap: 10px;
   align-items: center;
   padding: 10px 14px;
@@ -20046,6 +20046,15 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 }
 .scan-history-row .btn {
   justify-self: end;
+}
+/* A small one-line button, so each exam row stays short. */
+.scan-history-row .btn.scan-history-view {
+  min-height: 0;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  gap: 6px;
+  white-space: nowrap;
+  border-radius: 999px;
 }
 .scan-history-heading {
   display: flex;
@@ -20143,7 +20152,7 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
     grid-column: 1 / -1;
   }
   .scan-history-row .btn {
-    justify-self: stretch;
+    justify-self: start;
   }
 }
 
