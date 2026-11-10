@@ -38,21 +38,33 @@ export const MIN_FRAME_TEXTURE = 2;
 export const DUPLICATE_VIEW_DISTANCE = 4;
 
 // floor: lowest confidence considered at all; flag: confirmed when seen in 2+ frames;
-// strong: confirmed from a single frame. Anything between floor and a confirmation is ambiguous.
+// strong: confirmed from a single frame. Anything between floor and a confirmation is uncertain and approved.
 // countBased rules allow `allowed` instances per frame (the student).
+// steps: which scan steps a rule judges. Items only count on the desk check, where they would be within reach;
+// the room sweep only looks for another person, so things elsewhere in the room never fail the scan.
 // Rules match in order, so "laptop screen" is a laptop.
+const DESK_ONLY = ["desk"];
 export const DETECTION_RULES = [
-  { category: "smartwatch", label: "Smartwatch", match: /\bsmart ?watch(es)?\b/, floor: 0.3, flag: 0.5, strong: 0.75 },
-  { category: "phone", label: "Phone", match: /\b(cell ?phones?|mobile ?phones?|smart ?phones?|phones?|iphones?|android( phone)?|handphones?|cellular( phone)?|mobile)\b/, floor: 0.3, flag: 0.5, strong: 0.75 },
-  { category: "tablet", label: "Tablet", match: /\b(tablets?|ipads?)\b/, floor: 0.3, flag: 0.5, strong: 0.75 },
-  { category: "calculator", label: "Calculator", match: /\bcalculators?\b/, floor: 0.3, flag: 0.5, strong: 0.75 },
+  { category: "smartwatch", label: "Smartwatch", match: /\bsmart ?watch(es)?\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: DESK_ONLY },
+  { category: "phone", label: "Phone", match: /\b(cell ?phones?|mobile ?phones?|smart ?phones?|phones?|iphones?|android( phone)?|handphones?|cellular( phone)?|mobile)\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: DESK_ONLY },
+  { category: "tablet", label: "Tablet", match: /\b(tablets?|ipads?)\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: DESK_ONLY },
+  { category: "calculator", label: "Calculator", match: /\bcalculators?\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: DESK_ONLY },
   // Any reliably detected laptop is prohibited, including a single one.
-  { category: "laptop", label: "Laptop", match: /\blaptops?\b/, floor: 0.45, flag: 0.6, strong: 0.85 },
-  { category: "second_screen", label: "Second monitor or screen", match: /\b(tv|television|monitors?|screens?)\b/, floor: 0.4, flag: 0.6, strong: 0.8 },
-  { category: "notes", label: "Notes or papers", match: /\b(notes?|papers?|notebooks?|sticky notes?|cheat ?sheets?|documents?)\b/, floor: 0.35, flag: 0.55, strong: 0.8, nearOnly: true },
-  { category: "book", label: "Book", match: /\b(books?|open book)\b/, floor: 0.4, flag: 0.6, strong: 0.8, nearOnly: true },
-  { category: "person", label: "Another person", match: /^(person|people|human|man|woman)$/, floor: 0.4, flag: 0.6, strong: 0.85, countBased: true, allowed: 1 },
+  { category: "laptop", label: "Laptop", match: /\blaptops?\b/, floor: 0.45, flag: 0.6, strong: 0.85, steps: DESK_ONLY },
+  { category: "second_screen", label: "Second monitor or screen", match: /\b(tv|television|monitors?|screens?)\b/, floor: 0.4, flag: 0.6, strong: 0.8, steps: DESK_ONLY },
+  { category: "notes", label: "Notes or papers", match: /\b(notes?|papers?|notebooks?|sticky notes?|cheat ?sheets?|documents?)\b/, floor: 0.35, flag: 0.55, strong: 0.8, nearOnly: true, steps: DESK_ONLY },
+  { category: "book", label: "Book", match: /\b(books?|open book)\b/, floor: 0.4, flag: 0.6, strong: 0.8, nearOnly: true, steps: DESK_ONLY },
+  { category: "person", label: "Another person", match: /^(person|people|human|man|woman)$/, floor: 0.4, flag: 0.6, strong: 0.85, countBased: true, allowed: 1, steps: ["sweep", "desk"] },
 ];
+
+// Detectors that only guess (OWL-ViT is asked for each item by name and often names things that are not there).
+// Their answers never decide on their own: they only count for an item a trained detector or Gemini also saw.
+export const GUESSING_DETECTORS = new Set(["owl"]);
+
+// Older pages sent five room angles; anything that is not the desk is judged like the room sweep.
+function ruleAppliesToStep(rule, angleId) {
+  return rule.steps.includes(angleId === "desk" ? "desk" : "sweep");
+}
 
 // Never flagged even if a detector reports them; listed so the intent is explicit.
 export const IGNORED_LABELS = ["keyboard", "mouse", "chair", "couch", "bed", "dining table", "desk", "wall", "potted plant", "clock", "vase", "cup", "bottle", "lamp", "remote"];
@@ -95,7 +107,8 @@ export function normalizePrediction(raw, image = {}) {
       ? Math.min(1, (boxWidth * boxHeight) / (imageWidth * imageHeight))
       : null;
 
-  return { label, confidence, areaRatio };
+  const source = typeof raw.source === "string" ? raw.source : "";
+  return { label, confidence, areaRatio, guess: raw.guess === true || GUESSING_DETECTORS.has(source) };
 }
 
 export class MalformedDetectorResponseError extends Error {
@@ -140,24 +153,28 @@ function percent(confidence) {
 }
 
 // Classifies one angle's detections. `frames` is [{ predictions }] where predictions may come from
-// several detectors. Returns { outcome, findings } with outcome clear | risk_detected | rescan_required.
+// several detectors. Returns { outcome, findings } with outcome clear | risk_detected: only items that are
+// confirmed fail a step, and an uncertain sighting approves it rather than asking for a retake.
 export function classifyAngleDetections({ angleId, frames = [] }) {
   const frameCount = Math.max(1, frames.length);
   const consensusFrames = Math.min(2, frameCount);
   const findings = [];
 
-  DETECTION_RULES.forEach((rule) => {
+  DETECTION_RULES.filter((rule) => ruleAppliesToStep(rule, angleId)).forEach((rule) => {
     let framesAtFloor = 0;
     let framesAtFlag = 0;
     let maxConfidence = 0;
     // Which photos the item was seen in, so saved scan history can point at them.
     const frameIndexes = [];
+    const ruleMatches = frames.map((frame) => (frame?.predictions || [])
+      .map((prediction) => normalizePrediction(prediction))
+      .filter((prediction) => prediction && findDetectionRule(prediction.label) === rule)
+      .filter((prediction) => !(rule.nearOnly && angleId !== "desk" && prediction.areaRatio !== null && prediction.areaRatio < NEAR_OBJECT_MIN_AREA)));
+    // A guessing detector's answers only count when a reliable detector also saw this item in the step.
+    const reliablySeen = ruleMatches.some((matches) => matches.some((prediction) => !prediction.guess && prediction.confidence >= rule.floor));
 
-    frames.forEach((frame, frameIndex) => {
-      const matches = (frame?.predictions || [])
-        .map((prediction) => normalizePrediction(prediction))
-        .filter((prediction) => prediction && findDetectionRule(prediction.label) === rule)
-        .filter((prediction) => !(rule.nearOnly && angleId !== "desk" && prediction.areaRatio !== null && prediction.areaRatio < NEAR_OBJECT_MIN_AREA));
+    ruleMatches.forEach((frameMatches, frameIndex) => {
+      const matches = reliablySeen ? frameMatches : frameMatches.filter((prediction) => !prediction.guess);
 
       if (rule.countBased) {
         const atFloor = matches.filter((item) => item.confidence >= rule.floor).sort((a, b) => b.confidence - a.confidence);
@@ -184,25 +201,24 @@ export function classifyAngleDetections({ angleId, frames = [] }) {
     const confirmed = rule.countBased
       ? framesAtFlag >= consensusFrames || maxConfidence >= rule.strong
       : maxConfidence >= rule.strong || (framesAtFlag >= 1 && framesAtFloor >= consensusFrames);
+    // Not sure it is really there: approve instead of sending the student back.
+    if (!confirmed) return;
 
     findings.push({
       angle: angleId,
       category: rule.category,
-      label: confirmed ? `${rule.label} detected` : `Possible ${rule.label.toLowerCase()}`,
+      label: `${rule.label} detected`,
       confidence: maxConfidence,
-      detected: confirmed,
+      detected: true,
       frameIndexes,
-      severity: confirmed ? "risk" : "uncertain",
-      reason: confirmed
-        ? `${rule.label} detected (${percent(maxConfidence)}). Remove it from your exam area, then retake this step.`
-        : `The image was unclear (possible ${rule.label.toLowerCase()}, ${percent(maxConfidence)}). Improve the lighting or hold the camera steady, then retake this step.`,
+      severity: "risk",
+      reason: rule.category === "person"
+        ? `Another person was detected (${percent(maxConfidence)}). Make sure you are alone, then retake this step.`
+        : `${rule.label} detected (${percent(maxConfidence)}) on your desk. Remove it, then retake this step.`,
     });
   });
 
-  const outcome = findings.some((finding) => finding.detected)
-    ? SCAN_OUTCOME.RISK
-    : findings.length ? SCAN_OUTCOME.RESCAN : SCAN_OUTCOME.CLEAR;
-  return { outcome, findings };
+  return { outcome: findings.length ? SCAN_OUTCOME.RISK : SCAN_OUTCOME.CLEAR, findings };
 }
 
 // Merges detector results frame-by-frame so one frame's predictions from Roboflow and COCO-SSD
@@ -336,80 +352,244 @@ export function findDuplicateAngle(angleId, signature, capturedSignatures = {}) 
 }
 
 // --- Room sweep --------------------------------------------------------------------------------
-// A laptop webcam has no motion sensor, so the sweep is judged from the pictures: the view must keep
-// changing (distinct views) and last long enough for a slow full turn. Coming back to the starting view
-// finishes the sweep on its own; otherwise the student presses Done once enough of the room was shown.
-// View distances ignore overall brightness so the camera's auto exposure does not count as movement.
+// The bar follows how far the camera actually turned. A laptop webcam has no motion sensor, so the turn is
+// measured from the pictures: each sample is compared with a reference picture to find how far the view slid
+// sideways. Turning the camera slides the whole picture; a person moving, camera noise or the light changing
+// does not, so a camera kept in one spot adds nothing. The slides add up to degrees, and the bar is full at
+// 360 degrees. Turning back over a part already shown adds nothing either: progress is the span of directions
+// the camera has faced.
 
-export const SWEEP_SAMPLE_INTERVAL_MS = 500;
-export const SWEEP_MIN_MS = 20000;
-export const SWEEP_MAX_MS = 90000;
-// A sample this different from each of the last few kept views becomes a new view. Comparing with several
-// views (not only the last) stops shaking or turning back and forth from adding views.
-export const SWEEP_VIEW_DISTANCE = 14;
-export const SWEEP_RECENT_VIEWS = 4;
-export const SWEEP_MIN_VIEWS = 8;
-export const SWEEP_TARGET_VIEWS = 12;
-// The progress bar also follows time, so it cannot fill faster than a slow full turn.
-export const SWEEP_TARGET_MS = 25000;
-export const SWEEP_COVERAGE_BEFORE_RETURN = 0.9;
-// At most this many views are sent to the detectors, spread evenly over the sweep.
-export const SWEEP_MAX_FRAMES = 12;
-// Ending this close to one of the first views counts as being back where the sweep started. The first few
-// views are used because the very first frame is often taken while the student is still settling.
+export const SWEEP_SAMPLE_INTERVAL_MS = 200;
+export const SWEEP_MAX_MS = 120000;
+// Samples are measured on a small grayscale picture of this size.
+export const TURN_ANALYSIS_WIDTH = 160;
+export const TURN_ANALYSIS_HEIGHT = 90;
+// Typical laptop webcam width of view. Turns a sideways slide (share of the picture width) into degrees.
+export const CAMERA_HORIZONTAL_FOV_DEGREES = 65;
+// Largest slide looked for between two pictures, as a share of the width (about 13 degrees). A bigger jump in
+// 0.2 s means the camera turned too fast to follow, and that part of the turn is not counted.
+export const TURN_MAX_SHIFT_RATIO = 0.2;
+// How alike two pictures must be at the best slide to trust it; below this the camera lost track
+// (too fast, too dark, or a plain wall with nothing to follow).
+export const TURN_MIN_MATCH = 0.6;
+// Slides of a pixel or less are camera noise, not turning.
+export const TURN_DEAD_ZONE_PX = 1;
+export const SWEEP_FULL_TURN_DEGREES = 360;
+// Done unlocks this close to a full turn. The degree estimate depends on the camera's real width of view, so a
+// full turn can read a little short; coming back to the starting view after most of a turn also finishes it.
+export const SWEEP_DONE_DEGREES = 330;
+export const SWEEP_RETURN_MIN_DEGREES = 300;
+// Ending this close (view distance) to one of the first samples counts as being back at the start. The first few
+// samples are used because the very first one is often taken while the student is still settling.
 export const SWEEP_RETURN_DISTANCE = 20;
 export const SWEEP_START_VIEWS = 3;
-// Two samples this far apart, half a second apart, mean the camera turned too fast to see clearly.
-// Only shown as a hint; the sweep's duration check is what rejects a rushed turn.
-export const SWEEP_FAST_DISTANCE = 24;
+// A photo is kept for the AI check every time the camera faces a new direction this far from the kept ones.
+export const SWEEP_IMAGE_STEP_DEGREES = 30;
+// At most this many photos are sent to the detectors, spread evenly over the sweep.
+export const SWEEP_MAX_FRAMES = 12;
+// How long a "too fast" or "lost track" hint stays up after it happened.
+export const SWEEP_HINT_MS = 1500;
 
 function centered(signature) {
   const average = getSignatureBrightness(signature);
   return signature.map((value) => value - average);
 }
 
+// View distance that ignores overall brightness, so the camera's auto exposure is not a different view.
 export function getViewDistance(previous, next) {
   if (!previous?.length || !next?.length || previous.length !== next.length) return Number.POSITIVE_INFINITY;
   return getSignatureDistance(centered(previous), centered(next));
 }
 
+// 12 x 8 block averages of a grayscale picture (values 0-255, row by row): the signature used for picture
+// quality, the desk duplicate check and the return to the start. Averaging blocks keeps camera noise out.
+export function getGraySignature(gray, width, height, columns = 12, rows = 8) {
+  const signature = [];
+  for (let row = 0; row < rows; row += 1) {
+    const top = Math.floor((row * height) / rows);
+    const bottom = Math.max(top + 1, Math.floor(((row + 1) * height) / rows));
+    for (let column = 0; column < columns; column += 1) {
+      const left = Math.floor((column * width) / columns);
+      const right = Math.max(left + 1, Math.floor(((column + 1) * width) / columns));
+      let sum = 0;
+      let count = 0;
+      for (let y = top; y < bottom; y += 1) {
+        for (let x = left; x < right; x += 1) {
+          sum += gray[y * width + x];
+          count += 1;
+        }
+      }
+      signature.push(count ? sum / count : 0);
+    }
+  }
+  return signature;
+}
+
+// How much detail each column of the picture has (sum of brightness changes to the next column). A turning
+// camera slides this profile sideways; it ignores how bright the picture is overall.
+export function getColumnProfile(gray, width, height) {
+  const raw = new Array(Math.max(0, width - 1)).fill(0);
+  for (let y = 0; y < height; y += 1) {
+    const rowStart = y * width;
+    for (let x = 0; x < width - 1; x += 1) raw[x] += Math.abs(gray[rowStart + x + 1] - gray[rowStart + x]);
+  }
+  // Light smoothing so single noisy pixels do not decide the match.
+  return raw.map((_, x) => (raw[Math.max(0, x - 1)] + raw[x] + raw[Math.min(raw.length - 1, x + 1)]) / 3);
+}
+
+// Share (0..1) of the shared columns where previous[x + slide] and next[x] agree. Both profiles are first scaled to
+// the same average, so the picture getting brighter or darker does not matter. Counting agreeing columns (instead
+// of one overall similarity) means a person moving through part of the picture cannot outvote the still room
+// around them: when the camera is still, the room's columns all agree at "no slide".
+export const TURN_COLUMN_TOLERANCE = 0.2;
+
+function scaleToAverage(profile) {
+  const average = profile.reduce((sum, value) => sum + value, 0) / (profile.length || 1);
+  return average > 0 ? profile.map((value) => value / average) : null;
+}
+
+function profileAgreement(previous, next, slide) {
+  const start = Math.max(0, -slide);
+  const end = Math.min(next.length, previous.length - slide);
+  const count = end - start;
+  if (count < 8) return 0;
+  let agreeing = 0;
+  for (let x = start; x < end; x += 1) {
+    const a = previous[x + slide];
+    const b = next[x];
+    if (Math.abs(a - b) <= TURN_COLUMN_TOLERANCE * Math.max(1, (a + b) / 2)) agreeing += 1;
+  }
+  return agreeing / count;
+}
+
+// A picture with almost no detail (a plain wall, a covered lens, darkness) cannot be followed.
+function hasDetail(profile, width) {
+  const average = profile.reduce((sum, value) => sum + value, 0) / (profile.length || 1);
+  const spread = Math.sqrt(profile.reduce((sum, value) => sum + (value - average) ** 2, 0) / (profile.length || 1));
+  return average >= width * 0.02 && spread >= average * 0.08;
+}
+
+// Finds how far the view slid between two column profiles. Returns { shift, match, atEdge } where shift is in
+// pixels (positive: the picture moved left, the camera turned right), match is the share of columns that agree at
+// that slide, and atEdge means the best slide was the largest one looked for (likely turned even further).
+// Returns null when either picture has too little detail to follow.
+export function estimateTurnShift(previous, next, maxShift) {
+  if (!previous?.length || !next?.length || previous.length !== next.length) return null;
+  if (!hasDetail(previous, previous.length) || !hasDetail(next, next.length)) return null;
+  const a = scaleToAverage(previous);
+  const b = scaleToAverage(next);
+  if (!a || !b) return null;
+  let bestSlide = 0;
+  let bestMatch = -Infinity;
+  const matches = new Map();
+  for (let slide = -maxShift; slide <= maxShift; slide += 1) {
+    const match = profileAgreement(a, b, slide);
+    matches.set(slide, match);
+    // Ties go to the smaller slide, so a still picture never drifts.
+    if (match > bestMatch + 1e-9 || (Math.abs(match - bestMatch) <= 1e-9 && Math.abs(slide) < Math.abs(bestSlide))) {
+      bestMatch = match;
+      bestSlide = slide;
+    }
+  }
+  let shift = bestSlide;
+  const before = matches.get(bestSlide - 1);
+  const after = matches.get(bestSlide + 1);
+  if (before !== undefined && after !== undefined) {
+    // Fit a curve through the best slide and its neighbours for a fraction-of-a-pixel estimate.
+    const curve = before - 2 * bestMatch + after;
+    if (curve < 0) shift += Math.max(-0.5, Math.min(0.5, (0.5 * (before - after)) / curve));
+  }
+  return { shift, match: bestMatch, atEdge: Math.abs(bestSlide) >= maxShift };
+}
+
+export function shiftToDegrees(shiftPx, width) {
+  if (!width) return 0;
+  const shift = Math.abs(shiftPx) <= TURN_DEAD_ZONE_PX ? 0 : shiftPx;
+  return (shift / width) * CAMERA_HORIZONTAL_FOV_DEGREES;
+}
+
+function isReliableShift(estimate) {
+  return Boolean(estimate) && estimate.match >= TURN_MIN_MATCH && !estimate.atEdge;
+}
+
 export function createSweep(startedAt) {
-  return { startedAt, views: [], lastSignature: null, lastAt: startedAt, tooFastAt: null };
+  return {
+    startedAt,
+    lastAt: startedAt,
+    heading: 0,
+    minHeading: 0,
+    maxHeading: 0,
+    anchor: null,
+    lastSample: null,
+    views: [],
+    startSignatures: [],
+    lastSignature: null,
+    tooFastAt: null,
+    lostAt: null,
+  };
 }
 
-// True when this sample shows something new, so the caller should keep its image.
-export function isNewSweepView(sweep, signature) {
-  return sweep.views.slice(-SWEEP_RECENT_VIEWS).every((view) => getViewDistance(view.signature, signature) >= SWEEP_VIEW_DISTANCE);
-}
+// Adds one sample: `profile` from getColumnProfile, `signature` from getGraySignature. `getImage` is called only
+// when this sample faces a new direction, so the caller encodes a photo only when it is kept.
+export function recordSweepSample(sweep, { profile, signature, timestamp, getImage = null }) {
+  const width = profile?.length || 0;
+  const maxShift = Math.max(2, Math.round(width * TURN_MAX_SHIFT_RATIO));
+  let { heading, anchor, tooFastAt, lostAt } = sweep;
 
-// Adds one sample; `image` is only given for samples that isNewSweepView accepted.
-export function recordSweepSample(sweep, { signature, timestamp, image = null }) {
-  const jump = sweep.lastSignature ? getViewDistance(sweep.lastSignature, signature) : 0;
+  if (!anchor) {
+    anchor = { profile, heading };
+  } else {
+    // Measured against a fixed reference picture so slow turns add up and noise does not.
+    const fromAnchor = estimateTurnShift(anchor.profile, profile, maxShift);
+    if (isReliableShift(fromAnchor)) {
+      heading = anchor.heading + shiftToDegrees(fromAnchor.shift, width);
+      if (Math.abs(fromAnchor.shift) >= maxShift / 2) anchor = { profile, heading };
+    } else {
+      // The view changed too much for the reference: try the previous sample, then start a new reference here.
+      const fromLast = sweep.lastSample ? estimateTurnShift(sweep.lastSample.profile, profile, maxShift) : null;
+      if (isReliableShift(fromLast)) heading = sweep.lastSample.heading + shiftToDegrees(fromLast.shift, width);
+      else if (fromAnchor?.atEdge || fromLast?.atEdge) tooFastAt = timestamp;
+      else lostAt = timestamp;
+      anchor = { profile, heading };
+    }
+  }
+
+  const facesNewDirection = sweep.views.every((view) => Math.abs(view.heading - heading) >= SWEEP_IMAGE_STEP_DEGREES);
+  const image = facesNewDirection && getImage ? getImage() : null;
   return {
     ...sweep,
-    views: image && isNewSweepView(sweep, signature) ? [...sweep.views, { signature, image, timestamp }] : sweep.views,
+    heading,
+    minHeading: Math.min(sweep.minHeading, heading),
+    maxHeading: Math.max(sweep.maxHeading, heading),
+    anchor,
+    lastSample: { profile, heading },
+    views: image ? [...sweep.views, { signature, image, timestamp, heading }] : sweep.views,
+    startSignatures: sweep.startSignatures.length < SWEEP_START_VIEWS ? [...sweep.startSignatures, signature] : sweep.startSignatures,
     lastSignature: signature,
     lastAt: timestamp,
-    tooFastAt: jump >= SWEEP_FAST_DISTANCE ? timestamp : sweep.tooFastAt,
+    tooFastAt,
+    lostAt,
   };
 }
 
 export function getSweepProgress(sweep, now = sweep.lastAt) {
   const elapsedMs = Math.max(0, now - sweep.startedAt);
-  const viewCount = sweep.views.length;
-  const enoughTurning = elapsedMs >= SWEEP_MIN_MS && viewCount >= SWEEP_MIN_VIEWS;
-  const startDistance = Math.min(...sweep.views.slice(0, SWEEP_START_VIEWS).map((view) => getViewDistance(view.signature, sweep.lastSignature)));
-  const backAtStart = enoughTurning && startDistance < SWEEP_RETURN_DISTANCE;
+  const turnedDegrees = Math.max(0, sweep.maxHeading - sweep.minHeading);
+  const startDistance = Math.min(Number.POSITIVE_INFINITY, ...sweep.startSignatures.map((signature) => getViewDistance(signature, sweep.lastSignature)));
+  const backAtStart = turnedDegrees >= SWEEP_RETURN_MIN_DEGREES && startDistance < SWEEP_RETURN_DISTANCE;
+  const complete = turnedDegrees >= SWEEP_FULL_TURN_DEGREES || backAtStart;
+  const tooFast = sweep.tooFastAt !== null && sweep.lastAt - sweep.tooFastAt < SWEEP_HINT_MS;
   return {
     elapsedMs,
-    viewCount,
-    // Distinct views and time only estimate how far the camera turned, so the bar follows the slower of the
-    // two and stays below full until the view is back at the start or the student presses Done.
-    coverage: backAtStart ? 1 : Math.min(SWEEP_COVERAGE_BEFORE_RETURN, viewCount / SWEEP_TARGET_VIEWS, elapsedMs / SWEEP_TARGET_MS),
-    canFinish: enoughTurning,
+    turnedDegrees,
+    // The bar only moves while the camera turns, and is full after a full circle.
+    coverage: complete ? 1 : Math.min(0.99, turnedDegrees / SWEEP_FULL_TURN_DEGREES),
+    complete,
+    canFinish: complete || turnedDegrees >= SWEEP_DONE_DEGREES,
     backAtStart,
     startImage: sweep.views[0]?.image || null,
-    tooFast: sweep.tooFastAt !== null && sweep.lastAt - sweep.tooFastAt < 2000,
+    tooFast,
+    lostTrack: !tooFast && sweep.lostAt !== null && sweep.lastAt - sweep.lostAt < SWEEP_HINT_MS,
     timedOut: elapsedMs >= SWEEP_MAX_MS,
   };
 }
@@ -424,14 +604,12 @@ export function finishSweep(sweep, now = sweep.lastAt) {
   const progress = getSweepProgress(sweep, now);
   const quality = assessCaptureQuality(sweep.views.map((view) => view.signature));
   if (sweep.views.length && !quality.ok) return { ok: false, reason: quality.reason.replace("retake this step", "redo the room sweep") };
-  if (progress.viewCount < SWEEP_MIN_VIEWS) {
-    return { ok: false, reason: "The sweep did not show enough of the room. Turn slowly in a full circle so the whole room is shown, then redo the room sweep." };
+  if (!progress.canFinish || !sweep.views.length) {
+    return {
+      ok: false,
+      reason: `The camera turned only about ${Math.round(progress.turnedDegrees)} degrees. Turn slowly all the way around until you face where you started, then redo the room sweep.`,
+    };
   }
-  if (progress.elapsedMs < SWEEP_MIN_MS) {
-    return { ok: false, reason: "The sweep was too quick to check the room. Turn more slowly, taking about 30 seconds for the full circle." };
-  }
-  // Ending exactly at the starting view is not required: the views must already show enough of the room, and the
-  // AI check of the photos decides whether the room is clear.
   return {
     ok: true,
     frames: spreadEvenly(sweep.views, SWEEP_MAX_FRAMES).map((view) => ({ image: view.image, timestamp: view.timestamp, angle: "sweep" })),

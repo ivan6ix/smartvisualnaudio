@@ -23,6 +23,8 @@ const violationLabels = {
   LOOKING_AWAY: "Looking away repeatedly",
   PHONE_DETECTED: "Cellphone detected",
   GADGET_DETECTED: "Spare gadget detected",
+
+  NOTES_DETECTED: "Notes or papers detected",
   MICROPHONE_UNAVAILABLE: "Microphone unavailable",
   MICROPHONE_DISCONNECTED: "Microphone disconnected",
   MICROPHONE_MUTED: "Microphone muted or silent",
@@ -35,6 +37,8 @@ const violationChartLabels = {
   COPY_ATTEMPT: "Copy Attempt",
   LOOKING_AWAY: "Looking Away",
   GADGET_DETECTED: "Spare Gadget Detected",
+
+  NOTES_DETECTED: "Notes or Papers Detected",
 };
 
 const violationChartGroups = {

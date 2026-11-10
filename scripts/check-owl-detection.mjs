@@ -16,9 +16,11 @@ import {
 // Every question asked to the model maps to an existing detection rule, and each prohibited kind is asked for.
 for (const { query, label } of OWL_QUERIES) assert.ok(findDetectionRule(label), `${query} -> ${label} must match a detection rule.`);
 const categories = new Set(OWL_QUERIES.map(({ label }) => findDetectionRule(label).category));
-for (const category of ["phone", "laptop", "second_screen", "tablet", "calculator", "smartwatch", "notes", "book"]) {
+for (const category of ["phone", "laptop", "second_screen", "tablet", "calculator", "notes", "book"]) {
   assert.ok(categories.has(category), `The browser AI must look for ${category}.`);
 }
+// It named smartwatches that were not there, so it is no longer asked about them (Gemini still is).
+assert.ok(!categories.has("smartwatch"), "The browser AI must not be asked for smartwatches.");
 assert.ok(!OWL_QUERIES.some(({ query }) => /ear ?buds?|head ?phones?|head ?sets?|ear ?phones?/.test(query)), "Allowed earbuds and headphones are not searched for.");
 assert.equal(OWL_CANDIDATE_LABELS.length, OWL_QUERIES.length);
 
@@ -50,12 +52,24 @@ assert.deepEqual(owlResultsToPredictions([
   { label: "a mobile phone", score: 0.25, box: { xmin: 0.05, ymin: 0.05, xmax: 0.15, ymax: 0.25 } },
 ]).map((item) => item.class), ["document", "cell phone"]);
 
-// The predictions go through the shared rules: paper on the desk blocks entry, a clear phone in the sweep does too.
-const paperOnDesk = classifyAngleDetections({ angleId: "desk", frames: parseDetectorResponse({ frames: [{ predictions: [predictions[0]] }, { predictions: [predictions[0]] }] }).frames });
+// The model only guesses: its answers are marked as guesses and never fail a step on their own, however sure it
+// says it is. They only count for an item a trained detector or Gemini also saw.
+assert.ok(predictions.every((item) => item.source === "owl"));
+const owlPaper = parseDetectorResponse({ frames: [{ predictions: [predictions[0]] }, { predictions: [predictions[0]] }] }).frames;
+assert.ok(owlPaper[0].predictions[0].guess, "Parsed OWL answers stay marked as guesses.");
+assert.equal(classifyAngleDetections({ angleId: "desk", frames: owlPaper }).outcome, SCAN_OUTCOME.CLEAR, "OWL alone cannot fail the desk check.");
+const strongPhone = owlResultsToPredictions([{ label: "a mobile phone", score: 0.3, box: { xmin: 0.1, ymin: 0.1, xmax: 0.2, ymax: 0.3 } }]);
+assert.equal(classifyAngleDetections({ angleId: "desk", frames: parseDetectorResponse({ frames: [{ predictions: strongPhone }, { predictions: [] }] }).frames }).outcome, SCAN_OUTCOME.CLEAR, "A 'strong' OWL phone alone is still only a guess.");
+// Seen by a reliable detector too (here a weak COCO sighting), OWL's clear answer confirms it.
+const corroborated = mergeDetectorFrames([
+  { frames: owlPaper },
+  parseDetectorResponse({ frames: [{ predictions: [{ class: "paper", confidence: 0.4, areaRatio: 0.05 }] }, { predictions: [] }] }),
+], 2);
+const paperOnDesk = classifyAngleDetections({ angleId: "desk", frames: corroborated });
 assert.equal(paperOnDesk.outcome, SCAN_OUTCOME.RISK);
 assert.equal(paperOnDesk.findings[0].category, "notes");
-const strongPhone = owlResultsToPredictions([{ label: "a mobile phone", score: 0.3, box: { xmin: 0.1, ymin: 0.1, xmax: 0.2, ymax: 0.3 } }]);
-assert.equal(classifyAngleDetections({ angleId: "sweep", frames: [{ predictions: strongPhone }, { predictions: [] }] }).outcome, SCAN_OUTCOME.RISK);
+// Things elsewhere in the room never count: the room sweep only looks for another person.
+assert.equal(classifyAngleDetections({ angleId: "sweep", frames: [{ predictions: [{ class: "cell phone", confidence: 0.95 }] }, { predictions: [{ class: "cell phone", confidence: 0.95 }] }] }).outcome, SCAN_OUTCOME.CLEAR);
 
 // The student is told about the confirmed item, not an uncertain one that happens to be listed first.
 const deskResult = await analyzeAngleCapture({
@@ -69,8 +83,9 @@ const deskResult = await analyzeAngleCapture({
 assert.equal(deskResult.outcome, SCAN_OUTCOME.RISK);
 assert.match(deskResult.reason, /^Notes or papers detected \(94%\)/);
 
-// The model checks a spread of the views, and its answers go back to the right frame positions.
-assert.deepEqual(pickOwlFrameIndexes(12, OWL_FRAMES_PER_STEP.sweep), [0, 2, 4, 7, 9, 11]);
+// The model checks a spread of the desk photos, skips the room sweep, and its answers go back to the right frame positions.
+assert.deepEqual(pickOwlFrameIndexes(12, OWL_FRAMES_PER_STEP.sweep), [], "The sweep only looks for people, which this model is not asked about.");
+assert.deepEqual(pickOwlFrameIndexes(12, 6), [0, 2, 4, 7, 9, 11]);
 assert.deepEqual(pickOwlFrameIndexes(3, OWL_FRAMES_PER_STEP.desk), [0, 2]);
 assert.deepEqual(pickOwlFrameIndexes(1, 2), [0]);
 const placed = placeOwlFrames(4, [0, 3], [{ predictions: [predictions[1]] }, { predictions: [predictions[0]] }]);

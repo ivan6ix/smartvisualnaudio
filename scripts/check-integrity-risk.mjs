@@ -43,7 +43,7 @@ const mixed = scoreRisk({
 assert.equal(mixed.score, 59);
 assert.equal(mixed.level, "Medium");
 assert.deepEqual(mixed.reasons.map((reason) => [reason.label, reason.count, reason.points]), [
-  ["Phone or gadget", 1, 25],
+  ["Phone, gadget or notes", 1, 25],
   ["No face or looking away", 7, 24],
   ["Tab switch, copy or fullscreen exit", 2, 10],
 ]);
@@ -60,7 +60,7 @@ const capped = scoreRisk({
 });
 assert.equal(capped.score, 100, "Total is capped at 100.");
 assert.equal(capped.level, "High");
-assert.equal(capped.reasons.find((reason) => reason.label === "Phone or gadget").points, 40, "Phone points are capped at 40.");
+assert.equal(capped.reasons.find((reason) => reason.label === "Phone, gadget or notes").points, 40, "Phone points are capped at 40.");
 
 // Finishing very fast with a score far above the class mean adds 15 points; either alone adds nothing.
 const fastHigh = scoreRisk({ violations: [], attempt: { ...attempt, score: 95, submitted_at: at(10) }, durationMinutes: 60, classMean: 60 });

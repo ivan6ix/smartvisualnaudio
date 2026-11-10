@@ -26,5 +26,8 @@ assert.equal(helpers.describeViolationPlace({}), 'Exam');
 assert.equal(helpers.formatViolationType('fullscreen_exit'), 'Fullscreen Exit');
 assert.equal(helpers.formatViolationType('tab_switch'), 'Tab Switch');
 assert.equal(helpers.formatViolationType('unknown_new_type'), 'Unknown New Type');
+// Database types are upper case; the paper/notes violation has its own wording.
+assert.equal(helpers.formatViolationType('NOTES_DETECTED'), 'Notes or Papers Detected');
+assert.equal(helpers.formatViolationType('PHONE_DETECTED'), 'Phone Detected');
 
 assert.doesNotThrow(() => helpers.playViolationAlertSound({}));

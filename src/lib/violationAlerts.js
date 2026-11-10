@@ -31,11 +31,13 @@ const violationLabels = {
   gaze_away: "Looking Away",
   excessive_noise: "Excessive Noise",
   prohibited_object: "Prohibited Object",
+  notes_detected: "Notes or Papers Detected",
 };
 
 export function formatViolationType(type) {
   if (!type) return "Monitoring Alert";
-  if (violationLabels[type]) return violationLabels[type];
+  const known = violationLabels[String(type).toLowerCase()];
+  if (known) return known;
   return String(type)
     .split(/[_\s-]+/)
     .filter(Boolean)

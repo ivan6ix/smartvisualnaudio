@@ -3,7 +3,7 @@
 // decides anything on its own.
 
 export const RISK_RULES = [
-  { id: "device", label: "Phone or gadget", types: ["PHONE_DETECTED", "GADGET_DETECTED"], points: 25, cap: 40 },
+  { id: "device", label: "Phone, gadget or notes", types: ["PHONE_DETECTED", "GADGET_DETECTED", "NOTES_DETECTED"], points: 25, cap: 40 },
   { id: "faces", label: "Multiple faces", types: ["MULTIPLE_FACE"], points: 20, cap: 40 },
   { id: "attention", label: "No face or looking away", types: ["NO_FACE", "LOOKING_AWAY"], points: 4, cap: 24 },
   { id: "browser", label: "Tab switch, copy or fullscreen exit", types: ["TAB_SWITCH", "COPY_ATTEMPT", "FULLSCREEN_EXIT"], points: 5, cap: 25 },
@@ -31,6 +31,7 @@ const LABELS = {
   FULLSCREEN_EXIT: "Fullscreen exit",
   PHONE_DETECTED: "Cellphone detected",
   GADGET_DETECTED: "Spare gadget detected",
+  NOTES_DETECTED: "Notes or papers detected",
   MICROPHONE_UNAVAILABLE: "Microphone unavailable",
   MICROPHONE_DISCONNECTED: "Microphone disconnected",
   MICROPHONE_MUTED: "Microphone muted",

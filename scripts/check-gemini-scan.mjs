@@ -43,10 +43,11 @@ assert.throws(() => parseGeminiResponse({ promptFeedback: { blockReason: "SAFETY
 assert.throws(() => parseGeminiResponse({ candidates: [{ content: { parts: [{ text: "not json" }] } }] }, 1), /not JSON/);
 assert.throws(() => parseGeminiResponse({ candidates: [{ content: { parts: [{ text: "{\"items\":[]}" }] } }] }, 1), /unexpected answer/);
 
-// Through the shared rules: a certain phone in the sweep blocks entry; small paper far away in the room does not,
-// but medium paper on the desk does.
+// Through the shared rules: items elsewhere in the room never block entry (the sweep only looks for another person),
+// while the same certain phone on the desk does, and so does medium paper on the desk.
 const sweep = parseDetectorResponse({ frames }).frames;
-assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sweep }).outcome, SCAN_OUTCOME.RISK);
+assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sweep }).outcome, SCAN_OUTCOME.CLEAR);
+assert.equal(classifyAngleDetections({ angleId: "desk", frames: sweep }).outcome, SCAN_OUTCOME.RISK);
 const farPaper = parseGeminiResponse(answer([{ photo: 1, items: [{ item: "book", certainty: "certain", size: "small" }] }]), 1);
 assert.equal(classifyAngleDetections({ angleId: "sweep", frames: parseDetectorResponse({ frames: farPaper }).frames }).outcome, SCAN_OUTCOME.CLEAR);
 const deskPaper = parseGeminiResponse(answer([1, 2].map((photo) => ({ photo, items: [{ item: "paper", certainty: "likely", size: "medium" }] }))), 2);

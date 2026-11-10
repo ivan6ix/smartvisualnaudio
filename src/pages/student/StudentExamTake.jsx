@@ -13,15 +13,18 @@ import {
   SCAN_FRAMES_PER_ANGLE,
   SCAN_OUTCOME,
   SWEEP_SAMPLE_INTERVAL_MS,
+  TURN_ANALYSIS_HEIGHT,
+  TURN_ANALYSIS_WIDTH,
   analyzeAngleCapture,
   assessCaptureQuality,
   createScanState,
   createSweep,
   findDuplicateAngle,
   finishSweep,
+  getColumnProfile,
+  getGraySignature,
   getSweepProgress,
   isAngleCaptured,
-  isNewSweepView,
   parseDetectorResponse,
   recordSweepSample,
   scanReducer,
@@ -83,10 +86,13 @@ const GAZE_REQUIRED_AWAY_SAMPLES = 3;
 const BASIC_FACE_SAMPLE_WIDTH = 160;
 const BASIC_FACE_SAMPLE_HEIGHT = 100;
 const OBJECT_SCAN_INTERVAL_MS = 1000;
+// OWL-ViT takes a few seconds per picture, so during the exam it checks a smaller picture every 3.5 seconds.
+const LIVE_OWL_INTERVAL_MS = 3500;
+const LIVE_OWL_IMAGE_MAX_WIDTH = 480;
 const FILE_PICKER_SETTLE_MS = 350;
 const EXAM_INTERRUPTION_LIMIT = 3;
 
-const SNAPSHOT_VIOLATION_TYPES = new Set(["MULTIPLE_FACE", "NO_FACE", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED"]);
+const SNAPSHOT_VIOLATION_TYPES = new Set(["MULTIPLE_FACE", "NO_FACE", "LOOKING_AWAY", "PHONE_DETECTED", "GADGET_DETECTED", "NOTES_DETECTED"]);
 const FACE_LANDMARKER_MODEL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/latest/face_landmarker.task";
 const VISION_WASM_PATH = "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.35/wasm";
 const DEFAULT_EXAM_SETTINGS = {
@@ -367,21 +373,18 @@ function getUsableScanEndpoint(endpoint) {
 // The authenticated environment-scan Edge Function. When configured, every angle must pass through it.
 const SERVER_SCAN_ENDPOINT = hasSupabaseConfig ? getUsableScanEndpoint(import.meta.env.VITE_ENV_SCAN_ENDPOINT) : "";
 
-function getFrameSignature(context, width, height) {
-  const signature = [];
-  const columns = 12;
-  const rows = 8;
-
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const x = Math.floor((column + 0.5) * (width / columns));
-      const y = Math.floor((row + 0.5) * (height / rows));
-      const [red, green, blue] = context.getImageData(x, y, 1, 1).data;
-      signature.push((red + green + blue) / 3);
-    }
+// The camera picture as a small grayscale array (row by row), for the turn measurement and frame signatures.
+function readGrayFrame(video, canvas) {
+  canvas.width = TURN_ANALYSIS_WIDTH;
+  canvas.height = TURN_ANALYSIS_HEIGHT;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(video, 0, 0, TURN_ANALYSIS_WIDTH, TURN_ANALYSIS_HEIGHT);
+  const { data } = context.getImageData(0, 0, TURN_ANALYSIS_WIDTH, TURN_ANALYSIS_HEIGHT);
+  const gray = new Array(TURN_ANALYSIS_WIDTH * TURN_ANALYSIS_HEIGHT);
+  for (let index = 0; index < gray.length; index += 1) {
+    gray[index] = (data[index * 4] + data[index * 4 + 1] + data[index * 4 + 2]) / 3;
   }
-
-  return signature;
+  return gray;
 }
 
 export default function StudentExamTake() {
@@ -440,6 +443,9 @@ export default function StudentExamTake() {
   const objectMonitorRef = useRef(null);
   const liveObjectMonitorRef = useRef(createLiveObjectMonitor());
   const objectDetectionInFlightRef = useRef(false);
+  // OWL-ViT runs on its own slower timer during the exam, since it is the only model that knows what paper looks like.
+  const owlMonitorRef = useRef(null);
+  const owlDetectionInFlightRef = useRef(false);
   const objectDetectorRef = useRef(null);
   const orderingDragRef = useRef(null);
   const roboflowConnectionRef = useRef(null);
@@ -462,6 +468,7 @@ export default function StudentExamTake() {
   // Live progress of a running room sweep (null when no sweep is running); the ref takes Done/Cancel.
   const [sweepProgress, setSweepProgress] = useState(null);
   const sweepStopRef = useRef("");
+  const analysisCanvasRef = useRef(null);
   // Download percent of the browser AI while it loads for the first time (null when not downloading).
   const [scanAiProgress, setScanAiProgress] = useState(null);
   const [scanFindings, setScanFindings] = useState([]);
@@ -1379,11 +1386,18 @@ export default function StudentExamTake() {
     canvas.height = video.videoHeight;
     const context = canvas.getContext("2d");
     context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const image = canvas.toDataURL("image/jpeg", 0.82);
     return {
-      image: canvas.toDataURL("image/jpeg", 0.82),
-      signature: getFrameSignature(context, canvas.width, canvas.height),
+      image,
+      signature: getGraySignature(readGrayFrame(video, getAnalysisCanvas()), TURN_ANALYSIS_WIDTH, TURN_ANALYSIS_HEIGHT),
       timestamp: Date.now(),
     };
+  }
+
+  // A separate small canvas for measuring frames, so it never disturbs the photo canvas.
+  function getAnalysisCanvas() {
+    analysisCanvasRef.current ||= document.createElement("canvas");
+    return analysisCanvasRef.current;
   }
 
   async function captureCurrentFrameWithRetry() {
@@ -1399,23 +1413,29 @@ export default function StudentExamTake() {
     return SCAN_ANGLES.find((angle) => angle.id === angleId)?.title || "previous angle";
   }
 
-  // One sample of a running room sweep: a downscaled frame, whose image is kept only when it shows
-  // a new part of the room.
-  function captureSweepSample(sweep) {
+  // One sample of a running room sweep: a small grayscale frame to measure how far the camera turned, and a photo
+  // (only encoded when the camera faces a new direction) for the AI check.
+  function captureSweepSample() {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video?.videoWidth || !canvas) return null;
-    const scale = Math.min(1, SWEEP_IMAGE_MAX_WIDTH / video.videoWidth);
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    const context = canvas.getContext("2d");
-    context.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const signature = getFrameSignature(context, canvas.width, canvas.height);
-    return { signature, timestamp: Date.now(), image: isNewSweepView(sweep, signature) ? canvas.toDataURL("image/jpeg", 0.82) : null };
+    const gray = readGrayFrame(video, getAnalysisCanvas());
+    return {
+      profile: getColumnProfile(gray, TURN_ANALYSIS_WIDTH, TURN_ANALYSIS_HEIGHT),
+      signature: getGraySignature(gray, TURN_ANALYSIS_WIDTH, TURN_ANALYSIS_HEIGHT),
+      timestamp: Date.now(),
+      getImage: () => {
+        const scale = Math.min(1, SWEEP_IMAGE_MAX_WIDTH / video.videoWidth);
+        canvas.width = Math.round(video.videoWidth * scale);
+        canvas.height = Math.round(video.videoHeight * scale);
+        canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+        return canvas.toDataURL("image/jpeg", 0.82);
+      },
+    };
   }
 
-  // Samples the camera while the student turns. Ends on its own once the view is back at the start,
-  // or when the student presses Done (after the minimum turn) or the time limit passes.
+  // Samples the camera while the student turns. Ends on its own once the camera has turned a full circle (or is
+  // back at the start after most of one), when the student presses Done near a full turn, or at the time limit.
   // Returns finishSweep's result, or null when the whole scan was reset meanwhile.
   async function recordRoomSweep() {
     sweepStopRef.current = "";
@@ -1425,11 +1445,11 @@ export default function StudentExamTake() {
       for (;;) {
         if (scanCancelledRef.current) return null;
         if (sweepStopRef.current === "cancel") return { ok: false, reason: "The room sweep was stopped. Start it again when you are ready." };
-        const sample = captureSweepSample(sweep);
+        const sample = captureSweepSample();
         if (sample) sweep = recordSweepSample(sweep, sample);
         const progress = getSweepProgress(sweep, Date.now());
         setSweepProgress(progress);
-        if (progress.backAtStart || progress.timedOut || (sweepStopRef.current === "done" && progress.canFinish)) break;
+        if (progress.complete || progress.timedOut || (sweepStopRef.current === "done" && progress.canFinish)) break;
         await wait(SWEEP_SAMPLE_INTERVAL_MS);
       }
       return finishSweep(sweep, Date.now());
@@ -1569,7 +1589,9 @@ export default function StudentExamTake() {
 
   // The open-vocabulary browser AI (OWL-ViT): finds paper, notes and screens that COCO-SSD has no label for.
   async function detectScanFramesWithOwl(frames) {
-    const indexes = pickOwlFrameIndexes(frames.length, OWL_FRAMES_PER_STEP[frames[0]?.angle] || OWL_FRAMES_PER_STEP.desk);
+    const indexes = pickOwlFrameIndexes(frames.length, OWL_FRAMES_PER_STEP[frames[0]?.angle] ?? OWL_FRAMES_PER_STEP.desk);
+    // Not used for this step (null means "not run", never a failure).
+    if (!indexes.length) return null;
     const result = await detectWithOwl(indexes.map((index) => frames[index].image));
     return { frames: placeOwlFrames(frames.length, indexes, result.frames) };
   }
@@ -1948,6 +1970,10 @@ export default function StudentExamTake() {
       window.clearInterval(objectMonitorRef.current);
       objectMonitorRef.current = null;
     }
+    if (owlMonitorRef.current) {
+      window.clearInterval(owlMonitorRef.current);
+      owlMonitorRef.current = null;
+    }
     liveObjectMonitorRef.current = createLiveObjectMonitor();
     objectDetectorRef.current = null;
     setRoboflowStatus("Roboflow detector off");
@@ -2025,7 +2051,8 @@ export default function StudentExamTake() {
 
     const lookingAway = eyeLookingAway || centerX < 0.34 || centerX > 0.66 || faceRatio < 0.16;
     if (lookingAway) {
-      const status = centerX < 0.5 ? "Looking left" : "Looking right";
+      // The camera picture is not mirrored: the student's right side is on the left of the picture.
+      const status = centerX < 0.5 ? "Looking right" : "Looking left";
       setFaceStatus(status);
       lookingAwaySinceRef.current ??= Date.now();
       if (Date.now() - lookingAwaySinceRef.current >= LOOKING_AWAY_LIMIT_MS) {
@@ -2164,13 +2191,15 @@ export default function StudentExamTake() {
     const blendshapeLeft = (getBlendshapeScore(blendshapes, "eyeLookOutLeft") + getBlendshapeScore(blendshapes, "eyeLookInRight")) / 2;
     const blendshapeRight = (getBlendshapeScore(blendshapes, "eyeLookInLeft") + getBlendshapeScore(blendshapes, "eyeLookOutRight")) / 2;
 
+    // Iris positions and MediaPipe's left/right blendshapes follow the sides of the camera picture, which is not
+    // mirrored: eyes moving to the left of the picture are the student looking to their own right.
     let nextDirection = "";
     if (verticalDelta > GAZE_DOWN_THRESHOLD || averageY > 0.76 || blendshapeDown > GAZE_BLENDSHAPE_THRESHOLD) {
       nextDirection = "looking down";
     } else if (horizontalDelta < -GAZE_HORIZONTAL_THRESHOLD || averageX < 0.22 || blendshapeLeft > GAZE_BLENDSHAPE_THRESHOLD) {
-      nextDirection = "looking left";
-    } else if (horizontalDelta > GAZE_HORIZONTAL_THRESHOLD || averageX > 0.78 || blendshapeRight > GAZE_BLENDSHAPE_THRESHOLD) {
       nextDirection = "looking right";
+    } else if (horizontalDelta > GAZE_HORIZONTAL_THRESHOLD || averageX > 0.78 || blendshapeRight > GAZE_BLENDSHAPE_THRESHOLD) {
+      nextDirection = "looking left";
     }
 
     const confirmedDirection = getConfirmedGazeDirection(nextDirection);
@@ -2361,12 +2390,11 @@ export default function StudentExamTake() {
     return items;
   }
 
-  // Confirmed events record one violation each; uncertain detections only warn; a continuous event
-  // stays latched until the monitor sees it clear, so it cannot count toward the limit twice.
+  // Each detected item records one violation straight away (no warning first); a continuous event stays latched
+  // until the monitor sees it clear, so it cannot count toward the limit twice.
   function applyLiveObjectActions(actions) {
     actions.forEach((action) => {
       if (action.type === "violation") recordManualViolation(action.violationType, action.message, "High");
-      else if (action.type === "uncertain") toast.warning(action.message, { id: `live-object-${action.category}` });
       else if (action.type === "cleared" && !liveObjectMonitorRef.current.activeTypes().has(action.violationType)) {
         incidentTrackerRef.current.clear(action.violationType);
       }
@@ -2443,11 +2471,38 @@ export default function StudentExamTake() {
     }
   }
 
+  // One OWL-ViT check of the exam camera. Its answers are guesses, so the monitor only counts an item it reports on
+  // two checks in a row. If the model cannot load or run, the other detectors keep watching.
+  async function detectProctorObjectsWithOwl() {
+    const video = proctorVideoRef.current;
+    if (!video?.videoWidth || owlDetectionInFlightRef.current) return;
+    owlDetectionInFlightRef.current = true;
+    try {
+      const canvas = window.document.createElement("canvas");
+      const scale = Math.min(1, LIVE_OWL_IMAGE_MAX_WIDTH / video.videoWidth);
+      canvas.width = Math.round(video.videoWidth * scale);
+      canvas.height = Math.round(video.videoHeight * scale);
+      canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+      const result = await detectWithOwl([canvas.toDataURL("image/jpeg", 0.8)]);
+      if (!mountedRef.current || examSubmittedRef.current) return;
+      applyLiveObjectActions(liveObjectMonitorRef.current.observe({ ok: true, guessChecked: true, predictions: result.frames[0]?.predictions || [] }));
+    } catch (error) {
+      window.console.warn("[ObjectDetection] Browser AI check unavailable.", error);
+    } finally {
+      owlDetectionInFlightRef.current = false;
+    }
+  }
+
   function startObjectMonitoring() {
     void detectProctorObjects();
     objectMonitorRef.current = window.setInterval(() => {
       void detectProctorObjects();
     }, OBJECT_SCAN_INTERVAL_MS);
+    // The model is usually already downloaded by the environment scan; otherwise it downloads in the background.
+    void loadOwlDetector().catch((error) => window.console.warn("[ObjectDetection] Browser AI could not load.", error));
+    owlMonitorRef.current = window.setInterval(() => {
+      void detectProctorObjectsWithOwl();
+    }, LIVE_OWL_INTERVAL_MS);
   }
 
   const requiredDevicesLabel = liveCameraMonitoringEnabled && examSettings.liveAudioMonitoring
@@ -3163,13 +3218,18 @@ export default function StudentExamTake() {
           ? activeScanAngle.id === "sweep" ? "Start Room Sweep" : `Capture ${activeScanAngle.title}`
           : scanSummary.outcome === "analyzing" ? "Checking captures..." : "Both steps captured";
     const sweepPercent = sweepProgress ? Math.round(sweepProgress.coverage * 100) : 0;
+    const sweepDegrees = sweepProgress ? Math.min(360, Math.round(sweepProgress.turnedDegrees)) : 0;
     const sweepHint = !sweepProgress
       ? ""
       : sweepProgress.tooFast
-        ? "Slow down. Turn more slowly so the camera can see clearly."
-        : sweepProgress.canFinish
-          ? "Enough of the room is shown. Keep turning until you see your starting view again, or press Done."
-          : "Keep turning slowly in the same direction.";
+        ? "Slow down. Turn more slowly so the camera can follow."
+        : sweepProgress.lostTrack
+          ? "The camera lost track. Turn more slowly, and make sure the room is lit."
+          : sweepProgress.canFinish
+            ? "Almost a full circle. Keep turning until you see your starting view again, or press Done."
+            : sweepDegrees < 5 && sweepProgress.elapsedMs > 3000
+              ? "Start turning slowly in one direction. The bar only fills while the camera turns."
+              : "Keep turning slowly in the same direction.";
 
     return (
       <section className="student-exam-take-page">
@@ -3248,13 +3308,13 @@ export default function StudentExamTake() {
           {scanActive && sweepProgress ? (
             <div className="student-scan-meter" aria-live="polite">
               <div>
-                <strong>Room covered {sweepPercent}%</strong>
+                <strong>Turned {sweepDegrees}° of 360°</strong>
                 <span>{Math.floor(sweepProgress.elapsedMs / 1000)} s</span>
               </div>
               <div>
                 <span style={{ width: `${sweepPercent}%` }} />
               </div>
-              <small className={sweepProgress.tooFast ? "warning" : ""}>{sweepHint}</small>
+              <small className={sweepProgress.tooFast || sweepProgress.lostTrack ? "warning" : ""}>{sweepHint}</small>
               {sweepProgress.startImage ? (
                 <figure className="student-sweep-start">
                   <img alt="Your starting view" src={sweepProgress.startImage} />

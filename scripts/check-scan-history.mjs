@@ -8,7 +8,7 @@ import { flaggedPhotoIndexes, groupScanHistory, scanPhotoPath, scanResult, scanS
 // Findings say which photos an item was seen in, so the history can outline them.
 {
   const frames = [{ predictions: [] }, { predictions: [{ class: "cell phone", confidence: 0.9 }] }, { predictions: [{ class: "cell phone", confidence: 0.7 }] }];
-  const result = classifyAngleDetections({ angleId: "sweep", frames });
+  const result = classifyAngleDetections({ angleId: "desk", frames });
   assert.deepEqual(result.findings[0].frameIndexes, [1, 2]);
 }
 

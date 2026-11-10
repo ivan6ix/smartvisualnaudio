@@ -32,6 +32,8 @@ const violationLabels = {
   LOOKING_AWAY: "Looking Away",
   PHONE_DETECTED: "Cellphone Detected",
   GADGET_DETECTED: "Spare Gadget Detected",
+
+  NOTES_DETECTED: "Notes or Papers Detected",
 };
 
 // Activity labels only; not chart categories.

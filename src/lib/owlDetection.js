@@ -8,7 +8,8 @@ export const OWL_MIN_SCORE = 0.08;
 // A box covering most of the picture is the model naming the whole view (a white desk read as "paper"), not an item.
 export const OWL_MAX_AREA = 0.8;
 // The model takes a few seconds per image on a typical laptop, so it checks a spread of the captured views.
-export const OWL_FRAMES_PER_STEP = { sweep: 6, desk: 2 };
+// The room sweep only looks for another person, which this model is not asked about, so it skips the sweep.
+export const OWL_FRAMES_PER_STEP = { sweep: 0, desk: 2 };
 
 // `label` is what DETECTION_RULES match on; several phrasings of the same item improve recall.
 export const OWL_QUERIES = [
@@ -19,7 +20,6 @@ export const OWL_QUERIES = [
   { query: "a television screen", label: "tv" },
   { query: "a tablet computer", label: "tablet" },
   { query: "a calculator", label: "calculator" },
-  { query: "a smartwatch", label: "smartwatch" },
   { query: "a sheet of paper", label: "paper" },
   { query: "handwritten notes", label: "notes" },
   { query: "a printed document", label: "document" },
