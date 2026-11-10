@@ -68,8 +68,9 @@ const corroborated = mergeDetectorFrames([
 const paperOnDesk = classifyAngleDetections({ angleId: "desk", frames: corroborated });
 assert.equal(paperOnDesk.outcome, SCAN_OUTCOME.RISK);
 assert.equal(paperOnDesk.findings[0].category, "notes");
-// Things elsewhere in the room never count: the room sweep only looks for another person.
-assert.equal(classifyAngleDetections({ angleId: "sweep", frames: [{ predictions: [{ class: "cell phone", confidence: 0.95 }] }, { predictions: [{ class: "cell phone", confidence: 0.95 }] }] }).outcome, SCAN_OUTCOME.CLEAR);
+// Most things elsewhere in the room never count (the room sweep looks for another person and a phone).
+assert.equal(classifyAngleDetections({ angleId: "sweep", frames: [{ predictions: [{ class: "laptop", confidence: 0.95 }] }, { predictions: [{ class: "book", confidence: 0.95, areaRatio: 0.2 }] }] }).outcome, SCAN_OUTCOME.CLEAR);
+assert.equal(classifyAngleDetections({ angleId: "sweep", frames: [{ predictions: [{ class: "cell phone", confidence: 0.95 }] }, { predictions: [] }] }).outcome, SCAN_OUTCOME.RISK, "A phone shown in the sweep fails it.");
 
 // The student is told about the confirmed item, not an uncertain one that happens to be listed first.
 const deskResult = await analyzeAngleCapture({

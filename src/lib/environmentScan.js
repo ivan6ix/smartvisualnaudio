@@ -40,13 +40,14 @@ export const DUPLICATE_VIEW_DISTANCE = 4;
 // floor: lowest confidence considered at all; flag: confirmed when seen in 2+ frames;
 // strong: confirmed from a single frame. Anything between floor and a confirmation is uncertain and approved.
 // countBased rules allow `allowed` instances per frame (the student).
-// steps: which scan steps a rule judges. Items only count on the desk check, where they would be within reach;
-// the room sweep only looks for another person, so things elsewhere in the room never fail the scan.
+// steps: which scan steps a rule judges. Most items only count on the desk check, where they would be within reach;
+// the room sweep looks for another person and a phone, so other things elsewhere in the room never fail the scan.
+// instant: one clear sighting (at the flag confidence, from a reliable detector) confirms it, as during the exam.
 // Rules match in order, so "laptop screen" is a laptop.
 const DESK_ONLY = ["desk"];
 export const DETECTION_RULES = [
   { category: "smartwatch", label: "Smartwatch", match: /\bsmart ?watch(es)?\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: DESK_ONLY },
-  { category: "phone", label: "Phone", match: /\b(cell ?phones?|mobile ?phones?|smart ?phones?|phones?|iphones?|android( phone)?|handphones?|cellular( phone)?|mobile)\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: DESK_ONLY },
+  { category: "phone", label: "Phone", match: /\b(cell ?phones?|mobile ?phones?|smart ?phones?|phones?|iphones?|android( phone)?|handphones?|cellular( phone)?|mobile)\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: ["sweep", "desk"], instant: true },
   { category: "tablet", label: "Tablet", match: /\b(tablets?|ipads?)\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: DESK_ONLY },
   { category: "calculator", label: "Calculator", match: /\bcalculators?\b/, floor: 0.3, flag: 0.5, strong: 0.75, steps: DESK_ONLY },
   // Any reliably detected laptop is prohibited, including a single one.
@@ -200,7 +201,7 @@ export function classifyAngleDetections({ angleId, frames = [] }) {
     if (!framesAtFloor) return;
     const confirmed = rule.countBased
       ? framesAtFlag >= consensusFrames || maxConfidence >= rule.strong
-      : maxConfidence >= rule.strong || (framesAtFlag >= 1 && framesAtFloor >= consensusFrames);
+      : maxConfidence >= rule.strong || (rule.instant && framesAtFlag >= 1) || (framesAtFlag >= 1 && framesAtFloor >= consensusFrames);
     // Not sure it is really there: approve instead of sending the student back.
     if (!confirmed) return;
 
@@ -214,7 +215,9 @@ export function classifyAngleDetections({ angleId, frames = [] }) {
       severity: "risk",
       reason: rule.category === "person"
         ? `Another person was detected (${percent(maxConfidence)}). Make sure you are alone, then retake this step.`
-        : `${rule.label} detected (${percent(maxConfidence)}) on your desk. Remove it, then retake this step.`,
+        : angleId === "desk"
+          ? `${rule.label} detected (${percent(maxConfidence)}) on your desk. Remove it, then retake this step.`
+          : `${rule.label} detected (${percent(maxConfidence)}) in your room. Put it away out of reach, then retake this step.`,
     });
   });
 
@@ -364,21 +367,22 @@ export const SWEEP_MAX_MS = 120000;
 // Samples are measured on a small grayscale picture of this size.
 export const TURN_ANALYSIS_WIDTH = 160;
 export const TURN_ANALYSIS_HEIGHT = 90;
-// Typical laptop webcam width of view. Turns a sideways slide (share of the picture width) into degrees.
-export const CAMERA_HORIZONTAL_FOV_DEGREES = 65;
+// Laptop webcams see about 65-80 degrees across. A sideways slide (share of the picture width) times this is the
+// turn; the wider end is used so a real full turn is not undercounted on wide cameras.
+export const CAMERA_HORIZONTAL_FOV_DEGREES = 75;
 // Largest slide looked for between two pictures, as a share of the width (about 13 degrees). A bigger jump in
 // 0.2 s means the camera turned too fast to follow, and that part of the turn is not counted.
 export const TURN_MAX_SHIFT_RATIO = 0.2;
 // How alike two pictures must be at the best slide to trust it; below this the camera lost track
 // (too fast, too dark, or a plain wall with nothing to follow).
-export const TURN_MIN_MATCH = 0.6;
+export const TURN_MIN_MATCH = 0.55;
 // Slides of a pixel or less are camera noise, not turning.
 export const TURN_DEAD_ZONE_PX = 1;
 export const SWEEP_FULL_TURN_DEGREES = 360;
 // Done unlocks this close to a full turn. The degree estimate depends on the camera's real width of view, so a
 // full turn can read a little short; coming back to the starting view after most of a turn also finishes it.
 export const SWEEP_DONE_DEGREES = 330;
-export const SWEEP_RETURN_MIN_DEGREES = 300;
+export const SWEEP_RETURN_MIN_DEGREES = 240;
 // Ending this close (view distance) to one of the first samples counts as being back at the start. The first few
 // samples are used because the very first one is often taken while the student is still settling.
 export const SWEEP_RETURN_DISTANCE = 20;
@@ -387,6 +391,9 @@ export const SWEEP_START_VIEWS = 3;
 export const SWEEP_IMAGE_STEP_DEGREES = 30;
 // At most this many photos are sent to the detectors, spread evenly over the sweep.
 export const SWEEP_MAX_FRAMES = 12;
+// When a few pictures in a row cannot be matched (motion blur, the camera adjusting its brightness), the turn keeps
+// counting at the speed measured just before, for at most this long. A still camera has no speed, so it adds nothing.
+export const TURN_CARRY_MS = 1200;
 // How long a "too fast" or "lost track" hint stays up after it happened.
 export const SWEEP_HINT_MS = 1500;
 
@@ -526,6 +533,9 @@ export function createSweep(startedAt) {
     lastSignature: null,
     tooFastAt: null,
     lostAt: null,
+    // Degrees per millisecond from the latest matched pictures, and when the last match was.
+    speed: 0,
+    lastMatchedAt: null,
   };
 }
 
@@ -534,23 +544,39 @@ export function createSweep(startedAt) {
 export function recordSweepSample(sweep, { profile, signature, timestamp, getImage = null }) {
   const width = profile?.length || 0;
   const maxShift = Math.max(2, Math.round(width * TURN_MAX_SHIFT_RATIO));
-  let { heading, anchor, tooFastAt, lostAt } = sweep;
+  let { heading, anchor, tooFastAt, lostAt, speed, lastMatchedAt } = sweep;
+  const elapsed = Math.max(1, timestamp - sweep.lastAt);
 
   if (!anchor) {
     anchor = { profile, heading };
+    lastMatchedAt = timestamp;
   } else {
+    let matched = false;
     // Measured against a fixed reference picture so slow turns add up and noise does not.
     const fromAnchor = estimateTurnShift(anchor.profile, profile, maxShift);
     if (isReliableShift(fromAnchor)) {
       heading = anchor.heading + shiftToDegrees(fromAnchor.shift, width);
       if (Math.abs(fromAnchor.shift) >= maxShift / 2) anchor = { profile, heading };
+      matched = true;
     } else {
       // The view changed too much for the reference: try the previous sample, then start a new reference here.
       const fromLast = sweep.lastSample ? estimateTurnShift(sweep.lastSample.profile, profile, maxShift) : null;
-      if (isReliableShift(fromLast)) heading = sweep.lastSample.heading + shiftToDegrees(fromLast.shift, width);
-      else if (fromAnchor?.atEdge || fromLast?.atEdge) tooFastAt = timestamp;
-      else lostAt = timestamp;
+      if (isReliableShift(fromLast)) {
+        heading = sweep.lastSample.heading + shiftToDegrees(fromLast.shift, width);
+        matched = true;
+      } else {
+        // Not matched: keep counting at the recent speed for a short while, so blur or exposure changes during a turn
+        // do not lose that part of it.
+        if (lastMatchedAt !== null && timestamp - lastMatchedAt <= TURN_CARRY_MS) heading += speed * elapsed;
+        if (fromAnchor?.atEdge || fromLast?.atEdge) tooFastAt = timestamp;
+        else lostAt = timestamp;
+      }
       anchor = { profile, heading };
+    }
+    if (matched) {
+      // Smoothed turning speed, used only to carry the count through short unmatched stretches.
+      speed = 0.5 * speed + 0.5 * ((heading - sweep.heading) / elapsed);
+      lastMatchedAt = timestamp;
     }
   }
 
@@ -569,6 +595,8 @@ export function recordSweepSample(sweep, { profile, signature, timestamp, getIma
     lastAt: timestamp,
     tooFastAt,
     lostAt,
+    speed,
+    lastMatchedAt,
   };
 }
 

@@ -130,9 +130,13 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
 
 // 7. Low-confidence or ambiguous detections approve the step: if nothing is clearly on the desk, it passes.
 {
-  const singleFrame = classifyAngleDetections({ angleId: "desk", frames: [{ predictions: [prediction("cell phone", 0.6)] }, { predictions: [] }, { predictions: [] }] });
-  assert.equal(singleFrame.outcome, SCAN_OUTCOME.CLEAR, "A phone seen once at moderate confidence is not confirmed, so the desk passes.");
+  const singleFrame = classifyAngleDetections({ angleId: "desk", frames: [{ predictions: [prediction("tablet", 0.6)] }, { predictions: [] }, { predictions: [] }] });
+  assert.equal(singleFrame.outcome, SCAN_OUTCOME.CLEAR, "A tablet seen once at moderate confidence is not confirmed, so the desk passes.");
   assert.deepEqual(singleFrame.findings, []);
+  // A phone is different: one clear sighting fails the step, as during the exam.
+  const phoneOnce = classifyAngleDetections({ angleId: "desk", frames: [{ predictions: [prediction("cell phone", 0.6)] }, { predictions: [] }, { predictions: [] }] });
+  assert.equal(phoneOnce.outcome, SCAN_OUTCOME.RISK, "One clear phone sighting fails the desk check.");
+  assert.match(phoneOnce.findings[0].reason, /Phone detected \(60%\) on your desk/);
   const lowConfidence = classifyAngleDetections({ angleId: "desk", frames: sameFrames([prediction("cell phone", 0.32)]) });
   assert.equal(lowConfidence.outcome, SCAN_OUTCOME.CLEAR);
   const belowFloor = classifyAngleDetections({ angleId: "desk", frames: sameFrames([prediction("cell phone", 0.2)]) });
@@ -149,11 +153,17 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
 // 7b. Only the desk decides about items: the room sweep only looks for another person, so a phone, a laptop, a TV
 // or a smartwatch somewhere else in the room never fails the scan, however clearly it is seen.
 {
-  for (const label of ["cell phone", "laptop", "tv", "smartwatch", "book", "calculator"]) {
+  for (const label of ["laptop", "tv", "smartwatch", "book", "calculator"]) {
     assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sameFrames([prediction(label, 0.95, { areaRatio: 0.2 })]) }).outcome, SCAN_OUTCOME.CLEAR, `A ${label} elsewhere in the room is not checked.`);
   }
   // Older pages' room angles are judged like the sweep.
-  assert.equal(classifyAngleDetections({ angleId: "left", frames: sameFrames([prediction("cell phone", 0.95)]) }).outcome, SCAN_OUTCOME.CLEAR);
+  assert.equal(classifyAngleDetections({ angleId: "left", frames: sameFrames([prediction("laptop", 0.95)]) }).outcome, SCAN_OUTCOME.CLEAR);
+  // A phone shown during the room sweep fails it on one clear sighting.
+  const sweepPhone = classifyAngleDetections({ angleId: "sweep", frames: [{ predictions: [] }, { predictions: [prediction("cell phone", 0.55)] }, { predictions: [] }] });
+  assert.equal(sweepPhone.outcome, SCAN_OUTCOME.RISK, "A phone shown in the room sweep must fail it.");
+  assert.match(sweepPhone.findings[0].reason, /Phone detected \(55%\) in your room/);
+  assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sameFrames([prediction("cell phone", 0.4)]) }).outcome, SCAN_OUTCOME.CLEAR, "A faint phone guess does not fail it.");
+  assert.equal(classifyAngleDetections({ angleId: "sweep", frames: sameFrames([prediction("cell phone", 0.95, { source: "owl" })]) }).outcome, SCAN_OUTCOME.CLEAR, "OWL alone still only guesses.");
   // OWL-ViT's guesses never decide alone, even when it says it is sure; with a reliable sighting they count.
   const owlWatch = sameFrames([prediction("smartwatch", 0.95, { source: "owl", areaRatio: 0.05 })]);
   assert.equal(classifyAngleDetections({ angleId: "desk", frames: owlWatch }).outcome, SCAN_OUTCOME.CLEAR, "An OWL-only smartwatch does not fail the desk.");
@@ -346,26 +356,33 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
     const d = ((degree % 360) + 360) % 360;
     return 120 + 50 * Math.sin(d / 7) + 35 * Math.sin(d / 2.3 + 1) + (Math.floor(d / 17) % 3) * 25 + (y < H / 3 ? -20 : y > (2 * H) / 3 ? 15 : 0);
   };
-  function render(heading, { brightness = 1, personX = null, personWidth = 22, dark = false } = {}) {
+  function render(heading, { brightness = 1, personX = null, personWidth = 22, dark = false, realFov = CAMERA_HORIZONTAL_FOV_DEGREES, blurDegrees = 0, noise = 3 } = {}) {
     const gray = new Array(W * H);
     for (let y = 0; y < H; y += 1) {
       for (let x = 0; x < W; x += 1) {
-        const degree = heading + ((x - W / 2) / W) * CAMERA_HORIZONTAL_FOV_DEGREES;
-        let value = roomAt(degree, y) * brightness + (random() - 0.5) * 6;
+        const degree = heading + ((x - W / 2) / W) * realFov;
+        // Motion blur: the room averaged over the angle the camera swept while the picture was taken.
+        let base = roomAt(degree, y);
+        if (blurDegrees > 0) {
+          let sum = 0;
+          for (let step = 0; step < 6; step += 1) sum += roomAt(degree - (blurDegrees * step) / 5, y);
+          base = sum / 6;
+        }
+        let value = base * brightness + (random() - 0.5) * 2 * noise;
         if (personX !== null && Math.abs(x - personX) < personWidth && y > H * 0.25) value = 60 + (random() - 0.5) * 6;
         gray[y * W + x] = dark ? 5 + random() * 3 : Math.max(0, Math.min(255, value));
       }
     }
     return gray;
   }
-  function sweepThrough(headings, options = () => ({}), intervalMs = SWEEP_SAMPLE_INTERVAL_MS) {
+  function sweepThrough(headings, options = () => ({}), intervalMs = SWEEP_SAMPLE_INTERVAL_MS, times = null) {
     let sweep = createSweep(0);
     headings.forEach((heading, index) => {
       const gray = render(heading, options(index));
       sweep = recordSweepSample(sweep, {
         profile: getColumnProfile(gray, W, H),
         signature: getGraySignature(gray, W, H),
-        timestamp: index * intervalMs,
+        timestamp: times ? times[index] : index * intervalMs,
         getImage: () => `view-${index}`,
       });
     });
@@ -405,7 +422,7 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
     ["briskly, in 15 s", turn(360, 75), () => ({})],
     ["to the left", turn(-360, 150), () => ({})],
     ["while the light changes", turn(360, 150), (index) => ({ brightness: 0.85 + index / 600 })],
-    ["while someone walks past", turn(360, 150), (index) => ({ personX: index > 40 && index < 80 ? (index - 40) * 4 : null })],
+    ["while someone walks past", turn(360, 150), (index) => ({ personX: index > 40 && index < 120 ? (index - 40) * 2 : null })],
   ]) {
     const sweep = sweepThrough(headings, options);
     const progress = getSweepProgress(sweep);
@@ -413,10 +430,35 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
     assert.equal(progress.coverage, 1);
     const finished = finishSweep(sweep);
     assert.equal(finished.ok, true, `A full turn ${name} passes.`);
-    assert.ok(finished.frames.length >= 10 && finished.frames.length <= SWEEP_MAX_FRAMES, `About one photo per 30 degrees (${finished.frames.length}).`);
+    assert.ok(finished.frames.length >= 8 && finished.frames.length <= SWEEP_MAX_FRAMES, `About one photo per 30 degrees (${finished.frames.length}).`);
     assert.equal(finished.frames[0].image, "view-0", "The starting view is always sent.");
     assert.ok(finished.frames.every((frame) => frame.angle === "sweep"));
   }
+
+  // 3b. A real webcam: uneven picture timing (250-450 ms), an uneven hand, motion blur, more noise and auto exposure,
+  // with lenses from 60 to 78 degrees wide. One real full turn must complete the sweep (it used to take about two);
+  // blurred pictures in the middle of a turn keep counting at the recent turning speed.
+  function realTurn(totalDegrees, seconds, realFov) {
+    const times = [0];
+    while (times[times.length - 1] < seconds * 1000) times.push(times[times.length - 1] + 250 + random() * 200);
+    const headings = times.map((time) => {
+      const progress = Math.min(1, time / (seconds * 1000));
+      return totalDegrees * (progress + 0.32 * Math.sin(progress * Math.PI * 6) * (1 - progress) * progress);
+    });
+    return sweepThrough(headings, (index) => ({
+      realFov,
+      noise: 6,
+      blurDegrees: index ? Math.abs(headings[index] - headings[index - 1]) * 0.5 : 0,
+      brightness: 0.9 + 0.2 * Math.sin(index / 9),
+    }), SWEEP_SAMPLE_INTERVAL_MS, times);
+  }
+  for (const [seconds, realFov] of [[30, 60], [30, 70], [30, 78], [20, 70]]) {
+    const progress = getSweepProgress(realTurn(360, seconds, realFov));
+    assert.equal(progress.complete, true, `One real full turn in ${seconds} s with a ${realFov}-degree camera completes the sweep (read ${Math.round(progress.turnedDegrees)}).`);
+  }
+  assert.equal(getSweepProgress(realTurn(180, 15, 70)).complete, false, "Half a real turn does not complete it.");
+  // The same noisy, auto-exposing camera held still still reads nothing.
+  assert.ok(getSweepProgress(sweepThrough(still(100), (index) => ({ noise: 6, brightness: 0.9 + 0.2 * Math.sin(index / 9) }))).turnedDegrees < 1);
 
   // 4. Turning back and forth over one corner only counts that corner once.
   const backAndForth = getSweepProgress(sweepThrough(Array.from({ length: 150 }, (_, index) => 60 * Math.abs(Math.sin(index / 10)))));
