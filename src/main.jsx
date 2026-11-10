@@ -11,6 +11,13 @@ import "./styles.css";
 import "./student-portal.css";
 import "./responsive.css";
 import { queryClient, queryPersistOptions } from "./lib/queryClient";
+import AppErrorBoundary from "./components/AppErrorBoundary.jsx";
+import { reloadForNewVersion } from "./lib/chunkReload";
+
+// Vite reports page files that failed to load (usually old ones after a new release): reload once for the new version.
+window.addEventListener("vite:preloadError", (event) => {
+  if (reloadForNewVersion()) event.preventDefault();
+});
 
 const rootElement = window.document.documentElement;
 let initialTheme = DEFAULT_THEME;
@@ -25,6 +32,7 @@ rootElement.style.colorScheme = initialTheme;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
+    <AppErrorBoundary>
     <BrowserRouter>
       <PersistQueryClientProvider client={queryClient} persistOptions={queryPersistOptions}>
         <AuthProvider>
@@ -37,5 +45,6 @@ ReactDOM.createRoot(document.getElementById("root")).render(
         </AuthProvider>
       </PersistQueryClientProvider>
     </BrowserRouter>
+    </AppErrorBoundary>
   </React.StrictMode>,
 );

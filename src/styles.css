@@ -20048,6 +20048,39 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   justify-self: end;
 }
 /* A small one-line button, so each exam row stays short. */
+/* Shown instead of a blank screen when a page fails to draw. */
+.app-crash {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--app-bg);
+  color: var(--app-text);
+}
+.app-crash-card {
+  display: grid;
+  gap: 12px;
+  justify-items: start;
+  max-width: 440px;
+  padding: 24px;
+  border: 1px solid var(--app-line);
+  border-radius: 16px;
+  background: var(--app-bg-secondary);
+}
+.app-crash-card h1 {
+  margin: 0;
+  font-size: 1.25rem;
+}
+.app-crash-card p {
+  margin: 0;
+  color: var(--app-text-muted);
+}
+.app-crash-card code {
+  max-width: 100%;
+  overflow-wrap: break-word;
+  font-size: 0.8rem;
+  color: var(--app-text-muted);
+}
 .scan-history-row .btn.scan-history-view {
   min-height: 0;
   padding: 6px 12px;
