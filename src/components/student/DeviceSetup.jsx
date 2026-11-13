@@ -55,6 +55,9 @@ export default function DeviceSetup({ microphoneRequired, onContinue }) {
   const streamRef = useRef(null);
   const audioContextRef = useRef(null);
   const frameRef = useRef(0);
+  // Bumped whenever the devices are stopped, so a camera request still pending when the step closes (or when another
+  // device is picked) stops its stream instead of leaving the camera and microphone on in the background.
+  const openIdRef = useRef(0);
   const [choice, setChoice] = useState(() => loadDeviceChoice(window.localStorage));
   const [devices, setDevices] = useState({ cameras: [], microphones: [], speakers: [] });
   const [status, setStatus] = useState("starting");
@@ -68,6 +71,7 @@ export default function DeviceSetup({ microphoneRequired, onContinue }) {
   const speakerChoiceSupported = typeof window.HTMLMediaElement !== "undefined" && "setSinkId" in window.HTMLMediaElement.prototype;
 
   const stopDevices = useCallback(() => {
+    openIdRef.current += 1;
     window.cancelAnimationFrame(frameRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
     streamRef.current = null;
@@ -83,6 +87,7 @@ export default function DeviceSetup({ microphoneRequired, onContinue }) {
 
   const openDevices = useCallback(async (wanted) => {
     stopDevices();
+    const openId = openIdRef.current;
     setStatus("starting");
     setError("");
     setCameraWorks(false);
@@ -102,6 +107,10 @@ export default function DeviceSetup({ microphoneRequired, onContinue }) {
         // A remembered device that was unplugged: fall back to the browser's default devices.
         if (!["OverconstrainedError", "NotFoundError"].includes(firstError?.name) || (!wanted.cameraId && !wanted.microphoneId)) throw firstError;
         stream = await request({ cameraId: "", microphoneId: "" });
+      }
+      if (openIdRef.current !== openId) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
       }
       streamRef.current = stream;
       const videoTrack = stream.getVideoTracks()[0];
@@ -147,6 +156,7 @@ export default function DeviceSetup({ microphoneRequired, onContinue }) {
       }, list));
       setStatus("ready");
     } catch (openError) {
+      if (openIdRef.current !== openId) return;
       window.console.error("[DeviceSetup]", openError);
       setStatus("error");
       setError(deviceError(openError));

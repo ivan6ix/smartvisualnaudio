@@ -1,3 +1,4 @@
+/* global URL, console */
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync } from "node:fs";
 

@@ -73,5 +73,16 @@ const setup = readFileSync("src/components/student/DeviceSetup.jsx", "utf8");
 assert.match(setup, /saveDeviceChoice\(window\.localStorage, choice\);\s+stopDevices\(\);\s+onContinue\(choice\);/, "Continuing saves the choice and releases the camera and microphone for the scan.");
 assert.match(setup, /addEventListener\?\.\("devicechange"/, "Plugging in a device refreshes the lists.");
 assert.match(setup, /audio\.setSinkId\(choice\.speakerId\)/, "The test sound plays on the chosen speaker where supported.");
+// A camera request still pending when the step closes stops its stream instead of leaving the camera on.
+assert.match(setup, /const stopDevices = useCallback\(\(\) => \{\s+openIdRef\.current \+= 1;/);
+assert.match(setup, /stopDevices\(\);\s+const openId = openIdRef\.current;/);
+assert.match(setup, /if \(openIdRef\.current !== openId\) \{\s+stream\.getTracks\(\)\.forEach\(\(track\) => track\.stop\(\)\);\s+return;\s+\}\s+streamRef\.current = stream;/);
+
+// Exams without a scan never show device setup, so they never ask for camera or microphone access before starting.
+assert.match(exam, /if \(examSettings\.requireEnvironmentScan && \(!scanPassed \|\| scanOpen\)\) \{/);
+// An exam the student cannot open shows why, instead of loading forever.
+assert.match(exam, /if \(!examRow\) \{\s+failLoad\("This exam is not available for your account\./);
+assert.match(exam, /if \(loadError\) \{[\s\S]*?Exam unavailable[\s\S]*?\{loadError\}/);
+assert.doesNotMatch(exam.slice(exam.indexOf("async function loadExam()"), exam.indexOf("setProgressReady(true);")), /toast\.error\(/, "Every load failure goes through failLoad.");
 
 console.log("Device setup checks passed.");

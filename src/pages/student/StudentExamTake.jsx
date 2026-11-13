@@ -409,6 +409,8 @@ export default function StudentExamTake() {
   const [interruptionState, setInterruptionState] = useState(() => normalizeInterruptionState());
   const [submissionError, setSubmissionError] = useState("");
   const [progressReady, setProgressReady] = useState(false);
+  // Why the exam could not be opened (not found, not available to this student, or a load error); empty while fine.
+  const [loadError, setLoadError] = useState("");
   const answersRef = useRef({});
   const filesRef = useRef({});
   const touchedAnswersRef = useRef(new Set());
@@ -554,6 +556,7 @@ export default function StudentExamTake() {
     if (!hasSupabaseConfig || !examId || !user?.id) return;
     let cancelled = false;
     setProgressReady(false);
+    setLoadError("");
     setAutoSubmitRequired(false);
     setInterruptionAutoSubmitRequired(false);
     setInterruptionState(normalizeInterruptionState());
@@ -572,6 +575,13 @@ export default function StudentExamTake() {
     violationsRef.current = [];
     filesRef.current = {};
     setFiles({});
+
+    // A load that cannot finish shows why, instead of leaving the page on the loading message.
+    function failLoad(message, { notify = true } = {}) {
+      if (cancelled) return;
+      if (notify) toast.error(message);
+      setLoadError(message);
+    }
 
     async function loadExam() {
       let examRow = null;
@@ -594,11 +604,16 @@ export default function StudentExamTake() {
         .rpc("get_student_exam_questions", { p_exam_id: examId });
 
       if (examError) {
-        toast.error(examError.message);
+        failLoad(examError.message);
         return;
       }
       if (questionsError) {
-        toast.error(questionsError.message);
+        failLoad(questionsError.message);
+        return;
+      }
+      // No row and no error: the exam does not exist, was removed, or is not shared with this student.
+      if (!examRow) {
+        failLoad("This exam is not available for your account. It may have been removed, or the link is for another course.", { notify: false });
         return;
       }
 
@@ -625,7 +640,7 @@ export default function StudentExamTake() {
         .eq("student_id", user.id);
 
       if (attemptsError) {
-        toast.error(attemptsError.message);
+        failLoad(attemptsError.message);
         return;
       }
 
@@ -637,7 +652,7 @@ export default function StudentExamTake() {
         .eq("status", "Reopened")
         .limit(1);
       if (reopenedError) {
-        toast.error(reopenedError.message);
+        failLoad(reopenedError.message);
         return;
       }
       const reopened = reopenedRows?.[0] || null;
@@ -650,7 +665,7 @@ export default function StudentExamTake() {
         .eq("student_id", user.id)
         .maybeSingle();
       if (startSessionError) {
-        toast.error(`Unable to load interruption state: ${startSessionError.message}`);
+        failLoad(`Unable to load interruption state: ${startSessionError.message}`);
         return;
       }
       setInterruptionState(normalizeInterruptionState(startSession || {}));
@@ -694,7 +709,7 @@ export default function StudentExamTake() {
           .select("id, violation_type, description, severity, created_at")
           .eq("student_id", user.id).eq("exam_id", examId).gte("created_at", saved.startedAt);
         if (violationError) {
-          toast.error(`Unable to restore exam violations: ${violationError.message}. Refresh to retry.`);
+          failLoad(`Unable to restore exam violations: ${violationError.message}. Refresh to retry.`);
           return;
         }
         if (cancelled) return;
@@ -3086,6 +3101,26 @@ export default function StudentExamTake() {
   }
 
   if (!hasSupabaseConfig) return <PageHeader title="Exam" subtitle="Live Supabase exam taking is required." />;
+  if (loadError) {
+    return (
+      <main className="student-exam-blocked-page">
+        <Card className="student-exam-blocked-card">
+          <div className="student-exam-blocked-heading">
+            <div>
+              <span>Exam unavailable</span>
+              <h1>This exam could not be opened</h1>
+            </div>
+            <FiXCircle />
+          </div>
+          <p className="student-exam-blocked-message">{loadError}</p>
+          <div className="student-exam-blocked-actions">
+            <Button onClick={() => navigate("/student")}>Back to Dashboard</Button>
+            <Button onClick={() => window.location.reload()}>Try Again</Button>
+          </div>
+        </Card>
+      </main>
+    );
+  }
   if (!exam || !progressReady) return <main className="center-screen">Loading exam and saved progress...</main>;
 
   if (!attemptEligibility.allowed && !reopenedAttempt) {
@@ -3190,7 +3225,9 @@ export default function StudentExamTake() {
     );
   }
 
-  if (!scanPassed || scanOpen) {
+  // The device setup and scan steps exist only for exams that require a scan; otherwise the student would be asked
+  // for camera and microphone access on an exam that never uses them.
+  if (examSettings.requireEnvironmentScan && (!scanPassed || scanOpen)) {
     // Step 1: pick and test the camera and microphone before the scan starts.
     if (!deviceSetupDone && scanStatus !== "scanning" && scanStatus !== "passed") {
       return (
