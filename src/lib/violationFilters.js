@@ -49,3 +49,16 @@ export function countByViolationType(rows) {
   rows.forEach((row) => counts.set(row.violationType, (counts.get(row.violationType) || 0) + 1));
   return [...counts.entries()].map(([name, count]) => ({ name, count })).sort((left, right) => right.count - left.count || left.name.localeCompare(right.name));
 }
+
+// Integrity Records' own filters on the Exam Integrity page: the same choices as Violation Analytics plus whether
+// a record has evidence, kept separate so each panel can be narrowed on its own.
+export const RECORD_EVIDENCE = ["All Evidence", "With Evidence", "No Evidence"];
+export const ALL_RECORD_FILTERS = { ...ALL_FILTERS, evidence: RECORD_EVIDENCE[0] };
+
+export function filterRecords(rows, filters, now = new Date()) {
+  return filterViolations(rows, filters, now).filter((row) => (
+    filters.evidence === "With Evidence" ? row.hasEvidence
+      : filters.evidence === "No Evidence" ? !row.hasEvidence
+        : true
+  ));
+}

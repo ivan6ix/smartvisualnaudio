@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 
 import { buildDeanAnalytics } from "../src/lib/deanAnalytics.js";
-import { ALL_FILTERS, VIOLATION_DATE_RANGES, countByViolationType, filterViolations, getRangeStart, violationFilterOptions } from "../src/lib/violationFilters.js";
+import { ALL_FILTERS, ALL_RECORD_FILTERS, VIOLATION_DATE_RANGES, countByViolationType, filterRecords, filterViolations, getRangeStart, violationFilterOptions } from "../src/lib/violationFilters.js";
 
 // Shared Violation Analytics filters (dean dashboard and exam integrity pages).
 const now = new Date("2026-11-02T12:00:00");
@@ -78,12 +78,16 @@ assert.match(layout, /label: "Monitoring"[\s\S]*label: "Analytics", to: "\/profe
 assert.match(readFileSync("src/pages/professor/ProfessorAnalytics.jsx", "utf8"), /<DeanAnalytics scope="professor" \/>/);
 assert.match(readFileSync("src/pages/professor/ProfessorExamIntegrity.jsx", "utf8"), /<DeanExamIntegrity scope="professor" \/>/);
 assert.match(analytics, /queryKey: \[`\$\{scope\}-analytics`, user\?\.id\]/, "Cached results are kept per role and per user.");
-assert.match(analytics, /const AT_RISK_PAGE_SIZE = 10;/);
-assert.match(analytics, /<ListPagination count=\{atRiskRows\.length\} page=\{atRiskPage\.page\} pageSize=\{AT_RISK_PAGE_SIZE\}/, "Students at risk are shown 10 per page.");
+assert.match(analytics, /const AT_RISK_PAGE_SIZE = 5;/);
+assert.match(analytics, /<ListPagination count=\{atRiskRows\.length\} page=\{atRiskPage\.page\} pageSize=\{AT_RISK_PAGE_SIZE\}/, "Students at risk are shown 5 per page.");
 assert.match(analytics, /label="Course"[\s\S]*label="Exam"[\s\S]*Reset Filters/);
 assert.match(analytics, /<SearchBox value=\{search\}/);
 assert.match(analytics, /label="Risk"[\s\S]*label="Section"[\s\S]*label="Score Trend"/, "Students at risk have their own filters.");
-assert.match(integrity, /isProfessor \? filterViolations\(violations, filters\)/);
+assert.match(integrity, /const filteredViolations = useMemo\(\(\) => filterViolations\(violations, filters\)/, "Violation Analytics keeps its own filters.");
+// Integrity Records have their own filters, including evidence.
+assert.deepEqual(filterRecords(rows.map((item, index) => ({ ...item, hasEvidence: index === 0 })), { ...ALL_RECORD_FILTERS, evidence: "With Evidence" }, now).length, 1);
+assert.deepEqual(filterRecords(rows.map((item, index) => ({ ...item, hasEvidence: index === 0 })), { ...ALL_RECORD_FILTERS, evidence: "No Evidence" }, now).length, rows.length - 1);
+assert.equal(filterRecords(rows, ALL_RECORD_FILTERS, now).length, filterViolations(rows, ALL_FILTERS, now).length);
 assert.match(integrity, /<h2>Violation Analytics<\/h2>/);
 assert.match(dashboard, /filterViolations\(violations, \{/, "The dean dashboard uses the same filters.");
 assert.match(readFileSync("src/styles.css", "utf8"), /:is\(\.dean-shell, \.dean-integrity-page\) \.dean-integrity-link \{/, "Evidence links look the same for both roles.");

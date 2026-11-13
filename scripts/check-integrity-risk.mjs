@@ -1,6 +1,8 @@
 /* global console */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
+import { wrapLabel } from "../src/lib/chartLabels.js";
+import { ALL_RISK_FILTERS, filterRiskReview, riskFilterOptions } from "../src/lib/riskReviewFilters.js";
 
 import {
   RISK_RULES,
@@ -121,5 +123,60 @@ assert.match(deanPage, /<IntegrityReview/);
 assert.match(deanPage, /from\("exam_attempts"\)/);
 const panel = readFileSync("src/components/exam/IntegrityReview.jsx", "utf8");
 assert.match(panel, /only orders attempts for review/i, "The panel must say a person decides.");
+// The review queue shows 5 attempts per page with Previous and Next.
+assert.match(panel, /const PAGE_SIZE = 5;/);
+assert.match(panel, /<ListPagination count=\{visible\.length\} page=\{queuePage\.page\} pageSize=\{PAGE_SIZE\} onPage=\{setPage\} \/>/);
+assert.doesNotMatch(panel, /Show more/);
+// The timeline's bars fill the card instead of floating above empty space.
+assert.match(panel, /integrity-review-timeline-card/);
+
+// Every bar in the alerts-by-type charts keeps its name: labels wrap instead of being skipped.
+for (const file of ["src/pages/dean/DeanExamIntegrity.jsx", "src/pages/dean/DeanDashboard.jsx", "src/pages/professor/ProfessorDashboard.jsx", "src/pages/Dashboard.jsx"]) {
+  assert.match(readFileSync(file, "utf8"), /dataKey="name" interval=\{0\} height=\{WRAPPED_AXIS_HEIGHT\} tick=\{<WrappedAxisTick fill=\{chartTheme\.axis\} \/>\}/, file);
+}
+assert.deepEqual(wrapLabel("Microphone muted or silent", 12), ["Microphone", "muted or", "silent"]);
+assert.deepEqual(wrapLabel("Tab switch attempt", 30), ["Tab switch attempt"]);
+assert.deepEqual(wrapLabel("a b c d e f g h", 1, 3), ["a", "b", "c…"], "At most three lines, cut with an ellipsis.");
+assert.deepEqual(wrapLabel(undefined, 10), []);
+
+// The Risk review's own filters: search, course and exam narrow the counts, the queue and the charts; the risk
+// level only narrows the queue.
+const reviewRisk = {
+  rows: [
+    { key: "e1|s1", examId: "e1", studentId: "s1", level: "High", studentName: "Ana Cruz", studentDetail: "2026-1", examTitle: "Midterm", courseLabel: "CS101 - A" },
+    { key: "e1|s2", examId: "e1", studentId: "s2", level: "Low", studentName: "Ben Reyes", studentDetail: "2026-2", examTitle: "Midterm", courseLabel: "CS101 - A" },
+    { key: "e2|s1", examId: "e2", studentId: "s1", level: "Medium", studentName: "Ana Cruz", studentDetail: "2026-1", examTitle: "Quiz 1", courseLabel: "IT201 - B" },
+  ],
+  violations: [
+    { exam_id: "e1", student_id: "s1", violation_type: "TAB_SWITCH", created_at: "2026-11-01T01:00:00Z" },
+    { exam_id: "e2", student_id: "s1", violation_type: "NO_FACE", created_at: "2026-11-02T01:00:00Z" },
+  ],
+  attempts: [
+    { exam_id: "e1", student_id: "s1", started_at: "2026-11-01T00:30:00Z", submitted_at: "2026-11-01T01:30:00Z" },
+    { exam_id: "e1", student_id: "s2", started_at: "2026-11-01T00:30:00Z", submitted_at: "2026-11-01T01:30:00Z" },
+    { exam_id: "e2", student_id: "s1", started_at: "2026-11-02T00:30:00Z", submitted_at: "2026-11-02T01:30:00Z" },
+  ],
+};
+const everything = filterRiskReview(reviewRisk, ALL_RISK_FILTERS);
+assert.equal(everything.rows.length, 3);
+assert.equal(everything.summary.attemptCount, 3);
+assert.equal(everything.summary.violationCount, 2);
+const byCourse = filterRiskReview(reviewRisk, { ...ALL_RISK_FILTERS, course: "CS101 - A" });
+assert.deepEqual(byCourse.rows.map((row) => row.key), ["e1|s1", "e1|s2"]);
+assert.equal(byCourse.summary.violationCount, 1, "Alerts from other courses leave the counts and charts.");
+assert.equal(byCourse.summary.attemptCount, 2);
+assert.deepEqual(filterRiskReview(reviewRisk, { ...ALL_RISK_FILTERS, exam: "e2" }).rows.map((row) => row.key), ["e2|s1"]);
+assert.deepEqual(filterRiskReview(reviewRisk, { ...ALL_RISK_FILTERS, search: "ben" }).rows.map((row) => row.key), ["e1|s2"]);
+assert.deepEqual(filterRiskReview(reviewRisk, { ...ALL_RISK_FILTERS, search: "2026-1" }).rows.map((row) => row.key), ["e1|s1", "e2|s1"]);
+const highOnly = filterRiskReview(reviewRisk, { ...ALL_RISK_FILTERS, level: "High" });
+assert.deepEqual(highOnly.rows.map((row) => row.key), ["e1|s1"]);
+assert.equal(highOnly.summary.attemptCount, 3, "The risk level narrows only the queue.");
+assert.deepEqual(riskFilterOptions(reviewRisk.rows).courses, ["CS101 - A", "IT201 - B"]);
+assert.deepEqual(riskFilterOptions(reviewRisk.rows, "IT201 - B").exams, [{ id: "e2", title: "Quiz 1" }], "Exams follow the chosen course.");
+assert.equal(filterRiskReview(null).rows.length, 0);
+// Wired on the page, separate from the Violation Analytics filters.
+assert.match(deanPage, /const \[riskFilters, setRiskFilters\] = useState\(ALL_RISK_FILTERS\)/);
+assert.match(deanPage, /className="dean-integrity-risk-filters"/);
+assert.match(deanPage, /filterRiskReview\(risk, riskFilters\)/);
 
 console.log("Integrity risk checks passed.");

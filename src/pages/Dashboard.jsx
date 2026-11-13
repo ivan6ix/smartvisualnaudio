@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import WrappedAxisTick, { WRAPPED_AXIS_HEIGHT } from "../components/charts/WrappedAxisTick";
 import { FiActivity, FiBookOpen, FiDatabase, FiFileText, FiUsers } from "react-icons/fi";
 import { Card, ListSkeleton, SkeletonBlock, SkeletonValue, Table, Badge } from "../components/ui";
 import { useChartTheme } from "../context/ThemeContext";
@@ -204,7 +205,7 @@ export default function Dashboard() {
             {detailsLoading ? <SkeletonBlock className="skeleton-chart" /> : <ResponsiveContainer width="100%" height={280}>
               <BarChart data={liveViolationChart}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                <XAxis dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="name" interval={0} height={WRAPPED_AXIS_HEIGHT} tick={<WrappedAxisTick fill={chartTheme.axis} />} axisLine={false} tickLine={false} />
                 <YAxis tick={{ fill: chartTheme.axis }} axisLine={false} tickLine={false} />
                 <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 8, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
                 <Bar dataKey="count" fill="var(--primary)" radius={[6, 6, 0, 0]} />

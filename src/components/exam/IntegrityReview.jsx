@@ -1,9 +1,12 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { FAST_HIGH_SCORE, HIGH_RISK_FROM, MEDIUM_RISK_FROM, RISK_RULES } from "../../lib/integrityRisk";
+import { getListPageSlice } from "../../lib/listView";
+import { ListPagination } from "../ListViewControls";
 
 const LEVEL_TONE = { High: "danger", Medium: "warn", Low: "neutral" };
-const PAGE_SIZE = 15;
+// The review queue shows 5 attempts per page.
+const PAGE_SIZE = 5;
 
 function formatScore(value) {
   const number = Number(value);
@@ -11,15 +14,17 @@ function formatScore(value) {
 }
 
 // rows: buildRiskQueue rows plus studentName, studentDetail, examTitle and an optional reviewHref.
-export default function IntegrityReview({ rows, summary, showExam = false, basis = "" }) {
+// filtered: the page filters the rows itself (including the risk level), so the queue's own level picker is hidden.
+export default function IntegrityReview({ rows, summary, showExam = false, basis = "", filtered = false, emptyMessage = "No submitted attempts or monitoring alerts yet." }) {
   const [level, setLevel] = useState("All");
-  const [limit, setLimit] = useState(PAGE_SIZE);
-  const visible = useMemo(() => rows.filter((row) => level === "All" || row.level === level), [level, rows]);
+  const [page, setPage] = useState(1);
+  const visible = useMemo(() => (filtered ? rows : rows.filter((row) => level === "All" || row.level === level)), [filtered, level, rows]);
+  const queuePage = getListPageSlice(visible, page, PAGE_SIZE);
   const tallestType = Math.max(1, ...summary.byType.map((row) => row.count));
   const tallestSlot = Math.max(1, ...summary.timeline.map((slot) => slot.count));
 
-  if (!rows.length) {
-    return <div className="professor-analytics-empty">No submitted attempts or monitoring alerts yet.</div>;
+  if (!rows.length && !summary.attemptCount && !summary.violationCount) {
+    return <div className="professor-analytics-empty">{emptyMessage}</div>;
   }
 
   return (
@@ -39,12 +44,12 @@ export default function IntegrityReview({ rows, summary, showExam = false, basis
       <section className="professor-analytics-card">
         <header>
           <h3>Review queue — highest risk first</h3>
-          <label className="integrity-review-filter">
+          {filtered ? null : <label className="integrity-review-filter">
             <span>Risk level</span>
-            <select onChange={(event) => { setLevel(event.target.value); setLimit(PAGE_SIZE); }} value={level}>
+            <select onChange={(event) => { setLevel(event.target.value); setPage(1); }} value={level}>
               {["All", "High", "Medium", "Low"].map((item) => <option key={item}>{item}</option>)}
             </select>
-          </label>
+          </label>}
         </header>
         <div className="professor-score-table-wrap">
           <table className="professor-score-table compact integrity-review-table">
@@ -59,7 +64,7 @@ export default function IntegrityReview({ rows, summary, showExam = false, basis
               </tr>
             </thead>
             <tbody>
-              {visible.slice(0, limit).map((row) => (
+              {queuePage.rows.map((row) => (
                 <tr key={row.key}>
                   <td><strong>{row.studentName}</strong><small>{row.studentDetail}</small></td>
                   {showExam ? <td>{row.examTitle}</td> : null}
@@ -86,12 +91,8 @@ export default function IntegrityReview({ rows, summary, showExam = false, basis
             </tbody>
           </table>
         </div>
-        {!visible.length ? <p className="professor-analytics-muted">No attempts at this risk level.</p> : null}
-        {visible.length > limit ? (
-          <button className="professor-analytics-link integrity-review-more" onClick={() => setLimit((current) => current + PAGE_SIZE)} type="button">
-            Show more ({visible.length - limit} left)
-          </button>
-        ) : null}
+        {!visible.length ? <p className="professor-analytics-muted">{filtered ? "No attempts match these filters." : "No attempts at this risk level."}</p> : null}
+        <ListPagination count={visible.length} page={queuePage.page} pageSize={PAGE_SIZE} onPage={setPage} />
       </section>
 
       <div className="professor-analytics-row">
@@ -110,7 +111,7 @@ export default function IntegrityReview({ rows, summary, showExam = false, basis
           ) : <p className="professor-analytics-muted">No alerts recorded.</p>}
         </section>
 
-        <section className="professor-analytics-card">
+        <section className="professor-analytics-card integrity-review-timeline-card">
           <header>
             <h3>When alerts happen</h3>
             <span>{summary.timelineUnit === "minutes" ? "Minutes since each student started" : "Share of each student's exam time"}</span>

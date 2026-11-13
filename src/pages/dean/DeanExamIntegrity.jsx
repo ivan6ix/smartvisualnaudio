@@ -1,17 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FiActivity, FiAlertTriangle, FiCamera, FiShield, FiX } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import WrappedAxisTick, { WRAPPED_AXIS_HEIGHT } from "../../components/charts/WrappedAxisTick";
 import { toast } from "sonner";
 import IntegrityReview from "../../components/exam/IntegrityReview";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
 import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
 import { useChartTheme } from "../../context/ThemeContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
-import { buildRiskQueue, latestSubmittedAttempts, summarizeIntegrity } from "../../lib/integrityRisk";
+import { buildRiskQueue, latestSubmittedAttempts } from "../../lib/integrityRisk";
+import { ALL_RISK_FILTERS, RISK_LEVELS, filterRiskReview, riskFilterOptions } from "../../lib/riskReviewFilters";
 import { fetchRowsByIds } from "../../lib/fetchAllRows";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
-import { ALL_FILTERS, VIOLATION_DATE_RANGES, countByViolationType, filterViolations, violationFilterOptions } from "../../lib/violationFilters";
+import { ALL_FILTERS, ALL_RECORD_FILTERS, RECORD_EVIDENCE, VIOLATION_DATE_RANGES, countByViolationType, filterRecords, filterViolations, violationFilterOptions } from "../../lib/violationFilters";
 
 const violationLabels = {
   MULTIPLE_FACE: "Multiple face detected",
@@ -109,10 +111,10 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
   const [risk, setRisk] = useState(null);
   const [loading, setLoading] = useState(Boolean(hasSupabaseConfig));
   const [loadError, setLoadError] = useState("");
-  const [search, setSearch] = useState("");
-  const [typeFilter, setTypeFilter] = useState("All");
-  const [severity, setSeverity] = useState("All Severities");
+  // Each panel has its own filters: Violation Analytics (professor page), Risk review and Integrity Records.
   const [filters, setFilters] = useState(ALL_FILTERS);
+  const [riskFilters, setRiskFilters] = useState(ALL_RISK_FILTERS);
+  const [recordFilters, setRecordFilters] = useState(ALL_RECORD_FILTERS);
   const [page, setPage] = useState(1);
   const listView = useListViewPreference({ role: scope, page: "exam-integrity", defaultView: "table" });
 
@@ -159,17 +161,22 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
 
       const durationByExam = Object.fromEntries((examsResponse.data || []).map((exam) => [exam.id, Number(exam.duration || exam.time_limit) || null]));
       const queue = buildRiskQueue({ attempts: finalAttempts, violations: data || [], durationByExam });
+      // Kept whole so the Risk review's own filters can narrow the queue, the counts and the charts together.
       setRisk({
         rows: queue.map((row) => {
           const profile = profilesById.get(row.studentId);
+          const exam = examsById.get(row.examId);
+          const course = exam?.course_id ? coursesById.get(exam.course_id) : null;
           return {
             ...row,
             studentName: profile?.full_name || profile?.email || "Unknown student",
             studentDetail: profile?.student_number || "",
-            examTitle: examsById.get(row.examId)?.title || "Unknown exam",
+            examTitle: exam?.title || "Unknown exam",
+            courseLabel: course ? [course.course_code || course.course_name, course.section].filter(Boolean).join(" - ") : "",
           };
         }),
-        summary: summarizeIntegrity({ queue, violations: data || [], attempts: finalAttempts }),
+        violations: data || [],
+        attempts: finalAttempts,
       });
 
       const rows = (data || []).map((violation) => {
@@ -217,15 +224,23 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
     };
   }, [isProfessor]);
 
-  const filteredViolations = useMemo(() => (isProfessor ? filterViolations(violations, filters) : violations.filter((violation) => {
-    const matchesSeverity = severity === "All Severities" || violation.severity === severity;
-    const matchesSearch = `${violation.student} ${violation.studentNumber} ${violation.exam} ${violation.violationType}`.toLowerCase().includes(search.toLowerCase());
-    return matchesSeverity && matchesSearch && (typeFilter === "All" || violation.violationType === typeFilter);
-  })), [filters, isProfessor, search, severity, violations, typeFilter]);
+  const filteredViolations = useMemo(() => filterViolations(violations, filters), [filters, violations]);
   const filterOptions = useMemo(() => violationFilterOptions(violations, filters.course), [filters.course, violations]);
+  const filteredRecords = useMemo(() => filterRecords(violations, recordFilters), [recordFilters, violations]);
+  const recordOptions = useMemo(() => violationFilterOptions(violations, recordFilters.course), [recordFilters.course, violations]);
+  const recordsFiltered = JSON.stringify(recordFilters) !== JSON.stringify(ALL_RECORD_FILTERS);
+  const setRecordFilter = (key, value) => {
+    setRecordFilters((current) => ({ ...current, [key]: value, ...(key === "course" ? { exam: ALL_RECORD_FILTERS.exam } : {}) }));
+    setPage(1);
+  };
+  const riskView = useMemo(() => (risk ? filterRiskReview(risk, riskFilters) : null), [risk, riskFilters]);
+  const riskOptions = useMemo(() => riskFilterOptions(risk?.rows, riskFilters.course), [risk, riskFilters.course]);
+  const riskFiltered = JSON.stringify(riskFilters) !== JSON.stringify(ALL_RISK_FILTERS);
+  const setRiskFilter = (key, value) => {
+    setRiskFilters((current) => ({ ...current, [key]: value, ...(key === "course" ? { exam: ALL_RISK_FILTERS.exam } : {}) }));
+  };
   const setFilter = (key, value) => {
     setFilters((current) => ({ ...current, [key]: value, ...(key === "course" ? { exam: ALL_FILTERS.exam } : {}) }));
-    setPage(1);
   };
 
   const highCount = violations.filter((violation) => violation.severity === "High").length;
@@ -247,7 +262,7 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
       render: (row) => <EvidenceCell row={row} />,
     },
   ];
-  const pageData = getListPageSlice(filteredViolations, page, listView.pageSize);
+  const pageData = getListPageSlice(filteredRecords, page, listView.pageSize);
 
   return (
     <section className="dean-integrity-page">
@@ -300,7 +315,7 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
                 <option>{ALL_FILTERS.severity}</option>
                 {filterOptions.severities.map((item) => <option key={item}>{item}</option>)}
               </SelectField>
-              <Button variant="light" onClick={() => { setFilters(ALL_FILTERS); setPage(1); }}>Reset Filters</Button>
+              <Button variant="light" onClick={() => setFilters(ALL_FILTERS)}>Reset Filters</Button>
             </div>
           </Card>
           <Card className="dean-dashboard-panel dean-analytics-panel">
@@ -316,7 +331,7 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={countByViolationType(filteredViolations)}>
                     <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                    <XAxis axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} />
+                    <XAxis axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} dataKey="name" interval={0} height={WRAPPED_AXIS_HEIGHT} tick={<WrappedAxisTick fill={chartTheme.axis} />} />
                     <YAxis allowDecimals={false} axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} tick={{ fill: chartTheme.axis }} />
                     <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
                     <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
@@ -326,25 +341,7 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
             </div>
           </Card>
         </>
-      ) : (
-        <Card className="dean-dashboard-panel dean-integrity-controls">
-          <div className="dean-integrity-search-row">
-            <SearchBox value={search} onChange={setSearch} placeholder="Search student, exam, or violation" />
-          </div>
-          <div className="dean-integrity-filter-row">
-            <SelectField label="Severity Filter" value={severity} onChange={(event) => setSeverity(event.target.value)}>
-              <option>All Severities</option>
-              <option>High</option>
-              <option>Medium</option>
-              <option>Low</option>
-            </SelectField>
-            <SelectField label="Violation Type" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-              <option>All</option>
-              {[...new Set(violations.map((item) => item.violationType))].filter(Boolean).map((type) => <option key={type}>{type}</option>)}
-            </SelectField>
-          </div>
-        </Card>
-      )}
+      ) : null}
 
       <Card className="dean-dashboard-panel dean-integrity-risk-panel">
         <div className="dean-dashboard-section-header">
@@ -353,10 +350,36 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
             <p>Attempts in exams with recent alerts, ordered by integrity risk.</p>
           </div>
         </div>
-        {loadError ? null : loading || !risk ? (
+        {loadError ? null : loading || !riskView ? (
           <ListSkeleton columns={5} label="Loading risk review..." variant="table" />
         ) : (
-          <IntegrityReview basis="Based on the latest 500 alerts." rows={risk.rows} showExam summary={risk.summary} />
+          <>
+            {/* The Risk review's own filters: they do not change, and are not changed by, the filters above. */}
+            <div className="dean-integrity-risk-filters">
+              <SearchBox value={riskFilters.search} onChange={(value) => setRiskFilter("search", value)} placeholder="Search student, ID, exam, or course" />
+              <SelectField label="Course" value={riskFilters.course} onChange={(event) => setRiskFilter("course", event.target.value)}>
+                <option>{ALL_RISK_FILTERS.course}</option>
+                {riskOptions.courses.map((item) => <option key={item}>{item}</option>)}
+              </SelectField>
+              <SelectField label="Exam" value={riskFilters.exam} onChange={(event) => setRiskFilter("exam", event.target.value)}>
+                <option>{ALL_RISK_FILTERS.exam}</option>
+                {riskOptions.exams.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+              </SelectField>
+              <SelectField label="Risk Level" value={riskFilters.level} onChange={(event) => setRiskFilter("level", event.target.value)}>
+                {RISK_LEVELS.map((item) => <option key={item} value={item}>{item === "All" ? "All Levels" : item}</option>)}
+              </SelectField>
+              <Button variant="light" disabled={!riskFiltered} onClick={() => setRiskFilters(ALL_RISK_FILTERS)}>Reset</Button>
+            </div>
+            <IntegrityReview
+              key={JSON.stringify(riskFilters)}
+              basis="Based on the latest 500 alerts."
+              emptyMessage={riskFiltered ? "No attempts match these filters." : "No submitted attempts or monitoring alerts yet."}
+              filtered
+              rows={riskView.rows}
+              showExam
+              summary={riskView.summary}
+            />
+          </>
         )}
       </Card>
 
@@ -366,14 +389,45 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
             <h2>Integrity Records</h2>
             <p>Showing the latest capped monitoring records with evidence available on request.</p>
           </div>
-          <span>{loading ? <SkeletonValue /> : `${filteredViolations.length} records`}</span>
+          <span>{loading ? <SkeletonValue /> : `${filteredRecords.length} records`}</span>
+        </div>
+        {/* Integrity Records' own filters: they do not change, and are not changed by, the other panels' filters. */}
+        <div className="dean-integrity-records-filters">
+          <div className="dean-integrity-search-row">
+            <SearchBox value={recordFilters.search} onChange={(value) => setRecordFilter("search", value)} placeholder="Search student, ID, exam, course, or violation" />
+          </div>
+          <div className="dean-integrity-filter-row">
+            <SelectField label="Date Range" value={recordFilters.dateRange} onChange={(event) => setRecordFilter("dateRange", event.target.value)}>
+              {VIOLATION_DATE_RANGES.map((item) => <option key={item}>{item}</option>)}
+            </SelectField>
+            <SelectField label="Course" value={recordFilters.course} onChange={(event) => setRecordFilter("course", event.target.value)}>
+              <option>{ALL_RECORD_FILTERS.course}</option>
+              {recordOptions.courses.map((item) => <option key={item}>{item}</option>)}
+            </SelectField>
+            <SelectField label="Exam" value={recordFilters.exam} onChange={(event) => setRecordFilter("exam", event.target.value)}>
+              <option>{ALL_RECORD_FILTERS.exam}</option>
+              {recordOptions.exams.map((item) => <option key={item}>{item}</option>)}
+            </SelectField>
+            <SelectField label="Violation Type" value={recordFilters.type} onChange={(event) => setRecordFilter("type", event.target.value)}>
+              <option>{ALL_RECORD_FILTERS.type}</option>
+              {recordOptions.types.map((item) => <option key={item}>{item}</option>)}
+            </SelectField>
+            <SelectField label="Severity" value={recordFilters.severity} onChange={(event) => setRecordFilter("severity", event.target.value)}>
+              <option>{ALL_RECORD_FILTERS.severity}</option>
+              {recordOptions.severities.map((item) => <option key={item}>{item}</option>)}
+            </SelectField>
+            <SelectField label="Evidence" value={recordFilters.evidence} onChange={(event) => setRecordFilter("evidence", event.target.value)}>
+              {RECORD_EVIDENCE.map((item) => <option key={item}>{item}</option>)}
+            </SelectField>
+            <Button variant="light" disabled={!recordsFiltered} onClick={() => { setRecordFilters(ALL_RECORD_FILTERS); setPage(1); }}>Reset</Button>
+          </div>
         </div>
         <ListViewToolbar
           controls={{
             cardDensity: listView.cardDensity,
             onCardDensity: listView.setCardDensity,
             onTableDensity: listView.setTableDensity,
-            onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filteredViolations.length)),
+            onView: (nextView) => setPage(listView.switchViewPreservingPage(nextView, pageData.page, filteredRecords.length)),
             tableDensity: listView.tableDensity,
             view: listView.view,
           }}
@@ -411,7 +465,7 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
           </div>
         )}
         {!loadError && !loading ? (
-          <ListPagination count={filteredViolations.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
+          <ListPagination count={filteredRecords.length} page={pageData.page} pageSize={listView.pageSize} onPage={setPage} />
         ) : null}
       </Card>
     </section>

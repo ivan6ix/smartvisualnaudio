@@ -15,11 +15,15 @@ assert.match(integrity, /Review examination integrity records and recorded monit
 assert.match(integrity, /from\("violations"\)[\s\S]*select\("id, student_id, exam_id, violation_type, description, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at"\)[\s\S]*limit\(500\)/, "Existing capped violation metadata query must be preserved.");
 assert.match(integrity, /from\("profiles"\)[\s\S]*select\("id, full_name, student_number, email"(, options)?\)/, "Existing student lookup must be preserved.");
 assert.match(integrity, /from\("exams"\)[\s\S]*select\("id, title(, [a-z_, ]+)?"(, options)?\)/, "Existing exam lookup must be preserved.");
-assert.match(integrity, /SearchBox[\s\S]*placeholder="Search student, exam, or violation"/, "Existing search behavior must remain visible.");
-assert.match(integrity, /Severity Filter[\s\S]*Violation Type/, "Existing filters must remain visible.");
+// Integrity Records have their own filters inside the panel, separate from Violation Analytics and Risk review.
+assert.match(integrity, /const \[recordFilters, setRecordFilters\] = useState\(ALL_RECORD_FILTERS\)/);
+assert.match(integrity, /className="dean-integrity-records-filters"[\s\S]*placeholder="Search student, ID, exam, course, or violation"/, "Records search must remain visible.");
+assert.match(integrity, /dean-integrity-records-filters[\s\S]*label="Date Range"[\s\S]*label="Course"[\s\S]*label="Exam"[\s\S]*label="Violation Type"[\s\S]*label="Severity"[\s\S]*label="Evidence"/, "Records filters must remain visible.");
+assert.match(integrity, /const filteredRecords = useMemo\(\(\) => filterRecords\(violations, recordFilters\)/);
+assert.doesNotMatch(integrity, /dean-integrity-controls/, "The old shared filter card is gone.");
 assert.match(integrity, /useListViewPreference\(\{ role: scope, page: "exam-integrity", defaultView: "table" \}\)/, "Cards/Table preference must remain table-first (kept per role).");
 assert.match(integrity, /ListViewToolbar[\s\S]*onCardDensity[\s\S]*onTableDensity/, "View and density controls must remain wired.");
-assert.match(integrity, /getListPageSlice\(filteredViolations, page, listView\.pageSize\)/, "Shared pagination must remain wired.");
+assert.match(integrity, /getListPageSlice\(filteredRecords, page, listView\.pageSize\)/, "Shared pagination must remain wired.");
 assert.match(integrity, /Student[\s\S]*Student ID[\s\S]*Exam[\s\S]*Violation[\s\S]*Severity[\s\S]*Date[\s\S]*Time[\s\S]*Evidence/, "Actual integrity table columns must remain present.");
 assert.match(integrity, /RecordCardList[\s\S]*Table/, "Cards/Table rendering paths must remain present.");
 assert.match(integrity, /emptyTitle="No integrity records match the current filters\."/,"Filtered empty state must stay distinguishable.");

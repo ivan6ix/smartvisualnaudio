@@ -13,12 +13,29 @@ export default function ScrollAfterItems({ as: Tag = "div", children, className 
     function measure() {
       const top = element.getBoundingClientRect().top - element.scrollTop;
       const bottoms = [...element.querySelectorAll(itemSelector)].map((item) => item.getBoundingClientRect().bottom - top);
-      setMaxHeight(getScrollLimitHeight(bottoms, limit));
+      const height = getScrollLimitHeight(bottoms, limit);
+      // A sideways scrollbar (a wide table) takes room at the bottom: add it so the last counted item is not hidden.
+      const style = window.getComputedStyle(element);
+      const borders = (parseFloat(style.borderTopWidth) || 0) + (parseFloat(style.borderBottomWidth) || 0);
+      const scrollbar = Math.max(0, element.offsetHeight - element.clientHeight - borders);
+      setMaxHeight(height === null ? null : height + scrollbar);
+    }
+    // The items and everything above them (a header row) are watched too: once the list is capped its own size
+    // stops changing, but a row can still grow (a title wrapping after fonts load, live counts changing), and the
+    // cap must follow it.
+    const resize = window.ResizeObserver ? new window.ResizeObserver(measure) : null;
+    function observeAll() {
+      if (!resize) return;
+      resize.disconnect();
+      resize.observe(element);
+      new Set([...element.children, ...element.querySelectorAll(itemSelector)]).forEach((item) => resize.observe(item));
     }
     measure();
-    const resize = window.ResizeObserver ? new window.ResizeObserver(measure) : null;
-    resize?.observe(element);
-    const mutations = window.MutationObserver ? new window.MutationObserver(measure) : null;
+    observeAll();
+    const mutations = window.MutationObserver ? new window.MutationObserver(() => {
+      observeAll();
+      measure();
+    }) : null;
     mutations?.observe(element, { childList: true, subtree: true });
     return () => {
       resize?.disconnect();

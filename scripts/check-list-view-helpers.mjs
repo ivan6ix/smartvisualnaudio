@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import {
   CARD_PAGE_SIZE,
   DENSITIES,
@@ -75,3 +76,7 @@ assert.equal(getScrollLimitHeight(bottoms), 642, "height ends just under the 10t
 assert.equal(getScrollLimitHeight(bottoms.slice(0, 10)), null, "10 or fewer items are not capped");
 assert.equal(getScrollLimitHeight([], 10), null);
 assert.equal(getScrollLimitHeight([10.2, 20.4, 30.6], 2), 23);
+// Ongoing exams show only 5 before scrolling.
+const ongoingPage = readFileSync("src/pages/professor/ProfessorOngoingExams.jsx", "utf8");
+assert.match(ongoingPage, /const ONGOING_SCROLL_LIMIT = 5;/);
+assert.match(ongoingPage, /itemSelector="\.professor-ongoing-exam-row" limit=\{ONGOING_SCROLL_LIMIT\}/);

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { FiActivity, FiBookOpen, FiFileText, FiMonitor } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import WrappedAxisTick, { WRAPPED_AXIS_HEIGHT } from "../../components/charts/WrappedAxisTick";
 import { toast } from "sonner";
 import { Badge, Card, ListSkeleton, SkeletonValue } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
@@ -275,7 +276,7 @@ export default function ProfessorDashboard() {
               <ResponsiveContainer width="100%" height={300}>
                 <BarChart data={violationChartData}>
                   <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                  <XAxis dataKey="name" interval={0} tick={{ fontSize: 11, fill: chartTheme.axis }} axisLine={false} tickLine={false} />
+                  <XAxis dataKey="name" interval={0} height={WRAPPED_AXIS_HEIGHT} tick={<WrappedAxisTick fill={chartTheme.axis} />} axisLine={false} tickLine={false} />
                   <YAxis allowDecimals={false} tick={{ fill: chartTheme.axis }} axisLine={false} tickLine={false} />
                   <Tooltip cursor={{ fill: chartTheme.cursor }}
                     contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }}

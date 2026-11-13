@@ -19418,6 +19418,48 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
 .integrity-review-timeline-labels {
   grid-template-columns: repeat(6, minmax(0, 1fr));
 }
+/* Integrity Records' own filters: search on top, then every choice in one wrapping row. */
+.dean-integrity-records-filters {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.dean-integrity-records-filters .dean-integrity-filter-row {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+}
+.dean-integrity-records-filters .dean-integrity-filter-row > .btn {
+  min-height: 42px;
+}
+/* Risk review's own filter row on Exam Integrity. */
+.dean-integrity-risk-filters {
+  display: grid;
+  grid-template-columns: minmax(220px, 2fr) repeat(3, minmax(150px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dean-integrity-risk-filters > .btn {
+  min-height: 42px;
+}
+@media (max-width: 1100px) {
+  .dean-integrity-risk-filters {
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr));
+  }
+  .dean-integrity-risk-filters > :first-child {
+    grid-column: 1 / -1;
+  }
+}
+/* The card is as tall as its neighbours in the row: the bars grow to fill it, so they sit on the bottom
+   instead of floating above empty space. */
+.integrity-review-timeline-card {
+  display: flex;
+  flex-direction: column;
+}
+.integrity-review-timeline-card > .integrity-review-timeline {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 180px;
+}
 .integrity-review-rules {
   display: grid;
   gap: 8px;
@@ -19477,43 +19519,121 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   flex: 3 1 560px;
   min-width: 0;
 }
-.dean-insights-row > .dean-insights-accuracy {
+/* The column beside the students table: the accuracy card at its own height, and the recommendations filling the
+   rest of the table's height, scrolling inside. */
+.dean-insights-row > .dean-insights-side {
   flex: 1 1 300px;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.dean-insights-side > .dean-insights-accuracy {
+  flex: 0 0 auto;
+}
+.dean-insights-side > .dean-insights-recs {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.dean-insights-recs-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 260px;
+}
+/* Taken out of the flow, so a long list never makes the row taller than the table. */
+.dean-insights-recs-scroll {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.dean-insights-recs .dean-insights-recommendations {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Stacked under the table on narrow screens: a taller window to scroll in. */
+@media (max-width: 900px) {
+  .dean-insights-recs-body {
+    min-height: 380px;
+  }
 }
 .dean-insights-reasons {
   color: var(--app-text-muted);
   font-size: 0.85rem;
 }
-.dean-insights-metrics {
+/* Backtest accuracy: a ring of the four outcomes with the accuracy in the middle, a legend with counts, and the
+   precision and recall underneath. */
+.dean-insights-pie {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 14px;
 }
-.dean-insights-metrics > div {
+.dean-insights-pie-chart {
+  position: relative;
+  max-width: 220px;
+  width: 100%;
+  justify-self: center;
+}
+.dean-insights-pie-center {
+  position: absolute;
+  inset: 0;
   display: grid;
-  gap: 4px;
-  border: 1px solid var(--app-line);
-  border-radius: 10px;
-  padding: 12px;
+  place-content: center;
+  text-align: center;
+  pointer-events: none;
 }
-.dean-insights-metrics span {
+.dean-insights-pie-center strong {
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+.dean-insights-pie-center span {
   color: var(--app-text-muted);
   font-size: 0.8rem;
-  font-weight: 700;
 }
-.dean-insights-metrics strong {
-  font-size: 1.4rem;
+.dean-insights-pie-legend {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.dean-insights-pie-legend li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.86rem;
+  color: var(--app-text-muted);
+}
+.dean-insights-pie-legend i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+.dean-insights-pie-legend strong {
+  color: var(--app-text);
+}
+.dean-insights-pie-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--app-line);
+  font-size: 0.82rem;
+  color: var(--app-text-muted);
+}
+.dean-insights-pie-stats span {
+  flex: 1 1 80px;
+  display: grid;
+  gap: 2px;
+}
+.dean-insights-pie-stats strong {
+  color: var(--app-text);
+  font-size: 1.05rem;
 }
 .dean-dashboard-filters.dean-insights-risk-filters {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 220px));
   margin-bottom: 12px;
-}
-.dean-insights-note {
-  margin: 12px 0 0;
-  color: var(--app-text-muted);
-  font-size: 0.86rem;
-  line-height: 1.5;
 }
 .dean-insights-recommendations {
   display: grid;

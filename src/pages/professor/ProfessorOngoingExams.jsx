@@ -19,6 +19,8 @@ import {
   VIOLATION_SOUND_COOLDOWN_MS,
 } from "../../lib/ongoingExams";
 
+// Ongoing exams show 5 rows, then the list scrolls (the exam pages keep showing 10).
+const ONGOING_SCROLL_LIMIT = 5;
 const STATUS_OPTIONS = ["All", "Not Started", "In Progress", "Submitted"];
 const SORT_COLUMNS = [
   ["student", "Student"],
@@ -306,7 +308,7 @@ function ActiveExamList({ exams, filtered, loading, onView }) {
 
   // The first 10 exams show; the rest scroll inside the list, under a header that stays in place.
   return (
-    <ScrollAfterItems aria-label="Active ongoing exams" className="professor-ongoing-exam-list professor-scroll-surface" itemSelector=".professor-ongoing-exam-row" role="table">
+    <ScrollAfterItems aria-label="Active ongoing exams" className="professor-ongoing-exam-list professor-scroll-surface" itemSelector=".professor-ongoing-exam-row" limit={ONGOING_SCROLL_LIMIT} role="table">
         <div className="professor-ongoing-exam-head" role="row">
           <span role="columnheader">Exam</span>
           <span role="columnheader">Course / Section</span>

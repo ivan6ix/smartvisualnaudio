@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { FiAlertTriangle, FiBarChart2, FiCheckCircle, FiFileText, FiTrendingDown, FiUsers, FiX } from "react-icons/fi";
-import { Bar, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Bar, CartesianGrid, Cell, ComposedChart, Legend, Line, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ListPagination } from "../../components/ListViewControls";
 import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
 import { useAuth } from "../../context/AuthContext";
@@ -14,11 +14,24 @@ import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 const ALL = "All";
 const SORTS = ["Section", "Lowest pass rate", "Lowest average", "Highest risk"];
-const AT_RISK_PAGE_SIZE = 10;
+const AT_RISK_PAGE_SIZE = 5;
 const FALLING = "Falling scores only";
 
 function percent(value, digits = 0) {
   return value === null || value === undefined ? "-" : `${(value * 100).toFixed(digits)}%`;
+}
+
+// The backtest's four outcomes. Right calls are blue and teal, wrong ones amber and rose (checked for color blindness
+// in both themes); every slice is also named with its count in the legend.
+const BACKTEST_OUTCOMES = [
+  { key: "tp", label: "Predicted to fail, and failed", color: "#3b82f6" },
+  { key: "tn", label: "Predicted to pass, and passed", color: "#0d9488" },
+  { key: "fp", label: "Predicted to fail, but passed", color: "#d97706" },
+  { key: "fn", label: "Failed, but not predicted", color: "#e11d48" },
+];
+
+function backtestSlices(result) {
+  return BACKTEST_OUTCOMES.map((outcome) => ({ ...outcome, value: Number(result?.[outcome.key] || 0) }));
 }
 
 function score(value) {
@@ -310,6 +323,7 @@ export default function DeanAnalytics({ scope = "dean" }) {
           )}
         </Card>
 
+        <div className="dean-insights-side">
         <Card className="dean-dashboard-panel dean-insights-accuracy">
           <div className="dean-dashboard-section-header">
             <div>
@@ -318,42 +332,80 @@ export default function DeanAnalytics({ scope = "dean" }) {
             </div>
           </div>
           {loading ? <SkeletonBlock className="skeleton-chart" /> : backtestResult?.evaluated ? (
-            <>
-              <div className="dean-insights-metrics">
-                <div><span>Tested</span><strong>{backtestResult.evaluated}</strong></div>
-                <div><span>Precision</span><strong>{percent(backtestResult.precision)}</strong></div>
-                <div><span>Recall</span><strong>{percent(backtestResult.recall)}</strong></div>
-                <div><span>Accuracy</span><strong>{percent(backtestResult.accuracy)}</strong></div>
+            <div className="dean-insights-pie">
+              <div className="dean-insights-pie-chart">
+                <ResponsiveContainer width="100%" height={200}>
+                  <PieChart>
+                    <Pie
+                      data={backtestSlices(backtestResult).filter((slice) => slice.value > 0)}
+                      dataKey="value"
+                      nameKey="label"
+                      innerRadius="62%"
+                      outerRadius="92%"
+                      startAngle={90}
+                      endAngle={-270}
+                      stroke="var(--app-surface)"
+                      strokeWidth={2}
+                      isAnimationActive={false}
+                    >
+                      {backtestSlices(backtestResult).filter((slice) => slice.value > 0).map((slice) => <Cell key={slice.key} fill={slice.color} />)}
+                    </Pie>
+                    <Tooltip
+                      formatter={(value, name) => [`${value} of ${backtestResult.evaluated} students`, name]}
+                      contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }}
+                      itemStyle={{ color: chartTheme.tooltipText }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="dean-insights-pie-center" aria-hidden="true">
+                  <strong>{percent(backtestResult.accuracy)}</strong>
+                  <span>accurate</span>
+                </div>
               </div>
-              <p className="dean-insights-note">
-                Predicted to fail: {backtestResult.tp + backtestResult.fp}, of whom {backtestResult.tp} actually failed (precision).
-                Actually failed: {backtestResult.tp + backtestResult.fn}, of whom {backtestResult.tp} were predicted (recall).
-                Guessing that nobody fails would be {percent(backtestResult.baselineAccuracy)} accurate.
-              </p>
-            </>
+              <ul className="dean-insights-pie-legend" aria-label={`Accuracy ${percent(backtestResult.accuracy)} across ${backtestResult.evaluated} tested students`}>
+                {backtestSlices(backtestResult).map((slice) => (
+                  <li key={slice.key}>
+                    <i style={{ background: slice.color }} />
+                    <span>{slice.label}</span>
+                    <strong>{slice.value}</strong>
+                  </li>
+                ))}
+              </ul>
+              <div className="dean-insights-pie-stats">
+                <span>Tested <strong>{backtestResult.evaluated}</strong></span>
+                <span>Precision <strong>{percent(backtestResult.precision)}</strong></span>
+                <span>Recall <strong>{percent(backtestResult.recall)}</strong></span>
+              </div>
+            </div>
           ) : <EmptyState title="Not enough history yet." description="Needs students with at least 3 graded exams in the same section." />}
         </Card>
-      </div>
 
-      <Card className="dean-dashboard-panel">
-        <div className="dean-dashboard-section-header">
-          <div>
-            <h2>Recommendations</h2>
-            <p>Suggested follow-ups based on the rules above. Review each before acting.</p>
+        {/* Recommendations fill the rest of the column beside the students table and scroll inside it. */}
+        <Card className="dean-dashboard-panel dean-insights-recs">
+          <div className="dean-dashboard-section-header">
+            <div>
+              <h2>Recommendations</h2>
+              <p>Suggested follow-ups based on the rules above. Review each before acting.</p>
+            </div>
           </div>
+          <div className="dean-insights-recs-body">
+            <div className="dean-insights-recs-scroll" tabIndex={0} aria-label="Recommendations">
+              {loading ? <SkeletonBlock className="skeleton-chart" /> : analysis?.recommendations.length ? (
+                <ul className="dean-insights-recommendations">
+                  {analysis.recommendations.map((item) => (
+                    <li key={item.title}>
+                      <span>{item.tag}</span>
+                      <strong>{item.title}</strong>
+                      <p>{item.detail}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : <EmptyState title="No issues found." description="Sections and periods are within the expected range." />}
+            </div>
+          </div>
+        </Card>
         </div>
-        {loading ? <SkeletonBlock className="skeleton-chart" /> : analysis?.recommendations.length ? (
-          <ul className="dean-insights-recommendations">
-            {analysis.recommendations.map((item) => (
-              <li key={item.title}>
-                <span>{item.tag}</span>
-                <strong>{item.title}</strong>
-                <p>{item.detail}</p>
-              </li>
-            ))}
-          </ul>
-        ) : <EmptyState title="No issues found." description="Sections and periods are within the expected range." />}
-      </Card>
+      </div>
     </section>
   );
 }

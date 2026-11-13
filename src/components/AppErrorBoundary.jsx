@@ -18,7 +18,7 @@ export default class AppErrorBoundary extends Component {
       this.setState({ reloading: true });
       return;
     }
-    console.error("[app] A page failed to draw.", error, info?.componentStack);
+    window.console.error("[app] A page failed to draw.", error, info?.componentStack);
   }
 
   render() {

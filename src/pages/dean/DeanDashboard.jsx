@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 import { FiActivity, FiBookOpen, FiFileText, FiUsers, FiX } from "react-icons/fi";
 import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import WrappedAxisTick, { WRAPPED_AXIS_HEIGHT } from "../../components/charts/WrappedAxisTick";
 import { ListPagination, ListViewToolbar, RecordCardList } from "../../components/ListViewControls";
 import { Badge, Button, Card, EmptyState, ListSkeleton, SearchBox, SelectField, SkeletonBlock, SkeletonValue, Table } from "../../components/ui";
 import { useChartTheme } from "../../context/ThemeContext";
@@ -253,7 +254,7 @@ export default function DeanDashboard() {
             <ResponsiveContainer width="100%" height={280}>
               <BarChart data={violationData}>
                 <CartesianGrid strokeDasharray="3 3" stroke={chartTheme.grid} />
-                <XAxis axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} dataKey="name" tick={{ fontSize: 11, fill: chartTheme.axis }} />
+                <XAxis axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} dataKey="name" interval={0} height={WRAPPED_AXIS_HEIGHT} tick={<WrappedAxisTick fill={chartTheme.axis} />} />
                 <YAxis axisLine={{ stroke: chartTheme.grid }} tickLine={{ stroke: chartTheme.grid }} tick={{ fill: chartTheme.axis }} />
                 <Tooltip cursor={{ fill: chartTheme.cursor }} contentStyle={{ background: chartTheme.tooltipBackground, border: `1px solid ${chartTheme.tooltipBorder}`, borderRadius: 14, color: chartTheme.tooltipText }} itemStyle={{ color: chartTheme.tooltipText }} labelStyle={{ color: chartTheme.tooltipText }} />
                 <Bar dataKey="count" fill="#06b6d4" radius={[8, 8, 0, 0]} />
