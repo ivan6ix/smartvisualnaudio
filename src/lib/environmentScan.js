@@ -1,5 +1,6 @@
 // Pure environment-scan logic shared by the student scan page and the local Roboflow proxy.
 // No browser or import.meta APIs here so it runs in Node check scripts and server code.
+import { isObjectDetected } from "./detectableObjects.js";
 
 // The scan has two steps ("angles" in the state below): a 360-degree room sweep and a desk check.
 export const SCAN_ANGLES = [
@@ -156,12 +157,14 @@ function percent(confidence) {
 // Classifies one angle's detections. `frames` is [{ predictions }] where predictions may come from
 // several detectors. Returns { outcome, findings } with outcome clear | risk_detected: only items that are
 // confirmed fail a step, and an uncertain sighting approves it rather than asking for a retake.
-export function classifyAngleDetections({ angleId, frames = [] }) {
+// enabledCategories: the exam's items that are on (see detectableObjects.js); items that are off never fail a step.
+// Leaving it out checks every item.
+export function classifyAngleDetections({ angleId, frames = [], enabledCategories = null }) {
   const frameCount = Math.max(1, frames.length);
   const consensusFrames = Math.min(2, frameCount);
   const findings = [];
 
-  DETECTION_RULES.filter((rule) => ruleAppliesToStep(rule, angleId)).forEach((rule) => {
+  DETECTION_RULES.filter((rule) => ruleAppliesToStep(rule, angleId) && isObjectDetected(enabledCategories, rule.category)).forEach((rule) => {
     let framesAtFloor = 0;
     let framesAtFlag = 0;
     let maxConfidence = 0;
@@ -265,7 +268,7 @@ function describeTechnicalFailure(errors) {
 // A detector is async (frames) => rawResponse | null (null = not configured).
 // requiredDetectors run with the primaries and must each return a usable result, otherwise the
 // angle is unchecked: a configured server-side detector cannot be bypassed by browser-only results.
-export async function analyzeAngleCapture({ angleId, frames, requiredDetectors = [], detectors = [], fallbackDetectors = [], timeoutMs = 15000 }) {
+export async function analyzeAngleCapture({ angleId, frames, requiredDetectors = [], detectors = [], fallbackDetectors = [], timeoutMs = 15000, enabledCategories = null }) {
   const frameCount = frames?.length || 0;
   if (!frameCount) return { outcome: SCAN_OUTCOME.TECHNICAL, findings: [], reason: "No image was captured for this step. Retake it." };
 
@@ -306,7 +309,7 @@ export async function analyzeAngleCapture({ angleId, frames, requiredDetectors =
     return { outcome: SCAN_OUTCOME.TECHNICAL, findings: [], reason: describeTechnicalFailure(errors) };
   }
 
-  const classification = classifyAngleDetections({ angleId, frames: mergeDetectorFrames(results, frameCount) });
+  const classification = classifyAngleDetections({ angleId, frames: mergeDetectorFrames(results, frameCount), enabledCategories });
   return {
     ...classification,
     // A confirmed item explains a rejection better than an uncertain one listed before it.

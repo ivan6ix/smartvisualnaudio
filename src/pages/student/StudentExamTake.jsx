@@ -34,7 +34,8 @@ import { buildExamCompatibilityResult, normalizeBrowserCapabilities } from "../.
 import { saveScanStep } from "../../lib/environmentScanHistory";
 import { cameraConstraints, loadDeviceChoice, microphoneConstraints } from "../../lib/mediaDevices";
 import DeviceSetup from "../../components/student/DeviceSetup";
-import { createLiveObjectMonitor } from "../../lib/liveObjectMonitor";
+import { GUESS_DETECTOR_CATEGORIES, createLiveObjectMonitor } from "../../lib/liveObjectMonitor";
+import { ALL_DETECTABLE_CATEGORIES, allowedObjectLabels, normalizeDetectObjects } from "../../lib/detectableObjects";
 import { detectWithOwl, loadOwlDetector } from "../../lib/owlClient";
 import { OWL_FRAMES_PER_STEP, pickOwlFrameIndexes, placeOwlFrames } from "../../lib/owlDetection";
 import { MICROPHONE_VIOLATION_CONFIRM_MS, classifyMicrophoneState, createMicrophoneInterruptionGate, isMicrophonePermissionRevoked } from "../../lib/microphoneSignal";
@@ -102,6 +103,7 @@ const DEFAULT_EXAM_SETTINGS = {
   liveCameraMonitoring: false,
   liveAudioMonitoring: false,
   captureSnapshots: false,
+  detectObjects: ALL_DETECTABLE_CATEGORIES,
 };
 
 let mediaPipeModulePromise;
@@ -145,6 +147,7 @@ function normalizeExamSettings(settings) {
     liveCameraMonitoring: bool("liveCameraMonitoring", "live_camera_monitoring"),
     liveAudioMonitoring: bool("liveAudioMonitoring", "live_audio_monitoring"),
     captureSnapshots: bool("captureSnapshots", "capture_snapshots"),
+    detectObjects: normalizeDetectObjects(parsed.detectObjects ?? parsed.detect_objects),
   };
 }
 
@@ -522,6 +525,11 @@ export default function StudentExamTake() {
   // Roboflow is reached only through a server (proxy or Edge Function); the browser never holds its key.
   const roboflowConfigured = Boolean(import.meta.env.VITE_ROBOFLOW_PROXY_URL || import.meta.env.VITE_ROBOFLOW_ENV_SCAN_ENDPOINT);
   const liveCameraMonitoringEnabled = examSettings.liveCameraMonitoring;
+  // Items the professor turned off: students may keep them, and the camera checks ignore them.
+  const allowedObjects = examSettings.requireEnvironmentScan || liveCameraMonitoringEnabled ? allowedObjectLabels(examSettings.detectObjects) : [];
+  const allowedObjectsNote = allowedObjects.length ? (
+    <p className="student-exam-allowed-note"><FiCheckCircle /> <span><strong>Allowed in this exam:</strong> {allowedObjects.join(", ")}</span></p>
+  ) : null;
   const roboflowMonitoringEnabled = liveCameraMonitoringEnabled && roboflowConfigured;
   const proctoringEnabled = liveCameraMonitoringEnabled || examSettings.liveAudioMonitoring;
   const secureModeRequired = proctoringEnabled;
@@ -1533,6 +1541,7 @@ export default function StudentExamTake() {
       requiredDetectors: SERVER_SCAN_ENDPOINT ? [detectScanFramesWithScanEndpoint] : [],
       detectors: [detectScanFramesWithRoboflow, detectScanFramesWithCocoSsd, detectScanFramesWithOwl],
       timeoutMs: ENV_SCAN_ANALYSIS_TIMEOUT_MS,
+      enabledCategories: examSettings.detectObjects,
     });
     if (result.outcome === SCAN_OUTCOME.TECHNICAL) window.console.warn("[EnvironmentScan] Angle check failed.", angleId, result.reason);
     dispatchScan({ type: "analysis_resolved", angleId, requestId, outcome: result.outcome, findings: result.findings, reason: result.reason });
@@ -2493,11 +2502,16 @@ export default function StudentExamTake() {
     }
   }
 
+  // Only the items the professor left on are watched; with none on, the object detectors do not run at all.
   function startObjectMonitoring() {
+    liveObjectMonitorRef.current = createLiveObjectMonitor({ enabledCategories: examSettings.detectObjects });
+    const watched = liveObjectMonitorRef.current.watchedCategories();
+    if (!watched.length) return;
     void detectProctorObjects();
     objectMonitorRef.current = window.setInterval(() => {
       void detectProctorObjects();
     }, OBJECT_SCAN_INTERVAL_MS);
+    if (!watched.some((category) => GUESS_DETECTOR_CATEGORIES.includes(category))) return;
     // The model is usually already downloaded by the environment scan; otherwise it downloads in the background.
     void loadOwlDetector().catch((error) => window.console.warn("[ObjectDetection] Browser AI could not load.", error));
     owlMonitorRef.current = window.setInterval(() => {
@@ -2562,7 +2576,7 @@ export default function StudentExamTake() {
       if (proctorVideoRef.current) proctorVideoRef.current.srcObject = stream;
       void startFaceMonitoring();
       startObjectMonitoring();
-      if (roboflowMonitoringEnabled) void startRoboflowMonitoring(stream);
+      if (roboflowMonitoringEnabled && liveObjectMonitorRef.current.watchedCategories().length) void startRoboflowMonitoring(stream);
       else setRoboflowStatus("Roboflow detector off");
     } else {
       setFaceStatus("Live camera monitoring disabled");
@@ -3258,6 +3272,7 @@ export default function StudentExamTake() {
             <span>{scanSummary.capturedCount} of {scanSummary.total} captured</span>
           </div>
 
+          {allowedObjectsNote}
           {cameraError ? <div className="student-scan-alert danger"><FiXCircle /> {cameraError}</div> : null}
           {scanStatus === "failed" && scanFindings.length ? (
             <div className="student-scan-alert danger" role="alert">
@@ -3403,6 +3418,7 @@ export default function StudentExamTake() {
             <span>{totalPoints} points</span>
           </div>
           <p>{secureModeRequired ? "Fullscreen and monitoring permissions are required." : "Fullscreen is required before taking the exam."}</p>
+          {allowedObjectsNote}
           {savedProgress?.savedAt ? (
             <div className="student-exam-resume-note">
               <strong>Saved progress found</strong>

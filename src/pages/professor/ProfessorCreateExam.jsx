@@ -19,6 +19,7 @@ import {
 } from "../../lib/examQuestionTypes";
 import { getReviewTargets, notifyReviewClusters, reviewTargetsProblem } from "../../lib/reviewTargets";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
+import { ALL_DETECTABLE_CATEGORIES, DETECTABLE_OBJECTS, normalizeDetectObjects, toggleDetectObject } from "../../lib/detectableObjects";
 
 const examTypes = ["Quiz", "Exam", "Long Exam", "Activity"];
 const periods = ["Prelim", "Midterm", "Semi-Final", "Final"];
@@ -205,6 +206,7 @@ function defaultExamForm({ presetCourseId = "", presetType = "", presetPeriod = 
       liveCameraMonitoring: false,
       liveAudioMonitoring: false,
       captureSnapshots: false,
+      detectObjects: [...ALL_DETECTABLE_CATEGORIES],
     },
   };
 }
@@ -821,6 +823,16 @@ export default function ProfessorCreateExam() {
       settings: {
         ...current.settings,
         [key]: !current.settings[key],
+      },
+    }));
+  }
+
+  function toggleDetectedObject(category) {
+    setExamForm((current) => ({
+      ...current,
+      settings: {
+        ...current.settings,
+        detectObjects: toggleDetectObject(current.settings.detectObjects, category),
       },
     }));
   }
@@ -1691,6 +1703,20 @@ export default function ProfessorCreateExam() {
                 </label>
               ))}
             </div>
+            {examForm.settings.requireEnvironmentScan || examForm.settings.liveCameraMonitoring ? (
+              <fieldset className="professor-detect-objects">
+                <legend>Objects to detect</legend>
+                <p>Checked items fail the environment scan and count as a violation when the camera sees them. Uncheck items students may keep, like a calculator for a math exam or a book for an open-book exam. Another person is always checked.</p>
+                <div className="professor-detect-objects-grid">
+                  {DETECTABLE_OBJECTS.map((item) => (
+                    <label className="professor-setting-option" key={item.category}>
+                      <input checked={normalizeDetectObjects(examForm.settings.detectObjects).includes(item.category)} onChange={() => toggleDetectedObject(item.category)} type="checkbox" />
+                      <span>{item.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            ) : null}
           </section>
         </div>
 

@@ -2,7 +2,9 @@
 // scan. A clear sighting from a trained detector (COCO-SSD, Roboflow) is a violation at once, with no warning first.
 // The OWL-ViT model, the only one that knows what paper looks like, only guesses, so its sighting must repeat on two
 // of its checks in a row before it counts.
+import { isObjectDetected } from "./detectableObjects.js";
 import { DETECTION_RULES, NEAR_OBJECT_MIN_AREA, findDetectionRule, normalizePrediction } from "./environmentScan.js";
+import { OWL_QUERIES } from "./owlDetection.js";
 
 // Categories watched during the exam and the violation type each records. People are handled by face monitoring.
 export const LIVE_OBJECT_CATEGORIES = {
@@ -14,6 +16,10 @@ export const LIVE_OBJECT_CATEGORIES = {
   notes: { type: "NOTES_DETECTED", label: "Notes or papers" },
   book: { type: "NOTES_DETECTED", label: "Book" },
 };
+
+// Watched items the guessing detector (OWL-ViT) is asked about; when none of them is on, the page skips it.
+export const GUESS_DETECTOR_CATEGORIES = [...new Set(OWL_QUERIES.map((item) => findDetectionRule(item.label)?.category))]
+  .filter((category) => category in LIVE_OBJECT_CATEGORIES);
 
 // A guessing detector's sighting counts after this many of its checks in a row.
 export const LIVE_GUESS_CONFIRM_SAMPLES = 2;
@@ -48,8 +54,11 @@ function getRule(category) {
 //   { type: "cleared", category, violationType } - the event ended; a later detection is a new event
 // There is no warning step: a sighting either becomes a violation or is ignored.
 // Technical failures change nothing: they neither confirm, extend nor clear an event.
-export function createLiveObjectMonitor() {
-  const state = Object.fromEntries(Object.keys(LIVE_OBJECT_CATEGORIES).map((category) => [category, { active: false, bySeenGuess: false, guessStreak: 0, cleanStreak: 0 }]));
+// enabledCategories: the exam's items that are on (see detectableObjects.js); items that are off are not watched.
+// Leaving it out watches every item.
+export function createLiveObjectMonitor({ enabledCategories = null } = {}) {
+  const watched = Object.keys(LIVE_OBJECT_CATEGORIES).filter((category) => isObjectDetected(enabledCategories, category));
+  const state = Object.fromEntries(watched.map((category) => [category, { active: false, bySeenGuess: false, guessStreak: 0, cleanStreak: 0 }]));
 
   return {
     observe(sample) {
@@ -89,6 +98,10 @@ export function createLiveObjectMonitor() {
       });
 
       return actions;
+    },
+    // Which items are watched, so the page can skip detectors that could only see items that are off.
+    watchedCategories() {
+      return Object.keys(state);
     },
     activeTypes() {
       return new Set(Object.entries(state).filter(([, entry]) => entry.active).map(([category]) => LIVE_OBJECT_CATEGORIES[category].type));
