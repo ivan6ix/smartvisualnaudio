@@ -8,14 +8,15 @@ import { Badge, Button, Card, ListSkeleton, PageHeader, SearchBox, SelectField }
 import { useAuth } from "../../context/AuthContext";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
-import { getListPageSlice, getPageSizeForView } from "../../lib/listView";
+import { getListPageSlice } from "../../lib/listView";
 import { canGradeManually, needsGradingPath } from "../../lib/manualGrading";
 import { buildRiskQueue, summarizeIntegrity } from "../../lib/integrityRisk";
 import { fetchAllRows } from "../../lib/fetchAllRows";
 import { DEFAULT_PASSING_SCORE } from "../../lib/itemAnalysis";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
-const PAGE_SIZE = 20;
+// Every Scores list (exams, students, questions, answers) shows 10 rows; the rest are on the next pages.
+const PAGE_SIZE = 10;
 const ATTEMPT_HISTORY_PAGE_SIZE = 20;
 const PARTIAL_MATCH_TYPES = new Set(["Multiple Select", "Matching Type", "Ordering / Sequencing", "Enumeration"]);
 
@@ -136,11 +137,13 @@ function sortAttemptsByNumber(attempts) {
 function Pagination({ count, page, onPage }) {
   if (count <= PAGE_SIZE) return null;
   const totalPages = Math.ceil(count / PAGE_SIZE);
+  // Up to 7 page buttons around the current page, so every page can be reached.
+  const firstButton = Math.max(1, Math.min(page - 3, totalPages - 6));
   return (
     <div className="professor-score-pagination">
       <span>Showing {(page - 1) * PAGE_SIZE + 1}-{Math.min(count, page * PAGE_SIZE)} of {count}</span>
       <button disabled={page <= 1} onClick={() => onPage(page - 1)} type="button">Previous</button>
-      {Array.from({ length: Math.min(totalPages, 7) }, (_, index) => index + 1).map((item) => (
+      {Array.from({ length: Math.min(totalPages, 7) }, (_, index) => firstButton + index).map((item) => (
         <button className={item === page ? "active" : ""} key={item} onClick={() => onPage(item)} type="button">{item}</button>
       ))}
       <button disabled={page >= totalPages} onClick={() => onPage(page + 1)} type="button">Next</button>
@@ -188,7 +191,7 @@ function isDeadlinePassed(exam) {
   return Number.isFinite(time) && time <= Date.now();
 }
 
-const SCORES_PAGE_SIZE = getPageSizeForView("table");
+const SCORES_PAGE_SIZE = PAGE_SIZE;
 
 export default function ProfessorScores() {
   const { user } = useAuth();

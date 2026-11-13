@@ -78,4 +78,22 @@ assert.match(page, /await Promise\.all\(\[\s*supabase\s*\.from\("courses"\)[\s\S
 assert.doesNotMatch(page, /attempts\.find\(\(item\) => item\.id === answer\.attempt_id\)/, "No per-answer scan of every attempt.");
 assert.match(page, /const answersByQuestion = useMemo/);
 
+// Every Scores list shows 10 rows per page, and the page buttons follow the current page so all pages are reachable.
+assert.match(page, /const PAGE_SIZE = 10;/);
+assert.match(page, /const SCORES_PAGE_SIZE = PAGE_SIZE;/);
+assert.match(page, /<ListPagination count=\{filteredExams\.length\} page=\{examPage\.page\} pageSize=\{SCORES_PAGE_SIZE\}/);
+assert.match(page, /<Pagination count=\{filteredStudents\.length\}/);
+assert.match(page, /<Pagination count=\{filteredQuestions\.length\}/);
+assert.match(page, /<Pagination count=\{rows\.length\}/);
+{
+  const firstButton = (page, totalPages) => Math.max(1, Math.min(page - 3, totalPages - 6));
+  const buttons = (page, totalPages) => Array.from({ length: Math.min(totalPages, 7) }, (_, index) => firstButton(page, totalPages) + index);
+  assert.match(page.replace(/\s+/g, " "), /const firstButton = Math\.max\(1, Math\.min\(page - 3, totalPages - 6\)\);/);
+  assert.deepEqual(buttons(1, 3), [1, 2, 3]);
+  assert.deepEqual(buttons(1, 12), [1, 2, 3, 4, 5, 6, 7]);
+  assert.deepEqual(buttons(9, 12), [6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(buttons(12, 12), [6, 7, 8, 9, 10, 11, 12]);
+  assert.deepEqual(buttons(5, 12), [2, 3, 4, 5, 6, 7, 8]);
+}
+
 console.log("Scores loading checks passed.");
