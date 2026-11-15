@@ -80,3 +80,5 @@ assert.equal(getScrollLimitHeight([10.2, 20.4, 30.6], 2), 23);
 const ongoingPage = readFileSync("src/pages/professor/ProfessorOngoingExams.jsx", "utf8");
 assert.match(ongoingPage, /const ONGOING_SCROLL_LIMIT = 5;/);
 assert.match(ongoingPage, /itemSelector="\.professor-ongoing-exam-row" limit=\{ONGOING_SCROLL_LIMIT\}/);
+// The list scrolls sideways on laptop screens, so the View button column stays pinned to the right edge.
+assert.match(readFileSync("src/styles.css", "utf8"), /\.professor-ongoing-exam-row > \.professor-ongoing-view-button,\s*\.professor-ongoing-exam-head > \[role="columnheader"\]:last-child \{\s*position: sticky;\s*right: 12px;/);

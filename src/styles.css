@@ -20772,5 +20772,24 @@ html[data-theme="dark"] .professor-violation-toast {
   padding-top: 4px;
   position: sticky;
   top: 0;
+  z-index: 2;
+}
+/* The list is wider than a laptop screen with the sidebar open, so the Action column stays pinned to the right
+   edge while the other columns scroll sideways; the View button is never out of reach. */
+.professor-ongoing-exam-row > .professor-ongoing-view-button,
+.professor-ongoing-exam-head > [role="columnheader"]:last-child {
+  position: sticky;
+  right: 12px;
   z-index: 1;
+}
+/* A strip of the row colour on both sides hides the columns scrolling underneath the pinned column. */
+.professor-ongoing-card .professor-ongoing-exam-row > .btn.professor-ongoing-view-button,
+.professor-ongoing-card .professor-ongoing-exam-row > .btn.professor-ongoing-view-button:hover,
+.professor-ongoing-card .professor-ongoing-exam-row > .btn.professor-ongoing-view-button:focus {
+  box-shadow: 12px 0 0 var(--app-surface), -10px 0 0 var(--app-surface);
+}
+.professor-ongoing-exam-head > [role="columnheader"]:last-child {
+  background: var(--app-surface);
+  box-shadow: 12px 0 0 var(--app-surface), -10px 0 0 var(--app-surface);
+  justify-self: end;
 }
