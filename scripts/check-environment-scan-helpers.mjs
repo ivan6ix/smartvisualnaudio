@@ -10,6 +10,7 @@ import {
   SWEEP_SAMPLE_INTERVAL_MS,
   TURN_ANALYSIS_HEIGHT,
   TURN_ANALYSIS_WIDTH,
+  TURN_SENSITIVITY,
   analyzeAngleCapture,
   assessCaptureQuality,
   classifyAngleDetections,
@@ -409,10 +410,13 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
   // Small shaking in place adds next to nothing.
   assert.ok(getSweepProgress(sweepThrough(Array.from({ length: 150 }, (_, index) => 3 * Math.sin(index)))).turnedDegrees < 10);
 
-  // 2. The bar follows the turn: a quarter turn is a quarter of the bar, half a turn is half.
-  near(getSweepProgress(sweepThrough(turn(90, 50))).turnedDegrees, 90, 6, "A quarter turn reads 90 degrees");
-  near(getSweepProgress(sweepThrough(turn(180, 75))).coverage * 100, 50, 3, "Half a turn fills half the bar");
-  assert.equal(finishSweep(sweepThrough(turn(180, 75))).ok, false, "Half a turn is not a room sweep.");
+  // 2. The bar follows the turn, boosted by the sensitivity (real laptops under-read the turn): on a camera that
+  // tracks perfectly, a quarter turn reads 135 degrees and half a turn fills three quarters of the bar.
+  assert.equal(TURN_SENSITIVITY, 1.5);
+  near(getSweepProgress(sweepThrough(turn(90, 50))).turnedDegrees, 90 * TURN_SENSITIVITY, 8, "A quarter turn reads 90 degrees times the sensitivity");
+  near(getSweepProgress(sweepThrough(turn(180, 75))).coverage * 100, 50 * TURN_SENSITIVITY, 4, "Half a turn fills three quarters of the bar");
+  assert.equal(finishSweep(sweepThrough(turn(180, 75))).ok, false, "Half a turn is still not a room sweep.");
+  assert.equal(getSweepProgress(sweepThrough(turn(180, 75))).canFinish, false, "Half a turn cannot be finished early either.");
 
   // 3. A full 360-degree turn fills the bar and finishes, at a slow or a brisk pace, in either direction, with the
   // light changing or someone walking past. At most 12 photos, one per new direction, go to the AI check.
@@ -462,7 +466,7 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
 
   // 4. Turning back and forth over one corner only counts that corner once.
   const backAndForth = getSweepProgress(sweepThrough(Array.from({ length: 150 }, (_, index) => 60 * Math.abs(Math.sin(index / 10)))));
-  near(backAndForth.turnedDegrees, 60, 6, "Going back and forth over 60 degrees counts 60 degrees");
+  near(backAndForth.turnedDegrees, 60 * TURN_SENSITIVITY, 8, "Going back and forth over 60 degrees counts that corner once");
   // Turning right a half circle then left a half circle shows the whole room.
   const bothWays = getSweepProgress(sweepThrough([...turn(180, 75), ...turn(-180, 150).map((heading) => 180 + heading), ...turn(-180, 75).map((heading) => heading)]));
   assert.equal(bothWays.complete, true, "Half a circle each way covers the whole room.");
@@ -470,11 +474,11 @@ const sameFrames = (predictions, count = 3) => Array.from({ length: count }, () 
   // 5. Spinning too fast to follow is not counted, so the bar stays low and the student slows down.
   assert.equal(getSweepProgress(sweepThrough(turn(360, 20))).complete, false, "A 4-second spin does not complete the sweep.");
 
-  // 6. Done unlocks near a full turn, and coming back to the starting view after most of a turn finishes it
-  // (the degree estimate depends on the camera's real width of view).
-  assert.equal(getSweepProgress(sweepThrough(turn(270, 120))).canFinish, false);
-  assert.equal(getSweepProgress(sweepThrough(turn(335, 140))).canFinish, true);
-  assert.equal(getSweepProgress(sweepThrough(turn(335, 140))).complete, false, "Not complete until a full turn or back at the start.");
+  // 6. Done unlocks near a full (measured) turn, and coming back to the starting view after most of a turn finishes
+  // it. With the sensitivity, a perfectly tracking camera reads 330 degrees after about 220 real degrees.
+  assert.equal(getSweepProgress(sweepThrough(turn(200, 120))).canFinish, false);
+  assert.equal(getSweepProgress(sweepThrough(turn(225, 140))).canFinish, true);
+  assert.equal(getSweepProgress(sweepThrough(turn(225, 140))).complete, false, "Not complete until a full measured turn or back at the start.");
 
   // 7. A dark room cannot be followed or checked: the bar does not move and the reason is about light.
   const dark = sweepThrough(turn(360, 150), () => ({ dark: true }));

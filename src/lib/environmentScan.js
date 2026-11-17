@@ -381,6 +381,10 @@ export const TURN_MAX_SHIFT_RATIO = 0.2;
 export const TURN_MIN_MATCH = 0.55;
 // Slides of a pixel or less are camera noise, not turning.
 export const TURN_DEAD_ZONE_PX = 1;
+// Real laptops under-read the turn (late or blurred pictures lose part of each step), so a full turn used to need two
+// or three turns. Measured degrees are multiplied by this, so the bar fills sooner. On a camera that tracks
+// perfectly, about 240 degrees fills it; a still camera still reads nothing.
+export const TURN_SENSITIVITY = 1.5;
 export const SWEEP_FULL_TURN_DEGREES = 360;
 // Done unlocks this close to a full turn. The degree estimate depends on the camera's real width of view, so a
 // full turn can read a little short; coming back to the starting view after most of a turn also finishes it.
@@ -515,7 +519,7 @@ export function estimateTurnShift(previous, next, maxShift) {
 export function shiftToDegrees(shiftPx, width) {
   if (!width) return 0;
   const shift = Math.abs(shiftPx) <= TURN_DEAD_ZONE_PX ? 0 : shiftPx;
-  return (shift / width) * CAMERA_HORIZONTAL_FOV_DEGREES;
+  return (shift / width) * CAMERA_HORIZONTAL_FOV_DEGREES * TURN_SENSITIVITY;
 }
 
 function isReliableShift(estimate) {
