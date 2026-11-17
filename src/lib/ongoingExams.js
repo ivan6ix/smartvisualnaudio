@@ -105,6 +105,22 @@ export function getNextOngoingTransitionDelay(exams = [], now = Date.now()) {
   return Math.max(1000, times[0] - now);
 }
 
+// Many students starting or submitting at once trigger one reload, shortly after the last change.
+export const ONGOING_RELOAD_DEBOUNCE_MS = 600;
+// A quiet reload while the page is visible, in case the live connection missed a change.
+export const ONGOING_SAFETY_REFRESH_MS = 30000;
+
+// "Updated just now", "Updated 45 sec ago", "Updated 3 min ago" for the time of the last successful load.
+export function formatUpdatedAgo(updatedAt, now = Date.now()) {
+  if (!updatedAt) return "Not updated yet";
+  const seconds = Math.max(0, Math.floor((now - updatedAt) / 1000));
+  if (seconds < 10) return "Updated just now";
+  if (seconds < 60) return `Updated ${seconds} sec ago`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `Updated ${minutes} min ago`;
+  return `Updated ${Math.floor(minutes / 60)} hr ago`;
+}
+
 export function shouldPlayViolationSound(lastPlayedAt, now = Date.now(), cooldownMs = VIOLATION_SOUND_COOLDOWN_MS) {
   return !lastPlayedAt || now - lastPlayedAt >= cooldownMs;
 }

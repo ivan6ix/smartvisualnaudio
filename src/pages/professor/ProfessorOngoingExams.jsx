@@ -1,5 +1,5 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { FiActivity, FiAlertTriangle, FiArrowLeft, FiCheckCircle, FiClock, FiEye, FiPlayCircle, FiUsers, FiVolume2, FiVolumeX, FiWifi, FiWifiOff } from "react-icons/fi";
+import { FiActivity, FiAlertTriangle, FiArrowLeft, FiCheckCircle, FiClock, FiEye, FiPlayCircle, FiRefreshCw, FiUsers, FiVolume2, FiVolumeX, FiWifi, FiWifiOff } from "react-icons/fi";
 import { useLocation, useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import ScrollAfterItems from "../../components/ScrollAfterItems";
@@ -10,8 +10,11 @@ import {
   ALL_FILTER,
   classifyOngoingStudent,
   filterOngoingExams,
+  formatUpdatedAgo,
   getOngoingFilterOptions,
   getNextOngoingTransitionDelay,
+  ONGOING_RELOAD_DEBOUNCE_MS,
+  ONGOING_SAFETY_REFRESH_MS,
   paginateOngoingRows,
   shouldPlayViolationSound,
   sortOngoingRows,
@@ -78,8 +81,15 @@ export default function ProfessorOngoingExams() {
   const [expandedViolations, setExpandedViolations] = useState(() => new Set());
   const [tableState, setTableState] = useState({});
   const [highlightedRows, setHighlightedRows] = useState(() => new Set());
+  const [refreshing, setRefreshing] = useState(false);
+  const [updatedAt, setUpdatedAt] = useState(null);
+  const [clock, setClock] = useState(() => Date.now());
   const previousViolationCountsRef = useRef(new Map());
   const lastSoundAtRef = useRef(0);
+  const inFlightRef = useRef(null);
+  const queuedRef = useRef(false);
+  const reloadTimerRef = useRef(null);
+  const loadOngoingRef = useRef(null);
 
   const allExamWindows = useMemo(() => [...activeExams, ...upcomingExams], [activeExams, upcomingExams]);
   // The counters and the list follow the course and section filters.
@@ -88,8 +98,7 @@ export default function ProfessorOngoingExams() {
   const summary = useMemo(() => summarizeOngoingExams(filteredExams), [filteredExams]);
   const selectedExam = useMemo(() => activeExams.find((exam) => exam.id === selectedExamId) || null, [activeExams, selectedExamId]);
 
-  const loadOngoing = useCallback(async ({ initial = false } = {}) => {
-    if (!hasSupabaseConfig) return;
+  const fetchOngoing = useCallback(async ({ initial = false, manual = false } = {}) => {
     try {
       const { data, error } = await supabase.rpc("get_professor_ongoing_exams");
       if (error) throw error;
@@ -119,43 +128,108 @@ export default function ProfessorOngoingExams() {
       setUpcomingExams(nextUpcoming);
       if (initial) setSelectedExamId(null);
       setSelectedExamId((current) => current && nextActive.some((exam) => exam.id === current) ? current : null);
+      setUpdatedAt(Date.now());
     } catch (error) {
-      toast.error(error.message);
+      // Background reloads stay quiet; the "Updated" time shows how old the numbers are.
+      if (initial || manual) toast.error(error.message);
     } finally {
       setOngoingReady(true);
     }
   }, [soundMuted]);
 
+  // One load at a time: a change that arrives during a load runs one more load right after it.
+  const loadOngoing = useCallback((options = {}) => {
+    if (!hasSupabaseConfig) return Promise.resolve();
+    if (inFlightRef.current) {
+      queuedRef.current = true;
+      return inFlightRef.current;
+    }
+    const run = fetchOngoing(options).finally(() => {
+      inFlightRef.current = null;
+      if (queuedRef.current) {
+        queuedRef.current = false;
+        void loadOngoingRef.current?.();
+      }
+    });
+    inFlightRef.current = run;
+    return run;
+  }, [fetchOngoing]);
+
+  useEffect(() => {
+    loadOngoingRef.current = loadOngoing;
+  }, [loadOngoing]);
+
+  // Live changes reload once, shortly after the last one, so many students starting together cost one load.
+  const scheduleReload = useCallback(() => {
+    window.clearTimeout(reloadTimerRef.current);
+    reloadTimerRef.current = window.setTimeout(() => void loadOngoingRef.current?.(), ONGOING_RELOAD_DEBOUNCE_MS);
+  }, []);
+
+  useEffect(() => () => window.clearTimeout(reloadTimerRef.current), []);
+
   useEffect(() => {
     if (!hasSupabaseConfig) return;
-    void loadOngoing({ initial: true });
-  }, [loadOngoing]);
+    // Runs after the effect above has stored the loader.
+    void loadOngoingRef.current?.({ initial: true });
+  }, []);
 
   useEffect(() => {
     if (!hasSupabaseConfig) return undefined;
+    // Only tables in the realtime publication send changes: starts and interruptions, submissions, and violations.
+    // Other changes, such as new assignments, show up on the next safety reload.
     const channel = supabase
       .channel("professor-ongoing-exams")
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_start_sessions" }, () => void loadOngoing())
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_attempts" }, () => void loadOngoing())
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_attempt_answers" }, () => void loadOngoing())
-      .on("postgres_changes", { event: "*", schema: "public", table: "violations" }, () => void loadOngoing())
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_student_assignments" }, () => void loadOngoing())
-      .on("postgres_changes", { event: "*", schema: "public", table: "exam_student_access_exceptions" }, () => void loadOngoing())
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_start_sessions" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "exam_attempts" }, scheduleReload)
+      .on("postgres_changes", { event: "*", schema: "public", table: "violations" }, scheduleReload)
       .subscribe((status) => {
         setConnectionState(status === "SUBSCRIBED" ? "Live" : "Reconnecting");
-        if (status === "SUBSCRIBED") void loadOngoing();
+        if (status === "SUBSCRIBED") scheduleReload();
       });
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [loadOngoing]);
+  }, [scheduleReload]);
+
+  // Safety net: a quiet reload every 30 seconds while the page is visible, and right away on returning to the tab.
+  useEffect(() => {
+    if (!hasSupabaseConfig) return undefined;
+    const visible = () => window.document.visibilityState === "visible";
+    const timer = window.setInterval(() => {
+      if (visible()) void loadOngoingRef.current?.();
+    }, ONGOING_SAFETY_REFRESH_MS);
+    const onVisibility = () => {
+      if (visible()) void loadOngoingRef.current?.();
+    };
+    window.document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(timer);
+      window.document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
+  // Keeps the "Updated ... ago" label current.
+  useEffect(() => {
+    const timer = window.setInterval(() => setClock(Date.now()), 10000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  async function refreshNow() {
+    setRefreshing(true);
+    try {
+      await loadOngoingRef.current?.({ manual: true });
+    } finally {
+      setRefreshing(false);
+      setClock(Date.now());
+    }
+  }
 
   useEffect(() => {
     const delay = getNextOngoingTransitionDelay(allExamWindows.map((exam) => ({ startsAt: exam.startsAt, deadline: exam.deadline })));
     if (!delay) return undefined;
-    const timer = window.setTimeout(() => void loadOngoing(), delay + 250);
+    const timer = window.setTimeout(() => void loadOngoingRef.current?.(), delay + 250);
     return () => window.clearTimeout(timer);
-  }, [allExamWindows, loadOngoing]);
+  }, [allExamWindows]);
 
   function updateFilters(patch) {
     // A new course resets the section, since its sections are different.
@@ -215,6 +289,10 @@ export default function ProfessorOngoingExams() {
           </div>
           <div className="professor-ongoing-live">
             <span className={connectionState === "Live" ? "live" : "reconnecting"}>{connectionState === "Live" ? <FiWifi /> : <FiWifiOff />}{connectionState}</span>
+            <small className="professor-ongoing-updated" aria-live="polite">{formatUpdatedAgo(updatedAt, clock)}</small>
+            <button aria-label="Refresh ongoing exams" className="professor-ongoing-refresh" disabled={refreshing} onClick={() => void refreshNow()} type="button">
+              <FiRefreshCw className={refreshing ? "is-spinning" : ""} /> {refreshing ? "Refreshing" : "Refresh"}
+            </button>
             <button aria-label={soundMuted ? "Unmute violation sound" : "Mute violation sound"} onClick={() => setSoundMuted((value) => !value)} type="button">
               {soundMuted ? <FiVolumeX /> : <FiVolume2 />} {soundMuted ? "Muted" : "Sound On"}
             </button>
