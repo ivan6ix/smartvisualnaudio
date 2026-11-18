@@ -9,6 +9,8 @@ const allowedRoles = new Set(["Professor", "Dean", "Cluster Professor"]);
 // Only active Admins manage accounts. Deans have no account pages, and letting them reset any password
 // let a Dean take over an Admin account.
 const adminRoles = new Set(["Admin"]);
+// About 100 years: Supabase Auth has no permanent ban, so a deactivated account is banned until reactivated.
+const DEACTIVATED_BAN_DURATION = "876000h";
 
 async function writeAudit(
   adminClient: ReturnType<typeof createClient>,
@@ -249,7 +251,11 @@ Deno.serve(async (req) => {
       if (currentUserError || !currentUser.user) return json({ error: currentUserError?.message || "User not found." }, 404);
 
       const metadata = { ...(currentUser.user.user_metadata || {}), status };
-      const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, { user_metadata: metadata });
+      // A deactivated account is banned in Supabase Auth so it cannot sign in; reactivation lifts the ban.
+      const { error: authUpdateError } = await adminClient.auth.admin.updateUserById(userId, {
+        user_metadata: metadata,
+        ban_duration: status === "Deactivated" ? DEACTIVATED_BAN_DURATION : "none",
+      });
       if (authUpdateError) return json({ error: authUpdateError.message }, 400);
 
       const { data: profile, error: profileError } = await adminClient

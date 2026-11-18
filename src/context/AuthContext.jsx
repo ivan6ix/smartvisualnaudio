@@ -2,6 +2,7 @@ import { Fragment, createContext, useContext, useEffect, useMemo, useRef, useSta
 import { toast } from "sonner";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 import { queryClient, queryPersister } from "../lib/queryClient";
+import { DEACTIVATED_ACCOUNT_MESSAGE, isDeactivatedStatus, signInErrorMessage } from "../lib/accountStatus";
 import { REGISTRATION_DEVICE_EMAIL_LIMIT, getRegistrationLimitStatus, recordRegistrationEmail } from "../lib/registrationRateLimit";
 import { mustChangePassword } from "../lib/settingsSecurity";
 
@@ -206,6 +207,15 @@ export function AuthProvider({ children }) {
       setLoading(false);
     }
 
+    // An account deactivated while signed in is signed out with an explanation instead of a session-expired notice.
+    async function endDeactivatedSession() {
+      if (!active) return;
+      toast.error(DEACTIVATED_ACCOUNT_MESSAGE);
+      intentionalLogout.current = true;
+      expireSession();
+      try { await supabase.auth.signOut(); } catch (error) { window.console.error("[Auth] Sign-out failed", error); }
+    }
+
     async function loadSession() {
       if (!hasCurrentSessionLogin()) {
         setUser(null);
@@ -222,6 +232,7 @@ export function AuthProvider({ children }) {
         if (validation.error || !validation.data.user) { expireSession(); return; }
         const authUser = validation.data.user;
         const nextUser = await mapAuthUser(authUser, userRef.current || getCachedUser());
+        if (isDeactivatedStatus(nextUser?.status)) { await endDeactivatedSession(); return; }
         if (active && version === generation) {
           userRef.current = nextUser;
           setUser(nextUser);
@@ -253,6 +264,7 @@ export function AuthProvider({ children }) {
       window.setTimeout(async () => {
         const nextUser = await mapAuthUser(session.user, userRef.current);
         if (!active || version !== generation || !hasCurrentSessionLogin()) return;
+        if (isDeactivatedStatus(nextUser?.status)) { await endDeactivatedSession(); return; }
         userRef.current = nextUser;
         setUser(nextUser);
         cacheUser(nextUser);
@@ -274,8 +286,13 @@ export function AuthProvider({ children }) {
     }, 0);
     if (hasSupabaseConfig) {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
+      if (error) throw new Error(signInErrorMessage(error));
       const nextUser = await mapAuthUser(data.user);
+      if (isDeactivatedStatus(nextUser?.status)) {
+        intentionalLogout.current = true;
+        await supabase.auth.signOut();
+        throw new Error(DEACTIVATED_ACCOUNT_MESSAGE);
+      }
       setCurrentSessionLogin(true);
       setHasLoggedInThisSession(true);
       setUser(nextUser);
