@@ -78,7 +78,7 @@ export default function Dashboard() {
     let active = true;
 
     async function loadSystemHealth() {
-      const [{ error: databaseError }, { data: buckets, error: storageError }] = await Promise.all([
+      const [{ error: databaseError }, { error: storageError }] = await Promise.all([
         supabase.from("profiles").select("id", { count: "exact", head: true }).limit(1),
         supabase.storage.listBuckets(),
       ]);
@@ -87,7 +87,8 @@ export default function Dashboard() {
       setSystemHealth((current) => ({
         ...current,
         database: databaseError ? "Offline" : "Online",
-        storage: storageError ? "Unavailable" : `${(buckets || []).length} buckets`,
+        // Storage RLS hides the bucket list from signed-in users, so only whether the service answers is shown.
+        storage: storageError ? "Unavailable" : "Online",
       }));
     }
 
@@ -232,8 +233,8 @@ export default function Dashboard() {
             </span>
             <span>
               <FiDatabase />
-              <strong>Storage Buckets</strong>
-              <Badge tone={systemHealth.storage === "Unavailable" ? "danger" : systemHealth.storage === "Checking" ? "warn" : "success"}>{systemHealth.storage}</Badge>
+              <strong>Storage Status</strong>
+              <Badge tone={systemHealth.storage === "Online" ? "success" : systemHealth.storage === "Checking" ? "warn" : "danger"}>{systemHealth.storage}</Badge>
             </span>
           </div>
         </Card>

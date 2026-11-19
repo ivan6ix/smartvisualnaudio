@@ -14,6 +14,10 @@ assert.ok(!dashboard.includes("Quick Actions</span>"), "Admin dashboard should r
 assert.equal((dashboard.match(/System Health/g) || []).length, 1, "System Health should render once.");
 assert.ok(dashboard.indexOf("Violation Analytics") < dashboard.indexOf("System Health"), "System Health should sit beside/after Violation Analytics.");
 assert.ok(dashboard.indexOf("System Health") < dashboard.indexOf("Recent Account Activity"), "Recent activity should follow System Health.");
+// Storage RLS hides the bucket list from signed-in users, so a bucket count would always read 0.
+assert.ok(!/buckets`|\.length} buckets/.test(dashboard), "System Health must not show a bucket count.");
+assert.match(dashboard, /storage: storageError \? "Unavailable" : "Online"/, "Storage health must show whether the service answers.");
+assert.match(dashboard, /<strong>Storage Status<\/strong>/);
 
 const themeIndex = appShell.indexOf('title="Theme"');
 const messagesIndex = appShell.indexOf("<MessageMenu");
