@@ -1,5 +1,5 @@
-// Bulk staff registration: reads a CSV of staff, checks each row before anything is created, and builds the
-// template and results files. Accounts are created one at a time through the create-account function, so each
+// Bulk staff registration: reads an Excel (.xlsx) or CSV file of staff, checks each row before anything is
+// created, and builds the template and results files. Accounts are created one at a time through the create-account function, so each
 // one gets the same checks and audit log entry as a single Create Account.
 
 export const STAFF_ROLES = ["Professor", "Dean", "Cluster Professor"];
@@ -63,9 +63,23 @@ export function normalizeRole(value, defaultRole = "") {
   return STAFF_ROLES.find((role) => role.toLowerCase() === text) || null;
 }
 
+// A cell read from an Excel file may be a number, a date, a boolean or empty; rows are checked as text.
+export function cellText(value) {
+  if (value === null || value === undefined) return "";
+  if (value instanceof Date) return Number.isNaN(value.getTime()) ? "" : value.toISOString().slice(0, 10);
+  return String(value);
+}
+
+// Reads the first sheet of an Excel file or the lines of a CSV file, already split into cells.
+export function readStaffCsv(text, options = {}) {
+  return readStaffRows(parseCsv(text), options);
+}
+
 // Rows keep their spreadsheet row number (the header is row 1) so problems can be found in the file.
-export function readStaffCsv(text, { defaultRole = "" } = {}) {
-  const [header = [], ...body] = parseCsv(text);
+export function readStaffRows(cellRows, { defaultRole = "" } = {}) {
+  const [header = [], ...body] = (cellRows || [])
+    .map((cells) => (cells || []).map(cellText))
+    .filter((cells) => cells.some((value) => value.trim()));
   const columns = {};
   header.forEach((name, index) => {
     const key = Object.keys(HEADER_ALIASES).find((field) => HEADER_ALIASES[field].includes(name.trim().toLowerCase()));
@@ -133,20 +147,64 @@ export function templateCsv(defaultRole = "Professor") {
 }
 
 // results: Map of rowNumber -> { status: "Created" | "Failed", message }. Rows never sent show as Skipped.
+const RESULTS_HEADERS = ["row", "full_name", "email", "role", "program", "result", "details"];
+function resultRows(rows, results) {
+  return rows.map((row) => {
+    const result = results.get(row.rowNumber);
+    return [
+      row.rowNumber,
+      row.fullName,
+      row.email,
+      row.role || row.roleText,
+      row.programCode || "",
+      result?.status || "Skipped",
+      result?.message || row.problem || "",
+    ];
+  });
+}
+
 export function resultsCsv(rows, results) {
-  return toCsv([
-    ["row", "full_name", "email", "role", "program", "result", "details"],
-    ...rows.map((row) => {
-      const result = results.get(row.rowNumber);
-      return [
-        row.rowNumber,
-        row.fullName,
-        row.email,
-        row.role || row.roleText,
-        row.programCode || "",
-        result?.status || "Skipped",
-        result?.message || row.problem || "",
-      ];
-    }),
-  ]);
+  return toCsv([RESULTS_HEADERS, ...resultRows(rows, results)]);
+}
+
+// Excel workbooks, written with write-excel-file. A CSV file cannot store column widths or bold text, so the
+// template and the results are offered as .xlsx files that open readable in Excel.
+const headerCell = (value) => ({ value, fontWeight: "bold", backgroundColor: "#D9E2F3" });
+const textCell = (value) => ({ value: value === null || value === undefined ? "" : String(value) });
+
+// Sheet 1 "Staff" is what the upload reads (header plus one example row); sheet 2 explains each column and
+// lists the active program codes.
+export function templateSheets(defaultRole = "Professor", programs = []) {
+  const codes = programs.map((program) => String(program.program_code || "").trim()).filter(Boolean);
+  const example = ["Juan Dela Cruz", "juan.delacruz@school.edu", defaultRole, codes[0] || "BSIT"];
+  return [
+    {
+      sheet: "Staff",
+      data: [TEMPLATE_HEADERS.map(headerCell), example.map(textCell)],
+      columns: [{ width: 28 }, { width: 34 }, { width: 20 }, { width: 14 }],
+      stickyRowsCount: 1,
+    },
+    {
+      sheet: "How to fill",
+      data: [
+        ["Column", "What to type"].map(headerCell),
+        ["full_name", "The person's full name. Required."].map(textCell),
+        ["email", "A valid email address that has no account yet. Required."].map(textCell),
+        ["role", "Professor, Dean, or Cluster Professor. Required."].map(textCell),
+        ["program", `Optional. An active program code: ${codes.length ? codes.join(", ") : "see Academic Programs"}.`].map(textCell),
+        ["", ""].map(textCell),
+        ["Note", "Replace the example row on the Staff sheet, keep the header row, and upload this file as it is. Up to 200 rows."].map(textCell),
+      ],
+      columns: [{ width: 14 }, { width: 90 }],
+    },
+  ];
+}
+
+export function resultsSheet(rows, results) {
+  return {
+    sheet: "Results",
+    data: [RESULTS_HEADERS.map(headerCell), ...resultRows(rows, results).map((cells) => cells.map(textCell))],
+    columns: [{ width: 7 }, { width: 28 }, { width: 34 }, { width: 18 }, { width: 11 }, { width: 11 }, { width: 60 }],
+    stickyRowsCount: 1,
+  };
 }

@@ -1,0 +1,59 @@
+/* global console, structuredClone */
+// Round trip: the Excel template written by write-excel-file reads back through read-excel-file into the same
+// row checks as a CSV upload, and the results workbook is readable.
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import writeExcelFile from "write-excel-file/node";
+import { readSheet } from "read-excel-file/node";
+
+import { cellText, checkStaffRows, readStaffRows, resultsSheet, templateSheets, TEMPLATE_HEADERS } from "../src/lib/bulkAccounts.js";
+
+const programs = [{ id: "prog-bsit", program_code: "BSIT" }, { id: "prog-bscs", program_code: "BSCS" }];
+
+// The template: Staff sheet first (header + example), then How to fill with the active program codes.
+const sheets = templateSheets("Dean", programs);
+assert.deepEqual(sheets.map((sheet) => sheet.sheet), ["Staff", "How to fill"]);
+assert.deepEqual(sheets[0].data[0].map((cell) => cell.value), TEMPLATE_HEADERS);
+assert.ok(sheets[0].data[0].every((cell) => cell.fontWeight === "bold"), "The header row is bold.");
+assert.ok(sheets[0].columns.every((column) => column.width >= 14), "Columns are wide enough to read.");
+assert.equal(sheets[0].stickyRowsCount, 1, "The header row stays visible while scrolling.");
+assert.match(sheets[1].data.map((row) => row.map((cell) => cell.value).join(" ")).join("\n"), /BSIT, BSCS/, "How to fill lists the active program codes.");
+
+// Write the template, add two staff rows as an admin would, and read it back like an upload.
+const filled = structuredClone(sheets);
+filled[0].data.push(
+  [{ value: "Ana Reyes" }, { value: "ANA@School.edu" }, { value: "professor" }, { value: "bscs" }],
+  [{ value: "Ben Cruz" }, { value: "ben@school.edu" }, { value: "Cluster Professor" }, { value: "" }],
+);
+const buffer = await writeExcelFile(filled).toBuffer();
+const read = readStaffRows(await readSheet(buffer), { defaultRole: "" });
+assert.equal(read.error, "");
+assert.deepEqual(read.rows.map((row) => [row.rowNumber, row.fullName, row.email, row.role, row.programCode]), [
+  [2, "Juan Dela Cruz", "juan.delacruz@school.edu", "Dean", "BSIT"],
+  [3, "Ana Reyes", "ana@school.edu", "Professor", "BSCS"],
+  [4, "Ben Cruz", "ben@school.edu", "Cluster Professor", ""],
+]);
+const checked = checkStaffRows(read.rows, { existingEmails: [], programs });
+assert.deepEqual(checked.map((row) => [row.problem, row.programId]), [[null, "prog-bsit"], [null, "prog-bscs"], [null, ""]], "Excel rows go through the same checks as CSV rows.");
+
+// Numbers, dates and empty cells from Excel become text before the checks.
+assert.equal(cellText(42), "42");
+assert.equal(cellText(null), "");
+assert.equal(cellText(new Date(Date.UTC(2026, 10, 21))), "2026-11-21");
+
+// The results workbook writes and reads back with its header.
+const resultsBook = await writeExcelFile([resultsSheet(checked, new Map([[2, { status: "Created", message: "" }]]))]).toBuffer();
+const resultRows = await readSheet(resultsBook);
+assert.deepEqual(resultRows[0], ["row", "full_name", "email", "role", "program", "result", "details"]);
+assert.deepEqual(resultRows[1].slice(0, 6), ["2", "Juan Dela Cruz", "juan.delacruz@school.edu", "Dean", "BSIT", "Created"]);
+
+// Wiring: the modal accepts .xlsx and .csv, loads the Excel libraries only when needed, and downloads .xlsx files.
+const modal = readFileSync("src/components/admin/BulkRegisterModal.jsx", "utf8");
+assert.match(modal, /accept="\.xlsx,\.csv/);
+assert.match(modal, /await import\("write-excel-file\/browser"\)/);
+assert.match(modal, /await import\("read-excel-file\/browser"\)/);
+assert.match(modal, /"staff-template\.xlsx"/);
+assert.match(modal, /"staff-registration-results\.xlsx"/);
+assert.doesNotMatch(modal, /^import .*excel-file/m, "The Excel libraries are not part of the main bundle.");
+
+console.log("Bulk account Excel checks passed.");

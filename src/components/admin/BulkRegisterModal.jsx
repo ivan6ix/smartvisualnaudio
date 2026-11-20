@@ -2,17 +2,24 @@ import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { FiDownload, FiUpload, FiUserPlus, FiX } from "react-icons/fi";
 import { Badge, Button, Field, Table } from "../ui";
-import { checkStaffRows, MAX_ROWS, readStaffCsv, resultsCsv, templateCsv } from "../../lib/bulkAccounts";
+import { checkStaffRows, MAX_ROWS, readStaffCsv, readStaffRows, resultsSheet, templateSheets } from "../../lib/bulkAccounts";
 import { fetchAllRows } from "../../lib/fetchAllRows";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
-function downloadCsv(text, fileName) {
-  const url = window.URL.createObjectURL(new window.Blob([text], { type: "text/csv;charset=utf-8" }));
-  const link = window.document.createElement("a");
-  link.href = url;
-  link.download = fileName;
-  link.click();
-  window.URL.revokeObjectURL(url);
+// The Excel libraries load only when a workbook is written or read, so the rest of the app stays small.
+async function downloadWorkbook(sheets, fileName) {
+  const { default: writeExcelFile } = await import("write-excel-file/browser");
+  await writeExcelFile(sheets).toFile(fileName);
+}
+
+const isExcelFile = (file) => /\.xlsx$/i.test(file.name) || file.type === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+
+async function readUploadedStaff(file, defaultRole) {
+  if (isExcelFile(file)) {
+    const { readSheet } = await import("read-excel-file/browser");
+    return readStaffRows(await readSheet(file), { defaultRole });
+  }
+  return readStaffCsv(await file.text(), { defaultRole });
 }
 
 // defaultRole is the page's role ("" on Create Account, where the file must say the role).
@@ -67,11 +74,24 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    const { rows: nextRows, error } = readStaffCsv(await file.text(), { defaultRole });
+    let read;
+    try {
+      read = await readUploadedStaff(file, defaultRole);
+    } catch {
+      read = { rows: [], error: "The file could not be read. Upload the Excel template (.xlsx) or a CSV file." };
+    }
     setFileName(file.name);
-    setFileRows(nextRows);
-    setFileError(error);
+    setFileRows(read.rows);
+    setFileError(read.error);
     setResults(null);
+  }
+
+  async function saveWorkbook(sheets, fileName) {
+    try {
+      await downloadWorkbook(sheets, fileName);
+    } catch (error) {
+      toast.error(error.message || "The file could not be created.");
+    }
   }
 
   async function createAll() {
@@ -122,7 +142,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
         <div className="account-modal-header">
           <div>
             <h2 id="bulk-register-title">Bulk Register {defaultRole ? `${defaultRole}s` : "Staff"}</h2>
-            <p>Create {defaultRole ? `${defaultRole.toLowerCase()}` : "professor, dean and cluster professor"} accounts from a CSV file of up to {MAX_ROWS} rows.</p>
+            <p>Create {defaultRole ? `${defaultRole.toLowerCase()}` : "professor, dean and cluster professor"} accounts from an Excel (.xlsx) or CSV file of up to {MAX_ROWS} rows.</p>
           </div>
           <button aria-label="Close bulk register" disabled={running} onClick={onClose} type="button"><FiX /></button>
         </div>
@@ -130,11 +150,11 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
         <div className="bulk-register-setup">
           <div className="bulk-register-file">
             <label className={`btn btn-light ${running || !existing ? "is-disabled" : ""}`}>
-              <FiUpload /> {fileName ? "Choose another file" : "Choose CSV file"}
-              <input accept=".csv,text/csv" disabled={running || !existing} onChange={chooseFile} type="file" />
+              <FiUpload /> {fileName ? "Choose another file" : "Choose Excel or CSV file"}
+              <input accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={running || !existing} onChange={chooseFile} type="file" />
             </label>
             <p>{!existing ? "Checking existing accounts..." : fileName ? `${fileName} · ${fileRows.length} row${fileRows.length === 1 ? "" : "s"}` : "Columns: full_name, email, role, and an optional program (for example BSIT)."}</p>
-            <button className="bulk-register-template" onClick={() => downloadCsv(templateCsv(defaultRole || "Professor"), "staff-template.csv")} type="button">
+            <button className="bulk-register-template" onClick={() => saveWorkbook(templateSheets(defaultRole || "Professor", programs), "staff-template.xlsx")} type="button">
               <FiDownload /> Download template
             </button>
           </div>
@@ -166,7 +186,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
 
         <div className="account-modal-actions">
           {results && !running ? (
-            <Button onClick={() => downloadCsv(resultsCsv(rows, results), "staff-registration-results.csv")} type="button" variant="light"><FiDownload /> Download results</Button>
+            <Button onClick={() => saveWorkbook([resultsSheet(rows, results)], "staff-registration-results.xlsx")} type="button" variant="light"><FiDownload /> Download results</Button>
           ) : null}
           <Button disabled={running} onClick={onClose} type="button" variant="light">{results ? "Close" : "Cancel"}</Button>
           {!results || running ? (
