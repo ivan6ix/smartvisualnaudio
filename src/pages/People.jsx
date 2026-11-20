@@ -171,12 +171,15 @@ export default function People({ type }) {
     return data;
   }
 
-  async function createAccount({ role, fullName, email, password, programId = "" }) {
+  // Used by Create Account and Bulk Register. Bulk Register may also create students (with a student number);
+  // they are not listed on this staff page but appear in Manage Accounts.
+  async function createAccount({ role, fullName, email, password, programId = "", studentNumber = "" }) {
     if (hasSupabaseConfig) {
-      const data = await callAccountFunction({ action: "create", role, fullName, email, password, programId });
-      updateLiveProfile(data.profile);
+      const data = await callAccountFunction({ action: "create", role, fullName, email, password, programId, ...(role === "Student" ? { studentNumber } : {}) });
+      if (accountTypes.includes(data.profile.role)) updateLiveProfile(data.profile);
       return;
     }
+    if (role === "Student") return;
     updateRows(role, (current) => [{ id: crypto.randomUUID(), name: fullName, email, role, status: "Active", programId }, ...current]);
   }
 

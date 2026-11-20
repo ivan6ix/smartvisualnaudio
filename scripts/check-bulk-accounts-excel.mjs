@@ -10,9 +10,9 @@ import { cellText, checkStaffRows, readStaffRows, resultsSheet, templateSheets, 
 
 const programs = [{ id: "prog-bsit", program_code: "BSIT" }, { id: "prog-bscs", program_code: "BSCS" }];
 
-// The template: Staff sheet first (header + example), then How to fill with the active program codes.
+// The template: Accounts sheet first (header + a staff and a student example), then How to fill.
 const sheets = templateSheets("Dean", programs);
-assert.deepEqual(sheets.map((sheet) => sheet.sheet), ["Staff", "How to fill"]);
+assert.deepEqual(sheets.map((sheet) => sheet.sheet), ["Accounts", "How to fill"]);
 assert.deepEqual(sheets[0].data[0].map((cell) => cell.value), TEMPLATE_HEADERS);
 assert.ok(sheets[0].data[0].every((cell) => cell.fontWeight === "bold"), "The header row is bold.");
 assert.ok(sheets[0].columns.every((column) => column.width >= 14), "Columns are wide enough to read.");
@@ -22,19 +22,23 @@ assert.match(sheets[1].data.map((row) => row.map((cell) => cell.value).join(" ")
 // Write the template, add two staff rows as an admin would, and read it back like an upload.
 const filled = structuredClone(sheets);
 filled[0].data.push(
-  [{ value: "Ana Reyes" }, { value: "ANA@School.edu" }, { value: "professor" }, { value: "bscs" }],
-  [{ value: "Ben Cruz" }, { value: "ben@school.edu" }, { value: "Cluster Professor" }, { value: "" }],
+  [{ value: "Ana Reyes" }, { value: "ANA@School.edu" }, { value: "professor" }, { value: "bscs" }, { value: "" }],
+  [{ value: "Ben Cruz" }, { value: "ben@school.edu" }, { value: "Cluster Professor" }, { value: "" }, { value: "" }],
+  // A student number typed as a number in Excel still reads as text.
+  [{ value: "Cara Lim" }, { value: "cara@school.edu" }, { value: "Student" }, { value: "" }, { value: 20260007, type: Number }],
 );
 const buffer = await writeExcelFile(filled).toBuffer();
 const read = readStaffRows(await readSheet(buffer), { defaultRole: "" });
 assert.equal(read.error, "");
-assert.deepEqual(read.rows.map((row) => [row.rowNumber, row.fullName, row.email, row.role, row.programCode]), [
-  [2, "Juan Dela Cruz", "juan.delacruz@school.edu", "Dean", "BSIT"],
-  [3, "Ana Reyes", "ana@school.edu", "Professor", "BSCS"],
-  [4, "Ben Cruz", "ben@school.edu", "Cluster Professor", ""],
+assert.deepEqual(read.rows.map((row) => [row.rowNumber, row.fullName, row.email, row.role, row.programCode, row.studentNumber]), [
+  [2, "Juan Dela Cruz", "juan.delacruz@school.edu", "Dean", "BSIT", ""],
+  [3, "Maria Santos", "maria.santos@school.edu", "Student", "", "2026-0001"],
+  [4, "Ana Reyes", "ana@school.edu", "Professor", "BSCS", ""],
+  [5, "Ben Cruz", "ben@school.edu", "Cluster Professor", "", ""],
+  [6, "Cara Lim", "cara@school.edu", "Student", "", "20260007"],
 ]);
-const checked = checkStaffRows(read.rows, { existingEmails: [], programs });
-assert.deepEqual(checked.map((row) => [row.problem, row.programId]), [[null, "prog-bsit"], [null, "prog-bscs"], [null, ""]], "Excel rows go through the same checks as CSV rows.");
+const checked = checkStaffRows(read.rows, { existingEmails: [], existingStudentNumbers: [], programs });
+assert.deepEqual(checked.map((row) => [row.problem, row.programId]), [[null, "prog-bsit"], [null, ""], [null, "prog-bscs"], [null, ""], [null, ""]], "Excel rows go through the same checks as CSV rows.");
 
 // Numbers, dates and empty cells from Excel become text before the checks.
 assert.equal(cellText(42), "42");
@@ -44,8 +48,9 @@ assert.equal(cellText(new Date(Date.UTC(2026, 10, 21))), "2026-11-21");
 // The results workbook writes and reads back with its header.
 const resultsBook = await writeExcelFile([resultsSheet(checked, new Map([[2, { status: "Created", message: "" }]]))]).toBuffer();
 const resultRows = await readSheet(resultsBook);
-assert.deepEqual(resultRows[0], ["row", "full_name", "email", "role", "program", "result", "details"]);
-assert.deepEqual(resultRows[1].slice(0, 6), ["2", "Juan Dela Cruz", "juan.delacruz@school.edu", "Dean", "BSIT", "Created"]);
+assert.deepEqual(resultRows[0], ["row", "full_name", "email", "role", "program", "student_number", "result", "details"]);
+// An empty cell reads back as null from Excel.
+assert.deepEqual(resultRows[1].slice(0, 7), ["2", "Juan Dela Cruz", "juan.delacruz@school.edu", "Dean", "BSIT", null, "Created"]);
 
 // Wiring: the modal accepts .xlsx and .csv, loads the Excel libraries only when needed, and downloads .xlsx files.
 const modal = readFileSync("src/components/admin/BulkRegisterModal.jsx", "utf8");

@@ -24,10 +24,12 @@ async function readUploadedStaff(file, defaultRole) {
 
 // defaultRole is the page's role ("" on Create Account, where the file must say the role).
 // programs are the active programs ({ id, program_code }) that the optional program column may name.
-// createAccount({ role, fullName, email, password, programId }) creates one account or throws.
+// createAccount({ role, fullName, email, password, programId, studentNumber }) creates one account or throws.
+// Staff and Student accounts can be registered from the same file.
 export default function BulkRegisterModal({ defaultRole = "", existingAccounts = [], programs = [], createAccount, onClose }) {
   const [existing, setExisting] = useState(hasSupabaseConfig ? null : {
     emails: existingAccounts.map((account) => account.email),
+    studentNumbers: [],
   });
   const [fileName, setFileName] = useState("");
   const [fileRows, setFileRows] = useState([]);
@@ -41,14 +43,17 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     if (!hasSupabaseConfig) return;
     let active = true;
     // Every account is read (the API returns at most 1000 rows per request), so no duplicate slips through.
-    fetchAllRows((options) => supabase.from("profiles").select("id, email", options).order("id")).then(({ data, error }) => {
+    fetchAllRows((options) => supabase.from("profiles").select("id, email, student_number", options).order("id")).then(({ data, error }) => {
       if (!active) return;
       if (error) {
         toast.error(error.message);
-        setExisting({ emails: [] });
+        setExisting({ emails: [], studentNumbers: [] });
         return;
       }
-      setExisting({ emails: (data || []).map((profile) => profile.email) });
+      setExisting({
+        emails: (data || []).map((profile) => profile.email),
+        studentNumbers: (data || []).map((profile) => profile.student_number).filter(Boolean),
+      });
     });
     return () => {
       active = false;
@@ -65,6 +70,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
 
   const rows = useMemo(() => (existing ? checkStaffRows(fileRows, {
     existingEmails: existing.emails,
+    existingStudentNumbers: existing.studentNumbers,
     programs,
   }) : []), [existing, fileRows, programs]);
   const ready = rows.filter((row) => !row.problem);
@@ -105,7 +111,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     const nextResults = new Map();
     for (const row of ready) {
       try {
-        await createAccount({ role: row.role, fullName: row.fullName, email: row.email, password, programId: row.programId });
+        await createAccount({ role: row.role, fullName: row.fullName, email: row.email, password, programId: row.programId, studentNumber: row.studentNumber });
         nextResults.set(row.rowNumber, { status: "Created", message: "" });
       } catch (error) {
         nextResults.set(row.rowNumber, { status: "Failed", message: error.message || "Account was not created." });
@@ -129,10 +135,11 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
 
   const columns = [
     { key: "rowNumber", label: "Row", width: "8%" },
-    { key: "fullName", label: "Full Name", width: "20%" },
-    { key: "email", label: "Email", width: "26%" },
-    { key: "role", label: "Role", width: "14%", render: (row) => row.role || row.roleText || "-" },
-    { key: "programCode", label: "Program", width: "14%", render: (row) => row.programCode || "-" },
+    { key: "fullName", label: "Full Name", width: "18%" },
+    { key: "email", label: "Email", width: "22%" },
+    { key: "role", label: "Role", width: "13%", render: (row) => row.role || row.roleText || "-" },
+    { key: "programCode", label: "Program", width: "10%", render: (row) => row.programCode || "-" },
+    { key: "studentNumber", label: "Student No.", width: "11%", render: (row) => row.studentNumber || "-" },
     { key: "check", label: "Check", width: "18%", render: resultFor },
   ];
 
@@ -141,8 +148,8 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
       <section aria-labelledby="bulk-register-title" aria-modal="true" className="card modal account-create-modal bulk-register-modal" onClick={(event) => event.stopPropagation()} role="dialog">
         <div className="account-modal-header">
           <div>
-            <h2 id="bulk-register-title">Bulk Register {defaultRole ? `${defaultRole}s` : "Staff"}</h2>
-            <p>Create {defaultRole ? `${defaultRole.toLowerCase()}` : "professor, dean and cluster professor"} accounts from an Excel (.xlsx) or CSV file of up to {MAX_ROWS} rows.</p>
+            <h2 id="bulk-register-title">Bulk Register {defaultRole ? `${defaultRole}s` : "Accounts"}</h2>
+            <p>Create {defaultRole ? `${defaultRole.toLowerCase()}` : "professor, dean, cluster professor, and student"} accounts from an Excel (.xlsx) or CSV file of up to {MAX_ROWS} rows.</p>
           </div>
           <button aria-label="Close bulk register" disabled={running} onClick={onClose} type="button"><FiX /></button>
         </div>

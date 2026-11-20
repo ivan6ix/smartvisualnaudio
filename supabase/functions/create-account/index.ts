@@ -5,7 +5,10 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Staff roles have a program. Students can also be created by an Admin (Bulk Register); they need a student
+// number, have no program, and are created with a confirmed email, so they can sign in right away.
 const allowedRoles = new Set(["Professor", "Dean", "Cluster Professor"]);
+const creatableRoles = new Set([...allowedRoles, "Student"]);
 // Only active Admins manage accounts. Deans have no account pages, and letting them reset any password
 // let a Dean take over an Admin account.
 const adminRoles = new Set(["Admin"]);
@@ -102,14 +105,18 @@ Deno.serve(async (req) => {
       const fullName = String(body.fullName || "").trim();
       const email = String(body.email || "").trim().toLowerCase();
       const password = String(body.password || "123456");
+      const isStudent = role === "Student";
+      const studentNumber = isStudent ? String(body.studentNumber || "").trim() : "";
 
-      if (!allowedRoles.has(role)) return json({ error: "Invalid account role." }, 400);
+      if (!creatableRoles.has(role)) return json({ error: "Invalid account role." }, 400);
       if (!fullName || !email) return json({ error: "Full name and email are required." }, 400);
+      if (isStudent && !studentNumber) return json({ error: "A student number is required for a student account." }, 400);
       if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
 
       // The program may be given now (the Create Account form requires it) or later with assign-program
       // (bulk-created accounts without a program column). A Cluster Professor without one sees no exams to review.
-      const programId = String(body.programId || "").trim();
+      // Students have no program.
+      const programId = isStudent ? "" : String(body.programId || "").trim();
       let program: { id: string; program_code: string } | null = null;
       if (programId) {
         const found = await findActiveProgram(adminClient, programId);
@@ -127,6 +134,17 @@ Deno.serve(async (req) => {
       if (sameEmail) {
         return json({ error: `The email ${email} is already used by ${sameEmail.full_name}. Enter a different email.` }, 409);
       }
+      if (isStudent) {
+        const { data: sameNumber } = await adminClient
+          .from("profiles")
+          .select("full_name")
+          .eq("student_number", studentNumber)
+          .limit(1)
+          .maybeSingle();
+        if (sameNumber) {
+          return json({ error: `Student number ${studentNumber} is already used by ${sameNumber.full_name}. Enter a different student number.` }, 409);
+        }
+      }
 
       const { data, error } = await adminClient.auth.admin.createUser({
         email,
@@ -136,6 +154,7 @@ Deno.serve(async (req) => {
           role,
           status: "Active",
           full_name: fullName,
+          ...(isStudent ? { student_number: studentNumber } : {}),
           // The Admin chose this password, so the user must replace it at first sign-in.
           must_change_password: true,
         },
@@ -143,7 +162,7 @@ Deno.serve(async (req) => {
 
       if (error) {
         const message = /database error/i.test(error.message)
-          ? "The account could not be created. The email may already be in use."
+          ? `The account could not be created. The email${isStudent ? " or student number" : ""} may already be in use.`
           : error.message;
         return json({ error: message }, 400);
       }
@@ -158,8 +177,9 @@ Deno.serve(async (req) => {
           email,
           status: "Active",
           program_id: program?.id || null,
+          ...(isStudent ? { student_number: studentNumber } : {}),
         })
-        .select("id, role, full_name, email, status, program_id, created_at")
+        .select("id, role, full_name, email, status, program_id, student_number, created_at")
         .single();
 
       if (profileError) return json({ error: profileError.message }, 400);
