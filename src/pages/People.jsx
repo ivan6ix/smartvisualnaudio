@@ -5,15 +5,22 @@ import BulkRegisterModal from "../components/admin/BulkRegisterModal";
 import { Button, Card, Field, SearchBox, SelectField, Table, Badge, RowActionMenu } from "../components/ui";
 import { clusterProfessors, deans, professors } from "../data/mockData";
 import useLocalStorageState from "../hooks/useLocalStorageState";
+import { fetchAllRows } from "../lib/fetchAllRows";
+import { queryClient } from "../lib/queryClient";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 
 const source = {
   Professor: professors,
   Dean: deans,
   "Cluster Professor": clusterProfessors,
+  Student: [],
 };
 
+// Staff accounts are created one at a time here; students are created through Bulk Register. Both are listed
+// on Create Account so the Admin manages every created account in one place.
 const accountTypes = ["Professor", "Dean", "Cluster Professor"];
+const STUDENT = "Student";
+const listedTypes = [...accountTypes, STUDENT];
 const CLUSTER = "Cluster Professor";
 // Staff accounts have no employee number. Every staff account belongs to a program; a Cluster Professor also
 // reviews the exams of that program.
@@ -39,6 +46,7 @@ function mapProfile(profile) {
     status: profile.status || "Pending",
     role: profile.role,
     programId: profile.program_id || "",
+    studentNumber: profile.student_number || "",
   };
 }
 
@@ -67,13 +75,13 @@ export default function People({ type }) {
   const rowsSource = hasSupabaseConfig ? liveRowsByType : rowsByType;
   const rows = useMemo(() => {
     if (!isUnified) return rowsSource[accountType] || source[accountType] || [];
-    return accountTypes.flatMap((role) => (rowsSource[role] || source[role] || []).map((row) => ({ ...row, role: row.role || role })));
+    return listedTypes.flatMap((role) => (rowsSource[role] || source[role] || []).map((row) => ({ ...row, role: row.role || role })));
   }, [accountType, isUnified, rowsSource]);
   const title = getTitle(accountType, isUnified);
 
   const filtered = useMemo(() => rows.filter((row) => {
     const matchesRole = !isUnified || roleFilter === "All Account Types" || row.role === roleFilter;
-    const matchesSearch = `${row.name} ${row.email}`.toLowerCase().includes(search.trim().toLowerCase());
+    const matchesSearch = `${row.name} ${row.email} ${row.studentNumber || ""}`.toLowerCase().includes(search.trim().toLowerCase());
     return matchesRole && matchesSearch;
   }), [isUnified, roleFilter, rows, search]);
   const active = filtered.filter((row) => row.status === "Active");
@@ -83,18 +91,20 @@ export default function People({ type }) {
     if (!hasSupabaseConfig) return;
 
     async function loadPeople() {
-      const { data, error } = await supabase
+      // Every staff and student account, newest first (the API returns at most 1000 rows per request).
+      const { data, error } = await fetchAllRows((options) => supabase
         .from("profiles")
-        .select("id, role, full_name, email, status, program_id")
-        .in("role", accountTypes)
-        .order("created_at", { ascending: false });
+        .select("id, role, full_name, email, status, program_id, student_number", options)
+        .in("role", listedTypes)
+        .order("created_at", { ascending: false })
+        .order("id"));
 
       if (error) {
         toast.error(error.message);
         return;
       }
 
-      const grouped = accountTypes.reduce((items, role) => ({ ...items, [role]: [] }), {});
+      const grouped = listedTypes.reduce((items, role) => ({ ...items, [role]: [] }), {});
       (data || []).forEach((profile) => {
         grouped[profile.role] = [...(grouped[profile.role] || []), mapProfile(profile)];
       });
@@ -152,7 +162,7 @@ export default function People({ type }) {
   function updateLiveProfile(profile) {
     setLiveRowsByType((current) => {
       const next = { ...current };
-      accountTypes.forEach((role) => {
+      listedTypes.forEach((role) => {
         next[role] = (next[role] || []).filter((row) => row.id !== profile.id);
       });
       next[profile.role] = [mapProfile(profile), ...(next[profile.role] || [])];
@@ -171,16 +181,16 @@ export default function People({ type }) {
     return data;
   }
 
-  // Used by Create Account and Bulk Register. Bulk Register may also create students (with a student number);
-  // they are not listed on this staff page but appear in Manage Accounts.
+  // Used by Create Account and Bulk Register. Bulk Register may also create students (with a student number),
+  // who are listed here with the staff. Manage Accounts keeps its own list, so it is told to load again.
   async function createAccount({ role, fullName, email, password, programId = "", studentNumber = "" }) {
     if (hasSupabaseConfig) {
-      const data = await callAccountFunction({ action: "create", role, fullName, email, password, programId, ...(role === "Student" ? { studentNumber } : {}) });
-      if (accountTypes.includes(data.profile.role)) updateLiveProfile(data.profile);
+      const data = await callAccountFunction({ action: "create", role, fullName, email, password, programId, ...(role === STUDENT ? { studentNumber } : {}) });
+      if (listedTypes.includes(data.profile.role)) updateLiveProfile(data.profile);
+      void queryClient.invalidateQueries({ queryKey: ["admin-accounts"] });
       return;
     }
-    if (role === "Student") return;
-    updateRows(role, (current) => [{ id: crypto.randomUUID(), name: fullName, email, role, status: "Active", programId }, ...current]);
+    updateRows(role, (current) => [{ id: crypto.randomUUID(), name: fullName, email, role, status: "Active", programId: role === STUDENT ? "" : programId, studentNumber: role === STUDENT ? studentNumber : "" }, ...current]);
   }
 
   async function createPerson(event) {
@@ -263,12 +273,18 @@ export default function People({ type }) {
   }
 
   function programCell(row) {
+    // Students have no program; their courses come from joining codes.
+    if ((row.role || accountType) === STUDENT) return <span className="account-program-none">-</span>;
     const program = programById.get(row.programId);
     return program ? <Badge>{program.program_code}</Badge> : <Badge tone="warn">Not assigned</Badge>;
   }
 
+  function nameCell(row) {
+    return row.studentNumber ? <span>{row.name}<small className="table-muted">{row.studentNumber}</small></span> : row.name;
+  }
+
   const columns = [
-    { key: "name", label: "Name", width: "22%" },
+    { key: "name", label: "Name", width: "22%", render: nameCell },
     { key: "email", label: "Email", width: "29%" },
     { key: "role", label: "Account Type", width: "15%", render: (row) => <Badge>{row.role || accountType}</Badge> },
     { key: "program", label: "Program", width: "12%", render: programCell },
@@ -314,11 +330,11 @@ export default function People({ type }) {
         </div>
       </div>
       <div className="account-list-toolbar">
-        <SearchBox value={search} onChange={setSearch} placeholder="Search name or email" />
+        <SearchBox value={search} onChange={setSearch} placeholder="Search name, email, or student number" />
         {isUnified ? (
           <SelectField label="Account Type Filter" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
             <option>All Account Types</option>
-            {accountTypes.map((item) => <option key={item}>{item}</option>)}
+            {listedTypes.map((item) => <option key={item}>{item}</option>)}
           </SelectField>
         ) : null}
       </div>
@@ -327,7 +343,7 @@ export default function People({ type }) {
         <Table className="admin-account-table admin-account-table-active" columns={columns} rows={active} emptyTitle="No accounts match your search or filters." emptyDescription="Clear the search or select all roles to show more accounts." renderActions={Object.assign((row) => (
           <RowActionMenu
             actions={[
-              ...(hasSupabaseConfig ? [{ icon: FiBookOpen, label: row.programId ? "Change Program" : "Assign Program", onClick: () => openAssignProgram(row) }] : []),
+              ...(hasSupabaseConfig && (row.role || accountType) !== STUDENT ? [{ icon: FiBookOpen, label: row.programId ? "Change Program" : "Assign Program", onClick: () => openAssignProgram(row) }] : []),
               { icon: FiRefreshCw, label: "Reset Password", onClick: () => resetPassword(row) },
               { danger: true, icon: FiSlash, label: "Deactivate", onClick: () => setStatus(row, "Deactivated") },
             ]}
@@ -388,7 +404,7 @@ export default function People({ type }) {
         <BulkRegisterModal
           createAccount={createAccount}
           defaultRole={type || ""}
-          existingAccounts={accountTypes.flatMap((role) => rowsSource[role] || [])}
+          existingAccounts={listedTypes.flatMap((role) => rowsSource[role] || [])}
           programs={activePrograms}
           onClose={closeBulkModal}
         />

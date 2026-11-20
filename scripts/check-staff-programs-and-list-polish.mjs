@@ -35,8 +35,18 @@ assert.match(migration, /update public\.profiles p\s+set program_id = c\.program
 assert.match(migration, /or new\.program_id is distinct from old\.program_id/, "Users cannot assign themselves a program.");
 assert.match(migration, /revoke all on function public\.protect_profile_privileged_fields\(\) from public, anon, authenticated;/);
 const people = readFileSync("src/pages/People.jsx", "utf8");
-assert.match(people, /\.select\("id, role, full_name, email, status, program_id"\)/, "The account list reads each account's program.");
-assert.match(people, /hasSupabaseConfig \? \[\{ icon: FiBookOpen, label: row\.programId \? "Change Program" : "Assign Program"/, "Every staff account can be assigned a program.");
+assert.match(people, /\.select\("id, role, full_name, email, status, program_id, student_number", options\)/, "The account list reads each account's program and student number.");
+assert.match(people, /hasSupabaseConfig && \(row\.role \|\| accountType\) !== STUDENT \? \[\{ icon: FiBookOpen, label: row\.programId \? "Change Program" : "Assign Program"/, "Every staff account, but no student, can be assigned a program.");
+
+// Students created through Bulk Register are listed on Create Account with the staff, read in pages of 1000,
+// show their student number under the name and no program, and Manage Accounts reloads after any create.
+assert.match(people, /const listedTypes = \[\.\.\.accountTypes, STUDENT\];/);
+assert.match(people, /fetchAllRows\(\(options\) => supabase\s*\.from\("profiles"\)[\s\S]*?\.in\("role", listedTypes\)/, "Every listed account is read, past the 1000-row limit.");
+assert.match(people, /\{listedTypes\.map\(\(item\) => <option key=\{item\}>\{item\}<\/option>\)\}/, "The account type filter includes Student.");
+assert.match(people, /<SelectField label="Account Type" value=\{selectedType\} onChange=\{\(event\) => setSelectedType\(event\.target\.value\)\}>\s*\{accountTypes\.map/, "Create Account still creates staff only.");
+assert.match(people, /if \(\(row\.role \|\| accountType\) === STUDENT\) return <span className="account-program-none">-<\/span>;/, "Students show no program.");
+assert.match(people, /row\.studentNumber \? <span>\{row\.name\}<small className="table-muted">\{row\.studentNumber\}<\/small><\/span> : row\.name/, "A student's number shows under the name.");
+assert.match(people, /if \(listedTypes\.includes\(data\.profile\.role\)\) updateLiveProfile\(data\.profile\);\s*void queryClient\.invalidateQueries\(\{ queryKey: \["admin-accounts"\] \}\);/, "New accounts appear at once, here and in Manage Accounts.");
 const accountFunction = readFileSync("supabase/functions/create-account/index.ts", "utf8");
 assert.match(accountFunction, /const programId = String\(body\.programId \|\| ""\)\.trim\(\);/, "Every role may be created with a program.");
 assert.match(accountFunction, /status: "Active",\s*program_id: program\?\.id \|\| null,/);

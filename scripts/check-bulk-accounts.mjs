@@ -108,7 +108,8 @@ assert.match(people, /async function createAccount[\s\S]*?action: "create"/, "Ea
 assert.match(people, /Bulk Register/);
 assert.match(modal, /for \(const row of ready\)[\s\S]*?await createAccount\(\{[^}]*programId: row\.programId, studentNumber: row\.studentNumber/, "Accounts are created one at a time with their program or student number.");
 assert.match(modal, /select\("id, email, student_number", options\)/, "Existing student numbers are read before checking the file.");
-assert.match(people, /\.\.\.\(role === "Student" \? \{ studentNumber \} : \{\}\)/, "Students are created with their student number.");
+assert.match(people, /\.\.\.\(role === STUDENT \? \{ studentNumber \} : \{\}\)/, "Students are created with their student number.");
+assert.match(people, /const STUDENT = "Student";/);
 const accountFunction = readFileSync("supabase/functions/create-account/index.ts", "utf8");
 assert.match(accountFunction, /const creatableRoles = new Set\(\[\.\.\.allowedRoles, "Student"\]\);/, "The create-account function can create students.");
 assert.match(accountFunction, /if \(isStudent && !studentNumber\) return json\(\{ error: "A student number is required for a student account\." \}, 400\);/);
