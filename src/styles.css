@@ -8028,10 +8028,6 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .professor-question-actions button {
   white-space: nowrap;
 }
-.professor-add-question {
-  background: var(--app-surface);
-  box-shadow: 0 10px 22px rgba(17, 24, 39, 0.18);
-}
 .professor-save-exam {
   background: #2563eb;
   color: #fff;
@@ -8042,10 +8038,13 @@ html[data-theme="light"] .professor-course-list-card:hover {
   color: #fff;
   box-shadow: 0 10px 22px rgba(29, 78, 216, 0.2);
 }
+/* Add Question uses the same bordered, shadowless box as Save as Draft. */
+.professor-add-question,
 .professor-save-draft {
   border: 1px solid #d8deea;
   background: var(--app-surface);
   color: var(--app-text);
+  box-shadow: none;
 }
 .professor-autosave-status {
   color: var(--app-text-muted);
@@ -20814,4 +20813,62 @@ html[data-theme="dark"] .professor-violation-toast {
   background: var(--app-surface);
   box-shadow: 12px 0 0 var(--app-surface), -10px 0 0 var(--app-surface);
   justify-self: end;
+}
+
+/* Admin tables: the shared .actions rule turns the Actions cell into a flex box, which detaches its bottom
+   border from the row line (the "cut" lines in Course Records). Keep it a real table cell. */
+.admin-app-shell[data-role="Admin"] .admin-section-page td.actions {
+  display: table-cell;
+  min-width: 0;
+  text-align: center;
+  vertical-align: middle;
+}
+.admin-app-shell[data-role="Admin"] .admin-section-page td.actions > * + * {
+  margin-left: 8px;
+}
+/* Course Records: long course names wrap inside their own column instead of running into Course Code. */
+.admin-app-shell[data-role="Admin"] .admin-section-page .courses-table-wrap td:not(.actions) {
+  white-space: normal;
+  overflow-wrap: break-word;
+}
+
+/* Archived Courses window (admin): wider window, long names wrap inside their own column, and the
+   Restore / Delete Permanently buttons stack at full column width instead of being cut off. */
+.admin-app-shell[data-role="Admin"] .admin-section-page .modal.archive-courses-modal {
+  width: min(1120px, calc(100vw - 32px));
+}
+.admin-app-shell[data-role="Admin"] .admin-section-page .archive-management-table table {
+  width: 100%;
+  min-width: 820px;
+  table-layout: fixed;
+}
+.admin-app-shell[data-role="Admin"] .admin-section-page .archive-management-table td {
+  white-space: normal;
+  overflow-wrap: break-word;
+  vertical-align: middle;
+}
+.admin-app-shell[data-role="Admin"] .admin-section-page .archive-management-table td .table-muted {
+  display: block;
+  margin-top: 2px;
+}
+.admin-app-shell[data-role="Admin"] .admin-section-page .archive-management-table th.actions-heading {
+  min-width: 0;
+}
+.admin-app-shell[data-role="Admin"] .admin-section-page .archive-management-table td.actions {
+  /* The shared .actions rule makes cells flex boxes with a 280px minimum, which breaks the table column. */
+  display: table-cell;
+  min-width: 0;
+  padding-inline: 10px;
+  white-space: normal;
+}
+.admin-app-shell[data-role="Admin"] .admin-section-page .archive-management-table td.actions .btn {
+  display: flex;
+  width: 100%;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin: 4px 0;
+  white-space: normal;
+  text-align: center;
+  line-height: 1.2;
 }

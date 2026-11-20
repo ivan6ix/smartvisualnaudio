@@ -68,9 +68,12 @@ export function summarizeOngoingExams(exams = []) {
     summary.notStarted += students.filter((student) => student.status === "Not Started").length;
     summary.inProgress += students.filter((student) => student.status === "In Progress" || student.status === "Interrupted").length;
     summary.submitted += students.filter((student) => student.status === "Submitted" || student.status === "Auto-Submitted").length;
+    // violations counts students with at least one violation ("With Violations"); totalViolations counts every
+    // recorded violation, so one student with five violations shows 5 in the exam list and the summary.
     summary.violations += students.filter((student) => Number(student.violationCount || 0) > 0).length;
+    summary.totalViolations += students.reduce((sum, student) => sum + Number(student.violationCount || 0), 0);
     return summary;
-  }, { activeExams: 0, assigned: 0, notStarted: 0, inProgress: 0, submitted: 0, violations: 0 });
+  }, { activeExams: 0, assigned: 0, notStarted: 0, inProgress: 0, submitted: 0, violations: 0, totalViolations: 0 });
 }
 
 export function sortOngoingRows(rows = [], key = "student", direction = "asc") {

@@ -12,6 +12,7 @@ import useListViewPreference from "../../hooks/useListViewPreference";
 import { formatCourseMeta } from "../../lib/coursePrograms";
 import { validateExam } from "../../lib/examValidation";
 import { getReviewTargets, notifyReviewClusters, reviewTargetsProblem } from "../../lib/reviewTargets";
+import { collapseSharedExams } from "../../lib/sharedExams";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 
 function normalizeStatus(status) {
@@ -228,7 +229,7 @@ export default function ProfessorExams() {
     return rows.filter((exam) => {
       const matchesSearch = `${exam.title} ${exam.course} ${exam.programCode} ${exam.courseMeta} ${exam.type} ${exam.period} ${exam.duration}`.toLowerCase().includes(filters.search.toLowerCase());
       const matchesProgram = filters.program === "All Programs" || exam.programCode === filters.program;
-      const matchesCourse = filters.course === "All Courses" || exam.course === filters.course;
+      const matchesCourse = filters.course === "All Courses" || exam.course === filters.course || Boolean(exam.groupId && exam.sharedCourses.includes(filters.course));
       const matchesType = filters.type === "All Types" || exam.type === filters.type;
       const matchesPeriod = filters.period === "All Periods" || exam.period === filters.period;
       return matchesSearch && matchesProgram && matchesCourse && matchesType && matchesPeriod;
@@ -301,7 +302,7 @@ export default function ProfessorExams() {
       }
     }
 
-    const nextExams = examRows.map((exam) => mapExam(exam, reviewByExam, groupByExam));
+    const nextExams = collapseSharedExams(examRows.map((exam) => mapExam(exam, reviewByExam, groupByExam)));
     setLiveExams(nextExams);
     queryClient.setQueryData(queryKey, nextExams);
   }, [queryClient, user?.id]);
@@ -960,7 +961,8 @@ export default function ProfessorExams() {
     const filteredRows = filterSectionRows(rows, sectionKey);
     const filters = sectionFilters[sectionKey];
     const programOptions = getFilterOptions(rows, "programCode");
-    const courseOptions = getFilterOptions(rows, "course");
+    // A shared exam row lists several courses; offer each course on its own.
+    const courseOptions = getFilterOptions(rows.flatMap((exam) => (exam.groupId && exam.sharedCourses.length ? exam.sharedCourses.map((course) => ({ course })) : [exam])), "course");
     const typeOptions = getFilterOptions(rows, "type");
     const periodOptions = getFilterOptions(rows, "period");
 

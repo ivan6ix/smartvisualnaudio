@@ -13,7 +13,7 @@ const defaultStats = {
   students: 1248,
   courses: 42,
   activeExams: 7,
-  violationsToday: 23,
+  totalViolations: 23,
   deans: 4,
 };
 
@@ -51,21 +51,17 @@ export default function Dashboard() {
     queryKey: ["admin-dashboard-stats"],
     enabled: hasSupabaseConfig,
     queryFn: async () => {
-        const today = new Date().toISOString().slice(0, 10);
-        const tomorrow = new Date();
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        const tomorrowIso = tomorrow.toISOString().slice(0, 10);
-
-        const [professors, students, courses, activeExams, violationsToday, deans] = await Promise.all([
+        const [professors, students, courses, activeExams, totalViolations, deans] = await Promise.all([
           countRows(supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "Professor")),
           countRows(supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "Student")),
           countRows(supabase.from("courses").select("id", { count: "exact", head: true }).eq("archived", false)),
           countRows(supabase.from("exams").select("id", { count: "exact", head: true }).in("status", ["Active", "Published"])),
-          countRows(supabase.from("violations").select("id", { count: "exact", head: true }).gte("created_at", today).lt("created_at", tomorrowIso)),
+          // Every recorded violation of all students, across all examinations.
+          countRows(supabase.from("violations").select("id", { count: "exact", head: true })),
           countRows(supabase.from("profiles").select("id", { count: "exact", head: true }).eq("role", "Dean")),
         ]);
 
-      return { professors, students, courses, activeExams, violationsToday, deans };
+      return { professors, students, courses, activeExams, totalViolations, deans };
     },
   });
 
@@ -170,7 +166,7 @@ export default function Dashboard() {
     ["Total Students", liveStats.students, FiUsers],
     ["Total Courses", liveStats.courses, FiBookOpen],
     ["Active Exams", liveStats.activeExams, FiFileText],
-    ["Violations Today", liveStats.violationsToday, FiActivity],
+    ["Total Violations", liveStats.totalViolations, FiActivity],
     ["Dean Accounts", liveStats.deans, FiUsers],
   ];
 

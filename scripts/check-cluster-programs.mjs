@@ -46,12 +46,17 @@ assert.match(reviewFunction, /userClient\.rpc\("cluster_can_review_exam", \{ p_e
 assert.match(reviewFunction, /This exam is not in your assigned program\./);
 assert.match(reviewFunction, /This exam is no longer waiting for review\./);
 
-// The Admin picks the program when creating a Cluster Professor, and can assign or change it later.
+// The Admin picks the program when creating a staff account, and can assign or change it later. A Cluster
+// Professor's program is also its review program in cluster_professors.
 assert.match(accountFunction, /if \(action === "assign-program"\)/);
-assert.match(accountFunction, /Only Cluster Professors are assigned a program\./);
+assert.match(accountFunction, /Only Professor, Dean, and Cluster Professor accounts are assigned a program\./);
 assert.match(accountFunction, /program_id: program\?\.id \|\| null/);
+assert.match(accountFunction, /from\("profiles"\)\.update\(\{ program_id: found\.program\.id \}\)/, "Assigning a program updates the account's profile.");
+assert.match(accountFunction, /if \(target\.role === "Cluster Professor"\) \{\s*const \{ error: assignError \} = await adminClient\.from\("cluster_professors"\)\.upsert/, "A Cluster Professor's review program stays in cluster_professors.");
 assert.match(accountFunction, /eventType: "account\.program_assigned"/);
-assert.match(people, /label="Program to Review"/);
+assert.match(people, /return role === CLUSTER \? "Program to Review" : "Program";/);
+assert.match(people, /<SelectField label=\{programPurpose\(accountType\)\}/, "Every account type picks a program on Create Account.");
+assert.doesNotMatch(people, /employeeNumber|Employee Number/, "Create Account has no employee number.");
 assert.match(people, /action: "assign-program", userId: assignTarget\.id, programId: assignProgramId/);
 assert.match(people, /<Badge tone="warn">Not assigned<\/Badge>/);
 assert.match(layout, /<ClusterProgramBanner userId=\{user\.id\} \/>/);

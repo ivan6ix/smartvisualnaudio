@@ -16,11 +16,11 @@ function downloadCsv(text, fileName) {
 }
 
 // defaultRole is the page's role ("" on Create Account, where the file must say the role).
-// createAccount({ role, fullName, email, employeeNumber, password }) creates one account or throws.
-export default function BulkRegisterModal({ defaultRole = "", existingAccounts = [], createAccount, onClose }) {
+// programs are the active programs ({ id, program_code }) that the optional program column may name.
+// createAccount({ role, fullName, email, password, programId }) creates one account or throws.
+export default function BulkRegisterModal({ defaultRole = "", existingAccounts = [], programs = [], createAccount, onClose }) {
   const [existing, setExisting] = useState(hasSupabaseConfig ? null : {
     emails: existingAccounts.map((account) => account.email),
-    employeeNumbers: existingAccounts.map((account) => account.employeeNumber),
   });
   const [fileName, setFileName] = useState("");
   const [fileRows, setFileRows] = useState([]);
@@ -34,17 +34,14 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     if (!hasSupabaseConfig) return;
     let active = true;
     // Every account is read (the API returns at most 1000 rows per request), so no duplicate slips through.
-    fetchAllRows((options) => supabase.from("profiles").select("id, email, employee_number", options).order("id")).then(({ data, error }) => {
+    fetchAllRows((options) => supabase.from("profiles").select("id, email", options).order("id")).then(({ data, error }) => {
       if (!active) return;
       if (error) {
         toast.error(error.message);
-        setExisting({ emails: [], employeeNumbers: [] });
+        setExisting({ emails: [] });
         return;
       }
-      setExisting({
-        emails: (data || []).map((profile) => profile.email),
-        employeeNumbers: (data || []).map((profile) => profile.employee_number),
-      });
+      setExisting({ emails: (data || []).map((profile) => profile.email) });
     });
     return () => {
       active = false;
@@ -61,8 +58,8 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
 
   const rows = useMemo(() => (existing ? checkStaffRows(fileRows, {
     existingEmails: existing.emails,
-    existingEmployeeNumbers: existing.employeeNumbers,
-  }) : []), [existing, fileRows]);
+    programs,
+  }) : []), [existing, fileRows, programs]);
   const ready = rows.filter((row) => !row.problem);
   const created = results ? [...results.values()].filter((result) => result.status === "Created").length : 0;
 
@@ -88,7 +85,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     const nextResults = new Map();
     for (const row of ready) {
       try {
-        await createAccount({ role: row.role, fullName: row.fullName, email: row.email, employeeNumber: row.employeeNumber, password });
+        await createAccount({ role: row.role, fullName: row.fullName, email: row.email, password, programId: row.programId });
         nextResults.set(row.rowNumber, { status: "Created", message: "" });
       } catch (error) {
         nextResults.set(row.rowNumber, { status: "Failed", message: error.message || "Account was not created." });
@@ -114,8 +111,8 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     { key: "rowNumber", label: "Row", width: "8%" },
     { key: "fullName", label: "Full Name", width: "20%" },
     { key: "email", label: "Email", width: "26%" },
-    { key: "employeeNumber", label: "Employee No.", width: "14%" },
     { key: "role", label: "Role", width: "14%", render: (row) => row.role || row.roleText || "-" },
+    { key: "programCode", label: "Program", width: "14%", render: (row) => row.programCode || "-" },
     { key: "check", label: "Check", width: "18%", render: resultFor },
   ];
 
@@ -136,7 +133,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
               <FiUpload /> {fileName ? "Choose another file" : "Choose CSV file"}
               <input accept=".csv,text/csv" disabled={running || !existing} onChange={chooseFile} type="file" />
             </label>
-            <p>{!existing ? "Checking existing accounts..." : fileName ? `${fileName} · ${fileRows.length} row${fileRows.length === 1 ? "" : "s"}` : "Columns: full_name, email, employee_number, role."}</p>
+            <p>{!existing ? "Checking existing accounts..." : fileName ? `${fileName} · ${fileRows.length} row${fileRows.length === 1 ? "" : "s"}` : "Columns: full_name, email, role, and an optional program (for example BSIT)."}</p>
             <button className="bulk-register-template" onClick={() => downloadCsv(templateCsv(defaultRole || "Professor"), "staff-template.csv")} type="button">
               <FiDownload /> Download template
             </button>

@@ -17,6 +17,10 @@ function code() {
   return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
+// Archived Courses window: column widths that, with the Actions column, add up to 100%.
+const ARCHIVE_COLUMN_WIDTHS = { courseName: "20%", courseCode: "10%", program: "16%", section: "7%", professor: "13%", joiningCode: "12%" };
+const ARCHIVE_ACTIONS_WIDTH = "22%";
+
 export default function Courses() {
   const { user } = useAuth();
   const queryClient = useQueryClient();
@@ -287,6 +291,8 @@ export default function Courses() {
     ...(isReadOnly ? [{ key: "status", label: "Status", width: "12%", render: (row) => <Badge tone={row.archived ? "neutral" : "success"}>{row.archived ? "Archived" : "Active"}</Badge> }] : []),
     ...(!isReadOnly ? [{ key: "joiningCode", label: "Joining Code", width: "11%", render: (row) => <Badge>{row.joiningCode}</Badge> }] : []),
   ];
+  // The archive window adds a two-button Actions column, so its columns are re-balanced to fill exactly 100%.
+  const archiveColumns = columns.map((column) => ({ ...column, width: ARCHIVE_COLUMN_WIDTHS[column.key] || column.width }));
   const pageData = getListPageSlice(visible, page, listView.pageSize);
   const deleteConfirmed = deleteConfirmationText === "DELETE";
   const deanProfessorCount = new Set(visible.map((course) => course.professor).filter((professor) => professor && professor !== "Unassigned")).size;
@@ -486,14 +492,14 @@ export default function Courses() {
       )}
       {showArchived && !isReadOnly ? (
         <div className="modal-backdrop" onClick={() => setShowArchived(false)}>
-          <Card className="modal" onClick={(event) => event.stopPropagation()}>
+          <Card className="modal archive-courses-modal" onClick={(event) => event.stopPropagation()}>
             <PageHeader title="Archived Courses" actions={<Button variant="light" onClick={() => setShowArchived(false)}>Close</Button>} />
-            <Table className="archive-management-table" columns={columns} rows={archived} renderActions={Object.assign((row) => (
+            <Table className="archive-management-table" columns={archiveColumns} rows={archived} renderActions={Object.assign((row) => (
               <>
                 <Button disabled={archiveActionId === row.id || deletingCourseId === row.id} variant="light" onClick={() => setRestoreCandidate(row)}>Restore</Button>
                 <Button disabled={deletingCourseId === row.id} className="danger" variant="light" onClick={() => { setDeleteCandidate(row); setDeleteConfirmationText(""); }}><FiTrash2 /> Delete Permanently</Button>
               </>
-            ), { width: "24%" })} />
+            ), { width: ARCHIVE_ACTIONS_WIDTH })} />
           </Card>
         </div>
       ) : null}

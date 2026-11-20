@@ -18,6 +18,9 @@ assert.ok(dashboard.indexOf("System Health") < dashboard.indexOf("Recent Account
 assert.ok(!/buckets`|\.length} buckets/.test(dashboard), "System Health must not show a bucket count.");
 assert.match(dashboard, /storage: storageError \? "Unavailable" : "Online"/, "Storage health must show whether the service answers.");
 assert.match(dashboard, /<strong>Storage Status<\/strong>/);
+assert.match(dashboard, /\["Total Violations", liveStats\.totalViolations, FiActivity\]/, "Admin dashboard must show Total Violations.");
+assert.ok(!dashboard.includes("Violations Today"), "Admin dashboard must not show Violations Today.");
+assert.match(dashboard, /countRows\(supabase\.from\("violations"\)\.select\("id", \{ count: "exact", head: true \}\)\)/, "Total Violations must count every violation, with no date filter.");
 
 const themeIndex = appShell.indexOf('title="Theme"');
 const messagesIndex = appShell.indexOf("<MessageMenu");
@@ -84,3 +87,17 @@ assert.ok(adminLogs.includes('className: "admin-log-description"'), "Logs descri
 ].forEach((token) => {
   assert.ok(css.includes(token), `Admin responsive polish missing token: ${token}`);
 });
+
+// Archived Courses window: re-balanced columns that fill exactly 100% with the Actions column, wrapping cells,
+// and an Actions cell that stays a table cell so Restore and Delete Permanently are not cut off.
+const courses = readFileSync(new URL("../src/pages/Courses.jsx", import.meta.url), "utf8");
+assert.match(courses, /className="modal archive-courses-modal"/, "Archived Courses must use its own wider window.");
+assert.match(courses, /className="archive-management-table" columns=\{archiveColumns\}/, "Archived Courses must use the re-balanced archive columns.");
+const archiveWidths = courses.match(/const ARCHIVE_COLUMN_WIDTHS = \{([^}]*)\}/);
+const archiveActions = courses.match(/const ARCHIVE_ACTIONS_WIDTH = "(\d+)%"/);
+assert.ok(archiveWidths && archiveActions, "Archive column widths must be defined.");
+const archiveTotal = [...archiveWidths[1].matchAll(/"(\d+)%"/g)].reduce((sum, match) => sum + Number(match[1]), Number(archiveActions[1]));
+assert.equal(archiveTotal, 100, "Archived Courses columns must add up to 100%.");
+assert.match(css, /\.admin-section-page \.modal\.archive-courses-modal \{\s*width: min\(1120px, calc\(100vw - 32px\)\);/, "Archived Courses window must be wider than the default admin modal.");
+assert.match(css, /\.archive-management-table td \{\s*white-space: normal;\s*overflow-wrap: break-word;/, "Archived Courses cells must wrap instead of overlapping.");
+assert.match(css, /\.archive-management-table td\.actions \{[\s\S]*?display: table-cell;\s*min-width: 0;/, "Archived Courses Actions cell must stay a table cell.");

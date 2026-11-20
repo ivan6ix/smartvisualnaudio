@@ -306,7 +306,7 @@ export default function ProfessorOngoingExams() {
             ["Not Started", summary.notStarted, FiClock, ""],
             ["In Progress", summary.inProgress, FiPlayCircle, ""],
             ["Submitted", summary.submitted, FiCheckCircle, "success"],
-            ["Violations", summary.violations, FiAlertTriangle, summary.violations ? "danger" : ""],
+            ["Violations", summary.totalViolations, FiAlertTriangle, summary.totalViolations ? "danger" : ""],
           ].map(([label, value, Icon, tone]) => (
             <div className={`professor-ongoing-stat ${tone}`.trim()} key={label}>
               <Icon aria-hidden="true" />
@@ -420,7 +420,7 @@ function ExamRow({ exam, onView }) {
       <strong role="cell">{counters.assigned}</strong>
       <strong role="cell">{counters.inProgress}</strong>
       <strong role="cell">{counters.submitted}</strong>
-      <strong role="cell">{counters.violations}</strong>
+      <strong role="cell">{counters.totalViolations}</strong>
       <Button className="professor-ongoing-view-button" onClick={() => onView(exam.id)}><FiEye /> View</Button>
     </article>
   );

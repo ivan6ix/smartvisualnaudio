@@ -52,7 +52,14 @@ assert.deepEqual(summarizeOngoingExams(exams), {
   inProgress: 1,
   submitted: 1,
   violations: 2,
+  totalViolations: 5,
 });
+// One student with five violations shows 5 in the exam list and the summary, not 1.
+assert.equal(summarizeOngoingExams([{ id: "exam-b", phase: "active", students: [{ studentId: "s1", status: "Auto-Submitted", violationCount: 5 }] }]).totalViolations, 5);
+const ongoingPage = readFileSync("src/pages/professor/ProfessorOngoingExams.jsx", "utf8");
+assert.match(ongoingPage, /<strong role="cell">\{counters\.totalViolations\}<\/strong>/, "The exam list shows the total number of violations.");
+assert.match(ongoingPage, /\["Violations", summary\.totalViolations, FiAlertTriangle/, "The summary card shows the total number of violations.");
+assert.match(ongoingPage, /\{counters\.violations\} With Violations/, "The detail view still counts students with violations.");
 
 const rows = [
   { studentName: "Cara", status: "Submitted", attemptNumber: 2, answeredCount: 3, questionCount: 4, violationCount: 1 },

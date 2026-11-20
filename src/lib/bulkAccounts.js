@@ -4,13 +4,16 @@
 
 export const STAFF_ROLES = ["Professor", "Dean", "Cluster Professor"];
 export const MAX_ROWS = 200;
-export const TEMPLATE_HEADERS = ["full_name", "email", "employee_number", "role"];
+// Staff accounts have no employee number. The program column is optional; when filled it must be an active
+// program code, and the account is assigned to that program.
+export const TEMPLATE_HEADERS = ["full_name", "email", "role", "program"];
+const REQUIRED_HEADERS = ["full_name", "email", "role"];
 
 const HEADER_ALIASES = {
   fullName: ["full_name", "full name", "name"],
   email: ["email", "email address"],
-  employeeNumber: ["employee_number", "employee number", "employee no", "employee no."],
   role: ["role", "account type"],
+  programCode: ["program", "program_code", "program code"],
 };
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -68,9 +71,9 @@ export function readStaffCsv(text, { defaultRole = "" } = {}) {
     const key = Object.keys(HEADER_ALIASES).find((field) => HEADER_ALIASES[field].includes(name.trim().toLowerCase()));
     if (key && columns[key] === undefined) columns[key] = index;
   });
-  const missing = ["fullName", "email", "employeeNumber"].filter((field) => columns[field] === undefined);
+  const missing = ["fullName", "email"].filter((field) => columns[field] === undefined);
   if (!header.length || missing.length) {
-    return { rows: [], error: `The file needs these columns: ${TEMPLATE_HEADERS.join(", ")}. Download the template to start from.` };
+    return { rows: [], error: `The file needs these columns: ${REQUIRED_HEADERS.join(", ")} (program is optional). Download the template to start from.` };
   }
   if (columns.role === undefined && !defaultRole) {
     return { rows: [], error: "The file needs a role column with Professor, Dean or Cluster Professor." };
@@ -84,37 +87,33 @@ export function readStaffCsv(text, { defaultRole = "" } = {}) {
       rowNumber: index + 2,
       fullName: cell(cells, "fullName"),
       email: cell(cells, "email").toLowerCase(),
-      employeeNumber: cell(cells, "employeeNumber"),
       roleText: cell(cells, "role"),
       role: normalizeRole(cell(cells, "role"), defaultRole),
+      programCode: cell(cells, "programCode").toUpperCase(),
     })),
   };
 }
 
-// Adds `problem` (null when the row is ready). Existing values come from profiles, already lowercased for email.
-export function checkStaffRows(rows, { existingEmails = [], existingEmployeeNumbers = [] } = {}) {
+// Adds `problem` (null when the row is ready) and `programId` for a known program code. Existing emails come from
+// profiles; programs are the active programs ({ id, program_code }).
+export function checkStaffRows(rows, { existingEmails = [], programs = [] } = {}) {
   const takenEmails = new Set(existingEmails.map((value) => String(value || "").trim().toLowerCase()));
-  const takenNumbers = new Set(existingEmployeeNumbers.map((value) => String(value || "").trim().toLowerCase()));
-  const count = (key) => rows.reduce((counts, row) => {
-    const value = row[key].toLowerCase();
-    if (value) counts.set(value, (counts.get(value) || 0) + 1);
+  const programByCode = new Map(programs.map((program) => [String(program.program_code || "").trim().toUpperCase(), program.id]));
+  const emailCounts = rows.reduce((counts, row) => {
+    if (row.email) counts.set(row.email, (counts.get(row.email) || 0) + 1);
     return counts;
   }, new Map());
-  const emailCounts = count("email");
-  const numberCounts = count("employeeNumber");
   return rows.map((row) => {
-    const number = row.employeeNumber.toLowerCase();
+    const programId = row.programCode ? programByCode.get(row.programCode) || "" : "";
     let problem = null;
     if (!row.fullName) problem = "Full name is missing";
     else if (!row.email) problem = "Email is missing";
     else if (!EMAIL_PATTERN.test(row.email)) problem = "Email is not valid";
-    else if (!row.employeeNumber) problem = "Employee number is missing";
     else if (!row.role) problem = row.roleText ? `Role "${row.roleText}" is not Professor, Dean or Cluster Professor` : "Role is missing";
+    else if (row.programCode && !programId) problem = `Program "${row.programCode}" is not an active program`;
     else if (emailCounts.get(row.email) > 1) problem = "Email appears more than once in the file";
-    else if (numberCounts.get(number) > 1) problem = "Employee number appears more than once in the file";
     else if (takenEmails.has(row.email)) problem = "Email already has an account";
-    else if (takenNumbers.has(number)) problem = "Employee number already has an account";
-    return { ...row, problem };
+    return { ...row, programId, problem };
   });
 }
 
@@ -130,21 +129,21 @@ export function toCsv(rows) {
 }
 
 export function templateCsv(defaultRole = "Professor") {
-  return toCsv([TEMPLATE_HEADERS, ["Juan Dela Cruz", "juan.delacruz@school.edu", "EMP-0001", defaultRole]]);
+  return toCsv([TEMPLATE_HEADERS, ["Juan Dela Cruz", "juan.delacruz@school.edu", defaultRole, "BSIT"]]);
 }
 
 // results: Map of rowNumber -> { status: "Created" | "Failed", message }. Rows never sent show as Skipped.
 export function resultsCsv(rows, results) {
   return toCsv([
-    ["row", "full_name", "email", "employee_number", "role", "result", "details"],
+    ["row", "full_name", "email", "role", "program", "result", "details"],
     ...rows.map((row) => {
       const result = results.get(row.rowNumber);
       return [
         row.rowNumber,
         row.fullName,
         row.email,
-        row.employeeNumber,
         row.role || row.roleText,
+        row.programCode || "",
         result?.status || "Skipped",
         result?.message || row.problem || "",
       ];

@@ -39,14 +39,15 @@ async function writeAudit(
   });
 }
 
-// A Cluster Professor reviews exams of one program. Returns the active program, or an error message.
+// Every staff account belongs to one program (profiles.program_id); a Cluster Professor also reviews the exams of
+// that program (cluster_professors.program_id). Returns the active program, or an error message.
 async function findActiveProgram(adminClient: ReturnType<typeof createClient>, programId: string) {
   const { data: program, error } = await adminClient
     .from("programs")
     .select("id, program_code, is_active")
     .eq("id", programId)
     .maybeSingle();
-  if (error || !program) return { program: null, error: "Choose a program for this Cluster Professor." };
+  if (error || !program) return { program: null, error: "Choose a program for this account." };
   if (!program.is_active) return { program: null, error: `${program.program_code} is inactive. Choose an active program.` };
   return { program, error: "" };
 }
@@ -100,16 +101,15 @@ Deno.serve(async (req) => {
       const role = String(body.role || "");
       const fullName = String(body.fullName || "").trim();
       const email = String(body.email || "").trim().toLowerCase();
-      const employeeNumber = String(body.employeeNumber || "").trim();
       const password = String(body.password || "123456");
 
       if (!allowedRoles.has(role)) return json({ error: "Invalid account role." }, 400);
-      if (!fullName || !email || !employeeNumber) return json({ error: "Full name, email, and employee number are required." }, 400);
+      if (!fullName || !email) return json({ error: "Full name and email are required." }, 400);
       if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
 
-      // A Cluster Professor may be given a program now (the Create Account form requires it), or later with
-      // assign-program (bulk-created accounts). Without one they see no exams to review.
-      const programId = role === "Cluster Professor" ? String(body.programId || "").trim() : "";
+      // The program may be given now (the Create Account form requires it) or later with assign-program
+      // (bulk-created accounts without a program column). A Cluster Professor without one sees no exams to review.
+      const programId = String(body.programId || "").trim();
       let program: { id: string; program_code: string } | null = null;
       if (programId) {
         const found = await findActiveProgram(adminClient, programId);
@@ -117,17 +117,7 @@ Deno.serve(async (req) => {
         program = found.program;
       }
 
-      // Employee numbers and emails are unique. Check first, because a clash inside Auth only reports
-      // "Database error creating new user".
-      const { data: sameNumber } = await adminClient
-        .from("profiles")
-        .select("full_name")
-        .eq("employee_number", employeeNumber)
-        .limit(1)
-        .maybeSingle();
-      if (sameNumber) {
-        return json({ error: `Employee number ${employeeNumber} is already used by ${sameNumber.full_name}. Enter a different employee number.` }, 409);
-      }
+      // Emails are unique. Check first, because a clash inside Auth only reports "Database error creating new user".
       const { data: sameEmail } = await adminClient
         .from("profiles")
         .select("full_name")
@@ -146,7 +136,6 @@ Deno.serve(async (req) => {
           role,
           status: "Active",
           full_name: fullName,
-          employee_number: employeeNumber,
           // The Admin chose this password, so the user must replace it at first sign-in.
           must_change_password: true,
         },
@@ -154,7 +143,7 @@ Deno.serve(async (req) => {
 
       if (error) {
         const message = /database error/i.test(error.message)
-          ? "The account could not be created. The email or employee number may already be in use."
+          ? "The account could not be created. The email may already be in use."
           : error.message;
         return json({ error: message }, 400);
       }
@@ -167,10 +156,10 @@ Deno.serve(async (req) => {
           role,
           full_name: fullName,
           email,
-          employee_number: employeeNumber,
           status: "Active",
+          program_id: program?.id || null,
         })
-        .select("id, role, full_name, email, employee_number, status, created_at")
+        .select("id, role, full_name, email, status, program_id, created_at")
         .single();
 
       if (profileError) return json({ error: profileError.message }, 400);
@@ -198,46 +187,51 @@ Deno.serve(async (req) => {
         metadata: { role, status: "Active", ...(program ? { program: program.program_code } : {}) },
       });
 
-      return json({ profile: { ...profile, program_id: program?.id || null } });
+      return json({ profile });
     }
 
     if (action === "assign-program") {
       const userId = String(body.userId || "");
       const programId = String(body.programId || "").trim();
-      if (!userId || !programId) return json({ error: "Choose a Cluster Professor and a program." }, 400);
+      if (!userId || !programId) return json({ error: "Choose an account and a program." }, 400);
 
       const { data: target, error: targetError } = await adminClient
         .from("profiles")
-        .select("id, role, full_name, email, status")
+        .select("id, role, full_name, email, status, program_id")
         .eq("id", userId)
         .maybeSingle();
       if (targetError || !target) return json({ error: "Account not found." }, 404);
-      if (target.role !== "Cluster Professor") return json({ error: "Only Cluster Professors are assigned a program." }, 400);
+      if (!allowedRoles.has(target.role)) return json({ error: "Only Professor, Dean, and Cluster Professor accounts are assigned a program." }, 400);
 
       const found = await findActiveProgram(adminClient, programId);
       if (found.error || !found.program) return json({ error: found.error }, 400);
 
-      const { data: previous } = await adminClient.from("cluster_professors").select("program_id").eq("id", userId).maybeSingle();
-      const { error: assignError } = await adminClient.from("cluster_professors").upsert({
-        id: target.id,
-        full_name: target.full_name,
-        email: target.email,
-        role: target.role,
-        account_status: target.status,
-        program_id: found.program.id,
-      });
-      if (assignError) return json({ error: assignError.message }, 400);
+      const { error: profileUpdateError } = await adminClient.from("profiles").update({ program_id: found.program.id }).eq("id", userId);
+      if (profileUpdateError) return json({ error: profileUpdateError.message }, 400);
+
+      // A Cluster Professor's review program is kept in cluster_professors as well, which the review rules use.
+      if (target.role === "Cluster Professor") {
+        const { error: assignError } = await adminClient.from("cluster_professors").upsert({
+          id: target.id,
+          full_name: target.full_name,
+          email: target.email,
+          role: target.role,
+          account_status: target.status,
+          program_id: found.program.id,
+        });
+        if (assignError) return json({ error: assignError.message }, 400);
+      }
 
       await writeAudit(adminClient, {
         userId: authData.user.id,
         actorRole: caller.role,
         eventType: "account.program_assigned",
         action: "Program Assigned",
-        description: "An admin assigned a Cluster Professor's review program.",
+        description: target.role === "Cluster Professor" ? "An admin assigned a Cluster Professor's review program." : `An admin assigned a ${target.role}'s program.`,
         entityType: "account",
         entityId: userId,
         targetUserId: userId,
-        metadata: { program: found.program.program_code, previous_program_id: previous?.program_id || null },
+        metadata: { program: found.program.program_code, previous_program_id: target.program_id || null },
       });
       return json({ userId, programId: found.program.id });
     }
@@ -262,7 +256,7 @@ Deno.serve(async (req) => {
         .from("profiles")
         .update({ status })
         .eq("id", userId)
-        .select("id, role, full_name, email, employee_number, status, created_at")
+        .select("id, role, full_name, email, status, program_id, created_at")
         .single();
 
       if (profileError) return json({ error: profileError.message }, 400);
