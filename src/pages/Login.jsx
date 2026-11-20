@@ -114,7 +114,7 @@ export default function Login() {
             <button className={styles.primaryButton} disabled={isSubmitting} type="submit">{isSubmitting ? "Authenticating..." : "Sign in"}<ArrowUpRight size={18} /></button>
             <p className={styles.registerPrompt}>New here? <Link to="/register">Create account <ArrowUpRight size={14} /></Link></p>
           </form>
-          <div className={styles.dialogLegal}><Link to="/privacy" target="_blank" rel="noopener">Privacy Policy</Link><Link to="/terms" target="_blank" rel="noopener">Terms of Use</Link><Link to="/storage" target="_blank" rel="noopener">Cookies & Storage</Link></div>
+          <div className={styles.dialogLegal}><Link to="/privacy">Privacy Policy</Link><Link to="/terms">Terms of Use</Link><Link to="/storage">Cookies & Storage</Link></div>
         </section>
       </main>
       <footer className={`${styles.footer} ${styles.registerFooter}`}><p>Smart Proctoring Through Audio & Visual Monitoring</p><p>Built for learning. Designed for confidence.</p></footer>

@@ -41,4 +41,12 @@ const accountFunction = readFileSync("supabase/functions/create-account/index.ts
 assert.match(accountFunction, /const programId = String\(body\.programId \|\| ""\)\.trim\(\);/, "Every role may be created with a program.");
 assert.match(accountFunction, /status: "Active",\s*program_id: program\?\.id \|\| null,/);
 
+// Policy links (Privacy, Terms, Cookies & storage) open in the same tab. The Register page keeps new tabs so a
+// half-filled registration form is not lost.
+for (const file of ["src/components/landing/SignInDialog.jsx", "src/pages/Login.jsx", "src/pages/ForgotPassword.jsx", "src/components/LegalLinks.jsx"]) {
+  const source = readFileSync(file, "utf8");
+  assert.match(source, /to=(?:"\/privacy"|\{`\/\$\{path\}`\})/, `${file} must link to the policies.`);
+  assert.doesNotMatch(source, /target="_blank"/, `${file} must open policy links in the same tab.`);
+}
+
 console.log("Staff program and list polish checks passed.");

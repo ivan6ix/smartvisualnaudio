@@ -166,7 +166,7 @@ export default function ForgotPassword() {
             <button className={styles.primaryButton} disabled={isSubmitting || recovering} type="submit">{recovering ? "Preparing reset..." : isSubmitting ? "Processing..." : resetMode ? "Update password" : "Send reset link"}<ArrowUpRight size={18} /></button>
             <p className={styles.registerPrompt}>Remembered it? <Link to="/login">Back to sign in <ArrowUpRight size={14} /></Link></p>
           </form>
-          <div className={styles.dialogLegal}><Link to="/privacy" target="_blank" rel="noopener">Privacy Policy</Link><Link to="/terms" target="_blank" rel="noopener">Terms of Use</Link><Link to="/storage" target="_blank" rel="noopener">Cookies & Storage</Link></div>
+          <div className={styles.dialogLegal}><Link to="/privacy">Privacy Policy</Link><Link to="/terms">Terms of Use</Link><Link to="/storage">Cookies & Storage</Link></div>
         </section>
       </main>
       <footer className={`${styles.footer} ${styles.registerFooter}`}><p>Smart Proctoring Through Audio & Visual Monitoring</p><p>Built for learning. Designed for confidence.</p></footer>

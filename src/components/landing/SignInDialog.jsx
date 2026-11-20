@@ -79,7 +79,7 @@ export default function SignInDialog({ open, onClose }) {
         <button className={styles.primaryButton} type="submit" disabled={isSubmitting}>{isSubmitting ? "Authenticating…" : "Sign in"}<ArrowUpRight size={19} /></button>
       </form>
       <p className={styles.registerPrompt}>New here? <Link to="/register">Create account <ArrowUpRight size={14} /></Link></p>
-      <div className={styles.dialogLegal}><Link to="/privacy" target="_blank" rel="noopener">Privacy</Link><Link to="/terms" target="_blank" rel="noopener">Terms</Link><Link to="/storage" target="_blank" rel="noopener">Cookies & storage</Link></div>
+      <div className={styles.dialogLegal}><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/storage">Cookies & storage</Link></div>
     </dialog>
   );
 }
