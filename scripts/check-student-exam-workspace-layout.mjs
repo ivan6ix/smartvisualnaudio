@@ -38,3 +38,6 @@ assert.doesNotMatch(proctorDockRule, /position:\s*fixed/, "Desktop monitoring ra
 assert.doesNotMatch(styles, /\.student-exam-take-page\.with-proctor-dock\s*\{[\s\S]{0,160}padding-right:\s*min\(348px,\s*24vw\)/, "Desktop layout must not rely on padding-right to avoid overlay.");
 assert.match(styles, /@media screen and \(max-width: 900px\)[\s\S]*\.student-proctor-dock\s*\{[\s\S]*position:\s*fixed/, "Existing mobile proctor dock behavior must remain available.");
 assert.match(styles, /\.student-order-controls\s*\{[\s\S]*min-height:\s*44px/, "Ordering fallback controls must keep touch-friendly targets.");
+// The exam page is a full-height grid; its rows must stack from the top so an exam with one question does not
+// stretch the header to fill the screen.
+assert.match(styles, /\.student-exam-take-page \{[^}]*align-content: start;[^}]*min-height: 100vh;/, "Exam page rows must not stretch to fill the screen.");

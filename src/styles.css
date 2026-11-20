@@ -9071,6 +9071,9 @@ html[data-theme="light"] .professor-course-list-card:hover {
   gap: 18px;
 }
 .student-exam-take-page {
+  /* The page fills the screen; rows keep their own height and stack from the top. Without this, an exam with
+     only a few questions stretches every row (the header most visibly) to fill the empty space. */
+  align-content: start;
   color: var(--app-text);
   min-height: 100vh;
   margin: -10px calc(clamp(16px, 4vw, 46px) * -1) -48px;
