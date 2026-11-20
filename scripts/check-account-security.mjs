@@ -78,6 +78,19 @@ assert.ok(emailCheckAt > createStart && emailCheckAt < createUserAt, "The email 
 assert.match(accountFunction, /is already used by \$\{sameEmail\.full_name\}/);
 assert.doesNotMatch(accountFunction, /employee_number|employeeNumber/, "Staff accounts are created without an employee number.");
 assert.match(accountFunction, /\/database error\/i\.test\(error\.message\)/, "Auth's vague database error gets a readable message.");
+// An admin cannot deactivate their own account or the last active admin: the server refuses both, and the
+// Manage Accounts page shows "You" instead of a Deactivate button on the admin's own row.
+const statusStart = accountFunction.indexOf('if (action === "update-status")');
+const statusAuthAt = accountFunction.indexOf("auth.admin.updateUserById", statusStart);
+const selfCheckAt = accountFunction.indexOf('if (userId === authData.user.id) return json({ error: "Admins cannot deactivate their own account." }, 400);', statusStart);
+assert.ok(selfCheckAt > statusStart && selfCheckAt < statusAuthAt, "Self-deactivation is refused before the account is banned.");
+const lastAdminAt = accountFunction.indexOf("This is the last active admin account and cannot be deactivated.", statusStart);
+assert.ok(lastAdminAt > statusStart && lastAdminAt < statusAuthAt, "The last active admin cannot be deactivated.");
+assert.match(accountFunction.slice(statusStart, lastAdminAt), /\.eq\("role", "Admin"\)\s*\.eq\("status", "Active"\)\s*\.neq\("id", userId\)/, "Other active admins are counted.");
+const accountsPage = readFileSync("src/pages/Accounts.jsx", "utf8");
+assert.match(accountsPage, /row\.id === user\?\.id\s*\?\s*<Badge tone="blue">You<\/Badge>\s*:\s*<Button variant="light" onClick=\{\(\) => setStatus\(row, "Deactivated"\)\}>Deactivate<\/Button>/, "The admin's own row shows You instead of Deactivate.");
+assert.match(accountsPage, /if \(account\.id === user\?\.id && status === "Deactivated"\)/, "The page still refuses self-deactivation.");
+
 for (const page of ["src/pages/People.jsx", "src/pages/Accounts.jsx"]) {
   assert.match(readFileSync(page, "utf8"), /await error\.context\?\.json\?\.\(\)\.catch/, `${page} shows the function's own error message.`);
 }

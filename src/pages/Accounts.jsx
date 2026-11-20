@@ -175,7 +175,9 @@ export default function Accounts() {
       />
       <Card className="admin-panel admin-activity-panel">
         <h2>Active Accounts</h2>
-        {renderAccounts(activeRows, Object.assign((row) => <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>, { width: "17.5%", tableClassName: "admin-account-table-active" }), activePageData, setActivePage, "Loading live accounts...")}
+        {renderAccounts(activeRows, Object.assign((row) => (row.id === user?.id
+          ? <Badge tone="blue">You</Badge>
+          : <Button variant="light" onClick={() => setStatus(row, "Deactivated")}>Deactivate</Button>), { width: "17.5%", tableClassName: "admin-account-table-active" }), activePageData, setActivePage, "Loading live accounts...")}
       </Card>
       <Card className="admin-panel admin-activity-panel">
         <h2>Deactivated Accounts</h2>

@@ -241,6 +241,22 @@ Deno.serve(async (req) => {
       const status = String(body.status || "");
       if (!userId || !["Active", "Deactivated"].includes(status)) return json({ error: "Invalid status update." }, 400);
 
+      if (status === "Deactivated") {
+        // An admin cannot lock themselves out, and the system must always keep at least one active admin.
+        if (userId === authData.user.id) return json({ error: "Admins cannot deactivate their own account." }, 400);
+        const { data: target } = await adminClient.from("profiles").select("role, status").eq("id", userId).maybeSingle();
+        if (target?.role === "Admin" && target.status === "Active") {
+          const { count: activeAdmins, error: countError } = await adminClient
+            .from("profiles")
+            .select("id", { count: "exact", head: true })
+            .eq("role", "Admin")
+            .eq("status", "Active")
+            .neq("id", userId);
+          if (countError) return json({ error: "The account status could not be checked. Try again." }, 500);
+          if (!activeAdmins) return json({ error: "This is the last active admin account and cannot be deactivated." }, 400);
+        }
+      }
+
       const { data: currentUser, error: currentUserError } = await adminClient.auth.admin.getUserById(userId);
       if (currentUserError || !currentUser.user) return json({ error: currentUserError?.message || "User not found." }, 404);
 
