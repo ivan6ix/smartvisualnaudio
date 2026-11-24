@@ -47,7 +47,6 @@ const pageImports = {
   ProfessorAnalytics: () => import("./pages/professor/ProfessorAnalytics"),
   ProfessorExamIntegrity: () => import("./pages/professor/ProfessorExamIntegrity"),
   ProfessorReports: () => import("./pages/professor/ProfessorReports"),
-  Register: () => import("./pages/Register"),
   Reports: () => import("./pages/Reports"),
   ResetPassword: () => import("./pages/ResetPassword"),
   SecurityPrivacy: () => import("./pages/SecurityPrivacy"),
@@ -97,7 +96,6 @@ const ProfessorScores = lazy(pageImports.ProfessorScores);
 const ProfessorAnalytics = lazy(pageImports.ProfessorAnalytics);
 const ProfessorExamIntegrity = lazy(pageImports.ProfessorExamIntegrity);
 const ProfessorReports = lazy(pageImports.ProfessorReports);
-const Register = lazy(pageImports.Register);
 const Reports = lazy(pageImports.Reports);
 const ResetPassword = lazy(pageImports.ResetPassword);
 const SecurityPrivacy = lazy(pageImports.SecurityPrivacy);
@@ -198,7 +196,8 @@ export default function App() {
         <Route path="/change-password" element={<ChangePassword />} />
         <Route path="/landing" element={<SignedOutRoute><LandingPage /></SignedOutRoute>} />
         <Route path="/login" element={<SignedOutRoute><Login /></SignedOutRoute>} />
-        <Route path="/register" element={<Register />} />
+        {/* Accounts are created by the administrator; old links to the registration page land on sign in. */}
+        <Route path="/register" element={<Navigate to="/login" replace />} />
         <Route path="/forgot-password" element={<ForgotPassword />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/cluster" element={<ClusterLayout />}>

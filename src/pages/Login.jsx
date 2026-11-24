@@ -63,7 +63,6 @@ export default function Login() {
         <Link to="/landing" aria-label="Smart Proctoring landing page"><Brand /></Link>
         <div className={styles.headerActions}>
           <button className={styles.iconButton} type="button" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}>{theme === "dark" ? <Sun size={19} /> : <Moon size={19} />}</button>
-          <Link className={styles.textLink} to="/register">Create account <ArrowUpRight size={16} /></Link>
         </div>
       </header>
       <main className={styles.registerLayout}>
@@ -112,7 +111,8 @@ export default function Login() {
             </div>
             {submitError && <p className={styles.formError} role="alert">{submitError}</p>}
             <button className={styles.primaryButton} disabled={isSubmitting} type="submit">{isSubmitting ? "Authenticating..." : "Sign in"}<ArrowUpRight size={18} /></button>
-            <p className={styles.registerPrompt}>New here? <Link to="/register">Create account <ArrowUpRight size={14} /></Link></p>
+            {/* Accounts are created by the administrator (single or Bulk Register); there is no self-registration. */}
+            <p className={styles.registerPrompt}>No account yet? Your administrator creates accounts for students and staff.</p>
           </form>
           <div className={styles.dialogLegal}><Link to="/privacy">Privacy Policy</Link><Link to="/terms">Terms of Use</Link><Link to="/storage">Cookies & Storage</Link></div>
         </section>

@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { hasSupabaseConfig, supabase } from "../lib/supabase";
 import { queryClient, queryPersister } from "../lib/queryClient";
 import { DEACTIVATED_ACCOUNT_MESSAGE, isDeactivatedStatus, signInErrorMessage } from "../lib/accountStatus";
-import { REGISTRATION_DEVICE_EMAIL_LIMIT, getRegistrationLimitStatus, recordRegistrationEmail } from "../lib/registrationRateLimit";
 import { mustChangePassword } from "../lib/settingsSecurity";
 
 const AuthContext = createContext(null);
@@ -310,32 +309,6 @@ export function AuthProvider({ children }) {
     return nextUser;
   }
 
-  async function register(values) {
-    if (!values.termsAccepted || !values.privacyAccepted) throw new Error("Agree to the Terms of Use and acknowledge the Privacy Policy to register.");
-    if (!values.fullName?.trim() || values.fullName.length > 120) throw new Error("Full name is required and must be 120 characters or fewer.");
-    if (!values.studentNumber?.trim() || values.studentNumber.length > 40) throw new Error("Student number is required and must be 40 characters or fewer.");
-    const registrationLimit = getRegistrationLimitStatus(window.localStorage, values.email);
-    if (!registrationLimit.allowed) throw new Error(`This device has reached the registration limit of ${REGISTRATION_DEVICE_EMAIL_LIMIT} student accounts.`);
-    if (hasSupabaseConfig) {
-      const { error } = await supabase.auth.signUp({
-        email: values.email,
-        password: values.password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/login?confirmed=1`,
-          data: {
-            full_name: values.fullName,
-            student_number: values.studentNumber,
-            role: "Student",
-            status: "Active",
-          },
-        },
-      });
-      if (error) throw error;
-    }
-    recordRegistrationEmail(window.localStorage, values.email);
-    toast.success("Registration created. Please confirm your email before logging in.");
-  }
-
   async function resetPassword(email) {
     if (hasSupabaseConfig) {
       const { error } = await supabase.functions.invoke("send-password-reset", { body: { email } });
@@ -371,7 +344,7 @@ export function AuthProvider({ children }) {
     });
   }
 
-  const value = useMemo(() => ({ user, loading, hasLoggedInThisSession, login, logout, register, resetPassword, updateCachedUser }), [user, loading, hasLoggedInThisSession]);
+  const value = useMemo(() => ({ user, loading, hasLoggedInThisSession, login, logout, resetPassword, updateCachedUser }), [user, loading, hasLoggedInThisSession]);
 
   return <AuthContext.Provider value={value}><Fragment key={user?.id || "signed-out"}>{children}</Fragment></AuthContext.Provider>;
 }

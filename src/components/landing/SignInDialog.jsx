@@ -78,7 +78,7 @@ export default function SignInDialog({ open, onClose }) {
         {submitError && <p role="alert" className={styles.formError}>{submitError}</p>}
         <button className={styles.primaryButton} type="submit" disabled={isSubmitting}>{isSubmitting ? "Authenticating…" : "Sign in"}<ArrowUpRight size={19} /></button>
       </form>
-      <p className={styles.registerPrompt}>New here? <Link to="/register">Create account <ArrowUpRight size={14} /></Link></p>
+      <p className={styles.registerPrompt}>No account yet? Your administrator creates accounts for students and staff.</p>
       <div className={styles.dialogLegal}><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/storage">Cookies & storage</Link></div>
     </dialog>
   );
