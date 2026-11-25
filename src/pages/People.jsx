@@ -183,14 +183,24 @@ export default function People({ type }) {
 
   // Used by Create Account and Bulk Register. Bulk Register may also create students (with a student number),
   // who are listed here with the staff. Manage Accounts keeps its own list, so it is told to load again.
-  async function createAccount({ role, fullName, email, password, programId = "", studentNumber = "" }) {
+  // Students may be enrolled in courses (joining codes) as they are created; returns the codes { enrolled, skipped }.
+  async function createAccount({ role, fullName, email, password, programId = "", studentNumber = "", courseCodes = [] }) {
     if (hasSupabaseConfig) {
-      const data = await callAccountFunction({ action: "create", role, fullName, email, password, programId, ...(role === STUDENT ? { studentNumber } : {}) });
+      const data = await callAccountFunction({ action: "create", role, fullName, email, password, programId, ...(role === STUDENT ? { studentNumber, courseCodes } : {}) });
       if (listedTypes.includes(data.profile.role)) updateLiveProfile(data.profile);
       void queryClient.invalidateQueries({ queryKey: ["admin-accounts"] });
-      return;
+      return { enrolled: data.enrolled || [], skipped: data.skipped || [] };
     }
     updateRows(role, (current) => [{ id: crypto.randomUUID(), name: fullName, email, role, status: "Active", programId: role === STUDENT ? "" : programId, studentNumber: role === STUDENT ? studentNumber : "" }, ...current]);
+    return { enrolled: role === STUDENT ? courseCodes : [], skipped: [] };
+  }
+
+  // Bulk Register: a student who already has an account is enrolled in more courses; the account is unchanged.
+  async function enrollStudent({ email, courseCodes, studentNumber = "" }) {
+    if (!hasSupabaseConfig) return { enrolled: courseCodes, skipped: [] };
+    const data = await callAccountFunction({ action: "enroll", email, courseCodes, studentNumber });
+    void queryClient.invalidateQueries({ queryKey: ["admin-accounts"] });
+    return { enrolled: data.enrolled || [], skipped: data.skipped || [] };
   }
 
   async function createPerson(event) {
@@ -403,6 +413,7 @@ export default function People({ type }) {
       {bulkModalOpen ? (
         <BulkRegisterModal
           createAccount={createAccount}
+          enrollStudent={enrollStudent}
           defaultRole={type || ""}
           existingAccounts={listedTypes.flatMap((role) => rowsSource[role] || [])}
           programs={activePrograms}

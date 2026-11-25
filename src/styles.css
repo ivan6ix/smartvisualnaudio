@@ -19805,6 +19805,13 @@ html[data-appearance="dark"] .student-dashboard-page .student-card-title > span 
   color: var(--danger);
   font-size: 0.86rem;
 }
+/* Course codes, unknown codes and skipped codes each sit on their own line in a Bulk Register cell. */
+.bulk-register-stack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+}
 .bulk-register-error {
   margin: 14px 0 0;
 }

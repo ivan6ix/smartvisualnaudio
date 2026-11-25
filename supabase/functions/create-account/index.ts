@@ -6,7 +6,8 @@ const corsHeaders = {
 };
 
 // Staff roles have a program. Students can also be created by an Admin (Bulk Register); they need a student
-// number, have no program, and are created with a confirmed email, so they can sign in right away.
+// number, have no program, and are created with a confirmed email, so they can sign in right away. Bulk Register
+// can also enroll a student in courses by joining code, at creation or later through the enroll action.
 const allowedRoles = new Set(["Professor", "Dean", "Cluster Professor"]);
 const creatableRoles = new Set([...allowedRoles, "Student"]);
 // Only active Admins manage accounts. Deans have no account pages, and letting them reset any password
@@ -53,6 +54,58 @@ async function findActiveProgram(adminClient: ReturnType<typeof createClient>, p
   if (error || !program) return { program: null, error: "Choose a program for this account." };
   if (!program.is_active) return { program: null, error: `${program.program_code} is inactive. Choose an active program.` };
   return { program, error: "" };
+}
+
+// Bulk Register may list a student's courses by joining code: an array or a comma-separated text. Codes are
+// upper-cased and repeats dropped; at most 20 per student.
+function readCourseCodes(value: unknown) {
+  const parts = Array.isArray(value) ? value : String(value || "").split(/[\s,;]+/);
+  const codes = [...new Set(parts.map((part) => String(part || "").trim().toUpperCase()).filter(Boolean))];
+  if (codes.length > 20) return { codes: [], error: "List at most 20 courses." };
+  if (codes.some((code) => code.length > 32)) return { codes: [], error: "A course code is longer than 32 characters." };
+  return { codes, error: "" };
+}
+
+// Enrolls a student in the active (not archived) courses with these joining codes. A code with no active course is
+// skipped, and an existing enrollment counts as enrolled. Never throws: a failed insert skips every code, so the
+// account that was just created is kept either way.
+async function enrollInCourses(adminClient: ReturnType<typeof createClient>, studentId: string, codes: string[]) {
+  if (!codes.length) return { enrolled: [] as string[], skipped: [] as string[] };
+  const { data: courses, error } = await adminClient
+    .from("courses")
+    .select("id, joining_code")
+    .in("joining_code", codes)
+    .eq("archived", false);
+  if (error) return { enrolled: [] as string[], skipped: codes };
+  const found = (courses || []) as { id: string; joining_code: string }[];
+  if (found.length) {
+    const { error: enrollError } = await adminClient
+      .from("course_enrollments")
+      .upsert(found.map((course) => ({ course_id: course.id, student_id: studentId })), { onConflict: "course_id,student_id", ignoreDuplicates: true });
+    if (enrollError) return { enrolled: [] as string[], skipped: codes };
+  }
+  const foundCodes = new Set(found.map((course) => course.joining_code));
+  return { enrolled: codes.filter((code) => foundCodes.has(code)), skipped: codes.filter((code) => !foundCodes.has(code)) };
+}
+
+async function auditEnrollment(
+  adminClient: ReturnType<typeof createClient>,
+  caller: { userId: string; role: string },
+  studentId: string,
+  enrolled: string[],
+) {
+  if (!enrolled.length) return;
+  await writeAudit(adminClient, {
+    userId: caller.userId,
+    actorRole: caller.role,
+    eventType: "course.enrolled",
+    action: "Student Enrolled",
+    description: "An admin enrolled a student in courses.",
+    entityType: "account",
+    entityId: studentId,
+    targetUserId: studentId,
+    metadata: { courses: enrolled },
+  });
 }
 
 function json(body: Record<string, unknown>, status = 200) {
@@ -107,8 +160,11 @@ Deno.serve(async (req) => {
       const password = String(body.password || "123456");
       const isStudent = role === "Student";
       const studentNumber = isStudent ? String(body.studentNumber || "").trim() : "";
+      const courseCodes = readCourseCodes(body.courseCodes);
 
       if (!creatableRoles.has(role)) return json({ error: "Invalid account role." }, 400);
+      if (courseCodes.error) return json({ error: courseCodes.error }, 400);
+      if (!isStudent && courseCodes.codes.length) return json({ error: "Courses are for students only." }, 400);
       if (!fullName || !email) return json({ error: "Full name and email are required." }, 400);
       if (isStudent && !studentNumber) return json({ error: "A student number is required for a student account." }, 400);
       if (password.length < 6) return json({ error: "Password must be at least 6 characters." }, 400);
@@ -207,7 +263,38 @@ Deno.serve(async (req) => {
         metadata: { role, status: "Active", ...(program ? { program: program.program_code } : {}) },
       });
 
-      return json({ profile });
+      // The account exists now; a course that cannot be enrolled is reported as skipped, never undoes it.
+      const { enrolled, skipped } = await enrollInCourses(adminClient, data.user.id, courseCodes.codes);
+      await auditEnrollment(adminClient, { userId: authData.user.id, role: caller.role }, data.user.id, enrolled);
+
+      return json({ profile, enrolled, skipped });
+    }
+
+    if (action === "enroll") {
+      // A student who already has an account is enrolled in more courses; the account itself is not changed.
+      const email = String(body.email || "").trim().toLowerCase();
+      const studentNumber = String(body.studentNumber || "").trim();
+      const courseCodes = readCourseCodes(body.courseCodes);
+      if (courseCodes.error) return json({ error: courseCodes.error }, 400);
+      if (!courseCodes.codes.length) return json({ error: "List at least one course." }, 400);
+
+      const { data: student } = await adminClient
+        .from("profiles")
+        .select("id, role, status, full_name, email, student_number")
+        .eq("email", email)
+        .limit(1)
+        .maybeSingle();
+      if (!student) return json({ error: `No account uses the email ${email}.` }, 404);
+      if (student.role !== "Student") return json({ error: `${email} is not a student account.` }, 400);
+      if (student.status !== "Active") return json({ error: `${email} is deactivated.` }, 400);
+      if (studentNumber && studentNumber.toLowerCase() !== String(student.student_number || "").trim().toLowerCase()) {
+        return json({ error: `Student number ${studentNumber} does not match this account.` }, 400);
+      }
+
+      const { enrolled, skipped } = await enrollInCourses(adminClient, student.id, courseCodes.codes);
+      await auditEnrollment(adminClient, { userId: authData.user.id, role: caller.role }, student.id, enrolled);
+
+      return json({ profile: { id: student.id, full_name: student.full_name, email: student.email }, enrolled, skipped });
     }
 
     if (action === "assign-program") {

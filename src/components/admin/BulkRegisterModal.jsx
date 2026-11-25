@@ -24,13 +24,19 @@ async function readUploadedStaff(file, defaultRole) {
 
 // defaultRole is the page's role ("" on Create Account, where the file must say the role).
 // programs are the active programs ({ id, program_code }) that the optional program column may name.
-// createAccount({ role, fullName, email, password, programId, studentNumber }) creates one account or throws.
-// Staff and Student accounts can be registered from the same file.
-export default function BulkRegisterModal({ defaultRole = "", existingAccounts = [], programs = [], createAccount, onClose }) {
+// createAccount({ role, fullName, email, password, programId, studentNumber, courseCodes }) creates one account,
+// enrolls a student in the courses, and returns { enrolled, skipped } (course codes), or throws.
+// enrollStudent({ email, courseCodes, studentNumber }) enrolls a student who already has an account and returns
+// { enrolled, skipped }, or throws. Staff and Student accounts can be registered from the same file.
+export default function BulkRegisterModal({ defaultRole = "", existingAccounts = [], programs = [], createAccount, enrollStudent, onClose }) {
   const [existing, setExisting] = useState(hasSupabaseConfig ? null : {
     emails: existingAccounts.map((account) => account.email),
     studentNumbers: [],
+    students: [],
+    professorNames: new Map(),
   });
+  const [activeCourses, setActiveCourses] = useState([]);
+  const [loadError, setLoadError] = useState("");
   const [fileName, setFileName] = useState("");
   const [fileRows, setFileRows] = useState([]);
   const [fileError, setFileError] = useState("");
@@ -42,17 +48,36 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
   useEffect(() => {
     if (!hasSupabaseConfig) return;
     let active = true;
-    // Every account is read (the API returns at most 1000 rows per request), so no duplicate slips through.
-    fetchAllRows((options) => supabase.from("profiles").select("id, email, student_number", options).order("id")).then(({ data, error }) => {
+    // Every account is read (the API returns at most 1000 rows per request), so no duplicate slips through. Students
+    // already in the system can be enrolled in more courses; professors' names fill the template's Courses sheet.
+    // The active courses are read in the same step, so rows are only checked once both are known. If either read
+    // fails, the upload stays blocked: checking against an empty list would treat every account as new and every
+    // course code as unknown.
+    Promise.all([
+      fetchAllRows((options) => supabase.from("profiles").select("id, email, role, status, full_name, student_number", options).order("id")),
+      fetchAllRows((options) => supabase
+        .from("courses")
+        .select("id, joining_code, course_code, course_name, section, year_level, semester, academic_year, professor_id, programs(program_code)", options)
+        .eq("archived", false)
+        .order("course_code")
+        .order("id")),
+    ]).then(([{ data, error }, { data: courseRows, error: coursesError }]) => {
       if (!active) return;
-      if (error) {
-        toast.error(error.message);
-        setExisting({ emails: [], studentNumbers: [] });
+      if (error || coursesError) {
+        const message = (error || coursesError).message;
+        toast.error(message);
+        setLoadError(`Accounts and courses could not be loaded (${message}). Close this window and try again.`);
         return;
       }
+      setActiveCourses(courseRows || []);
+      const profiles = data || [];
       setExisting({
-        emails: (data || []).map((profile) => profile.email),
-        studentNumbers: (data || []).map((profile) => profile.student_number).filter(Boolean),
+        emails: profiles.map((profile) => profile.email),
+        studentNumbers: profiles.map((profile) => profile.student_number).filter(Boolean),
+        students: profiles
+          .filter((profile) => profile.role === "Student")
+          .map((profile) => ({ email: profile.email, studentNumber: profile.student_number, status: profile.status, fullName: profile.full_name })),
+        professorNames: new Map(profiles.map((profile) => [profile.id, profile.full_name || profile.email])),
       });
     });
     return () => {
@@ -72,9 +97,16 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     existingEmails: existing.emails,
     existingStudentNumbers: existing.studentNumbers,
     programs,
-  }) : []), [existing, fileRows, programs]);
+    existingStudents: existing.students,
+    courses: activeCourses,
+  }) : []), [activeCourses, existing, fileRows, programs]);
   const ready = rows.filter((row) => !row.problem);
-  const created = results ? [...results.values()].filter((result) => result.status === "Created").length : 0;
+  const enrollCount = ready.filter((row) => row.mode === "enroll").length;
+  const professorNames = existing?.professorNames || new Map();
+  const countResults = (status) => (results ? [...results.values()].filter((result) => result.status === status).length : 0);
+  const created = countResults("Created");
+  const enrolled = countResults("Enrolled");
+  const failed = countResults("Failed");
 
   async function chooseFile(event) {
     const file = event.target.files?.[0];
@@ -111,36 +143,70 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
     const nextResults = new Map();
     for (const row of ready) {
       try {
-        await createAccount({ role: row.role, fullName: row.fullName, email: row.email, password, programId: row.programId, studentNumber: row.studentNumber });
-        nextResults.set(row.rowNumber, { status: "Created", message: "" });
+        // Only codes of active courses are sent; the others were shown as skipped before the upload.
+        const outcome = row.mode === "enroll"
+          ? await enrollStudent({ email: row.email, courseCodes: row.knownCodes, studentNumber: row.studentNumber })
+          : await createAccount({ role: row.role, fullName: row.fullName, email: row.email, password, programId: row.programId, studentNumber: row.studentNumber, courseCodes: row.knownCodes });
+        nextResults.set(row.rowNumber, {
+          status: row.mode === "enroll" ? "Enrolled" : "Created",
+          message: "",
+          enrolled: outcome?.enrolled || [],
+          skipped: [...row.unknownCodes, ...(outcome?.skipped || [])],
+        });
       } catch (error) {
-        nextResults.set(row.rowNumber, { status: "Failed", message: error.message || "Account was not created." });
+        nextResults.set(row.rowNumber, { status: "Failed", message: error.message || (row.mode === "enroll" ? "The student was not enrolled." : "Account was not created.") });
       }
       setProgress((count) => count + 1);
       setResults(new Map(nextResults));
     }
     setRunning(false);
-    const createdCount = [...nextResults.values()].filter((result) => result.status === "Created").length;
+    const outcomes = [...nextResults.values()];
+    const createdCount = outcomes.filter((result) => result.status === "Created").length;
+    const enrolledCount = outcomes.filter((result) => result.status === "Enrolled").length;
+    const failedCount = outcomes.filter((result) => result.status === "Failed").length;
     if (createdCount) toast.success(`${createdCount} account${createdCount === 1 ? "" : "s"} created with default password ${password}. Each user sets their own at first sign-in.`);
-    if (createdCount < ready.length) toast.error(`${ready.length - createdCount} account${ready.length - createdCount === 1 ? "" : "s"} could not be created. See the results.`);
+    if (enrolledCount) toast.success(`${enrolledCount} existing student${enrolledCount === 1 ? "" : "s"} enrolled in courses.`);
+    if (failedCount) toast.error(`${failedCount} row${failedCount === 1 ? "" : "s"} could not be completed. See the results.`);
   }
+
+  const plural = (count, word) => `${count} ${word}${count === 1 ? "" : "s"}`;
 
   function resultFor(row) {
     const result = results?.get(row.rowNumber);
-    if (result?.status === "Created") return <Badge tone="success">Created</Badge>;
     if (result?.status === "Failed") return <span className="bulk-register-problem">{result.message}</span>;
+    if (result?.status === "Created" || result?.status === "Enrolled") {
+      const count = result.enrolled?.length || 0;
+      const label = result.status === "Enrolled" ? `Enrolled in ${plural(count, "course")}` : count ? `Created · ${plural(count, "course")}` : "Created";
+      return (
+        <div className="bulk-register-stack">
+          <Badge tone="success">{label}</Badge>
+          {result.skipped?.length ? <span className="bulk-register-problem">Skipped: {result.skipped.join(", ")}</span> : null}
+        </div>
+      );
+    }
     if (row.problem) return <span className="bulk-register-problem">{row.problem}</span>;
-    return <Badge tone="blue">{running ? "Waiting" : "Ready"}</Badge>;
+    return <Badge tone="blue">{running ? "Waiting" : row.mode === "enroll" ? `Will enroll ${row.matchedName}` : "Ready"}</Badge>;
+  }
+
+  function coursesFor(row) {
+    if (!row.courseCodes?.length) return "-";
+    return (
+      <div className="bulk-register-stack">
+        {row.knownCodes.length ? <span>{row.knownCodes.join(", ")}</span> : null}
+        {row.unknownCodes.map((code) => <span className="bulk-register-problem" key={code}>{code} not found</span>)}
+      </div>
+    );
   }
 
   const columns = [
-    { key: "rowNumber", label: "Row", width: "8%" },
-    { key: "fullName", label: "Full Name", width: "18%" },
-    { key: "email", label: "Email", width: "22%" },
-    { key: "role", label: "Role", width: "13%", render: (row) => row.role || row.roleText || "-" },
+    { key: "rowNumber", label: "Row", width: "7%" },
+    { key: "fullName", label: "Full Name", width: "15%" },
+    { key: "email", label: "Email", width: "17%" },
+    { key: "role", label: "Role", width: "11%", render: (row) => row.role || row.roleText || "-" },
     { key: "programCode", label: "Program", width: "10%", render: (row) => row.programCode || "-" },
-    { key: "studentNumber", label: "Student No.", width: "11%", render: (row) => row.studentNumber || "-" },
-    { key: "check", label: "Check", width: "18%", render: resultFor },
+    { key: "studentNumber", label: "Student No.", width: "10%", render: (row) => row.studentNumber || "-" },
+    { key: "courses", label: "Courses", width: "14%", render: coursesFor },
+    { key: "check", label: "Check", width: "16%", render: resultFor },
   ];
 
   return (
@@ -149,7 +215,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
         <div className="account-modal-header">
           <div>
             <h2 id="bulk-register-title">Bulk Register {defaultRole ? `${defaultRole}s` : "Accounts"}</h2>
-            <p>Create {defaultRole ? `${defaultRole.toLowerCase()}` : "professor, dean, cluster professor, and student"} accounts from an Excel (.xlsx) or CSV file of up to {MAX_ROWS} rows.</p>
+            <p>Create {defaultRole ? `${defaultRole.toLowerCase()}` : "professor, dean, cluster professor, and student"} accounts from an Excel (.xlsx) or CSV file of up to {MAX_ROWS} rows. Students can also be enrolled in courses by joining code, including students who already have an account.</p>
           </div>
           <button aria-label="Close bulk register" disabled={running} onClick={onClose} type="button"><FiX /></button>
         </div>
@@ -160,14 +226,15 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
               <FiUpload /> {fileName ? "Choose another file" : "Choose Excel or CSV file"}
               <input accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" disabled={running || !existing} onChange={chooseFile} type="file" />
             </label>
-            <p>{!existing ? "Checking existing accounts..." : fileName ? `${fileName} · ${fileRows.length} row${fileRows.length === 1 ? "" : "s"}` : "Columns: full_name, email, role, and an optional program (for example BSIT)."}</p>
-            <button className="bulk-register-template" onClick={() => saveWorkbook(templateSheets(defaultRole || "Professor", programs), "staff-template.xlsx")} type="button">
+            <p>{!existing ? (loadError ? "Upload is unavailable." : "Checking existing accounts and courses...") : fileName ? `${fileName} · ${fileRows.length} row${fileRows.length === 1 ? "" : "s"}` : "Columns: full_name, email, role, and optional program, student_number and courses."}</p>
+            <button className="bulk-register-template" onClick={() => saveWorkbook(templateSheets(defaultRole || "Professor", programs, activeCourses, professorNames), "staff-template.xlsx")} type="button">
               <FiDownload /> Download template
             </button>
           </div>
           <Field disabled={running} label="Default Password for This Batch" minLength={6} onChange={(event) => setPassword(event.target.value)} type="password" value={password} />
         </div>
 
+        {loadError ? <p className="bulk-register-error" role="alert">{loadError}</p> : null}
         {fileError ? <p className="bulk-register-error" role="alert">{fileError}</p> : null}
 
         {rows.length ? (
@@ -176,13 +243,15 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
               {results ? (
                 <>
                   <Badge tone="success">{created} created</Badge>
-                  {ready.length - created ? <Badge tone="danger">{ready.length - created} failed</Badge> : null}
+                  {enrolled ? <Badge tone="success">{enrolled} enrolled</Badge> : null}
+                  {failed ? <Badge tone="danger">{failed} failed</Badge> : null}
                   {rows.length - ready.length ? <Badge tone="warn">{rows.length - ready.length} skipped</Badge> : null}
-                  {running ? <span>Creating {Math.min(progress + 1, ready.length)} of {ready.length}...</span> : null}
+                  {running ? <span>Working on {Math.min(progress + 1, ready.length)} of {ready.length}...</span> : null}
                 </>
               ) : (
                 <>
                   <Badge tone="success">{ready.length} ready</Badge>
+                  {enrollCount ? <Badge tone="blue">{enrollCount} existing to enroll</Badge> : null}
                   {rows.length - ready.length ? <Badge tone="danger">{rows.length - ready.length} need fixing</Badge> : null}
                 </>
               )}
@@ -198,7 +267,7 @@ export default function BulkRegisterModal({ defaultRole = "", existingAccounts =
           <Button disabled={running} onClick={onClose} type="button" variant="light">{results ? "Close" : "Cancel"}</Button>
           {!results || running ? (
             <Button disabled={running || !ready.length} onClick={createAll} type="button">
-              <FiUserPlus /> {running ? "Creating..." : `Create ${ready.length} account${ready.length === 1 ? "" : "s"}`}
+              <FiUserPlus /> {running ? "Working..." : enrollCount ? `Create / enroll ${ready.length}` : `Create ${ready.length} account${ready.length === 1 ? "" : "s"}`}
             </Button>
           ) : null}
         </div>
