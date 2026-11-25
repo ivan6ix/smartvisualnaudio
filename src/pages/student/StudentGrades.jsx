@@ -59,7 +59,7 @@ function mapCourse(course) {
   };
 }
 
-function mapAttempt(attempt, gradeOverrides = {}) {
+function mapAttempt(attempt, gradeOverrides = {}, notesByAttempt = {}) {
   const exam = attempt.exams || {};
   const course = exam.courses || {};
   const submittedAt = attempt.submitted_at || attempt.created_at || new Date().toISOString();
@@ -86,6 +86,7 @@ function mapAttempt(attempt, gradeOverrides = {}) {
         ? `${formatPoints(earnedPoints)} / ${formatPoints(maxPoints)} (${score.toFixed(2)}%)`
         : `${score.toFixed(1)}%`,
     pendingManual: Boolean(isPending),
+    notes: notesByAttempt[attempt.id] || [],
     academicYear: getAcademicYear(submittedAt),
     submittedAt,
   };
@@ -113,6 +114,7 @@ function CourseGradeBody({ course, isTableDetail = false }) {
               </div>
               <b>{grade.scoreLabel}</b>
               <div className="student-progress"><span style={{ width: `${grade.score}%` }} /></div>
+              {(grade.notes || []).map((note, index) => <p className="student-grade-note" key={index}>{`Adjusted by your professor: ${note}`}</p>)}
             </article>
           ))}
         </div>
@@ -190,13 +192,21 @@ export default function StudentGrades() {
 
     const attemptIds = (attemptRows || []).map((attempt) => attempt.id);
     let gradeOverrides = {};
+    let notesByAttempt = {};
     if (attemptIds.length) {
       let answerRows = [];
       let answersError = null;
-      const answersResult = await supabase
+      // grading_note arrives with a newer migration; without it the read is repeated on the older columns.
+      let answersResult = await supabase
         .from("exam_attempt_answers")
-        .select("attempt_id, question_id, earned_points, max_points, is_correct, needs_manual_grading")
+        .select("attempt_id, question_id, earned_points, max_points, is_correct, needs_manual_grading, grading_note")
         .in("attempt_id", attemptIds);
+      if (answersResult.error?.message?.includes("grading_note")) {
+        answersResult = await supabase
+          .from("exam_attempt_answers")
+          .select("attempt_id, question_id, earned_points, max_points, is_correct, needs_manual_grading")
+          .in("attempt_id", attemptIds);
+      }
 
       if (answersResult.error?.message?.includes("earned_points") || answersResult.error?.message?.includes("max_points") || answersResult.error?.message?.includes("needs_manual_grading")) {
         const fallbackAnswersResult = await supabase
@@ -219,12 +229,15 @@ export default function StudentGrades() {
         (items[row.attempt_id] ||= []).push(row);
         return items;
       }, {});
+      notesByAttempt = Object.fromEntries(Object.entries(answersByAttempt)
+        .map(([attemptId, rows]) => [attemptId, rows.map((row) => String(row.grading_note || "").trim()).filter(Boolean)])
+        .filter(([, notes]) => notes.length));
       gradeOverrides = Object.fromEntries(Object.entries(answersByAttempt)
         .map(([attemptId, rows]) => [attemptId, computeAttemptGradeFromAnswers(rows)])
         .filter(([, grade]) => grade !== null));
     }
 
-    const nextGrades = (attemptRows || []).map((attempt) => mapAttempt(attempt, gradeOverrides));
+    const nextGrades = (attemptRows || []).map((attempt) => mapAttempt(attempt, gradeOverrides, notesByAttempt));
     setGrades(nextGrades);
     queryClient.setQueryData(queryKey, { courses: liveCourses, grades: nextGrades });
   }, [queryClient, user?.id]);

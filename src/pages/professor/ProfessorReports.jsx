@@ -79,7 +79,12 @@ async function loadReportData(userId) {
     examIds.length ? fetchAllRows((options) => supabase.from("exam_student_access_exceptions").select(`exam_id, student_id, ${profile}`, options).in("exam_id", examIds).order("exam_id").order("student_id")) : none,
     examIds.length ? fetchAllRows((options) => supabase.from("exam_attempts").select(`id, exam_id, student_id, score, earned_points, max_points, status, started_at, submitted_at, ${profile}`, options).in("exam_id", examIds).order("id")) : none,
     examIds.length ? fetchAllRows((options) => supabase.from("exam_start_sessions").select("exam_id, student_id", options).in("exam_id", examIds).order("exam_id").order("student_id")) : none,
-    examIds.length ? fetchAllRows((options) => supabase.from("violations").select("id, exam_id, student_id, violation_type, severity, created_at", options).in("exam_id", examIds).order("id")) : none,
+    // question_number arrives with a newer migration; until it is applied the read is repeated without it.
+    examIds.length ? (async () => {
+      const withQuestion = await fetchAllRows((options) => supabase.from("violations").select("id, exam_id, student_id, violation_type, severity, question_number, created_at", options).in("exam_id", examIds).order("id"));
+      if (!withQuestion.error?.message?.includes("question_number")) return withQuestion;
+      return fetchAllRows((options) => supabase.from("violations").select("id, exam_id, student_id, violation_type, severity, created_at", options).in("exam_id", examIds).order("id"));
+    })() : none,
     // Only answers still waiting for manual grading; the inner join filters them by their attempt's exam.
     examIds.length ? fetchAllRows((options) => supabase.from("exam_attempt_answers").select("id, attempt_id, exam_attempts!inner(exam_id)", options).eq("needs_manual_grading", true).in("exam_attempts.exam_id", examIds).order("id")) : none,
   ]);

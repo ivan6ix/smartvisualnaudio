@@ -1,5 +1,3 @@
-export const EXAM_VIOLATION_LIMIT = 5;
-
 export function violationKey(event) {
   const type = event.type === "BACKGROUND_VOICE" ? "AUDIO_DETECTED" : event.type;
   return `${type}:${new Date(event.timestamp).getTime()}`;
@@ -14,13 +12,6 @@ export function mergeAttemptViolations(events, startedAt) {
     unique.set(violationKey(event), event);
   }
   return [...unique.values()].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-}
-
-export function violationWarning(count) {
-  if (count >= EXAM_VIOLATION_LIMIT) return "Maximum violation limit reached. Your exam is locked while submission is finalized.";
-  if (count === 4) return "Final warning: 4 of 5 violations recorded. One more violation will lock your exam and initiate submission.";
-  if (count === 3) return "Warning: 3 of 5 violations recorded.";
-  return `Violation detected. ${count} of 5 violations recorded.`;
 }
 
 // Latches continuous incidents until their detector reports a clear condition.

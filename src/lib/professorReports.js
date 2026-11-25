@@ -3,6 +3,7 @@
 // numbers go to the screen, the printout and the CSV file. Each student's result on an exam is their final
 // attempt, chosen the same way as on the Scores page: the best graded attempt, otherwise the latest one.
 import { buildRiskQueue, latestSubmittedAttempts, violationLabel } from "./integrityRisk.js";
+import { formatViolationQuestion } from "./violationQuestions.js";
 import { normalizePeriod, PERIOD_ORDER } from "./deanAnalytics.js";
 import { predictStudents } from "./riskPrediction.js";
 
@@ -445,7 +446,9 @@ export function buildIntegrityReport(context, filters) {
         id: item.id || `${item.exam_id}:${item.student_id}:${item.created_at}`,
         ...studentFields(context, item.student_id, course),
         exam: examTitle(exam),
-        alert: violationLabel(item.violation_type),
+        // alertLabel is the plain type, for grouping; alert is what the printout and CSV show ("Tab switch · Q5").
+        alertLabel: violationLabel(item.violation_type),
+        alert: formatViolationQuestion(violationLabel(item.violation_type), item.question_number ?? null),
         severity: item.severity || "-",
         at: item.created_at,
         risk: risk ? risk.level : "-",
@@ -453,7 +456,7 @@ export function buildIntegrityReport(context, filters) {
     })
     .filter((row) => matchesSearch(`${row.student} ${row.studentNumber} ${row.exam} ${row.alert}`, filters.search))
     .sort((left, right) => (time(right.at) || 0) - (time(left.at) || 0));
-  const byType = groupBy(rows, (row) => row.alert);
+  const byType = groupBy(rows, (row) => row.alertLabel);
   const top = [...byType.entries()].sort((left, right) => right[1].length - left[1].length)[0];
   const flagged = new Set(rows.map((row) => `${row.studentId}`));
   const highRisk = new Set(rows.filter((row) => row.risk === "High").map((row) => `${row.studentId}:${row.exam}`));

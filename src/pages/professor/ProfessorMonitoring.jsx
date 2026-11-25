@@ -8,6 +8,7 @@ import { useAuth } from "../../context/AuthContext";
 import { professorAlerts } from "../../data/professorData";
 import useListViewPreference from "../../hooks/useListViewPreference";
 import { getListPageSlice } from "../../lib/listView";
+import { formatViolationQuestion } from "../../lib/violationQuestions";
 import {
   MONITORING_INITIAL_VIOLATION_LIMIT,
   getViolationEvidenceState,
@@ -223,7 +224,7 @@ export default function ProfessorMonitoring() {
 
       let violationRows = [];
       let violationsError = null;
-      const violationSelect = "id, student_id, exam_id, course_id, violation_type, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at, profiles:student_id(full_name, student_number, email), exams(id, title, exam_title, description, course, course_id, courses(course_code, section))";
+      const violationSelect = "id, student_id, exam_id, course_id, violation_type, severity, screenshot_url, evidence_url, evidence_type, audio_level, question_number, created_at, profiles:student_id(full_name, student_number, email), exams(id, title, exam_title, description, course, course_id, courses(course_code, section))";
       const fallbackViolationSelect = "id, student_id, exam_id, course_id, violation_type, severity, screenshot_url, created_at, profiles:student_id(full_name, student_number, email), exams(id, title, exam_title, description, course, course_id)";
       const violationFilter = examIds.length
         ? `professor_id.eq.${user.id},exam_id.in.(${examIds.join(",")})`
@@ -236,7 +237,8 @@ export default function ProfessorMonitoring() {
         .limit(MONITORING_INITIAL_VIOLATION_LIMIT);
 
       if (
-        violationsResult.error?.message?.includes("evidence_url")
+        violationsResult.error?.message?.includes("question_number")
+        || violationsResult.error?.message?.includes("evidence_url")
         || violationsResult.error?.message?.includes("evidence_type")
         || violationsResult.error?.message?.includes("audio_level")
         || violationsResult.error?.message?.includes("courses")
@@ -295,7 +297,7 @@ export default function ProfessorMonitoring() {
           courseCode: course?.course_code || enrolledCourse?.courseCode || parsedCourse.courseCode || "Unknown course",
           section: course?.section || enrolledCourse?.section || parsedCourse.section || "Unknown section",
           period: exam.description || "No period",
-          activity: violationLabels[violation.violation_type] || violation.violation_type || "Monitoring alert",
+          activity: formatViolationQuestion(violationLabels[violation.violation_type] || violation.violation_type || "Monitoring alert", violation.question_number),
           severity: violation.severity || "Low",
           evidencePath: evidenceState.audioPath || violation.screenshot_url || "",
           screenshotUrl: "",

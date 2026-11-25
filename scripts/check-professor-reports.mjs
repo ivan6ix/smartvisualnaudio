@@ -130,6 +130,15 @@ const byStudent = (report) => new Map(report.rows.map((row) => [row.studentId, r
   assert.deepEqual(describeFilters("integrity", filters({ studentId: "s3" }), context), [["Student", "Ben Reyes (2026-003)"]], "The printout lists the chosen student.");
 }
 
+// The alert cell names the question ("Cellphone detected · Q3"), but grouping and the type filter use the plain type.
+{
+  const withQuestions = buildReportContext({ ...data, violations: data.violations.map((item) => (item.id === "v1" ? { ...item, question_number: 3 } : item.id === "v2" ? { ...item, question_number: 5 } : item)) }, NOW);
+  const report = buildReport(withQuestions, "integrity", filters());
+  assert.deepEqual(report.rows.map((row) => row.alert).filter((alert) => alert.startsWith("Cellphone")).sort(), ["Cellphone detected · Q3", "Cellphone detected · Q5"]);
+  assert.equal(report.summary.find((item) => item.label === "Most common").value, "Cellphone detected (2)", "The same alert on different questions counts together.");
+  assert.equal(buildReport(withQuestions, "integrity", filters({ alertType: "Cellphone detected" })).rows.length, 2, "The alert type filter ignores the question.");
+}
+
 // Student report: the chosen student's exams across courses, including selected-student exams.
 {
   // All students: every student's record, one block each, filtered by the search box.

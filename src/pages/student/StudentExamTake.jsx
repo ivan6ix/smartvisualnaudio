@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { FiArrowDown, FiArrowUp, FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiRepeat, FiShield, FiSliders, FiUpload, FiXCircle } from "react-icons/fi";
+import { FiArrowDown, FiArrowLeft, FiArrowRight, FiArrowUp, FiCamera, FiCheckCircle, FiClock, FiMic, FiRefreshCw, FiRepeat, FiShield, FiSliders, FiUpload, FiXCircle } from "react-icons/fi";
 import { useNavigate, useParams } from "react-router-dom";
 import { toast } from "sonner";
 import AudioMonitoringTimeline from "../../components/exam/AudioMonitoringTimeline";
@@ -42,7 +42,9 @@ import { MICROPHONE_VIOLATION_CONFIRM_MS, classifyMicrophoneState, createMicroph
 import { getExamAttemptEligibility, formatAttemptUsage } from "../../lib/examAttempts";
 import { FILE_UPLOAD_ACCEPT, FILE_UPLOAD_LIMIT_BYTES, FILE_UPLOAD_MIME_TYPES, getCorrectAnswers, getQuestionConfig, normalizeChoiceItems } from "../../lib/examQuestionTypes";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
-import { createIncidentTracker, EXAM_VIOLATION_LIMIT, hasProvidedAnswer, mergeAttemptViolations, violationWarning } from "../../lib/examViolationLimit";
+import { createIncidentTracker, hasProvidedAnswer, mergeAttemptViolations } from "../../lib/examViolationLimit";
+import { professorQuestionNumbers, violationNotice } from "../../lib/violationQuestions";
+import { clampQuestionIndex, isQuestionAnswered, unansweredConfirmMessage, unansweredNumbers } from "../../lib/examPagination";
 
 function moveItemToIndex(items, fromIndex, toIndex) {
   const next = [...items];
@@ -404,7 +406,6 @@ export default function StudentExamTake() {
   const [timerEndsAt, setTimerEndsAt] = useState(null);
   const [remainingMs, setRemainingMs] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [autoSubmitRequired, setAutoSubmitRequired] = useState(false);
   const [interruptionAutoSubmitRequired, setInterruptionAutoSubmitRequired] = useState(false);
   const [interruptionState, setInterruptionState] = useState(() => normalizeInterruptionState());
   const [submissionError, setSubmissionError] = useState("");
@@ -413,11 +414,18 @@ export default function StudentExamTake() {
   const [loadError, setLoadError] = useState("");
   const answersRef = useRef({});
   const filesRef = useRef({});
+  // One question per page. currentQuestionRef always names the question on screen, for violation records.
+  const [currentIndex, setCurrentIndex] = useState(0);
+  const currentIndexRef = useRef(0);
+  const currentQuestionRef = useRef(null);
+  // Question numbers in the professor's order (unshuffled rows by sort_order), recorded on each violation.
+  const professorNumbersRef = useRef(new Map());
+  const [unansweredPrompt, setUnansweredPrompt] = useState("");
+  const questionsRef = useRef([]);
   const touchedAnswersRef = useRef(new Set());
   const violationsRef = useRef([]);
   const startedAtRef = useRef(null);
   const incidentTrackerRef = useRef(createIncidentTracker());
-  const violationLimitReachedRef = useRef(false);
   const interruptionLimitExceededRef = useRef(false);
   const interruptionRecoveryRef = useRef({ inFlight: false, handledKeys: new Set(), offlineEventKey: null });
   const submissionSnapshotRef = useRef(null);
@@ -520,6 +528,7 @@ export default function StudentExamTake() {
   }, [exam]);
   const scanPassed = !examSettings.requireEnvironmentScan || scanStatus === "passed";
   progressMetaRef.current = { ...progressMetaRef.current, scanStatus, timerEndsAt };
+  questionsRef.current = questions;
   const attemptEligibility = useMemo(() => getExamAttemptEligibility(exam, existingAttemptCount), [exam, existingAttemptCount]);
   const durationMinutes = getDurationMinutes(exam);
   const hasTimer = durationMinutes > 0;
@@ -547,8 +556,9 @@ export default function StudentExamTake() {
     enabled: examSettings.liveAudioMonitoring,
     exam,
     student: user,
-    canRecordViolation: () => examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current && !violationLimitReachedRef.current && !interruptionLimitExceededRef.current,
+    canRecordViolation: () => examModeReadyRef.current && !examSubmittingRef.current && !examSubmittedRef.current && !interruptionLimitExceededRef.current,
     onViolation: acceptRecordedViolation,
+    getQuestionContext: getViolationQuestion,
     onSilenceNotice: () => toast.warning("No sound is reaching your microphone. If it is muted in your system or on the device, unmute it.", { id: "microphone-silence" }),
   });
 
@@ -557,7 +567,6 @@ export default function StudentExamTake() {
     let cancelled = false;
     setProgressReady(false);
     setLoadError("");
-    setAutoSubmitRequired(false);
     setInterruptionAutoSubmitRequired(false);
     setInterruptionState(normalizeInterruptionState());
     setSubmissionError("");
@@ -566,7 +575,6 @@ export default function StudentExamTake() {
     examModeReadyRef.current = false;
     examSubmittingRef.current = false;
     examSubmittedRef.current = false;
-    violationLimitReachedRef.current = false;
     interruptionLimitExceededRef.current = false;
     interruptionRecoveryRef.current = { inFlight: false, handledKeys: new Set(), offlineEventKey: null };
     timerExpiredRef.current = false;
@@ -672,6 +680,8 @@ export default function StudentExamTake() {
       const settings = normalizeExamSettings(examRow?.exam_settings);
       const prepared = prepareQuestionsForAttempt(questionRows || [], settings, saved?.questionOrder, user.id, examId);
       if (cancelled) return;
+      // Numbered from the rows as loaded (not the per-student shuffle), so they match what the professor sees.
+      professorNumbersRef.current = professorQuestionNumbers(questionRows || []);
       setExam(examRow);
       setExistingAttemptCount(count || 0);
       setQuestions(prepared.questions);
@@ -694,6 +704,9 @@ export default function StudentExamTake() {
       }
       answersRef.current = restoredAnswers;
       setAnswers(restoredAnswers);
+      // First load opens question 1; saved progress reopens the page the student was on.
+      questionsRef.current = prepared.questions;
+      goToQuestion(clampQuestionIndex(saved?.currentIndex, prepared.questions.length));
       if (reopened) {
         clearSavedExamProgress(user.id, examId);
         setReopenedAttempt(reopened);
@@ -720,10 +733,6 @@ export default function StudentExamTake() {
       }
       violationsRef.current = restoredViolations;
       setViolations(restoredViolations);
-      if (!(count > 0) && restoredViolations.length >= EXAM_VIOLATION_LIMIT) {
-        violationLimitReachedRef.current = true;
-        setAutoSubmitRequired(true);
-      }
       setSavedProgress(reopened ? null : saved);
       progressMetaRef.current = { ...progressMetaRef.current, questionOrder: prepared.order };
       setStartedAt(reopened ? null : saved?.startedAt || null);
@@ -770,25 +779,23 @@ export default function StudentExamTake() {
   }, [exam, examSettings.requireEnvironmentScan, secureModeRequired]);
 
   useEffect(() => {
-    if (!examModeReady || examSubmittedRef.current || violationLimitReachedRef.current || interruptionLimitExceededRef.current || !user?.id || !examId) return;
+    if (!examModeReady || examSubmittedRef.current || interruptionLimitExceededRef.current || !user?.id || !examId) return;
     writeSavedExamProgress(user.id, examId, {
       answers,
       violations,
       scanStatus,
       startedAt,
       timerEndsAt,
+      currentIndex,
       questionOrder: progressMetaRef.current.questionOrder,
       touchedAnswers: [...touchedAnswersRef.current],
       savedAt: new Date().toISOString(),
     });
-    setSavedProgress({ answers, violations, scanStatus, startedAt, timerEndsAt, questionOrder: progressMetaRef.current.questionOrder, savedAt: new Date().toISOString() });
-  }, [answers, examId, examModeReady, scanStatus, startedAt, timerEndsAt, user?.id, violations]);
+    setSavedProgress({ answers, violations, scanStatus, startedAt, timerEndsAt, currentIndex, questionOrder: progressMetaRef.current.questionOrder, savedAt: new Date().toISOString() });
+  }, [answers, currentIndex, examId, examModeReady, scanStatus, startedAt, timerEndsAt, user?.id, violations]);
 
   // Detector/timer callbacks may outlive a render; submission always reads current refs.
   submitLatestRef.current = handleSubmit;
-  useEffect(() => {
-    if (progressReady && autoSubmitRequired && !attemptsExhausted) void submitLatestRef.current("violation_limit");
-  }, [progressReady, autoSubmitRequired, attemptsExhausted]);
 
   useEffect(() => {
     if (progressReady && interruptionAutoSubmitRequired && !attemptsExhausted) void submitLatestRef.current("interruption_limit");
@@ -1112,7 +1119,7 @@ export default function StudentExamTake() {
   }, [examModeReady, examSettings.liveAudioMonitoring]);
 
   useEffect(() => {
-    if (!isMicrophoneBlocked || autoSubmitRequired) return undefined;
+    if (!isMicrophoneBlocked) return undefined;
     const blockInteraction = (event) => {
       if (event.target?.closest?.(".student-microphone-lock-overlay")) return;
       event.preventDefault();
@@ -1121,23 +1128,23 @@ export default function StudentExamTake() {
     const events = ["beforeinput", "click", "keydown", "pointerdown", "submit"];
     events.forEach((eventName) => window.document.addEventListener(eventName, blockInteraction, true));
     return () => events.forEach((eventName) => window.document.removeEventListener(eventName, blockInteraction, true));
-  }, [isMicrophoneBlocked, autoSubmitRequired]);
+  }, [isMicrophoneBlocked]);
 
   function updateAnswers(update) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     answersRef.current = update(answersRef.current);
     setAnswers(answersRef.current);
   }
 
   function setFileAnswer(questionId, file) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     touchedAnswersRef.current.add(questionId);
     filesRef.current = { ...filesRef.current, [questionId]: file };
     setFiles(filesRef.current);
   }
 
   function beginAuthorizedFilePicker(questionId) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     authorizedFilePickerRef.current = { active: true, questionId };
     filePickerFullscreenRestoreRef.current = false;
     if (filePickerFinalizeTimerRef.current) {
@@ -1181,13 +1188,13 @@ export default function StudentExamTake() {
   }
 
   function setAnswer(questionId, value) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     touchedAnswersRef.current.add(questionId);
     updateAnswers((current) => ({ ...current, [questionId]: value }));
   }
 
   function toggleMultiAnswer(questionId, key) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     touchedAnswersRef.current.add(questionId);
     updateAnswers((current) => {
       const selected = current[questionId] || [];
@@ -1199,7 +1206,7 @@ export default function StudentExamTake() {
   }
 
   function toggleDragDropAnswer(questionId, choiceId) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     touchedAnswersRef.current.add(questionId);
     updateAnswers((current) => {
       const selected = current[questionId] || [];
@@ -1211,7 +1218,7 @@ export default function StudentExamTake() {
   }
 
   function setEnumerationAnswer(questionId, index, value) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     touchedAnswersRef.current.add(questionId);
     updateAnswers((current) => ({
       ...current,
@@ -1220,7 +1227,7 @@ export default function StudentExamTake() {
   }
 
   function setMatchingAnswer(questionId, left, right) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     touchedAnswersRef.current.add(questionId);
     updateAnswers((current) => {
       const nextMatches = Object.entries(current[questionId] || {}).reduce((items, [key, value]) => {
@@ -1233,7 +1240,7 @@ export default function StudentExamTake() {
   }
 
   function removeMatchingAnswer(questionId, left) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     touchedAnswersRef.current.add(questionId);
     updateAnswers((current) => {
       const nextMatches = { ...(current[questionId] || {}) };
@@ -1258,7 +1265,7 @@ export default function StudentExamTake() {
   }
 
   function moveOrderingAnswer(questionId, fromIndex, toIndex) {
-    if (examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current) return;
+    if (examSubmittingRef.current || examSubmittedRef.current) return;
     touchedAnswersRef.current.add(questionId);
     updateAnswers((current) => ({
       ...current,
@@ -1681,7 +1688,7 @@ export default function StudentExamTake() {
   }
 
   function recordManualViolation(type, message, severity = "Medium") {
-    if (!examModeReadyRef.current || examSubmittingRef.current || examSubmittedRef.current || violationLimitReachedRef.current || interruptionLimitExceededRef.current) return;
+    if (!examModeReadyRef.current || examSubmittingRef.current || examSubmittedRef.current || interruptionLimitExceededRef.current) return;
     if (!incidentTrackerRef.current.claim(type)) return;
     const timestamp = new Date().toISOString();
     if (hasSupabaseConfig && user?.id && exam?.id) {
@@ -1689,9 +1696,27 @@ export default function StudentExamTake() {
     }
   }
 
+  function goToQuestion(index) {
+    const list = questionsRef.current;
+    const next = clampQuestionIndex(index, list.length);
+    currentIndexRef.current = next;
+    currentQuestionRef.current = { questionId: list[next]?.id, screenNumber: next + 1 };
+    setCurrentIndex(next);
+    window.requestAnimationFrame?.(() => window.document?.getElementById?.("exam-question-heading")?.focus());
+  }
+
+  // An Ordering answer starts as a shuffled list, so it only counts once the student has moved it (as on submit).
+  function countedAnswers(source) {
+    const counted = { ...source };
+    questions.forEach((question) => {
+      if (question.question_type === "Ordering / Sequencing" && !touchedAnswersRef.current.has(question.id)) delete counted[question.id];
+    });
+    return counted;
+  }
+
   function saveCurrentProgress() {
     const progress = {
-      answers: answersRef.current, violations: violationsRef.current, ...progressMetaRef.current,
+      answers: answersRef.current, violations: violationsRef.current, ...progressMetaRef.current, currentIndex: currentIndexRef.current,
       startedAt: startedAtRef.current, touchedAnswers: [...touchedAnswersRef.current],
       savedAt: new Date().toISOString(),
     };
@@ -1761,20 +1786,20 @@ export default function StudentExamTake() {
     if (next.length === violationsRef.current.length) return;
     violationsRef.current = next;
     setViolations(next);
-    if (next.length >= EXAM_VIOLATION_LIMIT && !violationLimitReachedRef.current) {
-      violationLimitReachedRef.current = true;
-      // Lock and freeze before any asynchronous saving or subsequent detector callback.
-      submissionSnapshotRef.current = { answers: { ...answersRef.current }, files: { ...filesRef.current }, touched: new Set(touchedAnswersRef.current) };
-      examModeReadyRef.current = false;
-      setExamModeReady(false);
-      setAutoSubmitRequired(true);
-      stopProctoring();
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-    }
     try { saveCurrentProgress(); } catch (error) { toast.error(`Progress backup failed: ${error.message}`); }
-    if (next.length < EXAM_VIOLATION_LIMIT) toast.warning(violationWarning(next.length));
-    else void submitLatestRef.current("violation_limit");
-    return violationLimitReachedRef.current;
+    toast.warning(violationNotice(violation.label || violation.message || violation.type, violation.screenNumber ?? null));
+    return false;
+  }
+
+  // The question on screen right now: its id, the professor's number for it, and the student's screen number.
+  function getViolationQuestion() {
+    const current = currentQuestionRef.current;
+    if (!current?.questionId) return null;
+    return {
+      question_id: current.questionId,
+      question_number: professorNumbersRef.current.get(current.questionId) ?? null,
+      screenNumber: current.screenNumber ?? null,
+    };
   }
 
   function captureProctorSnapshot() {
@@ -1809,6 +1834,8 @@ export default function StudentExamTake() {
   }
 
   async function persistViolation({ type, message, severity, timestamp }) {
+    // The question is taken at detection time, before any await lets the student move to another page.
+    const question = getViolationQuestion();
     // Capture evidence before submission can stop the camera; upload need not delay counting.
     const screenshotPromise = uploadProctorSnapshot(type, timestamp).catch((error) => {
       toast.error(`Snapshot was not saved: ${error.message}`);
@@ -1824,8 +1851,17 @@ export default function StudentExamTake() {
         description: message || type,
         severity,
         created_at: timestamp,
+        question_id: question?.question_id ?? null,
+        question_number: question?.question_number ?? null,
       };
       let { data, error } = await supabase.from("violations").insert(payload).select("id").single();
+      // A database without the newer columns still records the violation, without them.
+      if (error?.message?.includes("question_id") || error?.message?.includes("question_number")) {
+        const withoutQuestion = { ...payload };
+        delete withoutQuestion.question_id;
+        delete withoutQuestion.question_number;
+        ({ data, error } = await supabase.from("violations").insert(withoutQuestion).select("id").single());
+      }
       if (
         error?.message?.includes("professor_id")
         || error?.message?.includes("course_id")
@@ -1842,7 +1878,10 @@ export default function StudentExamTake() {
         data = fallback.data;
       }
       if (error) throw error;
-      acceptRecordedViolation({ id: data.id, examId: exam.id, type, message, severity, timestamp });
+      acceptRecordedViolation({
+        id: data.id, examId: exam.id, type, message, severity, timestamp,
+        questionNumber: question?.question_number ?? null, screenNumber: question?.screenNumber ?? null,
+      });
       const screenshotPath = await screenshotPromise;
       if (screenshotPath) {
         const { error: evidenceError } = await supabase.from("violations").update({ screenshot_url: screenshotPath })
@@ -2277,7 +2316,7 @@ export default function StudentExamTake() {
   async function startFaceMonitoring() {
     try {
       faceDetectorRef.current = await createMediaPipeFaceLandmarker();
-      if (!mountedRef.current || violationLimitReachedRef.current || examSubmittedRef.current || !proctorStreamRef.current) {
+      if (!mountedRef.current || examSubmittedRef.current || !proctorStreamRef.current) {
         faceDetectorRef.current?.close?.();
         faceDetectorRef.current = null;
         return;
@@ -2300,7 +2339,7 @@ export default function StudentExamTake() {
       }, 1000);
       return;
     } catch {
-      if (!mountedRef.current || violationLimitReachedRef.current || examSubmittedRef.current || !proctorStreamRef.current) return;
+      if (!mountedRef.current || examSubmittedRef.current || !proctorStreamRef.current) return;
       setFaceStatus("Basic face tracking active");
       faceMonitorRef.current = window.setInterval(() => {
         const video = proctorVideoRef.current;
@@ -2454,7 +2493,7 @@ export default function StudentExamTake() {
         },
         onData: handleRoboflowData,
       });
-      if (!mountedRef.current || violationLimitReachedRef.current || examSubmittedRef.current || !proctorStreamRef.current) {
+      if (!mountedRef.current || examSubmittedRef.current || !proctorStreamRef.current) {
         roboflowConnectionRef.current?.cleanup?.();
         roboflowConnectionRef.current = null;
         return;
@@ -2620,7 +2659,7 @@ export default function StudentExamTake() {
 
   async function enterExamMode() {
     if (examStartInFlightRef.current) return;
-    if (!progressReady || violationLimitReachedRef.current || interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
+    if (!progressReady || interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
     if (!examCompatibility.supported) {
       toast.error("This browser cannot meet the requirements for this exam.");
       return;
@@ -2770,7 +2809,7 @@ export default function StudentExamTake() {
   }
 
   async function restoreExamLock() {
-    if (violationLimitReachedRef.current || interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
+    if (interruptionLimitExceededRef.current || examSubmittingRef.current || examSubmittedRef.current) return;
     try {
       await requestExamLock();
       authorizedFullscreenRecoveryRef.current = false;
@@ -2783,15 +2822,56 @@ export default function StudentExamTake() {
     }
   }
 
-  async function handleSubmit(reason = "manual") {
+  // The unanswered prompt is plain page content: a native dialog would blur the window and trip the exam guards.
+  function cancelUnansweredSubmit() {
+    setUnansweredPrompt("");
+    window.requestAnimationFrame?.(() => window.document?.getElementById?.("exam-question-heading")?.focus());
+  }
+
+  // Keeps Tab inside the two dialog buttons and lets Escape go back.
+  function handleUnansweredPromptKeyDown(event) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelUnansweredSubmit();
+      return;
+    }
+    if (event.key !== "Tab") return;
+    const buttons = [...event.currentTarget.querySelectorAll("button:not([disabled])")];
+    if (!buttons.length) return;
+    const first = buttons[0];
+    const last = buttons[buttons.length - 1];
+    if (event.shiftKey && window.document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && window.document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  function confirmUnansweredSubmit() {
+    setUnansweredPrompt("");
+    return handleSubmit("manual", { unansweredConfirmed: true });
+  }
+
+  async function handleSubmit(reason = "manual", { unansweredConfirmed = false } = {}) {
     if (examSubmittingRef.current || examSubmittedRef.current) return;
-    const systemSubmission = reason === "violation_limit" || reason === "interruption_limit";
+    const systemSubmission = reason === "interruption_limit";
     if (!scanPassed && !systemSubmission) {
       toast.error("Complete and pass the environment scan before submitting the exam.");
       setScanOpen(true);
       return;
     }
     if (!hasSupabaseConfig || !user?.id || !exam) return;
+    // Only the student's own submission asks; the timer and the interruption limit submit without a prompt.
+    if (reason === "manual" && !unansweredConfirmed) {
+      const unansweredMessage = unansweredConfirmMessage(unansweredNumbers(questions, countedAnswers(answersRef.current), filesRef.current));
+      if (unansweredMessage) {
+        setUnansweredPrompt(unansweredMessage);
+        return;
+      }
+    }
+    setUnansweredPrompt("");
     examSubmittingRef.current = true;
     setSubmitting(true);
     setSubmissionError("");
@@ -2832,9 +2912,7 @@ export default function StudentExamTake() {
         if (!hasProvidedAnswer(submissionAnswers[question.id])) submissionAnswers[question.id] = null;
       }
 
-      const submissionViolations = violationsRef.current.map((violation, index) => violationLimitReachedRef.current && index === EXAM_VIOLATION_LIMIT - 1
-          ? { ...violation, submissionReason: "violation_limit", submissionMessage: "Exam submission initiated after reaching 5 violations." }
-          : violation);
+      const submissionViolations = [...violationsRef.current];
       if (reason === "interruption_limit") {
         submissionViolations.push({
           type: "AUTO_SUBMISSION",
@@ -2852,14 +2930,6 @@ export default function StudentExamTake() {
       });
 
       if (submitError) throw submitError;
-
-      const limitViolation = violationsRef.current[EXAM_VIOLATION_LIMIT - 1];
-      if (violationLimitReachedRef.current && limitViolation?.id) {
-        const { error: logError } = await supabase.from("violations").update({
-          description: `${limitViolation.message} Exam submission initiated after reaching 5 violations.`,
-        }).eq("id", limitViolation.id).eq("student_id", user.id);
-        if (logError) window.console.warn("Automatic submission reason is saved on the attempt; violation description update failed.", logError);
-      }
 
       toast.success("Exam submitted");
       examSubmittedRef.current = true;
@@ -3191,23 +3261,6 @@ export default function StudentExamTake() {
     );
   }
 
-  if (autoSubmitRequired) {
-    return (
-      <section className="student-exam-take-page" role="alert" aria-live="assertive" aria-busy={submitting}>
-        <PageHeader title={exam.exam_title || exam.title} subtitle={`Violations: ${Math.min(violations.length, EXAM_VIOLATION_LIMIT)} / ${EXAM_VIOLATION_LIMIT}`} />
-        <Card>
-          <FiShield />
-          <h2>Maximum violation limit reached</h2>
-          <p>{violationWarning(EXAM_VIOLATION_LIMIT)}</p>
-          {submissionError ? <>
-            <p>Your answers are locked. Submission failed: {submissionError}</p>
-            <Button disabled={submitting} onClick={() => handleSubmit("violation_limit")}>Retry Submission</Button>
-          </> : <p>Saving your completed answers. Please keep this page open.</p>}
-        </Card>
-      </section>
-    );
-  }
-
   if (interruptionAutoSubmitRequired) {
     return (
       <section className="student-exam-take-page" role="alert" aria-live="assertive" aria-busy={submitting}>
@@ -3471,6 +3524,9 @@ export default function StudentExamTake() {
     );
   }
 
+  const submitDisabled = submitting || !scanPassed || examLocked || isMicrophoneBlocked || attemptsExhausted || interruptionLimitExceededRef.current;
+  const navigatorAnswers = countedAnswers(answers);
+
   return (
     <section className="student-exam-take-page with-proctor-dock">
       <PageHeader
@@ -3482,12 +3538,36 @@ export default function StudentExamTake() {
             <span>{totalPoints} {Number(totalPoints) === 1 ? "point" : "points"}</span>
           </span>
         )}
-        actions={<Button disabled={submitting || !scanPassed || examLocked || isMicrophoneBlocked || attemptsExhausted || interruptionLimitExceededRef.current} onClick={() => handleSubmit("manual")}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
+        actions={<Button disabled={submitDisabled} onClick={() => handleSubmit("manual")}>{submitting ? "Submitting..." : "Submit Exam"}</Button>}
       />
 
       <div className="student-exam-workspace">
         <div className="student-exam-question-list">
-          {questions.map(renderQuestion)}
+          <h2 className="exam-question-heading" id="exam-question-heading" tabIndex={-1}>Question {currentIndex + 1} of {questions.length}</h2>
+          {questions[currentIndex] ? renderQuestion(questions[currentIndex], currentIndex) : null}
+          <nav className="exam-question-navigator" aria-label="Questions">
+            {questions.map((question, index) => {
+              const answered = isQuestionAnswered(question, navigatorAnswers, files);
+              return (
+                <button
+                  aria-current={index === currentIndex ? "step" : undefined}
+                  aria-label={`Question ${index + 1}, ${answered ? "answered" : "unanswered"}`}
+                  className={answered ? "is-answered" : undefined}
+                  key={question.id}
+                  onClick={() => goToQuestion(index)}
+                  type="button"
+                >
+                  {index + 1}
+                </button>
+              );
+            })}
+          </nav>
+          <div className="exam-question-pager">
+            <Button disabled={currentIndex === 0} onClick={() => goToQuestion(currentIndex - 1)} type="button" variant="light"><FiArrowLeft aria-hidden="true" /> Previous</Button>
+            {currentIndex >= questions.length - 1
+              ? <Button disabled={submitDisabled} onClick={() => handleSubmit("manual")} type="button">{submitting ? "Submitting..." : "Submit Exam"}</Button>
+              : <Button onClick={() => goToQuestion(currentIndex + 1)} type="button">Next <FiArrowRight aria-hidden="true" /></Button>}
+          </div>
         </div>
 
         <aside className="student-proctor-dock" aria-label="Live proctoring panel">
@@ -3498,10 +3578,9 @@ export default function StudentExamTake() {
                 <span><FiClock aria-hidden="true" /> Time left</span>
                 <strong>{hasTimer ? formatRemainingTime(remainingMs ?? (timerEndsAt ? new Date(timerEndsAt).getTime() - Date.now() : durationMinutes * 60 * 1000)) : "No timer"}</strong>
               </div>
-              <div className={`student-proctor-stat ${violations.length >= 3 ? "urgent" : ""}`} role="status" aria-live="polite" title={violations.length ? violationWarning(violations.length) : `Auto-submit after ${EXAM_VIOLATION_LIMIT} violations.`}>
+              <div className="student-proctor-stat" role="status" aria-live="polite" title="Violations recorded for your professor's review.">
                 <span><FiShield aria-hidden="true" /> Violations</span>
-                <strong>{violations.length} / {EXAM_VIOLATION_LIMIT}</strong>
-                {renderStatusPips(violations.length, EXAM_VIOLATION_LIMIT)}
+                <strong>{violations.length}</strong>
               </div>
               <div className={`student-proctor-stat ${interruptionState.count >= interruptionState.limit ? "urgent" : ""}`} role="status" aria-live="polite" title={interruptionWarning(interruptionState)}>
                 <span><FiRefreshCw aria-hidden="true" /> Interruptions</span>
@@ -3509,7 +3588,6 @@ export default function StudentExamTake() {
                 {renderStatusPips(interruptionState.count, interruptionState.limit)}
               </div>
             </div>
-            {violations.length >= 3 ? <p className="student-proctor-status-warning">{violationWarning(violations.length)}</p> : null}
             {interruptionState.count >= interruptionState.limit ? <p className="student-proctor-status-warning">{interruptionWarning(interruptionState)}</p> : null}
           </section>
 
@@ -3559,6 +3637,26 @@ export default function StudentExamTake() {
           </section>
         </aside>
       </div>
+
+      {unansweredPrompt ? (
+        <div className="exam-submit-confirm-backdrop" onClick={(event) => { if (event.target === event.currentTarget) cancelUnansweredSubmit(); }}>
+          <div
+            aria-describedby="exam-submit-confirm-message"
+            aria-labelledby="exam-submit-confirm-title"
+            aria-modal="true"
+            className="exam-submit-confirm"
+            onKeyDown={handleUnansweredPromptKeyDown}
+            role="alertdialog"
+          >
+            <h2 id="exam-submit-confirm-title">Unanswered questions</h2>
+            <p id="exam-submit-confirm-message">{unansweredPrompt}</p>
+            <div className="exam-submit-confirm-actions">
+              <Button autoFocus onClick={cancelUnansweredSubmit} type="button" variant="light">Go back</Button>
+              <Button disabled={submitDisabled} onClick={() => void confirmUnansweredSubmit()} type="button">Submit anyway</Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {examLocked ? (
         <div className="student-exam-lock-overlay" role="alert">

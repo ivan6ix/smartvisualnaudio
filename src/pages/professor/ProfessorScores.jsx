@@ -10,7 +10,9 @@ import useListViewPreference from "../../hooks/useListViewPreference";
 import { professorCourses, professorExams } from "../../data/professorData";
 import { getListPageSlice } from "../../lib/listView";
 import { canGradeManually, needsGradingPath } from "../../lib/manualGrading";
-import { buildRiskQueue, summarizeIntegrity } from "../../lib/integrityRisk";
+import { buildRiskQueue, summarizeIntegrity, violationLabel } from "../../lib/integrityRisk";
+import { getViolationEvidenceState } from "../../lib/professorMonitoring";
+import { formatViolationQuestion, professorQuestionNumbers, validateAnswerAdjustment, violationsForAttempt } from "../../lib/violationQuestions";
 import { fetchAllRows } from "../../lib/fetchAllRows";
 import { DEFAULT_PASSING_SCORE } from "../../lib/itemAnalysis";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
@@ -109,6 +111,24 @@ function getCorrectAnswerLabel(question) {
   const answers = Array.isArray(question.correct_answers) ? question.correct_answers : [];
   if (answers.length) return typeof answers[0] === "object" ? answers.map((item) => JSON.stringify(item)).join("; ") : answers.join(", ");
   return question.correct_answer || "-";
+}
+
+// Runs the full read; if the database lacks one of the newer columns, runs the older read instead.
+async function withColumnFallback(read, readWithoutNewColumns, columns) {
+  const result = await read();
+  if (result.error && columns.some((column) => String(result.error.message || "").includes(column))) return readWithoutNewColumns();
+  return result;
+}
+
+// Same order the student side numbers questions in: sort_order (unnumbered last), then id.
+function orderQuestions(questions) {
+  const rank = (question) => (question.sort_order == null || !Number.isFinite(Number(question.sort_order)) ? Infinity : Number(question.sort_order));
+  return [...questions].sort((a, b) => {
+    const x = rank(a);
+    const y = rank(b);
+    if (x !== y) return x < y ? -1 : 1;
+    return String(a.id) < String(b.id) ? -1 : String(a.id) > String(b.id) ? 1 : 0;
+  });
 }
 
 function paginate(rows, page) {
@@ -213,6 +233,7 @@ export default function ProfessorScores() {
   const [answerFilter, setAnswerFilter] = useState("All");
   const [page, setPage] = useState(1);
   const [gradeInputs, setGradeInputs] = useState({});
+  const [adjustInputs, setAdjustInputs] = useState({});
   const listView = useListViewPreference({ role: "professor", page: "scores", defaultView: "table" });
 
   // Two rounds: courses and exams together, then everything for the published exams together. Every table is read
@@ -295,17 +316,35 @@ export default function ProfessorScores() {
           .in("exam_id", examIds)
           .order("exam_id", { ascending: true })
           .order("student_id", { ascending: true })),
-        fetchAllRows((options) => supabase
-          .from("violations")
-          .select("exam_id, student_id, violation_type, severity, created_at", options)
-          .in("exam_id", examIds)
-          .order("id", { ascending: true })),
+        // The question columns and grading_note arrive with a newer migration; until it is applied, the read is
+        // repeated without them so Scores keeps working.
+        withColumnFallback(
+          () => fetchAllRows((options) => supabase
+            .from("violations")
+            .select("id, exam_id, student_id, violation_type, severity, description, screenshot_url, evidence_url, question_id, question_number, created_at", options)
+            .in("exam_id", examIds)
+            .order("id", { ascending: true })),
+          () => fetchAllRows((options) => supabase
+            .from("violations")
+            .select("exam_id, student_id, violation_type, severity, created_at", options)
+            .in("exam_id", examIds)
+            .order("id", { ascending: true })),
+          ["question_id", "question_number", "description", "evidence_url"],
+        ),
         // Answers have no exam column; the inner join filters them by their attempt's exam in the same request.
-        fetchAllRows((options) => supabase
-          .from("exam_attempt_answers")
-          .select("id, attempt_id, question_id, answer, file_url, earned_points, max_points, is_correct, needs_manual_grading, graded_at, exam_attempts!inner(exam_id)", options)
-          .in("exam_attempts.exam_id", examIds)
-          .order("id", { ascending: true })),
+        withColumnFallback(
+          () => fetchAllRows((options) => supabase
+            .from("exam_attempt_answers")
+            .select("id, attempt_id, question_id, answer, file_url, earned_points, max_points, is_correct, needs_manual_grading, graded_at, grading_note, exam_attempts!inner(exam_id)", options)
+            .in("exam_attempts.exam_id", examIds)
+            .order("id", { ascending: true })),
+          () => fetchAllRows((options) => supabase
+            .from("exam_attempt_answers")
+            .select("id, attempt_id, question_id, answer, file_url, earned_points, max_points, is_correct, needs_manual_grading, graded_at, exam_attempts!inner(exam_id)", options)
+            .in("exam_attempts.exam_id", examIds)
+            .order("id", { ascending: true })),
+          ["grading_note"],
+        ),
         fetchAllRows((options) => supabase
           .from("exam_attempt_reopen_requests")
           .select("id, attempt_id, exam_id, student_id, reason, status, reviewed_at, reopened_started_at, original_submitted_at, original_score, original_earned_points, original_max_points, original_status, created_at", options)
@@ -405,7 +444,7 @@ export default function ProfessorScores() {
   }), [answersByAttempt, assignmentCountByExam, attemptsByExam, courseById, data.exams, enrollmentCountByCourse, pointsByExam]);
 
   const selectedExam = examId ? examSummaries.find((exam) => exam.id === examId) : null;
-  const examQuestions = useMemo(() => data.questions.filter((question) => question.exam_id === examId), [data.questions, examId]);
+  const examQuestions = useMemo(() => orderQuestions(data.questions.filter((question) => question.exam_id === examId)), [data.questions, examId]);
   const examAttempts = useMemo(() => attemptsByExam.get(examId) || [], [attemptsByExam, examId]);
   const selectedAttempt = attemptId ? attempts.find((attempt) => attempt.id === attemptId) : null;
   const selectedQuestion = questionId ? questionById.get(questionId) : null;
@@ -574,6 +613,31 @@ export default function ProfessorScores() {
     await loadData();
   }
 
+  // Adjusting points after a violation rewrites the score and records why, so the student sees the reason.
+  async function saveAdjustment(answer, question) {
+    const maxPoints = Number(answer.max_points ?? question?.points ?? 0);
+    const input = adjustInputs[answer.id] || {};
+    // An empty points box is not 0, and the note is never prefilled, so the student always sees a reason.
+    const checked = validateAnswerAdjustment({ points: input.points ?? answer.earned_points, note: input.note, maxPoints, formatMax: formatPoints });
+    if (checked.error) {
+      toast.error(checked.error);
+      return;
+    }
+    const { value, note } = checked;
+    if (!hasSupabaseConfig) {
+      toast.success("Points adjusted.");
+      return;
+    }
+    const { error } = await supabase.rpc("adjust_exam_attempt_answer", { p_answer_id: answer.id, p_earned_points: value, p_note: note });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("Points adjusted.");
+    setAdjustInputs((current) => ({ ...current, [answer.id]: undefined }));
+    await loadData();
+  }
+
   async function reviewReopenRequest(request, decision) {
     if (!request?.id) return;
     const { error } = await supabase.rpc("review_exam_attempt_reopen_request", {
@@ -586,6 +650,28 @@ export default function ProfessorScores() {
     }
     toast.success(decision === "Approved" ? "Attempt reopened." : "Reopening request rejected.");
     await loadData();
+  }
+
+  async function openEvidence(violation) {
+    const path = violation.evidence_url || violation.screenshot_url;
+    if (!path) return;
+    try {
+      if (/^https?:/.test(path)) {
+        window.open(path, "_blank", "noopener,noreferrer");
+        return;
+      }
+      if (path.startsWith("data:")) {
+        const blob = await (await window.fetch(path)).blob();
+        window.open(window.URL.createObjectURL(blob), "_blank", "noopener,noreferrer");
+        return;
+      }
+      const bucket = getViolationEvidenceState(violation).audioPath ? "audio-violations" : "proctor-snapshots";
+      const { data: signed, error } = await supabase.storage.from(bucket).createSignedUrl(path, 60 * 10);
+      if (error || !signed?.signedUrl) throw error || new Error("Unable to open the evidence.");
+      window.open(signed.signedUrl, "_blank", "noopener,noreferrer");
+    } catch (error) {
+      toast.error(error.message || "Unable to open the evidence.");
+    }
   }
 
   async function openSubmittedFile(answer) {
@@ -622,11 +708,16 @@ export default function ProfessorScores() {
       <AttemptView
         attempt={selectedAttempt}
         exam={selectedAttempt ? examById.get(selectedAttempt.exam_id) : null}
-        questions={selectedAttempt ? data.questions.filter((question) => question.exam_id === selectedAttempt.exam_id) : []}
+        questions={selectedAttempt ? orderQuestions(data.questions.filter((question) => question.exam_id === selectedAttempt.exam_id)) : []}
         answers={selectedAttempt ? answersByAttempt[selectedAttempt.id] || [] : []}
+        violations={selectedAttempt ? violationsForAttempt(data.violations, selectedAttempt, attempts.filter((item) => item.student_id === selectedAttempt.student_id)) : []}
         gradeInputs={gradeInputs}
         onGradeInput={setGradeInputs}
         onSaveGrade={saveManualGrade}
+        onOpenEvidence={openEvidence}
+        adjustInputs={adjustInputs}
+        onAdjustInput={setAdjustInputs}
+        onSaveAdjustment={saveAdjustment}
         onOpenFile={openSubmittedFile}
         onReviewReopen={reviewReopenRequest}
         onBack={() => navigate(`/professor/scores/${selectedAttempt?.exam_id || examId || ""}`)}
@@ -938,9 +1029,21 @@ function FileAnswerCell({ answer, limit = 80, onOpenFile }) {
   return <span title={label}>{shortText(label, limit)}</span>;
 }
 
-function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeInput, onSaveGrade, onOpenFile, onReviewReopen, onBack }) {
+function AttemptView({ attempt, exam, questions, answers, violations = [], gradeInputs, onGradeInput, onSaveGrade, adjustInputs = {}, onAdjustInput, onSaveAdjustment, onOpenEvidence, onOpenFile, onReviewReopen, onBack }) {
   if (!attempt) return <section className="professor-scores-page"><PageHeader variant="plain" title="Attempt Not Found" actions={<Button variant="light" onClick={onBack}>Back</Button>} /></section>;
   const answersByQuestion = new Map(answers.map((answer) => [answer.question_id, answer]));
+  const numbers = professorQuestionNumbers(questions);
+  const violationsByQuestion = new Map();
+  const unassigned = [];
+  violations.forEach((violation) => {
+    if (violation.question_id && numbers.has(violation.question_id)) {
+      const list = violationsByQuestion.get(violation.question_id);
+      if (list) list.push(violation);
+      else violationsByQuestion.set(violation.question_id, [violation]);
+    } else {
+      unassigned.push(violation);
+    }
+  });
   return (
     <section className="professor-scores-page">
       <PageHeader variant="plain" title="Attempt Details" subtitle={`${attempt.studentName} | ${exam?.exam_title || exam?.title || "Exam"}`} actions={<Button variant="light" onClick={onBack}>Back</Button>} />
@@ -969,19 +1072,32 @@ function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeIn
           <table className="professor-score-table">
             <thead><tr><th>#</th><th>Question</th><th>Type</th><th>Answer</th><th>Correct Answer</th><th>Score</th><th>Status</th><th>Partial Match</th><th>Action</th></tr></thead>
             <tbody>
-              {questions.map((question, index) => {
+              {questions.map((question) => {
                 const answer = answersByQuestion.get(question.id);
+                const number = numbers.get(question.id);
+                const questionViolations = violationsByQuestion.get(question.id) || [];
+                const maxPoints = Number(answer?.max_points ?? question.points ?? 0);
                 return (
                   <tr key={question.id}>
-                    <td>{index + 1}</td>
-                    <td title={question.question_text}>{shortText(question.question_text, 80)}</td>
+                    <td>{number}</td>
+                    <td title={question.question_text}>
+                      {shortText(question.question_text, 80)}
+                      {questionViolations.length ? <ViolationBadges violations={questionViolations} onOpenEvidence={onOpenEvidence} /> : null}
+                    </td>
                     <td>{question.question_type}</td>
                     <td><FileAnswerCell answer={answer} onOpenFile={onOpenFile} /></td>
                     <td title={getCorrectAnswerLabel(question)}>{shortText(getCorrectAnswerLabel(question), 80)}</td>
                     <td>{answer?.earned_points === null || answer?.earned_points === undefined ? "-" : formatPoints(answer.earned_points)} / {formatPoints(answer?.max_points ?? question.points)}</td>
                     <td><CompactBadge tone={answer?.needs_manual_grading ? "warn" : "success"}>{answer?.needs_manual_grading ? "Pending" : answer ? "Graded" : "No Answer"}</CompactBadge></td>
                     <td>{allowsPartialMatch(question) ? "Enabled" : "-"}</td>
-                    <td>{canGradeManually(question, answer) ? <GradeControl answer={answer} question={question} gradeInputs={gradeInputs} onGradeInput={onGradeInput} onSaveGrade={onSaveGrade} /> : null}</td>
+                    <td>
+                      {canGradePlain(question, answer) ? <GradeControl answer={answer} question={question} gradeInputs={gradeInputs} onGradeInput={onGradeInput} onSaveGrade={onSaveGrade} /> : null}
+                      {answer?.grading_note ? <p className="professor-adjust-note">Adjusted: {formatPoints(answer.earned_points)} / {formatPoints(maxPoints)} — {answer.grading_note}</p> : null}
+                      {answer && (questionViolations.length || answer.grading_note) ? (
+                        <AdjustControl answer={answer} maxPoints={maxPoints} questionNumber={number} input={adjustInputs[answer.id]} onChange={onAdjustInput} onSave={() => onSaveAdjustment(answer, question)} />
+                      ) : null}
+                      {!answer && questionViolations.length ? <small className="professor-adjust-none">No answer to adjust</small> : null}
+                    </td>
                   </tr>
                 );
               })}
@@ -989,6 +1105,12 @@ function AttemptView({ attempt, exam, questions, answers, gradeInputs, onGradeIn
           </table>
         </div>
       </Card>
+      {unassigned.length ? (
+        <Card>
+          <h3 className="professor-violation-heading">Not tied to a question</h3>
+          <ViolationBadges violations={unassigned} onOpenEvidence={onOpenEvidence} />
+        </Card>
+      ) : null}
     </section>
   );
 }
@@ -1029,7 +1151,7 @@ function QuestionReviewView({ exam, question, questionIndex, questions, rows, se
                   <td><FileAnswerCell answer={row.answer} limit={120} onOpenFile={onOpenFile} /></td>
                   <td>{row.answer?.earned_points === null || row.answer?.earned_points === undefined ? "-" : formatPoints(row.answer.earned_points)} / {formatPoints(row.answer?.max_points ?? question.points)}</td>
                   <td><CompactBadge tone={row.answer?.needs_manual_grading ? "warn" : row.answer ? "success" : "neutral"}>{row.answer?.needs_manual_grading ? "Pending" : row.answer ? "Graded" : "No Answer"}</CompactBadge></td>
-                  <td>{canGradeManually(question, row.answer) ? <GradeControl answer={row.answer} question={question} gradeInputs={gradeInputs} onGradeInput={onGradeInput} onSaveGrade={onSaveGrade} /> : <Link className="professor-score-action" to={`/professor/scores/${currentExamId}/attempt/${row.attempt.id}`}>View Attempt</Link>}</td>
+                  <td>{canGradePlain(question, row.answer) ? <GradeControl answer={row.answer} question={question} gradeInputs={gradeInputs} onGradeInput={onGradeInput} onSaveGrade={onSaveGrade} /> : <Link className="professor-score-action" to={`/professor/scores/${currentExamId}/attempt/${row.attempt.id}`}>View Attempt</Link>}</td>
                 </tr>
               ))}
             </tbody>
@@ -1039,6 +1161,39 @@ function QuestionReviewView({ exam, question, questionIndex, questions, rows, se
         <Pagination count={rows.length} page={pageData.page} onPage={setPage} />
       </Card>
     </section>
+  );
+}
+
+// A plain manual grade would change the points but keep an old adjustment note, so a noted answer is adjusted instead.
+function canGradePlain(question, answer) {
+  return canGradeManually(question, answer) && !answer.grading_note;
+}
+
+function ViolationBadges({ violations, onOpenEvidence }) {
+  return (
+    <ul className="professor-violation-list">
+      {violations.map((violation, index) => (
+        <li key={violation.id || index}>
+          <CompactBadge tone="warn">{formatViolationQuestion(violationLabel(violation.violation_type), null)}</CompactBadge>
+          <span>{formatDateTime(violation.created_at)}</span>
+          {violation.evidence_url || violation.screenshot_url ? <button className="professor-score-action" onClick={() => onOpenEvidence?.(violation)} type="button">Evidence</button> : null}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function AdjustControl({ answer, maxPoints, questionNumber, input = {}, onChange, onSave }) {
+  const update = (patch) => onChange((current) => ({ ...current, [answer.id]: { ...current[answer.id], ...patch } }));
+  return (
+    <div className="professor-adjust">
+      <strong>Adjust points</strong>
+      <div className="professor-adjust-fields">
+        <input aria-label="Adjusted points" min="0" max={maxPoints} step="0.01" type="number" value={input.points ?? answer.earned_points ?? ""} onChange={(event) => update({ points: event.target.value })} />
+        <input aria-label="Reason for the adjustment" maxLength={300} placeholder={`Question ${questionNumber}: reason, e.g. cheating – loud audio`} type="text" value={input.note ?? ""} onChange={(event) => update({ note: event.target.value })} />
+        <button onClick={onSave} type="button">Save</button>
+      </div>
+    </div>
   );
 }
 

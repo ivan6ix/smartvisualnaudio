@@ -13,6 +13,7 @@ import { ALL_RISK_FILTERS, RISK_LEVELS, filterRiskReview, riskFilterOptions } fr
 import { fetchRowsByIds } from "../../lib/fetchAllRows";
 import { getListPageSlice } from "../../lib/listView";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
+import { formatViolationQuestion } from "../../lib/violationQuestions";
 import { ALL_FILTERS, ALL_RECORD_FILTERS, RECORD_EVIDENCE, VIOLATION_DATE_RANGES, countByViolationType, filterRecords, filterViolations, violationFilterOptions } from "../../lib/violationFilters";
 
 const violationLabels = {
@@ -127,11 +128,19 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
     async function loadViolations() {
       setLoading(true);
       setLoadError("");
-      const { data, error } = await supabase
+      // question_number arrives with a newer migration; until it is applied the read is repeated without it.
+      let { data, error } = await supabase
         .from("violations")
-        .select("id, student_id, exam_id, violation_type, description, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at")
+        .select("id, student_id, exam_id, violation_type, description, severity, screenshot_url, evidence_url, evidence_type, audio_level, question_number, created_at")
         .order("created_at", { ascending: false })
         .limit(500);
+      if (error?.message?.includes("question_number")) {
+        ({ data, error } = await supabase
+          .from("violations")
+          .select("id, student_id, exam_id, violation_type, description, severity, screenshot_url, evidence_url, evidence_type, audio_level, created_at")
+          .order("created_at", { ascending: false })
+          .limit(500));
+      }
 
       if (error) {
         setLoadError(error.message);
@@ -195,6 +204,7 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
           course: course ? [course.course_code || course.course_name, course.section].filter(Boolean).join(" - ") : "-",
           timestamp: new Date(violation.created_at).getTime() || 0,
           violationType: violationLabels[violation.violation_type] || violation.violation_type || "Monitoring alert",
+          questionNumber: violation.question_number ?? null,
           description: violation.description || (violation.audio_level ? `Audio level: ${violation.audio_level}%` : "-"),
           severity: violation.severity || "Low",
           date,
@@ -251,7 +261,7 @@ export default function DeanExamIntegrity({ scope = "dean" }) {
     { key: "student", label: "Student", width: "18%", className: "dean-integrity-primary" },
     { key: "studentNumber", label: "Student ID", width: "10%" },
     { key: "exam", label: "Exam", width: "20%", className: "dean-integrity-primary" },
-    { key: "violationType", label: "Violation", width: "18%", className: "dean-integrity-primary" },
+    { key: "violationType", label: "Violation", width: "18%", className: "dean-integrity-primary", render: (row) => formatViolationQuestion(row.violationType, row.questionNumber) },
     { key: "severity", label: "Severity", width: "10%", render: (row) => <Badge tone={severityTone(row.severity)}>{row.severity}</Badge> },
     { key: "date", label: "Date", width: "10%" },
     { key: "time", label: "Time", width: "8%" },

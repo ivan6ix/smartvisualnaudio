@@ -26,7 +26,7 @@ function classifyAudio(level) {
   return "Loud Noise";
 }
 
-export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, canRecordViolation, onSilenceNotice }) {
+export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, canRecordViolation, onSilenceNotice, getQuestionContext }) {
   const [audioLevel, setAudioLevel] = useState(0);
   const [audioStatus, setAudioStatus] = useState("Quiet");
   const [micStatus, setMicStatus] = useState("Inactive");
@@ -45,8 +45,8 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
   const quietSinceRef = useRef(null);
   const activeRef = useRef(false);
   const evidenceRecordersRef = useRef(new Set());
-  const violationCallbacksRef = useRef({ onViolation, canRecordViolation });
-  violationCallbacksRef.current = { onViolation, canRecordViolation };
+  const violationCallbacksRef = useRef({ onViolation, canRecordViolation, getQuestionContext });
+  violationCallbacksRef.current = { onViolation, canRecordViolation, getQuestionContext };
   const silenceTrackerRef = useRef(createSilenceTracker());
   const silenceCallbacksRef = useRef({ onSilenceNotice });
 
@@ -127,6 +127,8 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
     if (!activeRef.current || loudIncidentRecordedRef.current || handlingViolationRef.current || Date.now() < cooldownUntilRef.current || violationCallbacksRef.current.canRecordViolation?.() === false) return;
     loudIncidentRecordedRef.current = true;
     const triggeredAt = new Date().toISOString();
+    // The question on screen when the sound crossed the limit, not when the upload finishes.
+    const questionContext = violationCallbacksRef.current.getQuestionContext?.() ?? null;
     handlingViolationRef.current = true;
     cooldownUntilRef.current = Date.now() + LOUD_NOISE_COOLDOWN_MS;
     addTimelineItem("Loud Noise Detected", level, "Audio reached 50% for 3 seconds. Recording the next 10 seconds for the professor.", true);
@@ -144,9 +146,12 @@ export function useLiveAudioMonitoring({ enabled, exam, student, onViolation, ca
         professorId: exam?.professor_id || exam?.created_by,
         studentId: student?.id,
         triggeredAt,
+        questionContext,
         onRecorded: ({ violationId }) => violationCallbacksRef.current.onViolation?.({
           id: violationId, examId: exam.id, type: "AUDIO_DETECTED", severity: "Medium", timestamp: triggeredAt,
+          label: "Loud audio detected",
           message: "Audio reached 50% for 3 seconds. Audio evidence recorded for the professor.",
+          questionNumber: questionContext?.question_number ?? null, screenNumber: questionContext?.screenNumber ?? null,
         }),
       });
       addTimelineItem("Loud Noise Detected", level, "Audio violation recorded. The professor can review the 10-second clip.", true);

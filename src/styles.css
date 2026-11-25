@@ -9261,6 +9261,103 @@ html[data-theme="light"] .professor-course-list-card:hover {
 .student-exam-question-list {
   min-width: 0;
 }
+/* One question per page: a heading, the question, a wrapping number navigator, then Previous / Next. */
+.exam-question-heading {
+  color: var(--app-text-muted);
+  font-size: 0.95rem;
+  font-weight: 800;
+  margin: 0;
+}
+.exam-question-heading:focus {
+  outline: none;
+}
+.exam-question-heading:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+}
+.exam-question-navigator {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+.exam-question-navigator button {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 0 8px;
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.exam-question-navigator button:hover {
+  border-color: var(--accent);
+}
+.exam-question-navigator button.is-answered {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--app-on-accent);
+}
+.exam-question-navigator button[aria-current="step"] {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.exam-question-navigator button:focus-visible {
+  outline: 3px solid var(--app-text);
+  outline-offset: 2px;
+}
+.exam-question-pager {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: space-between;
+  min-width: 0;
+}
+.exam-question-pager .btn {
+  flex: 1 1 140px;
+  justify-content: center;
+}
+/* In-page unanswered prompt. It sits under the lock overlays (z-index 120) so a lock still covers it. */
+.exam-submit-confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(2, 6, 23, 0.6);
+}
+.exam-submit-confirm {
+  width: min(100%, 440px);
+  display: grid;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--app-line);
+  border-radius: 16px;
+  background: var(--app-surface);
+  color: var(--app-text);
+  box-shadow: 0 24px 70px rgba(2, 6, 23, 0.4);
+}
+.exam-submit-confirm h2,
+.exam-submit-confirm p {
+  margin: 0;
+}
+.exam-submit-confirm p {
+  color: var(--app-text-muted);
+  overflow-wrap: break-word;
+}
+.exam-submit-confirm-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.exam-submit-confirm-actions .btn {
+  flex: 1 1 140px;
+}
 .student-proctor-dock {
   align-self: start;
   display: grid;
@@ -20882,3 +20979,13 @@ html[data-theme="dark"] .professor-violation-toast {
   text-align: center;
   line-height: 1.2;
 }
+.student-grade-note { grid-column: 1 / -1; margin: 0; font-size: 0.85rem; color: var(--app-text-muted, #94a3b8); }
+.professor-violation-list { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 4px; }
+.professor-violation-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.8rem; }
+.professor-violation-heading { margin: 0 0 8px; font-size: 1rem; }
+.professor-adjust { display: grid; gap: 6px; margin-top: 8px; }
+.professor-adjust-fields { display: flex; flex-wrap: wrap; gap: 6px; }
+.professor-adjust-fields input[type="number"] { width: 90px; }
+.professor-adjust-fields input[type="text"] { flex: 1 1 220px; min-width: 0; }
+.professor-adjust-note { margin: 6px 0 0; font-size: 0.85rem; }
+.professor-adjust-none { display: block; margin-top: 6px; opacity: 0.75; }

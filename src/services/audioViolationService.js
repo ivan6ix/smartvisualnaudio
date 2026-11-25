@@ -24,10 +24,16 @@ export async function uploadAudioViolation({
   professorId,
   studentId,
   triggeredAt,
+  questionContext,
   onRecorded,
 }) {
   const timestamp = triggeredAt || new Date().toISOString();
   const initialDescription = "Background voice or loud audio was detected for at least 3 seconds.";
+  // The question on screen when the audio triggered (null when none was shown).
+  const questionFields = {
+    question_id: questionContext?.question_id ?? null,
+    question_number: questionContext?.question_number ?? null,
+  };
   const corePayload = {
     student_id: studentId,
     exam_id: exam.id,
@@ -37,6 +43,7 @@ export async function uploadAudioViolation({
     description: initialDescription,
     severity: "Medium",
     created_at: timestamp,
+    ...questionFields,
   };
   let violationId = null;
   let inserted = null;
@@ -48,6 +55,7 @@ export async function uploadAudioViolation({
     course_id: courseId || exam.course_id || null,
     severity: "Medium",
     created_at: timestamp,
+    ...questionFields,
   };
   for (const payload of [
     corePayload,
@@ -55,14 +63,21 @@ export async function uploadAudioViolation({
     { ...corePayload, violation_type: FALLBACK_AUDIO_VIOLATION_TYPE },
     { ...minimalPayload, violation_type: FALLBACK_AUDIO_VIOLATION_TYPE },
   ]) {
-    const result = await supabase.from("violations").insert(payload).select("id").single();
+    let result = await supabase.from("violations").insert(payload).select("id").single();
+    // A database without the question columns still records the violation, without them.
+    if (result.error?.message?.includes("question_id") || result.error?.message?.includes("question_number")) {
+      const withoutQuestion = { ...payload };
+      delete withoutQuestion.question_id;
+      delete withoutQuestion.question_number;
+      result = await supabase.from("violations").insert(withoutQuestion).select("id").single();
+    }
     inserted = result.data;
     insertError = result.error;
     if (!insertError) break;
   }
   if (insertError) throw insertError;
   violationId = inserted?.id;
-  const limitReached = onRecorded?.({ violationId, timestamp }) === true;
+  onRecorded?.({ violationId, timestamp });
 
   const resolvedAudioBlob = await audioBlob;
   let evidenceUrl = null;
@@ -94,8 +109,6 @@ export async function uploadAudioViolation({
       description = "Audio level reached 50% or higher for 3 seconds, but the 10-second audio evidence was not available.";
     }
   }
-
-  if (limitReached) description = "Audio violation recorded. Recording stopped at the violation limit; any captured audio was retained. The exam reached 5 violations and automatic submission was triggered.";
 
   const evidencePayload = {
     description,

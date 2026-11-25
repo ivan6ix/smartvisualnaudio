@@ -17,7 +17,7 @@ assert.equal(needsGradingPath("exam-1"), "/professor/scores/exam-1?tab=questions
 
 const scores = readFileSync("src/pages/professor/ProfessorScores.jsx", "utf8");
 assert.match(scores, /import \{ canGradeManually, needsGradingPath \} from "\.\.\/\.\.\/lib\/manualGrading";/, "Scores must use the shared grading helpers.");
-assert.equal((scores.match(/canGradeManually\(question, (?:answer|row\.answer)\) \? <GradeControl/g) || []).length, 2, "Both grading views must use canGradeManually.");
+assert.equal((scores.match(/canGradePlain\(question, (?:answer|row\.answer)\) \? <GradeControl/g) || []).length, 2, "Both grading views must use canGradePlain (canGradeManually, minus answers that carry an adjustment note).");
 assert.doesNotMatch(scores, /&& question\.manual_grading \? <GradeControl/, "Grading must not depend only on the question flag.");
 
 // Accurate pending counts from answers, and a Needs Grading deep link in the exam table (Scores has no card view).

@@ -6,6 +6,7 @@ import ScrollAfterItems from "../../components/ScrollAfterItems";
 import { Badge, Button, Card, ListSkeleton, SearchBox, SkeletonValue } from "../../components/ui";
 import { hasSupabaseConfig, supabase } from "../../lib/supabase";
 import { playViolationAlertSound } from "../../lib/violationAlerts";
+import { formatViolationQuestion } from "../../lib/violationQuestions";
 import {
   ALL_FILTER,
   classifyOngoingStudent,
@@ -510,7 +511,7 @@ function AttemptHistoryRow({ attempts }) {
 function ViolationHistoryRow({ violations }) {
   return (
     <tr className="professor-ongoing-subrow"><td colSpan={5}>
-      <div>{violations.map((violation) => <span key={violation.id}>{violation.violation_type || "Violation"} · {formatDateTime(violation.created_at)} · {violation.description || "No details"}{violation.evidence_url || violation.screenshot_url ? " · Evidence recorded" : ""}</span>)}</div>
+      <div>{violations.map((violation) => <span key={violation.id}>{formatViolationQuestion(violation.violation_type || "Violation", violation.question_number)} · {formatDateTime(violation.created_at)} · {violation.description || "No details"}{violation.evidence_url || violation.screenshot_url ? " · Evidence recorded" : ""}</span>)}</div>
     </td></tr>
   );
 }
